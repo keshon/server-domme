@@ -1,0 +1,8 @@
+*.json
+.env
+*.exe
+/dist
+/tools
+/.VSCodeCounter
+datastore.json*
+*.txt
