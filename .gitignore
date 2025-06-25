@@ -1,4 +1,4 @@
-*.json
+/*.json
 .env
 *.exe
 /dist
