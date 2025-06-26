@@ -30,10 +30,8 @@ type CommandHistoryRecord struct {
 }
 
 type Record struct {
-	PrefPrefix          string                 `json:"pref_prefix"`
-	UseCache            bool                   `json:"use_cache"`
-	CommandMode         string                 `json:"cmd_mode"`
 	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
+	Roles               map[string]string      `json:"roles"` // e.g., "punisher": "roleID"
 }
 
 func New(filePath string) (*Storage, error) {
@@ -49,29 +47,30 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 	data, exists := s.ds.Get(guildID)
 	if !exists {
 		newRecord := &Record{
-			PrefPrefix:          "",
-			UseCache:            false,
 			CommandsHistoryList: []CommandHistoryRecord{},
+			Roles:               map[string]string{},
 		}
 		s.ds.Add(guildID, newRecord)
 		return newRecord, nil
 	}
 
-	// Try to convert `data` (map[string]interface{}) into JSON format
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling data: %w", err)
 	}
 
-	// Unmarshal JSON data into the Record struct
 	var record Record
 	err = json.Unmarshal(jsonData, &record)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling to *Record: %w", err)
 	}
 
+	if record.Roles == nil {
+		record.Roles = map[string]string{}
+	}
+
 	if len(record.CommandsHistoryList) > commandHistoryLimit {
-		record.CommandsHistoryList = record.CommandsHistoryList[len(record.CommandsHistoryList)-20:]
+		record.CommandsHistoryList = record.CommandsHistoryList[len(record.CommandsHistoryList)-commandHistoryLimit:]
 	}
 
 	return &record, nil
@@ -97,4 +96,33 @@ func (s *Storage) FetchCommandHistory(guildID string) ([]CommandHistoryRecord, e
 	}
 
 	return record.CommandsHistoryList, nil
+}
+
+func (s *Storage) SetRoleForGuild(guildID string, roleType string, roleID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	if record.Roles == nil {
+		record.Roles = map[string]string{}
+	}
+
+	record.Roles[roleType] = roleID
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) GetRoleForGuild(guildID string, roleType string) (string, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return "", err
+	}
+
+	roleID, exists := record.Roles[roleType]
+	if !exists {
+		return "", fmt.Errorf("role type '%s' not set for this guild", roleType)
+	}
+
+	return roleID, nil
 }

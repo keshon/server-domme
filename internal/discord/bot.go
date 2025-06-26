@@ -24,8 +24,7 @@ type Bot struct {
 
 func StartBot(ctx context.Context, token string, storage *storage.Storage, logger *zap.Logger) error {
 	b := &Bot{
-		storage: storage,
-
+		storage:   storage,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
 		logger:    logger,
 	}
@@ -94,6 +93,7 @@ func (b *Bot) handleSlashCommand(s *discordgo.Session, i *discordgo.InteractionC
 			Session:     s,
 			Interaction: i,
 			Args:        args,
+			Storage:     b.storage,
 		})
 	}
 }

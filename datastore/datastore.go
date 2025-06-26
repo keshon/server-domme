@@ -32,7 +32,7 @@ func DefaultConfig(filePath string) *Config {
 		AutoSaveInterval: 1 * time.Minute,
 		MaxMemorySize:    100 * 1024 * 1024, // 100MB
 		BackupCount:      3,
-		Logger:           log.New(os.Stderr, "[DataStore] ", log.LstdFlags),
+		Logger:           log.New(os.Stderr, "[datastore] ", log.LstdFlags),
 	}
 }
 
