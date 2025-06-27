@@ -11,7 +11,7 @@ func init() {
 	Register(&Command{
 		Sort:           201,
 		Name:           "release",
-		Description:    "Release a brat (removes the assigned role)",
+		Description:    "Release a brat (removes the brat role)",
 		Category:       "Assign brat role",
 		DCSlashHandler: releaseSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{

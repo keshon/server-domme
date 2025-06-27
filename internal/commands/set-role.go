@@ -10,7 +10,7 @@ func init() {
 	Register(&Command{
 		Sort:           301,
 		Name:           "set-role",
-		Description:    "Configure punisher/victim/assigned roles (admin-only)",
+		Description:    "Configure punisher/victim/brat roles (admin-only)",
 		Category:       "Assign brat role",
 		DCSlashHandler: setRoleHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
@@ -22,7 +22,7 @@ func init() {
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{Name: "Punisher", Value: "punisher"},
 					{Name: "Victim", Value: "victim"},
-					{Name: "Assigned (punishment)", Value: "assigned"},
+					{Name: "Brat (assigned role)", Value: "assigned"},
 				},
 			},
 			{
