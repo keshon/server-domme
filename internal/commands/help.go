@@ -10,9 +10,10 @@ import (
 
 func init() {
 	Register(&Command{
+		Sort:           500,
 		Name:           "help",
 		Description:    "Show a list of available commands.",
-		Category:       "Utility",
+		Category:       "Information",
 		DCSlashHandler: helpSlashHandler,
 	})
 }
@@ -34,29 +35,39 @@ func helpSlashHandler(ctx *SlashContext) {
 	})
 }
 
-// Helper to build the command list output
 func buildHelpMessage() string {
 	cmds := All()
 
-	// Group commands by category
 	categoryMap := make(map[string][]*Command)
+	categorySort := make(map[string]int)
 	for _, cmd := range cmds {
 		cat := cmd.Category
 		categoryMap[cat] = append(categoryMap[cat], cmd)
+
+		if val, ok := categorySort[cat]; !ok || cmd.Sort < val {
+			categorySort[cat] = cmd.Sort
+		}
 	}
 
-	var categories []string
-	for cat := range categoryMap {
-		categories = append(categories, cat)
+	type catSortPair struct {
+		Name string
+		Sort int
 	}
-	sort.Strings(categories)
+	var sortedCats []catSortPair
+	for cat, sortVal := range categorySort {
+		sortedCats = append(sortedCats, catSortPair{cat, sortVal})
+	}
+	sort.Slice(sortedCats, func(i, j int) bool {
+		return sortedCats[i].Sort < sortedCats[j].Sort
+	})
 
 	var sb strings.Builder
-	for _, cat := range categories {
+	for _, catPair := range sortedCats {
+		cat := catPair.Name
 		sb.WriteString(fmt.Sprintf("**%s**\n", cat))
 		cmdList := categoryMap[cat]
 		sort.Slice(cmdList, func(i, j int) bool {
-			return cmdList[i].Name < cmdList[j].Name
+			return cmdList[i].Sort < cmdList[j].Sort
 		})
 		for _, cmd := range cmdList {
 			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name, cmd.Description))

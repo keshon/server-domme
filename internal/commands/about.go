@@ -15,7 +15,7 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:        500,                         // sorting weight
+		Sort:        501,                         // sorting weight
 		Name:        "about",                     // command name
 		Description: "Shows info about the bot.", // command description
 		Category:    "Information",               // command category

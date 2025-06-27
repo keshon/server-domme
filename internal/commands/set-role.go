@@ -8,10 +8,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           201,
+		Sort:           301,
 		Name:           "set-role",
-		Description:    "Configure punisher/victim roles (admin-only)",
-		Category:       "Admin",
+		Description:    "Configure punisher/victim/assigned roles (admin-only)",
+		Category:       "Assign brat role",
 		DCSlashHandler: setRoleHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -22,6 +22,7 @@ func init() {
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{Name: "Punisher", Value: "punisher"},
 					{Name: "Victim", Value: "victim"},
+					{Name: "Assigned (punishment)", Value: "assigned"},
 				},
 			},
 			{
@@ -66,7 +67,7 @@ func setRoleHandler(ctx *SlashContext) {
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "You’re not wearing the crown, darling. Only Admins may play God here.",
-				Flags:   1 << 6, // ephemeral
+				Flags:   1 << 6,
 			},
 		})
 		return
@@ -82,7 +83,13 @@ func setRoleHandler(ctx *SlashContext) {
 		}
 	}
 
-	if roleType != "punisher" && roleType != "victim" {
+	validTypes := map[string]bool{
+		"punisher": true,
+		"victim":   true,
+		"assigned": true,
+	}
+
+	if !validTypes[roleType] {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{

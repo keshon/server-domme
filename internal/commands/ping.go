@@ -8,7 +8,7 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:        100,           // low sort to appear early
+		Sort:        502,           // low sort to appear early
 		Name:        "ping",        // command name
 		Description: "Pong!",       // command description
 		Category:    "Information", // command category

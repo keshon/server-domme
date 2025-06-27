@@ -49,8 +49,8 @@ func init() {
 	Register(&Command{
 		Sort:           200,
 		Name:           "punish",
-		Description:    "Punish a brat (assigns them the Brat Corner role)",
-		Category:       "Moderation",
+		Description:    "Punish a brat (assigns the brat role)",
+		Category:       "Assign brat role",
 		DCSlashHandler: punishSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -63,8 +63,8 @@ func init() {
 	})
 }
 
-func buildPunishAction(s *discordgo.Session, guildID, targetID, victimRoleID string) (string, error) {
-	err := s.GuildMemberRoleAdd(guildID, targetID, victimRoleID)
+func buildPunishAction(s *discordgo.Session, guildID, targetID, assignedRoleID string) (string, error) {
+	err := s.GuildMemberRoleAdd(guildID, targetID, assignedRoleID)
 	if err != nil {
 		return "", err
 	}
@@ -101,6 +101,18 @@ func punishSlashHandler(ctx *SlashContext) {
 		return
 	}
 
+	assignedRoleID, err := storage.GetRoleForGuild(i.GuildID, "assigned")
+	if err != nil || assignedRoleID == "" {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "No 'assigned' role? No shame tag? You disappoint me.",
+				Flags:   1 << 6,
+			},
+		})
+		return
+	}
+
 	if !slices.Contains(i.Member.Roles, punisherRoleID) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -131,7 +143,7 @@ func punishSlashHandler(ctx *SlashContext) {
 		return
 	}
 
-	msg, err := buildPunishAction(s, i.GuildID, targetUserID, victimRoleID)
+	msg, err := buildPunishAction(s, i.GuildID, targetUserID, assignedRoleID)
 	if err != nil {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
