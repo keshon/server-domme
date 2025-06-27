@@ -29,9 +29,18 @@ type CommandHistoryRecord struct {
 	Datetime    time.Time `json:"datetime"`
 }
 
+type UserTask struct {
+	UserID     string    `json:"user_id"`
+	TaskText   string    `json:"task_text"`
+	AssignedAt time.Time `json:"assigned_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
+}
+
 type Record struct {
 	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
 	Roles               map[string]string      `json:"roles"` // e.g., "punisher": "roleID"
+	Tasks               map[string]UserTask    `json:"tasks"` // key = userID
 }
 
 func New(filePath string) (*Storage, error) {
@@ -40,6 +49,10 @@ func New(filePath string) (*Storage, error) {
 		return nil, err
 	}
 	return &Storage{ds: ds}, nil
+}
+
+func (s *Storage) Close() error {
+	return s.ds.Close()
 }
 
 // Helper function to get or create a Record for a guild
@@ -67,6 +80,9 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 
 	if record.Roles == nil {
 		record.Roles = map[string]string{}
+	}
+	if record.Tasks == nil {
+		record.Tasks = make(map[string]UserTask)
 	}
 
 	if len(record.CommandsHistoryList) > commandHistoryLimit {
@@ -125,4 +141,51 @@ func (s *Storage) GetRoleForGuild(guildID string, roleType string) (string, erro
 	}
 
 	return roleID, nil
+}
+
+func (s *Storage) SetUserTask(guildID string, userID string, task UserTask) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	if record.Tasks == nil {
+		record.Tasks = make(map[string]UserTask)
+	}
+
+	record.Tasks[userID] = task
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) GetUserTask(guildID string, userID string) (*UserTask, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return nil, err
+	}
+
+	if record.Tasks == nil {
+		return nil, fmt.Errorf("no tasks found")
+	}
+
+	task, exists := record.Tasks[userID]
+	if !exists {
+		return nil, fmt.Errorf("no task for user %s", userID)
+	}
+
+	return &task, nil
+}
+
+func (s *Storage) ClearUserTask(guildID string, userID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	if record.Tasks != nil {
+		delete(record.Tasks, userID)
+		s.ds.Add(guildID, record)
+	}
+
+	return nil
 }

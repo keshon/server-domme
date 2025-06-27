@@ -29,7 +29,7 @@ type Config struct {
 func DefaultConfig(filePath string) *Config {
 	return &Config{
 		FilePath:         filePath,
-		AutoSaveInterval: 1 * time.Minute,
+		AutoSaveInterval: 10 * time.Second,
 		MaxMemorySize:    100 * 1024 * 1024, // 100MB
 		BackupCount:      3,
 		Logger:           log.New(os.Stderr, "[datastore] ", log.LstdFlags),

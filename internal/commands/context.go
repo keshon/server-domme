@@ -11,7 +11,11 @@ type SlashContext struct {
 	Session     *discordgo.Session
 	Interaction *discordgo.InteractionCreate
 	Args        []string
+	Storage     *storage.Storage
+}
 
-	// We expand struct with new values/functions here if needed (and pass to it from bot.go)
-	Storage *storage.Storage
+type ComponentContext struct {
+	Session     *discordgo.Session
+	Interaction *discordgo.InteractionCreate
+	Storage     *storage.Storage
 }

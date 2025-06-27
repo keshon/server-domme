@@ -34,6 +34,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer store.Close()
 
 	// Run the bot in a separate goroutine
 	errCh := make(chan error, 1)

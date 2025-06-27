@@ -78,23 +78,39 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionApplicationCommand {
-		return
-	}
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		cmdName := i.ApplicationCommandData().Name
+		args := extractArgs(i)
 
-	cmd := i.ApplicationCommandData().Name
-	args := extractArgs(i)
-	b.handleSlashCommand(s, i, cmd, args)
-}
+		if cmd, ok := commands.Get(cmdName); ok && cmd.DCSlashHandler != nil {
+			ctx := &commands.SlashContext{
+				Session:     s,
+				Interaction: i,
+				Args:        args,
+				Storage:     b.storage,
+			}
+			cmd.DCSlashHandler(ctx)
+		}
 
-func (b *Bot) handleSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate, cmdName string, args []string) {
-	if cmd, ok := commands.Get(cmdName); ok && cmd.DCSlashHandler != nil {
-		cmd.DCSlashHandler(&commands.SlashContext{
-			Session:     s,
-			Interaction: i,
-			Args:        args,
-			Storage:     b.storage,
-		})
+	case discordgo.InteractionMessageComponent:
+		customID := i.MessageComponentData().CustomID
+		parts := strings.SplitN(customID, "_", 2)
+		if len(parts) < 1 {
+			return
+		}
+		cmdName := parts[0]
+		if cmd, ok := commands.Get(cmdName); ok && cmd.DCComponentHandler != nil {
+			ctx := &commands.ComponentContext{
+				Session:     s,
+				Interaction: i,
+				Storage:     b.storage,
+			}
+			cmd.DCComponentHandler(ctx)
+		}
+
+	default:
+		fmt.Printf("[DEBUG] Unknown interaction type: %d\n", i.Type)
 	}
 }
 
