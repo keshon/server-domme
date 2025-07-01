@@ -32,6 +32,7 @@ type CommandHistoryRecord struct {
 type UserTask struct {
 	UserID     string    `json:"user_id"`
 	TaskText   string    `json:"task_text"`
+	MessageID  string    `json:"task_message_id"`
 	AssignedAt time.Time `json:"assigned_at"`
 	ExpiresAt  time.Time `json:"expires_at"`
 	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
