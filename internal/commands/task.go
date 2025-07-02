@@ -8,6 +8,7 @@ import (
 	"os"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
+	"slices"
 	"sync"
 	"time"
 
@@ -68,6 +69,17 @@ func taskSlashHandler(ctx *SlashContext) {
 	userID := i.Member.User.ID
 	guildID := i.GuildID
 
+	cfg := config.New()
+	if slices.Contains(cfg.ProtectedUsers, userID) {
+		_ = ctx.Session.InteractionRespond(ctx.Interaction.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Some lines even a Domme bot won’t cross—especially the one drawn by its creator. No tasks for the one who commands the code. The puppet never pulls its own strings. 😈",
+			},
+		})
+		return
+	}
+
 	taskCancelMutex.Lock()
 	if cancel, exists := taskCancels[userID]; exists {
 		cancel()
@@ -80,7 +92,7 @@ func taskSlashHandler(ctx *SlashContext) {
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: "You already have a task, darling. Finish one before begging for more.",
-				Flags:   1 << 6,
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return

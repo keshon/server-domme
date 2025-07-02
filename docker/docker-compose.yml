@@ -5,8 +5,10 @@ services:
     image: '${ALIAS}-image'
     volumes:
       - ./data/datastore.json:/usr/project/datastore.json
+      - ./data/tasks.example.json:/usr/project/tasks.example.json
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - STORAGE_PATH=${STORAGE_PATH}
       - TASKS_PATH=${TASKS_PATH}
+      - PROTECTED_USERS=${PROTECTED_USERS}
     entrypoint: /usr/project/app

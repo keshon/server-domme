@@ -4,6 +4,7 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -20,9 +21,10 @@ func Get(key string) string {
 }
 
 type Config struct {
-	DiscordToken string
-	StoragePath  string
-	TasksPath    string
+	DiscordToken   string
+	StoragePath    string
+	TasksPath      string
+	ProtectedUsers []string
 }
 
 func New() *Config {
@@ -42,9 +44,19 @@ func New() *Config {
 		log.Fatal("TASKS_PATH is not set")
 	}
 
+	protectedUsersEnv := Get("PROTECTED_USERS")
+	var protectedUsers []string
+	if protectedUsersEnv != "" {
+		protectedUsers = strings.Split(protectedUsersEnv, ",")
+		for i := range protectedUsers {
+			protectedUsers[i] = strings.TrimSpace(protectedUsers[i])
+		}
+	}
+
 	return &Config{
-		DiscordToken: Get("DISCORD_TOKEN"),
-		StoragePath:  storagePath,
-		TasksPath:    Get("TASKS_PATH"),
+		DiscordToken:   Get("DISCORD_TOKEN"),
+		StoragePath:    storagePath,
+		TasksPath:      Get("TASKS_PATH"),
+		ProtectedUsers: protectedUsers,
 	}
 }
