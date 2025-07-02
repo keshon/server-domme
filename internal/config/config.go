@@ -22,6 +22,7 @@ func Get(key string) string {
 type Config struct {
 	DiscordToken string
 	StoragePath  string
+	TasksPath    string
 }
 
 func New() *Config {
@@ -37,8 +38,13 @@ func New() *Config {
 		log.Fatal("DISCORD_TOKEN is not set")
 	}
 
+	if Get("TASKS_PATH") == "" {
+		log.Fatal("TASKS_PATH is not set")
+	}
+
 	return &Config{
 		DiscordToken: Get("DISCORD_TOKEN"),
 		StoragePath:  storagePath,
+		TasksPath:    Get("TASKS_PATH"),
 	}
 }

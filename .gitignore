@@ -1,4 +1,3 @@
-/*.json
 .env
 *.exe
 /dist
@@ -6,3 +5,4 @@
 /.VSCodeCounter
 datastore.json*
 *.txt
+*private*
