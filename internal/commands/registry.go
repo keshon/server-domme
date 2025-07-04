@@ -2,6 +2,9 @@
 package commands
 
 import (
+	"log"
+	"server-domme/internal/storage"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -41,4 +44,40 @@ func All() []*Command {
 		}
 	}
 	return list
+}
+
+func logCommand(s *discordgo.Session, storage *storage.Storage, guildID, channelID, userID, username, commandName string) error {
+	channel, err := s.State.Channel(channelID)
+	if err != nil {
+		channel, err = s.Channel(channelID)
+		if err != nil {
+			log.Println("Failed to fetch channel:", err)
+		}
+	}
+	channelName := ""
+	if channel != nil {
+		channelName = channel.Name
+	}
+
+	guild, err := s.State.Guild(guildID)
+	if err != nil {
+		guild, err = s.Guild(guildID)
+		if err != nil {
+			log.Println("Failed to fetch guild:", err)
+		}
+	}
+	guildName := ""
+	if guild != nil {
+		guildName = guild.Name
+	}
+
+	return storage.SetCommand(
+		guildID,
+		channelID,
+		channelName,
+		guildName,
+		userID,
+		username,
+		commandName,
+	)
 }

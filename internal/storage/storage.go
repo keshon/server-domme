@@ -4,15 +4,13 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"server-domme/datastore"
 )
 
-const (
-	commandHistoryLimit int = 20
-	tracksHistoryLimit  int = 12
-)
+const commandHistoryLimit int = 50
 
 type Storage struct {
 	ds *datastore.DataStore
@@ -25,13 +23,11 @@ type CommandHistoryRecord struct {
 	UserID      string    `json:"user_id"`
 	Username    string    `json:"username"`
 	Command     string    `json:"command"`
-	Param       string    `json:"param"`
 	Datetime    time.Time `json:"datetime"`
 }
 
 type UserTask struct {
 	UserID     string    `json:"user_id"`
-	TaskText   string    `json:"task_text"`
 	MessageID  string    `json:"task_message_id"`
 	AssignedAt time.Time `json:"assigned_at"`
 	ExpiresAt  time.Time `json:"expires_at"`
@@ -42,6 +38,7 @@ type Record struct {
 	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
 	Roles               map[string]string      `json:"roles"` // e.g., "punisher": "roleID"
 	Tasks               map[string]UserTask    `json:"tasks"` // key = userID
+	Cooldowns           map[string]time.Time   `json:"cooldowns"`
 }
 
 func New(filePath string) (*Storage, error) {
@@ -56,7 +53,6 @@ func (s *Storage) Close() error {
 	return s.ds.Close()
 }
 
-// Helper function to get or create a Record for a guild
 func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 	data, exists := s.ds.Get(guildID)
 	if !exists {
@@ -93,8 +89,7 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 	return &record, nil
 }
 
-// AppendCommandToHistory appends a command history record for a guild
-func (s *Storage) AppendCommandToHistory(guildID string, command CommandHistoryRecord) error {
+func (s *Storage) appendCommandToHistory(guildID string, command CommandHistoryRecord) error {
 
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
@@ -106,7 +101,22 @@ func (s *Storage) AppendCommandToHistory(guildID string, command CommandHistoryR
 	return nil
 }
 
-func (s *Storage) FetchCommandHistory(guildID string) ([]CommandHistoryRecord, error) {
+func (s *Storage) SetCommand(
+	guildID, channelID, channelName, guildName, userID, username, command string,
+) error {
+	record := CommandHistoryRecord{
+		ChannelID:   channelID,
+		ChannelName: channelName,
+		GuildName:   guildName,
+		UserID:      userID,
+		Username:    username,
+		Command:     command,
+		Datetime:    time.Now(),
+	}
+	return s.appendCommandToHistory(guildID, record)
+}
+
+func (s *Storage) GetCommands(guildID string) ([]CommandHistoryRecord, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
@@ -115,7 +125,7 @@ func (s *Storage) FetchCommandHistory(guildID string) ([]CommandHistoryRecord, e
 	return record.CommandsHistoryList, nil
 }
 
-func (s *Storage) SetRoleForGuild(guildID string, roleType string, roleID string) error {
+func (s *Storage) SetPunishRole(guildID string, roleType string, roleID string) error {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
@@ -130,7 +140,7 @@ func (s *Storage) SetRoleForGuild(guildID string, roleType string, roleID string
 	return nil
 }
 
-func (s *Storage) GetRoleForGuild(guildID string, roleType string) (string, error) {
+func (s *Storage) GetPunishRole(guildID string, roleType string) (string, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return "", err
@@ -142,6 +152,42 @@ func (s *Storage) GetRoleForGuild(guildID string, roleType string) (string, erro
 	}
 
 	return roleID, nil
+}
+
+func (s *Storage) SetTaskRole(guildID, roleID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+	if record.Roles == nil {
+		record.Roles = map[string]string{}
+	}
+
+	record.Roles[roleID] = "tasker"
+
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) GetTaskRoles(guildID string) (map[string]string, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return nil, err
+	}
+	if record.Roles == nil {
+		return nil, fmt.Errorf("no roles set")
+	}
+
+	taskerRoles := make(map[string]string)
+	for roleID, roleType := range record.Roles {
+		if roleType == "tasker" {
+			taskerRoles[roleID] = roleType
+		}
+	}
+	if len(taskerRoles) == 0 {
+		return nil, fmt.Errorf("no tasker roles set")
+	}
+	return taskerRoles, nil
 }
 
 func (s *Storage) SetUserTask(guildID string, userID string, task UserTask) error {
@@ -188,5 +234,108 @@ func (s *Storage) ClearUserTask(guildID string, userID string) error {
 		s.ds.Add(guildID, record)
 	}
 
+	return nil
+}
+
+func (s *Storage) SetCooldown(guildID string, userID string, cooldown time.Time) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	s.ClearExpiredCooldowns()
+
+	if record.Cooldowns == nil {
+		record.Cooldowns = make(map[string]time.Time)
+	}
+
+	record.Cooldowns[userID] = cooldown
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) GetCooldown(guildID string, userID string) (time.Time, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if record.Cooldowns == nil {
+		return time.Time{}, fmt.Errorf("no cooldown found")
+	}
+
+	cooldown, exists := record.Cooldowns[userID]
+	if !exists {
+		return time.Time{}, fmt.Errorf("no cooldown for user %s", userID)
+	}
+
+	return cooldown, nil
+}
+
+func (s *Storage) ClearCooldown(guildID string, userID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	if record.Cooldowns != nil {
+		delete(record.Cooldowns, userID)
+		s.ds.Add(guildID, record)
+	}
+
+	return nil
+}
+
+func (s *Storage) ClearExpiredCooldowns() error {
+	now := time.Now()
+
+	for _, guildID := range s.ds.Keys() {
+		record, err := s.getOrCreateGuildRecord(guildID)
+		if err != nil {
+			return fmt.Errorf("error fetching record for guild %s: %w", guildID, err)
+		}
+
+		if record.Cooldowns == nil {
+			continue
+		}
+
+		changed := false
+		for userID, cooldown := range record.Cooldowns {
+			if cooldown.Before(now) {
+				delete(record.Cooldowns, userID)
+				changed = true
+				log.Println("Expired cooldown for user", userID, "in guild", guildID)
+			}
+		}
+
+		if changed {
+			s.ds.Add(guildID, record)
+		}
+	}
+
+	return nil
+}
+
+func (s *Storage) GetMap(key string) (map[string]string, error) {
+	raw, exists := s.ds.Get(key)
+	if !exists {
+		return map[string]string{}, nil
+	}
+
+	jsonData, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal raw data: %w", err)
+	}
+
+	var result map[string]string
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into map[string]string: %w", err)
+	}
+
+	return result, nil
+}
+
+func (s *Storage) SetMap(key string, value map[string]string) error {
+	s.ds.Add(key, value)
 	return nil
 }

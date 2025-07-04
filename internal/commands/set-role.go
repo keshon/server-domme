@@ -2,16 +2,17 @@ package commands
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 func init() {
 	Register(&Command{
-		Sort:           301,
+		Sort:           401,
 		Name:           "set-role",
-		Description:    "Configure punisher/victim/brat roles (admin-only)",
-		Category:       "Assign brat role",
+		Description:    "Configure punisher/victim/tasker roles",
+		Category:       "Administration",
 		DCSlashHandler: setRoleHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -20,9 +21,10 @@ func init() {
 				Description: "Which role are you setting?",
 				Required:    true,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{Name: "Punisher", Value: "punisher"},
-					{Name: "Victim", Value: "victim"},
-					{Name: "Brat (assigned role)", Value: "assigned"},
+					{Name: "Punisher (can punish and release)", Value: "punisher"},
+					{Name: "Victim (can be punished)", Value: "victim"},
+					{Name: "Brat (punishment role assigned)", Value: "assigned"},
+					{Name: "Tasker (can take role based tasks)", Value: "tasker"},
 				},
 			},
 			{
@@ -87,6 +89,7 @@ func setRoleHandler(ctx *SlashContext) {
 		"punisher": true,
 		"victim":   true,
 		"assigned": true,
+		"tasker":   true,
 	}
 
 	if !validTypes[roleType] {
@@ -100,7 +103,32 @@ func setRoleHandler(ctx *SlashContext) {
 		return
 	}
 
-	err = storage.SetRoleForGuild(i.GuildID, roleType, roleID)
+	if roleType == "tasker" {
+		err = storage.SetTaskRole(i.GuildID, roleID)
+		if err != nil {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()),
+					Flags:   1 << 6,
+				},
+			})
+			return
+		}
+	} else {
+		err = storage.SetPunishRole(i.GuildID, roleType, roleID)
+		if err != nil {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()),
+					Flags:   1 << 6,
+				},
+			})
+			return
+		}
+	}
+
 	if err != nil {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -112,11 +140,47 @@ func setRoleHandler(ctx *SlashContext) {
 		return
 	}
 
+	var response string
+	if roleType == "tasker" {
+		roleName, err := getRoleNameByID(s, i.GuildID, roleID)
+		if err != nil {
+			roleName = roleID
+		}
+		response = fmt.Sprintf("✅ Added **%s** to the list of tasker roles. Update your tasks accordingly.", roleName)
+	} else {
+		response = fmt.Sprintf("✅ The **%s** role has been updated.", roleType)
+	}
+
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("✅ The **%s** role has been updated. Good little config, isn't it?", roleType),
+			Content: response,
 			Flags:   1 << 6,
 		},
 	})
+
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "set-role")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
+}
+
+func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, error) {
+	guild, err := s.State.Guild(guildID)
+	if err != nil || guild == nil {
+		guild, err = s.Guild(guildID)
+		if err != nil {
+			return "", fmt.Errorf("failed to fetch guild: %w", err)
+		}
+	}
+
+	for _, role := range guild.Roles {
+		if role.ID == roleID {
+			return role.Name, nil
+		}
+	}
+	return "", fmt.Errorf("role ID %s not found in guild %s", roleID, guildID)
 }

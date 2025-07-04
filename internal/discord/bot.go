@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"go.uber.org/zap"
 )
 
 type Bot struct {
@@ -19,14 +18,12 @@ type Bot struct {
 	dg        *discordgo.Session
 	storage   *storage.Storage
 	slashCmds map[string][]*discordgo.ApplicationCommand
-	logger    *zap.Logger
 }
 
-func StartBot(ctx context.Context, token string, storage *storage.Storage, logger *zap.Logger) error {
+func StartBot(ctx context.Context, token string, storage *storage.Storage) error {
 	b := &Bot{
 		storage:   storage,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
-		logger:    logger,
 	}
 	if err := b.run(ctx, token); err != nil {
 		return fmt.Errorf("bot run error: %w", err)
@@ -51,9 +48,9 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	}
 	defer dg.Close()
 
-	fmt.Println("✅ Discord bot is running.")
+	log.Println("✅ Discord bot is running.")
 	<-ctx.Done()
-	fmt.Println("❎ Shutdown signal received. Cleaning up...")
+	log.Println("❎ Shutdown signal received. Cleaning up...")
 	return nil
 }
 
@@ -70,11 +67,11 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 
 	for _, g := range r.Guilds {
 		if err := b.registerSlashCommands(g.ID); err != nil {
-			b.logger.Error("Failed to register slash commands", zap.Error(err))
+			log.Println("Error registering slash commands for guild", g.ID, ":", err)
 		}
 	}
 
-	fmt.Printf("Bot %v is up and running!\n", botInfo.Username)
+	log.Printf("Bot %v is up and running!\n", botInfo.Username)
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -110,7 +107,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 
 	default:
-		fmt.Printf("[DEBUG] Unknown interaction type: %d\n", i.Type)
+		log.Printf("[DEBUG] Unknown interaction type: %d\n", i.Type)
 	}
 }
 
@@ -145,37 +142,6 @@ func (b *Bot) registerSlashCommands(guildID string) error {
 	b.mu.Unlock()
 
 	return nil
-}
-
-func splitArgs(input string) []string {
-	var args []string
-	var current strings.Builder
-	inQuotes := false
-	escapeNext := false
-
-	for _, r := range input {
-		switch {
-		case escapeNext:
-			current.WriteRune(r)
-			escapeNext = false
-		case r == '\\':
-			escapeNext = true
-		case r == '"':
-			inQuotes = !inQuotes
-		case r == ' ' && !inQuotes:
-			if current.Len() > 0 {
-				args = append(args, current.String())
-				current.Reset()
-			}
-		default:
-			current.WriteRune(r)
-		}
-	}
-
-	if current.Len() > 0 {
-		args = append(args, current.String())
-	}
-	return args
 }
 
 func extractArgs(i *discordgo.InteractionCreate) []string {

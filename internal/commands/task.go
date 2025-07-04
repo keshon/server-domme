@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"server-domme/internal/config"
@@ -20,6 +21,7 @@ var (
 	taskCancels      = make(map[string]context.CancelFunc)
 	taskCancelMutex  = sync.Mutex{}
 	tasks            = []Task{}
+	cooldownDuration = time.Minute * 60 * 3
 )
 
 type Task struct {
@@ -52,12 +54,12 @@ func init() {
 	tasks, err = loadTasks(cfg.TasksPath)
 
 	if err != nil {
-		fmt.Println("Failed to load tasks:", err)
+		log.Println("Failed to load tasks:", err)
 		return
 	}
 
 	if len(tasks) == 0 {
-		fmt.Println("No tasks loaded! Aborting task assignment.")
+		log.Println("No tasks loaded! Aborting task assignment.")
 		return
 	}
 
@@ -68,6 +70,20 @@ func taskSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.Interaction
 	userID := i.Member.User.ID
 	guildID := i.GuildID
+
+	if cooldownUntil, err := ctx.Storage.GetCooldown(guildID, userID); err == nil {
+		if time.Now().Before(cooldownUntil) {
+			remaining := time.Until(cooldownUntil)
+			ctx.Session.InteractionRespond(ctx.Interaction.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("Not so fast, darling. You need to wait **%s** before I'm ready to play again with you.", humanDuration(remaining)),
+					Flags:   discordgo.MessageFlagsEphemeral,
+				},
+			})
+			return
+		}
+	}
 
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, userID) {
@@ -125,26 +141,25 @@ func taskSlashHandler(ctx *SlashContext) {
 		},
 	})
 	if err != nil {
-		fmt.Println("Failed to send task response:", err)
+		log.Println("Failed to send task response:", err)
 		return
 	}
 
 	msg, err := s.InteractionResponse(i.Interaction)
 	if err != nil {
-		fmt.Println("Failed to fetch interaction response:", err)
+		log.Println("Failed to fetch interaction response:", err)
 		return
 	}
 
 	taskEntry := storage.UserTask{
 		UserID:     userID,
 		MessageID:  msg.ID,
-		TaskText:   task.Description,
 		AssignedAt: now,
 		ExpiresAt:  expiry,
 		Status:     "pending",
 	}
-	ctx.Storage.SetUserTask(guildID, userID, taskEntry)
 
+	ctx.Storage.SetUserTask(guildID, userID, taskEntry)
 	ctxTimer, cancel := context.WithCancel(context.Background())
 
 	taskCancelMutex.Lock()
@@ -153,6 +168,11 @@ func taskSlashHandler(ctx *SlashContext) {
 
 	go handleTimers(ctx, ctxTimer, guildID, userID, i.ChannelID, msg.ID, expiryDelay, reminderDelay)
 
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "task")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }
 
 func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {
@@ -190,6 +210,7 @@ func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, 
 				},
 			})
 			ctx.Storage.ClearUserTask(guildID, userID)
+			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
 			empty := []discordgo.MessageComponent{}
 			ctx.Session.ChannelMessageEditComplex(&discordgo.MessageEdit{
 				ID:         taskMsgID,
@@ -265,16 +286,19 @@ func taskComponentHandler(ctx *ComponentContext) {
 			task.Status = "completed"
 			reply = fmt.Sprintf(randomLine(completeYesReplies), userID)
 			reply = "**Task Completed**\n" + reply
+			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
 
 		case "task_complete_no":
 			task.Status = "failed"
 			reply = fmt.Sprintf(randomLine(completeNoReplies), userID)
 			reply = "**Task Failed**\n" + reply
+			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
 
 		case "task_complete_safeword":
 			task.Status = "safeword"
 			reply = fmt.Sprintf(randomLine(completeSafewordReplies), userID)
 			reply = "**Safeword**\n" + reply
+			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
 		}
 
 		taskCancelMutex.Lock()

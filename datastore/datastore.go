@@ -67,6 +67,16 @@ func (ds *DataStore) Delete(key string) {
 	delete(ds.data, key)
 }
 
+func (ds *DataStore) Keys() []string {
+	ds.mu.RLock()
+	defer ds.mu.RUnlock()
+	keys := make([]string, 0, len(ds.data))
+	for key := range ds.data {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 func (ds *DataStore) saveToFile() error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()

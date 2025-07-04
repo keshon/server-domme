@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -29,7 +30,7 @@ func releaseSlashHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.Interaction, ctx.Storage
 	options := i.ApplicationCommandData().Options
 
-	punisherRoleID, err := storage.GetRoleForGuild(i.GuildID, "punisher")
+	punisherRoleID, err := storage.GetPunishRole(i.GuildID, "punisher")
 	if err != nil || punisherRoleID == "" {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -41,7 +42,7 @@ func releaseSlashHandler(ctx *SlashContext) {
 		return
 	}
 
-	assignedRoleID, err := storage.GetRoleForGuild(i.GuildID, "assigned")
+	assignedRoleID, err := storage.GetPunishRole(i.GuildID, "assigned")
 	if err != nil || assignedRoleID == "" {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -101,4 +102,12 @@ func releaseSlashHandler(ctx *SlashContext) {
 			Content: fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetUserID),
 		},
 	})
+
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "release")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }
