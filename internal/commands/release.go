@@ -27,41 +27,23 @@ func init() {
 }
 
 func releaseSlashHandler(ctx *SlashContext) {
-	s, i, storage := ctx.Session, ctx.Interaction, ctx.Storage
+	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 
 	punisherRoleID, err := storage.GetPunishRole(i.GuildID, "punisher")
 	if err != nil || punisherRoleID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "No 'punisher' role set? Someone’s slacking in their duties.",
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, "No 'punisher' role set? Assign the role with `/set-role punisher` that can use this command.")
 		return
 	}
 
 	assignedRoleID, err := storage.GetPunishRole(i.GuildID, "assigned")
 	if err != nil || assignedRoleID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "The 'assigned' role isn’t even set up. Release? From *what*, exactly?",
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, "The 'assigned' role isn’t even set up. Assign the role with `/set-role assigned` that can be released from.")
 		return
 	}
 
 	if !slices.Contains(i.Member.Roles, punisherRoleID) {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.",
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, "YNo, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.")
 		return
 	}
 
@@ -74,34 +56,17 @@ func releaseSlashHandler(ctx *SlashContext) {
 	}
 
 	if targetUserID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Release who, darling? The void?",
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, "Release who, darling? The void?")
 		return
 	}
 
 	err = s.GuildMemberRoleRemove(i.GuildID, targetUserID, assignedRoleID)
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err),
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err))
 		return
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetUserID),
-		},
-	})
+	respond(s, i, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetUserID))
 
 	guildID := i.GuildID
 	userID := i.Member.User.ID

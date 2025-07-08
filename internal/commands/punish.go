@@ -39,64 +39,35 @@ func buildPunishAction(s *discordgo.Session, guildID, targetID, assignedRoleID s
 }
 
 func punishSlashHandler(ctx *SlashContext) {
-	s, i, storage := ctx.Session, ctx.Interaction, ctx.Storage
+	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, i.Member.User.ID) {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️",
-			},
-		})
+		respond(s, i, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
 		return
 	}
 
 	punisherRoleID, err := storage.GetPunishRole(i.GuildID, "punisher")
 	if err != nil || punisherRoleID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Hmm, no 'punisher' role configured yet. Tsk. Someone skipped setup.",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		respondEphemeral(s, i, "No 'punisher' role configured yet. Tsk. Someone skipped setup.")
 		return
 	}
 
 	victimRoleID, err := storage.GetPunishRole(i.GuildID, "victim")
 	if err != nil || victimRoleID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "No 'victim' role configured either? Darling, how are we supposed to play?",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		respondEphemeral(s, i, "No 'victim' role configured either? Darling, how are we supposed to play?")
 		return
 	}
 
 	assignedRoleID, err := storage.GetPunishRole(i.GuildID, "assigned")
 	if err != nil || assignedRoleID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "No 'assigned' role? No shame tag? You disappoint me.",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		respondEphemeral(s, i, "No 'assigned' role? No shame tag? You disappoint me.")
 		return
 	}
 
 	if !slices.Contains(i.Member.Roles, punisherRoleID) {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Nice try, sugar. You don’t wear the right collar to give punishments.",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		respondEphemeral(s, i, "Nice try, sugar. You don’t wear the right collar to give punishments.")
 		return
 	}
 
@@ -109,34 +80,17 @@ func punishSlashHandler(ctx *SlashContext) {
 	}
 
 	if targetUserID == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "No brat selected? A Domme without a target? Unthinkable.",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		respondEphemeral(s, i, "No brat selected? A Domme without a target? Unthinkable.")
 		return
 	}
 
 	msg, err := buildPunishAction(s, i.GuildID, targetUserID, assignedRoleID)
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err),
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		respondEphemeral(s, i, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
 		return
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: msg,
-		},
-	})
+	respond(s, i, msg)
 
 	guildID := i.GuildID
 	userID := i.Member.User.ID

@@ -8,6 +8,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+const (
+	discordMaxMessageLength = 2000
+	codeBlockWrapper        = "```"
+)
+
+var maxContentLength = discordMaxMessageLength - len(codeBlockWrapper)*2
+
 func init() {
 	Register(&Command{
 		Sort:           402,
@@ -18,15 +25,8 @@ func init() {
 	})
 }
 
-const (
-	discordMaxMessageLength = 2000
-	codeBlockWrapper        = "```"
-)
-
-var maxContentLength = discordMaxMessageLength - len(codeBlockWrapper)*2
-
 func logSlashHandler(ctx *SlashContext) {
-	s, i := ctx.Session, ctx.Interaction
+	s, i := ctx.Session, ctx.InteractionCreate
 	guildID := i.GuildID
 	member := i.Member
 	hasAdmin := false
@@ -52,13 +52,7 @@ func logSlashHandler(ctx *SlashContext) {
 	}
 
 	if !hasAdmin {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "You’re not wearing the crown, darling. Only Admins may play God here.",
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, "You’re not wearing the crown, darling. Only Admins may play God here.")
 		return
 	}
 
@@ -95,18 +89,7 @@ func logSlashHandler(ctx *SlashContext) {
 		builder.WriteString(entry)
 	}
 
-	content := codeBlockWrapper + "\n" + builder.String() + codeBlockWrapper
-
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: content,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
-	if err != nil {
-		log.Println("Failed to send log message:", err)
-	}
+	respondEphemeral(s, i, codeBlockWrapper+"\n"+builder.String()+codeBlockWrapper)
 
 	userID := i.Member.User.ID
 	username := i.Member.User.Username
@@ -114,14 +97,4 @@ func logSlashHandler(ctx *SlashContext) {
 	if err != nil {
 		log.Println("Failed to log command:", err)
 	}
-}
-
-func respondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {
-	_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: content,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
 }

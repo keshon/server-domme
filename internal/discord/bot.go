@@ -82,10 +82,10 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 		if cmd, ok := commands.Get(cmdName); ok && cmd.DCSlashHandler != nil {
 			ctx := &commands.SlashContext{
-				Session:     s,
-				Interaction: i,
-				Args:        args,
-				Storage:     b.storage,
+				Session:           s,
+				InteractionCreate: i,
+				Args:              args,
+				Storage:           b.storage,
 			}
 			cmd.DCSlashHandler(ctx)
 		}
@@ -99,9 +99,9 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		cmdName := parts[0]
 		if cmd, ok := commands.Get(cmdName); ok && cmd.DCComponentHandler != nil {
 			ctx := &commands.ComponentContext{
-				Session:     s,
-				Interaction: i,
-				Storage:     b.storage,
+				Session:           s,
+				InteractionCreate: i,
+				Storage:           b.storage,
 			}
 			cmd.DCComponentHandler(ctx)
 		}

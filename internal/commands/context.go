@@ -8,14 +8,15 @@ import (
 )
 
 type SlashContext struct {
-	Session     *discordgo.Session
-	Interaction *discordgo.InteractionCreate
-	Args        []string
-	Storage     *storage.Storage
+	Session *discordgo.Session
+	// Interaction       *discordgo.Interaction
+	InteractionCreate *discordgo.InteractionCreate
+	Args              []string
+	Storage           *storage.Storage
 }
 
 type ComponentContext struct {
-	Session     *discordgo.Session
-	Interaction *discordgo.InteractionCreate
-	Storage     *storage.Storage
+	Session           *discordgo.Session
+	InteractionCreate *discordgo.InteractionCreate
+	Storage           *storage.Storage
 }

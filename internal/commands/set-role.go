@@ -38,43 +38,15 @@ func init() {
 }
 
 func setRoleHandler(ctx *SlashContext) {
-	s, i, storage := ctx.Session, ctx.Interaction, ctx.Storage
+	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 
-	member := i.Member
-	hasAdmin := false
-
-	guild, err := s.State.Guild(i.GuildID)
-	if err != nil || guild == nil {
-		guild, err = s.Guild(i.GuildID)
-		if err != nil {
-			return
-		}
-	}
-
-	if i.Member.User.ID == guild.OwnerID {
-		hasAdmin = true
-	} else {
-		for _, r := range member.Roles {
-			role, _ := s.State.Role(i.GuildID, r)
-			if role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
-				hasAdmin = true
-				break
-			}
-		}
-	}
-
-	if !hasAdmin {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "You’re not wearing the crown, darling. Only Admins may play God here.",
-				Flags:   1 << 6,
-			},
-		})
+	if !isAdmin(s, i.GuildID, i.Member) {
+		respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
 		return
 	}
 
+	var err error
 	var roleType, roleID string
 	for _, opt := range options {
 		switch opt.Name {
@@ -93,50 +65,26 @@ func setRoleHandler(ctx *SlashContext) {
 	}
 
 	if !validTypes[roleType] {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Hmm, that's not a valid role type. Try again without embarrassing yourself.",
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, "Hmm, that's not a valid role type. Try again without embarrassing yourself.")
 		return
 	}
 
 	if roleType == "tasker" {
 		err = storage.SetTaskRole(i.GuildID, roleID)
 		if err != nil {
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()),
-					Flags:   1 << 6,
-				},
-			})
+			respondEphemeral(s, i, fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()))
 			return
 		}
 	} else {
 		err = storage.SetPunishRole(i.GuildID, roleType, roleID)
 		if err != nil {
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()),
-					Flags:   1 << 6,
-				},
-			})
+			respondEphemeral(s, i, fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()))
 			return
 		}
 	}
 
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()),
-				Flags:   1 << 6,
-			},
-		})
+		respondEphemeral(s, i, fmt.Sprintf("Something broke when saving, and for once it wasn’t your will. Error: `%s`", err.Error()))
 		return
 	}
 
@@ -151,13 +99,7 @@ func setRoleHandler(ctx *SlashContext) {
 		response = fmt.Sprintf("✅ The **%s** role has been updated.", roleType)
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: response,
-			Flags:   1 << 6,
-		},
-	})
+	respondEphemeral(s, i, response)
 
 	guildID := i.GuildID
 	userID := i.Member.User.ID

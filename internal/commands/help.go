@@ -21,6 +21,8 @@ func init() {
 
 // Slash Discord Handler
 func helpSlashHandler(ctx *SlashContext) {
+	s, i := ctx.Session, ctx.InteractionCreate
+
 	output := buildHelpMessage()
 
 	embed := &discordgo.MessageEmbed{
@@ -28,14 +30,13 @@ func helpSlashHandler(ctx *SlashContext) {
 		Description: output,
 		Color:       embedColor,
 	}
-	ctx.Session.InteractionRespond(ctx.Interaction.Interaction, &discordgo.InteractionResponse{
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
 		},
 	})
 
-	s, i := ctx.Session, ctx.Interaction
 	guildID := i.GuildID
 	userID := i.Member.User.ID
 	username := i.Member.User.Username

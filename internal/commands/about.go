@@ -74,7 +74,7 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 }
 
 func aboutSlashHandler(ctx *SlashContext) {
-	s, i := ctx.Session, ctx.Interaction
+	s, i := ctx.Session, ctx.InteractionCreate
 
 	emb, file, err := buildAboutMessage()
 	if err != nil {

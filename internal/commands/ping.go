@@ -24,25 +24,15 @@ func buildPingMessage(s *discordgo.Session) (string, error) {
 }
 
 func pingSlashHandler(ctx *SlashContext) {
-	s, i := ctx.Session, ctx.Interaction
+	s, i := ctx.Session, ctx.InteractionCreate
 
 	msg, err := buildPingMessage(s)
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Failed to calculate ping: ```%v```", err),
-			},
-		})
+		respondEphemeral(s, i, fmt.Sprintf("Failed to calculate ping: ```%v```", err))
 		return
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: msg,
-		},
-	})
+	respond(s, i, msg)
 
 	guildID := i.GuildID
 	userID := i.Member.User.ID
