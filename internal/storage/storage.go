@@ -339,3 +339,15 @@ func (s *Storage) SetMap(key string, value map[string]string) error {
 	s.ds.Add(key, value)
 	return nil
 }
+
+func (s *Storage) Dump() (map[string]interface{}, error) {
+	all := make(map[string]interface{})
+	for _, key := range s.ds.Keys() {
+		value, exists := s.ds.Get(key)
+		if !exists {
+			continue
+		}
+		all[key] = value
+	}
+	return all, nil
+}

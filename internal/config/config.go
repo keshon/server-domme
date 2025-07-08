@@ -25,6 +25,7 @@ type Config struct {
 	StoragePath    string
 	TasksPath      string
 	ProtectedUsers []string
+	DeveloperID    string
 }
 
 func New() *Config {
@@ -58,5 +59,6 @@ func New() *Config {
 		StoragePath:    storagePath,
 		TasksPath:      Get("TASKS_PATH"),
 		ProtectedUsers: protectedUsers,
+		DeveloperID:    Get("DEVELOPER_ID"),
 	}
 }

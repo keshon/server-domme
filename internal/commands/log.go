@@ -10,10 +10,11 @@ import (
 
 const (
 	discordMaxMessageLength = 2000
-	codeBlockWrapper        = "```"
+	codeLeftBlockWrapper    = "```md"
+	codeRightBlockWrapper   = "```"
 )
 
-var maxContentLength = discordMaxMessageLength - len(codeBlockWrapper)*2
+var maxContentLength = discordMaxMessageLength - len(codeLeftBlockWrapper) - len(codeRightBlockWrapper)
 
 func init() {
 	Register(&Command{
@@ -69,7 +70,7 @@ func logSlashHandler(ctx *SlashContext) {
 
 	var builder strings.Builder
 
-	header := fmt.Sprintf("%-19s\t%-15s\t%-15s\t%s\n", "Datetime", "Username", "Channel", "Command")
+	header := fmt.Sprintf("%-19s\t%-15s\t%-15s\t%s\n", "# Datetime", "# Username", "# Channel", "# Command")
 	builder.WriteString(header)
 
 	for idx := len(records) - 1; idx >= 0; idx-- {
@@ -89,7 +90,7 @@ func logSlashHandler(ctx *SlashContext) {
 		builder.WriteString(entry)
 	}
 
-	respondEphemeral(s, i, codeBlockWrapper+"\n"+builder.String()+codeBlockWrapper)
+	respondEphemeral(s, i, codeLeftBlockWrapper+"\n"+builder.String()+codeRightBlockWrapper)
 
 	userID := i.Member.User.ID
 	username := i.Member.User.Username

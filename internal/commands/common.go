@@ -3,6 +3,7 @@ package commands
 
 import (
 	"log"
+	"server-domme/internal/config"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -66,7 +67,6 @@ func logCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 }
 
 func isAdmin(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
-	// Fetch guild (from cache or live)
 	guild, err := s.State.Guild(guildID)
 	if err != nil || guild == nil {
 		guild, err = s.Guild(guildID)
@@ -75,12 +75,10 @@ func isAdmin(s *discordgo.Session, guildID string, member *discordgo.Member) boo
 		}
 	}
 
-	// Check if user is the server owner
 	if member.User.ID == guild.OwnerID {
 		return true
 	}
 
-	// Check if user has Administrator permission
 	for _, r := range member.Roles {
 		role, _ := s.State.Role(guildID, r)
 		if role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
@@ -89,4 +87,9 @@ func isAdmin(s *discordgo.Session, guildID string, member *discordgo.Member) boo
 	}
 
 	return false
+}
+
+func isDeveloper(ctx *SlashContext) bool {
+	cfg := config.New()
+	return ctx.InteractionCreate.Member.User.ID == cfg.DeveloperID
 }

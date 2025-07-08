@@ -9,7 +9,6 @@ import (
 
 func init() {
 	Register(&Command{
-		Disabled:       true,
 		Sort:           50,
 		Name:           "ask",
 		Description:    "Request permission to contact another member",
@@ -22,9 +21,9 @@ func init() {
 				Description: "What kind of consent are you begging for?",
 				Required:    true,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{Name: "DM", Value: "DM"},
+					{Name: "DM Request", Value: "DM"},
 					{Name: "Friend Request", Value: "Friend Request"},
-					{Name: "Physical Contact", Value: "Physical Contact"},
+					{Name: "Other Reason", Value: "Other Reason"},
 				},
 			},
 			{
@@ -67,9 +66,9 @@ func askSlashHandler(ctx *SlashContext) {
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       fmt.Sprintf("%s request", strings.ToUpper(consentType)),
-		Description: fmt.Sprintf("<@%s> wishes to request **%s** from <@%s>%s", i.Member.User.ID, consentType, member.ID, reasonSuffix(reason)),
-		Color:       0xB7410E,
+		Title:       fmt.Sprintf("%s", strings.ToUpper(consentType)),
+		Description: fmt.Sprintf("<@%s> wishes to **%s** <@%s>%s", i.Member.User.ID, consentType, member.ID, reasonSuffix(reason)),
+		Color:       embedColor,
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -78,16 +77,12 @@ func askSlashHandler(ctx *SlashContext) {
 			Embeds: []*discordgo.MessageEmbed{embed},
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{Components: []discordgo.MessageComponent{
-					discordgo.Button{Label: "✅ Accept", Style: discordgo.SuccessButton, CustomID: "ask_accept_" + i.ID},
-					discordgo.Button{Label: "❌ Deny", Style: discordgo.DangerButton, CustomID: "ask_deny_" + i.ID},
+					discordgo.Button{Label: "✅ Accept", Style: discordgo.SecondaryButton, CustomID: "ask_accept_" + i.ID},
+					discordgo.Button{Label: "❌ Deny", Style: discordgo.SecondaryButton, CustomID: "ask_deny_" + i.ID},
 					discordgo.Button{Label: "🚫 Revoke", Style: discordgo.SecondaryButton, CustomID: "ask_revoke_" + i.ID},
 				}},
 			},
 		},
-	})
-
-	s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
-		Content: fmt.Sprintf("You've been asked for **%s** by <@%s>. Please check the channel to respond.", consentType, i.Member.User.ID),
 	})
 }
 
