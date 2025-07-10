@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-
-	"github.com/bwmarrin/discordgo"
 )
 
 const (
@@ -29,31 +27,9 @@ func init() {
 func logSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 	guildID := i.GuildID
-	member := i.Member
-	hasAdmin := false
 
-	guild, err := s.State.Guild(i.GuildID)
-	if err != nil || guild == nil {
-		guild, err = s.Guild(i.GuildID)
-		if err != nil {
-			return
-		}
-	}
-
-	if i.Member.User.ID == guild.OwnerID {
-		hasAdmin = true
-	} else {
-		for _, r := range member.Roles {
-			role, _ := s.State.Role(i.GuildID, r)
-			if role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
-				hasAdmin = true
-				break
-			}
-		}
-	}
-
-	if !hasAdmin {
-		respondEphemeral(s, i, "You’re not wearing the crown, darling. Only Admins may play God here.")
+	if !isAdmin(s, i.GuildID, i.Member) {
+		respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
 		return
 	}
 

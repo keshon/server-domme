@@ -32,7 +32,7 @@ func New() *Config {
 	var storagePath string
 
 	if Get("STORAGE_PATH") == "" {
-		storagePath = "datastore.json"
+		storagePath = "./data/datastore.json"
 	} else {
 		storagePath = Get("STORAGE_PATH")
 	}

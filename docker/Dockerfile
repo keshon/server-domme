@@ -11,7 +11,8 @@ RUN GO_VERSION=$(go version | awk '{print $3}') && \
     CGO_ENABLED=1 && \
     rm -f .env && \
     go build -o app -ldflags "-X 'server-domme/internal/version.BuildDate=${BUILD_DATE}' -X 'server-domme/internal/version.GoVersion=${GO_VERSION}'" cmd/discord/main.go && \
-    touch datastore.json && \
+    mkdir -p data && \
+    touch data/datastore.json && \
     apk del build-base && \
     rm -rf /var/cache/apk/* && \
     rm -rf /usr/share/man
