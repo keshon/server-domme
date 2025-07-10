@@ -67,6 +67,11 @@ func logCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 }
 
 func isAdmin(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
+	cfg := config.New()
+	if member.User.ID == cfg.DeveloperID {
+		return true
+	}
+
 	guild, err := s.State.Guild(guildID)
 	if err != nil || guild == nil {
 		guild, err = s.Guild(guildID)

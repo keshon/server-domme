@@ -92,18 +92,24 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
-		parts := strings.SplitN(customID, "_", 2)
-		if len(parts) < 1 {
-			return
+
+		var matchedCommand *commands.Command
+		for _, cmd := range commands.All() {
+			if strings.HasPrefix(customID, cmd.Name) || strings.HasPrefix(customID, cmd.Name+":") || strings.HasPrefix(customID, cmd.Name+"_") {
+				matchedCommand = cmd
+				break
+			}
 		}
-		cmdName := parts[0]
-		if cmd, ok := commands.Get(cmdName); ok && cmd.DCComponentHandler != nil {
+
+		if matchedCommand != nil && matchedCommand.DCComponentHandler != nil {
 			ctx := &commands.ComponentContext{
 				Session:           s,
 				InteractionCreate: i,
 				Storage:           b.storage,
 			}
-			cmd.DCComponentHandler(ctx)
+			matchedCommand.DCComponentHandler(ctx)
+		} else {
+			log.Printf("[WARN] No matching command handler for CustomID: %s\n", customID)
 		}
 
 	default:
@@ -134,6 +140,7 @@ func (b *Bot) registerSlashCommands(guildID string) error {
 		if err != nil {
 			return fmt.Errorf("register command %s: %w", cmd.Name, err)
 		}
+
 		created = append(created, c)
 	}
 

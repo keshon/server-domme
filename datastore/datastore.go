@@ -11,13 +11,13 @@ import (
 )
 
 type DataStore struct {
-	data   map[string]interface{} // in-memory data storage
-	file   string                 // file path for persistent storage
-	mu     sync.RWMutex           // mutex for thread-safe access
-	ticker *time.Ticker           // ticker for periodic saving
-	done   chan struct{}          // shutdown signal channel, buffered
-	wg     sync.WaitGroup         // wait group for goroutines
-	once   sync.Once              // ensure done channel closes only once
+	data   map[string]any // in-memory data storage
+	file   string         // file path for persistent storage
+	mu     sync.RWMutex   // mutex for thread-safe access
+	ticker *time.Ticker   // ticker for periodic saving
+	done   chan struct{}  // shutdown signal channel, buffered
+	wg     sync.WaitGroup // wait group for goroutines
+	once   sync.Once      // ensure done channel closes only once
 }
 
 func New(filePath string) (*DataStore, error) {
