@@ -98,3 +98,12 @@ func isDeveloper(ctx *SlashContext) bool {
 	cfg := config.New()
 	return ctx.InteractionCreate.Member.User.ID == cfg.DeveloperID
 }
+
+func checkBotPermissions(s *discordgo.Session, channelID string) bool {
+	botID := s.State.User.ID
+	perms, err := s.UserChannelPermissions(botID, channelID)
+	if err != nil {
+		return false
+	}
+	return perms&discordgo.PermissionManageMessages != 0
+}

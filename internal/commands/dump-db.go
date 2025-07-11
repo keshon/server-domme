@@ -16,12 +16,12 @@ func init() {
 		Category:    "Debug",
 		Sort:        999,
 		DCSlashHandler: func(ctx *SlashContext) {
-			handleDumpDB(ctx)
+			dumpDbSlashHandler(ctx)
 		},
 	})
 }
 
-func handleDumpDB(ctx *SlashContext) {
+func dumpDbSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	if !isDeveloper(ctx) {
