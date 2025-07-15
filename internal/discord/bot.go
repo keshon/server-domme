@@ -3,12 +3,14 @@ package discord
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"server-domme/internal/commands"
 	"server-domme/internal/storage"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -72,6 +74,8 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	}
 
 	log.Printf("Bot %v is up and running!\n", botInfo.Username)
+
+	go startScheduledNukes(b.storage, s)
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -169,4 +173,80 @@ func extractArgs(i *discordgo.InteractionCreate) []string {
 		}
 	}
 	return args
+}
+
+func startScheduledNukes(st *storage.Storage, session *discordgo.Session) {
+	log.Println("Starting scheduled nukes...")
+
+	records := st.GetRecordsList()
+
+	for _, data := range records {
+		jsonData, _ := json.Marshal(data)
+		var rec storage.Record
+		err := json.Unmarshal(jsonData, &rec)
+		if err != nil {
+			log.Printf("Error unmarshalling to *Record: %v", err)
+			continue
+		}
+
+		for _, job := range rec.NukeJobs {
+			log.Printf("Found nuke job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
+
+			switch job.Mode {
+			case "delayed":
+				dur := time.Until(job.DelayUntil)
+				if dur > 0 {
+					log.Printf("Scheduling delayed nuke in %v for channel %s", dur, job.ChannelID)
+
+					go func(job storage.NukeJob) {
+						time.Sleep(dur)
+						log.Printf("Executing delayed nuke for channel %s", job.ChannelID)
+
+						commands.DeleteMessages(session, job.ChannelID, nil, nil, nil)
+
+						rec.NukeJobs[job.ChannelID] = job
+						st.SetNukeJob(job.GuildID, job.ChannelID, job.Mode, job.DelayUntil, job.Silent)
+
+						log.Printf("Delayed nuke complete for channel %s", job.ChannelID)
+					}(job)
+				} else {
+					log.Printf("Skipping expired delayed job for channel %s (DelayUntil in the past)", job.ChannelID)
+				}
+
+			case "recurring":
+				dur, err := time.ParseDuration(job.OlderThan)
+				if err != nil {
+					log.Printf("Failed to parse OlderThan duration '%s' for channel %s: %v", job.OlderThan, job.ChannelID, err)
+					continue
+				}
+
+				stopChan := make(chan struct{})
+				commands.ActiveDeletionsMu.Lock()
+				commands.ActiveDeletions[job.ChannelID] = stopChan
+				commands.ActiveDeletionsMu.Unlock()
+
+				log.Printf("Starting recurring nuke for channel %s every 30s (older than %v)", job.ChannelID, dur)
+
+				go func(job storage.NukeJob, d time.Duration) {
+					ticker := time.NewTicker(30 * time.Second)
+					defer ticker.Stop()
+
+					for {
+						select {
+						case <-stopChan:
+							log.Printf("Stopping recurring nuke for channel %s", job.ChannelID)
+							return
+						case <-ticker.C:
+							start := time.Now().Add(-d)
+							now := time.Now()
+							log.Printf("Recurring nuke triggered for channel %s | Window: %v – %v", job.ChannelID, start, now)
+							commands.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
+						}
+					}
+				}(job, dur)
+			default:
+				log.Printf("Unknown nuke mode '%s' for channel %s", job.Mode, job.ChannelID)
+			}
+		}
+	}
 }

@@ -1,4 +1,3 @@
-// /internal/commands/context.go
 package commands
 
 import (
@@ -8,8 +7,7 @@ import (
 )
 
 type SlashContext struct {
-	Session *discordgo.Session
-	// Interaction       *discordgo.Interaction
+	Session           *discordgo.Session
 	InteractionCreate *discordgo.InteractionCreate
 	Args              []string
 	Storage           *storage.Storage

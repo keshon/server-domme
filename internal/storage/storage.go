@@ -34,11 +34,22 @@ type UserTask struct {
 	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
 }
 
+type NukeJob struct {
+	ChannelID  string    `json:"channel_id"`
+	GuildID    string    `json:"guild_id"`
+	Mode       string    `json:"mode"`        // "delayed" or "recurring"
+	DelayUntil time.Time `json:"delay_until"` // relevant only for "delayed"
+	OlderThan  string    `json:"older_than"`  // relevant only for "recurring"
+	StartedAt  time.Time `json:"started_at"`
+	Silent     bool      `json:"silent"`
+}
+
 type Record struct {
 	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
-	Roles               map[string]string      `json:"roles"` // e.g., "punisher": "roleID"
-	Tasks               map[string]UserTask    `json:"tasks"` // key = userID
+	Roles               map[string]string      `json:"roles"`
+	Tasks               map[string]UserTask    `json:"tasks"`
 	Cooldowns           map[string]time.Time   `json:"cooldowns"`
+	NukeJobs            map[string]NukeJob     `json:"nuke_jobs"` // key = channelID
 }
 
 func New(filePath string) (*Storage, error) {
@@ -82,11 +93,38 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 		record.Tasks = make(map[string]UserTask)
 	}
 
+	if record.NukeJobs == nil {
+		record.NukeJobs = make(map[string]NukeJob)
+	}
+
 	if len(record.CommandsHistoryList) > commandHistoryLimit {
 		record.CommandsHistoryList = record.CommandsHistoryList[len(record.CommandsHistoryList)-commandHistoryLimit:]
 	}
 
 	return &record, nil
+}
+
+func (s *Storage) GetRecordsList() map[string]Record {
+	mapStringAny := s.ds.GetAll()
+
+	mapStringRecord := make(map[string]Record)
+	for key, value := range mapStringAny {
+		jsonData, err := json.Marshal(value)
+		if err != nil {
+			log.Printf("error marshalling data: %v", err)
+			continue
+		}
+
+		var record Record
+		err = json.Unmarshal(jsonData, &record)
+		if err != nil {
+			log.Printf("error unmarshalling to *Record: %v", err)
+			continue
+		}
+
+		mapStringRecord[key] = record
+	}
+	return mapStringRecord
 }
 
 func (s *Storage) appendCommandToHistory(guildID string, command CommandHistoryRecord) error {
@@ -314,6 +352,56 @@ func (s *Storage) ClearExpiredCooldowns() error {
 	}
 
 	return nil
+}
+
+func (s *Storage) SetNukeJob(guildID, channelID, mode string, delayUntil time.Time, silent bool, olderThan ...string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	job := NukeJob{
+		ChannelID:  channelID,
+		GuildID:    guildID,
+		Mode:       mode,
+		DelayUntil: delayUntil,
+		Silent:     silent,
+		StartedAt:  time.Now(),
+	}
+
+	if len(olderThan) > 0 {
+		job.OlderThan = olderThan[0]
+	}
+
+	record.NukeJobs[channelID] = job
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) ClearNukeJob(guildID, channelID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+	delete(record.NukeJobs, channelID)
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) GetNukeJobsList(guildID string) (map[string]NukeJob, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return nil, err
+	}
+	return record.NukeJobs, nil
+}
+
+func (s *Storage) GetNukeJob(guildID, channelID string) (NukeJob, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return NukeJob{}, err
+	}
+	return record.NukeJobs[channelID], nil
 }
 
 func (s *Storage) GetMap(key string) (map[string]string, error) {

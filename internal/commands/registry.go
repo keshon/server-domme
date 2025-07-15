@@ -1,4 +1,3 @@
-// /internal/commands/registry.go
 package commands
 
 import (

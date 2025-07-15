@@ -61,6 +61,12 @@ func (ds *DataStore) Get(key string) (interface{}, bool) {
 	return value, exists
 }
 
+func (ds *DataStore) GetAll() map[string]any {
+	ds.mu.RLock()
+	defer ds.mu.RUnlock()
+	return ds.data
+}
+
 func (ds *DataStore) Delete(key string) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()

@@ -1,4 +1,3 @@
-// /internal/commands/embed.go
 package commands
 
 import (

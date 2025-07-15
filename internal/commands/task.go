@@ -2,11 +2,9 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
 	"slices"
@@ -40,20 +38,6 @@ func init() {
 		DCSlashHandler:     taskSlashHandler,
 		DCComponentHandler: taskComponentHandler,
 	})
-
-	cfg := config.New()
-	var err error
-	tasks, err = loadTasks(cfg.TasksPath)
-	if err != nil {
-		log.Println("Failed to load tasks:", err)
-		return
-	}
-	if len(tasks) == 0 {
-		log.Println("No tasks loaded! Aborting task assignment.")
-		return
-	}
-
-	fmt.Printf("Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
 }
 
 func taskSlashHandler(ctx *SlashContext) {
@@ -274,15 +258,6 @@ func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, 
 	case <-ctxTimer.Done():
 		return
 	}
-}
-
-func loadTasks(filename string) ([]Task, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	var tasks []Task
-	return tasks, json.Unmarshal(data, &tasks)
 }
 
 func getMemberRoleNames(s *discordgo.Session, guildID string, roleIDs []string) map[string]bool {
