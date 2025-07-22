@@ -53,7 +53,7 @@ func init() {
 		return
 	}
 
-	fmt.Printf("Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
+	log.Printf("Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
 }
 
 func taskSlashHandler(ctx *SlashContext) {
