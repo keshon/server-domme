@@ -9,10 +9,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           50,
+		Sort:           10,
 		Name:           "ask",
-		Description:    "Request permission to contact another member",
-		Category:       "Etiquette",
+		Description:    "Request permission to contact another member, politely.",
+		Category:       "🎭 Roleplay",
 		DCSlashHandler: askSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{

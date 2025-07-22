@@ -12,10 +12,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           200,
+		Sort:           30,
 		Name:           "punish",
-		Description:    "Punish a brat (assigns the brat role)",
-		Category:       "Assign brat role",
+		Description:    "Assign the brat role for naughty behavior.",
+		Category:       "🎭 Roleplay",
 		DCSlashHandler: punishSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{

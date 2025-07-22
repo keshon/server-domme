@@ -11,4 +11,5 @@ services:
       - TASKS_PATH=${TASKS_PATH}
       - PROTECTED_USERS=${PROTECTED_USERS}
       - DEVELOPER_ID=${DEVELOPER_ID}
+      - INIT_SLASH_COMMANDS=${INIT_SLASH_COMMANDS}
     entrypoint: /usr/project/app

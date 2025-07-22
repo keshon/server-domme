@@ -2,9 +2,11 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
 	"slices"
@@ -31,13 +33,27 @@ type Task struct {
 
 func init() {
 	Register(&Command{
-		Sort:               100,
+		Sort:               20,
 		Name:               "task",
-		Description:        "Assigns and manages your task",
-		Category:           "Tasks",
+		Description:        "Assign or manage your personal task, slave.",
+		Category:           "🎭 Roleplay",
 		DCSlashHandler:     taskSlashHandler,
 		DCComponentHandler: taskComponentHandler,
 	})
+
+	cfg := config.New()
+	var err error
+	tasks, err = loadTasks(cfg.TasksPath)
+	if err != nil {
+		log.Println("Failed to load tasks:", err)
+		return
+	}
+	if len(tasks) == 0 {
+		log.Println("No tasks loaded! Aborting task assignment.")
+		return
+	}
+
+	fmt.Printf("Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
 }
 
 func taskSlashHandler(ctx *SlashContext) {
@@ -329,4 +345,13 @@ func pluralize(n int) string {
 
 func randomLine(list []string) string {
 	return list[rand.Intn(len(list))]
+}
+
+func loadTasks(filename string) ([]Task, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var tasks []Task
+	return tasks, json.Unmarshal(data, &tasks)
 }

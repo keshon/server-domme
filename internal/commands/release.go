@@ -10,10 +10,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           201,
+		Sort:           40,
 		Name:           "release",
-		Description:    "Release a brat (removes the brat role)",
-		Category:       "Assign brat role",
+		Description:    "Remove the brat role and grant reprieve.",
+		Category:       "🎭 Roleplay",
 		DCSlashHandler: releaseSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{

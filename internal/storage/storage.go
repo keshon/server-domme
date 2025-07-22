@@ -34,7 +34,7 @@ type UserTask struct {
 	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
 }
 
-type NukeJob struct {
+type DeletionJob struct {
 	ChannelID  string    `json:"channel_id"`
 	GuildID    string    `json:"guild_id"`
 	Mode       string    `json:"mode"`        // "delayed" or "recurring"
@@ -49,7 +49,7 @@ type Record struct {
 	Roles               map[string]string      `json:"roles"`
 	Tasks               map[string]UserTask    `json:"tasks"`
 	Cooldowns           map[string]time.Time   `json:"cooldowns"`
-	NukeJobs            map[string]NukeJob     `json:"nuke_jobs"` // key = channelID
+	DeletionJobs        map[string]DeletionJob `json:"del_jobs"` // key = channelID
 }
 
 func New(filePath string) (*Storage, error) {
@@ -93,8 +93,8 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 		record.Tasks = make(map[string]UserTask)
 	}
 
-	if record.NukeJobs == nil {
-		record.NukeJobs = make(map[string]NukeJob)
+	if record.DeletionJobs == nil {
+		record.DeletionJobs = make(map[string]DeletionJob)
 	}
 
 	if len(record.CommandsHistoryList) > commandHistoryLimit {
@@ -354,13 +354,13 @@ func (s *Storage) ClearExpiredCooldowns() error {
 	return nil
 }
 
-func (s *Storage) SetNukeJob(guildID, channelID, mode string, delayUntil time.Time, silent bool, olderThan ...string) error {
+func (s *Storage) SetDeletionJob(guildID, channelID, mode string, delayUntil time.Time, silent bool, olderThan ...string) error {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
 	}
 
-	job := NukeJob{
+	job := DeletionJob{
 		ChannelID:  channelID,
 		GuildID:    guildID,
 		Mode:       mode,
@@ -373,35 +373,35 @@ func (s *Storage) SetNukeJob(guildID, channelID, mode string, delayUntil time.Ti
 		job.OlderThan = olderThan[0]
 	}
 
-	record.NukeJobs[channelID] = job
+	record.DeletionJobs[channelID] = job
 	s.ds.Add(guildID, record)
 	return nil
 }
 
-func (s *Storage) ClearNukeJob(guildID, channelID string) error {
+func (s *Storage) ClearDeletionJob(guildID, channelID string) error {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
 	}
-	delete(record.NukeJobs, channelID)
+	delete(record.DeletionJobs, channelID)
 	s.ds.Add(guildID, record)
 	return nil
 }
 
-func (s *Storage) GetNukeJobsList(guildID string) (map[string]NukeJob, error) {
+func (s *Storage) GetDeletionJobsList(guildID string) (map[string]DeletionJob, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
 	}
-	return record.NukeJobs, nil
+	return record.DeletionJobs, nil
 }
 
-func (s *Storage) GetNukeJob(guildID, channelID string) (NukeJob, error) {
+func (s *Storage) GetDeletionJob(guildID, channelID string) (DeletionJob, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
-		return NukeJob{}, err
+		return DeletionJob{}, err
 	}
-	return record.NukeJobs[channelID], nil
+	return record.DeletionJobs[channelID], nil
 }
 
 func (s *Storage) GetMap(key string) (map[string]string, error) {

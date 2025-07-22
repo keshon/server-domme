@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"server-domme/internal/commands"
+	"server-domme/internal/config"
 	"server-domme/internal/storage"
 	"strings"
 	"sync"
@@ -50,7 +51,6 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	}
 	defer dg.Close()
 
-	log.Println("✅ Discord bot is running.")
 	<-ctx.Done()
 	log.Println("❎ Shutdown signal received. Cleaning up...")
 	return nil
@@ -67,15 +67,22 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		return
 	}
 
-	for _, g := range r.Guilds {
-		if err := b.registerSlashCommands(g.ID); err != nil {
-			log.Println("Error registering slash commands for guild", g.ID, ":", err)
+	cfg := config.New()
+	if cfg.InitSlashCommands {
+		log.Println("Registering slash commands...")
+		for _, g := range r.Guilds {
+			if err := b.registerSlashCommands(g.ID); err != nil {
+				log.Println("Error registering slash commands for guild", g.ID, ":", err)
+			}
 		}
+	} else {
+		log.Println("Registering slash commands skipped")
 	}
 
-	log.Printf("Bot %v is up and running!\n", botInfo.Username)
+	log.Println("Starting scheduled nukes...")
+	startScheduledNukeJobs(b.storage, s)
 
-	go startScheduledNukes(b.storage, s)
+	log.Printf("✅ Discord bot %v is running.", botInfo.Username)
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -139,13 +146,29 @@ func (b *Bot) registerSlashCommands(guildID string) error {
 	}
 
 	var created []*discordgo.ApplicationCommand
-	for _, cmd := range cmds {
-		c, err := b.dg.ApplicationCommandCreate(b.dg.State.User.ID, guildID, cmd)
-		if err != nil {
-			return fmt.Errorf("register command %s: %w", cmd.Name, err)
-		}
 
+	appID := b.dg.State.User.ID
+	if appID == "" {
+		user, err := b.dg.User("@me")
+		if err != nil {
+			return fmt.Errorf("get bot user: %w", err)
+		}
+		appID = user.ID
+	}
+
+	var errs []string
+
+	for _, cmd := range cmds {
+		c, err := b.dg.ApplicationCommandCreate(appID, guildID, cmd)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", cmd.Name, err))
+			continue
+		}
 		created = append(created, c)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to register commands:\n%s", strings.Join(errs, "\n"))
 	}
 
 	b.mu.Lock()
@@ -175,42 +198,47 @@ func extractArgs(i *discordgo.InteractionCreate) []string {
 	return args
 }
 
-func startScheduledNukes(st *storage.Storage, session *discordgo.Session) {
-	log.Println("Starting scheduled nukes...")
-
+func startScheduledNukeJobs(st *storage.Storage, session *discordgo.Session) {
 	records := st.GetRecordsList()
 
 	for _, data := range records {
 		jsonData, _ := json.Marshal(data)
-		var rec storage.Record
-		err := json.Unmarshal(jsonData, &rec)
+		var record storage.Record
+		err := json.Unmarshal(jsonData, &record)
 		if err != nil {
 			log.Printf("Error unmarshalling to *Record: %v", err)
 			continue
 		}
 
-		for _, job := range rec.NukeJobs {
+		for _, job := range record.DeletionJobs {
 			log.Printf("Found nuke job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
 
 			switch job.Mode {
 			case "delayed":
 				dur := time.Until(job.DelayUntil)
-				if dur > 0 {
-					log.Printf("Scheduling delayed nuke in %v for channel %s", dur, job.ChannelID)
 
-					go func(job storage.NukeJob) {
+				if dur <= 0 {
+					log.Printf("DelayUntil is in the past — executing delayed nuke immediately for channel %s", job.ChannelID)
+					commands.DeleteMessages(session, job.ChannelID, nil, nil, nil)
+
+					err := st.ClearDeletionJob(job.GuildID, job.ChannelID)
+					if err != nil {
+						log.Printf("Failed to delete nuke job for channel %s: %v", job.ChannelID, err)
+					}
+				} else {
+					log.Printf("Scheduling delayed nuke in %v for channel %s", dur, job.ChannelID)
+					go func(job storage.DeletionJob) {
 						time.Sleep(dur)
 						log.Printf("Executing delayed nuke for channel %s", job.ChannelID)
-
 						commands.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
-						rec.NukeJobs[job.ChannelID] = job
-						st.SetNukeJob(job.GuildID, job.ChannelID, job.Mode, job.DelayUntil, job.Silent)
-
-						log.Printf("Delayed nuke complete for channel %s", job.ChannelID)
+						err := st.ClearDeletionJob(job.GuildID, job.ChannelID)
+						if err != nil {
+							log.Printf("Failed to delete nuke job for channel %s: %v", job.ChannelID, err)
+						} else {
+							log.Printf("Delayed nuke complete and removed for channel %s", job.ChannelID)
+						}
 					}(job)
-				} else {
-					log.Printf("Skipping expired delayed job for channel %s (DelayUntil in the past)", job.ChannelID)
 				}
 
 			case "recurring":
@@ -227,7 +255,7 @@ func startScheduledNukes(st *storage.Storage, session *discordgo.Session) {
 
 				log.Printf("Starting recurring nuke for channel %s every 30s (older than %v)", job.ChannelID, dur)
 
-				go func(job storage.NukeJob, d time.Duration) {
+				go func(job storage.DeletionJob, d time.Duration) {
 					ticker := time.NewTicker(30 * time.Second)
 					defer ticker.Stop()
 
@@ -239,11 +267,12 @@ func startScheduledNukes(st *storage.Storage, session *discordgo.Session) {
 						case <-ticker.C:
 							start := time.Now().Add(-d)
 							now := time.Now()
-							log.Printf("Recurring nuke triggered for channel %s | Window: %v – %v", job.ChannelID, start, now)
+							log.Printf("Recurring nuke triggered for channel %s", job.ChannelID)
 							commands.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
 						}
 					}
 				}(job, dur)
+
 			default:
 				log.Printf("Unknown nuke mode '%s' for channel %s", job.Mode, job.ChannelID)
 			}

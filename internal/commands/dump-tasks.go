@@ -13,16 +13,16 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           400,
-		Name:           "task-stats",
-		Description:    "Show tasks statistics",
-		Category:       "Tasks",
-		DCSlashHandler: listTasksHandler,
+		Sort:           430,
+		Name:           "dump-tasks",
+		Description:    "Reveal and export all tasks in this server.",
+		Category:       "🏰 Court Administration",
+		DCSlashHandler: dumpTasksHandler,
 	})
 
 }
 
-func listTasksHandler(ctx *SlashContext) {
+func dumpTasksHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	if !isAdmin(s, i.GuildID, i.Member) {
@@ -55,13 +55,13 @@ func listTasksHandler(ctx *SlashContext) {
 
 	var b strings.Builder
 	b.WriteString("```md\n")
-	b.WriteString(fmt.Sprintf("# Task Statistics 📊\n"))
-	b.WriteString(fmt.Sprintf("Total Tasks        : %d\n", total))
-	b.WriteString(fmt.Sprintf("Open to Anyone     : %d\n", open))
-	b.WriteString(fmt.Sprintf("Restricted Tasks   : %d\n", total-open))
+	b.WriteString(fmt.Sprintf("# Task Statistics\n"))
+	b.WriteString(fmt.Sprintf("Total Tasks      : %d\n", total))
+	b.WriteString(fmt.Sprintf("Open to Anyone   : %d\n", open))
+	b.WriteString(fmt.Sprintf("Restricted Tasks : %d\n", total-open))
 
 	if len(roleCounts) > 0 {
-		b.WriteString("\n# Roles in Use 🔐\n")
+		b.WriteString("\n# Roles in Use\n")
 		for role, count := range roleCounts {
 			b.WriteString(fmt.Sprintf("- %s: %d\n", role, count))
 		}

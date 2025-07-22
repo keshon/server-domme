@@ -16,10 +16,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:        501,                         // sorting weight
-		Name:        "about",                     // command name
-		Description: "Shows info about the bot.", // command description
-		Category:    "Information",               // command category
+		Sort:        920,                                               // sorting weight
+		Name:        "about",                                           // command name
+		Description: "Discover the origin of your merciless mistress.", // command description
+		Category:    "🕯️ Lore & Insight",                               // command category
 
 		DCSlashHandler: aboutSlashHandler,
 	})
@@ -61,7 +61,7 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 
 	embedMsg := embed.NewEmbed().
 		SetColor(embedColor).
-		SetDescription(fmt.Sprintf("ℹ️ About\n\n**%s** — %s", version.AppName, version.AppDescription))
+		SetDescription(fmt.Sprintf("ℹ️ **About %s**\n\n%s", version.AppName, version.AppDescription))
 	for title, value := range infoFields {
 		embedMsg = embedMsg.AddField(title, value)
 	}
@@ -82,6 +82,7 @@ func aboutSlashHandler(ctx *SlashContext) {
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Content: fmt.Sprintf("Failed to build about message: ```%v```", err),
+				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return
@@ -91,6 +92,7 @@ func aboutSlashHandler(ctx *SlashContext) {
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{emb},
+			Flags:  discordgo.MessageFlagsEphemeral,
 		},
 	}
 

@@ -6,3 +6,4 @@
 datastore.json*
 *.txt
 *private*
+datastore_dump.json

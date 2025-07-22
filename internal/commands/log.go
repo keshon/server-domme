@@ -16,10 +16,10 @@ var maxContentLength = discordMaxMessageLength - len(codeLeftBlockWrapper) - len
 
 func init() {
 	Register(&Command{
-		Sort:           402,
+		Sort:           400,
 		Name:           "log",
-		Description:    "Show recent command log",
-		Category:       "Administration",
+		Description:    "Review recent commands and their punishments.",
+		Category:       "🏰 Court Administration",
 		DCSlashHandler: logSlashHandler,
 	})
 }

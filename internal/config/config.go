@@ -21,11 +21,12 @@ func Get(key string) string {
 }
 
 type Config struct {
-	DiscordToken   string
-	StoragePath    string
-	TasksPath      string
-	ProtectedUsers []string
-	DeveloperID    string
+	DiscordToken      string
+	StoragePath       string
+	TasksPath         string
+	ProtectedUsers    []string
+	DeveloperID       string
+	InitSlashCommands bool
 }
 
 func New() *Config {
@@ -55,10 +56,11 @@ func New() *Config {
 	}
 
 	return &Config{
-		DiscordToken:   Get("DISCORD_TOKEN"),
-		StoragePath:    storagePath,
-		TasksPath:      Get("TASKS_PATH"),
-		ProtectedUsers: protectedUsers,
-		DeveloperID:    Get("DEVELOPER_ID"),
+		DiscordToken:      Get("DISCORD_TOKEN"),
+		StoragePath:       storagePath,
+		TasksPath:         Get("TASKS_PATH"),
+		ProtectedUsers:    protectedUsers,
+		DeveloperID:       Get("DEVELOPER_ID"),
+		InitSlashCommands: Get("INIT_SLASH_COMMANDS") == "true",
 	}
 }

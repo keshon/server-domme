@@ -12,10 +12,11 @@ import (
 	"server-domme/internal/config"
 	"server-domme/internal/discord"
 	"server-domme/internal/storage"
+	v "server-domme/internal/version"
 )
 
 func main() {
-	log.Println("Starting Server Domme Discord bot...")
+	log.Printf("Starting %v bot...", v.AppName)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

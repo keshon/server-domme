@@ -3,6 +3,7 @@ package datastore
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -128,7 +129,7 @@ func (ds *DataStore) autoSave() {
 			return
 		case <-ds.ticker.C:
 			if err := ds.saveToFile(); err != nil {
-				fmt.Println("Auto-save error:", err)
+				log.Printf("Auto-save error: %v", err)
 			}
 		}
 	}
@@ -140,7 +141,7 @@ func (ds *DataStore) handleShutdown() {
 
 	go func() {
 		<-c
-		fmt.Println("Shutdown signal received, saving data...")
+		log.Println("Shutdown signal received, saving data...")
 		ds.ticker.Stop()
 
 		ds.closeDone()
@@ -149,7 +150,7 @@ func (ds *DataStore) handleShutdown() {
 		ds.wg.Wait()
 
 		if err := ds.saveToFile(); err != nil {
-			fmt.Println("Error saving data on shutdown:", err)
+			log.Printf("Error saving data on shutdown: %v", err)
 		}
 
 		os.Exit(0)

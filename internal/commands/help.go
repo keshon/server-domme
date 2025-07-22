@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/version"
 	"sort"
 	"strings"
 
@@ -11,10 +12,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           500,
+		Sort:           910,
 		Name:           "help",
-		Description:    "Show a list of available commands.",
-		Category:       "Information",
+		Description:    "Your guide to serving the Server Domme well.",
+		Category:       "🕯️ Lore & Insight",
 		DCSlashHandler: helpSlashHandler,
 	})
 }
@@ -26,7 +27,7 @@ func helpSlashHandler(ctx *SlashContext) {
 	output := buildHelpMessage()
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "📖 Available Commands",
+		Title:       version.AppName + " Help",
 		Description: output,
 		Color:       embedColor,
 	}
@@ -34,6 +35,7 @@ func helpSlashHandler(ctx *SlashContext) {
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
+			Flags:  discordgo.MessageFlagsEphemeral,
 		},
 	})
 

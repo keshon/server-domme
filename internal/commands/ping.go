@@ -9,11 +9,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:        502,           // low sort to appear early
-		Name:        "ping",        // command name
-		Description: "Pong!",       // command description
-		Category:    "Information", // command category
-
+		Sort:           900,                                       // low sort to appear early
+		Name:           "ping",                                    // command name
+		Description:    "Send a ping and receive a teasing pong.", // command description
+		Category:       "🕯️ Lore & Insight",                       // command category
 		DCSlashHandler: pingSlashHandler,
 	})
 }
@@ -32,7 +31,7 @@ func pingSlashHandler(ctx *SlashContext) {
 		return
 	}
 
-	respond(s, i, msg)
+	respondEphemeral(s, i, msg)
 
 	guildID := i.GuildID
 	userID := i.Member.User.ID

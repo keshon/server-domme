@@ -9,10 +9,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           401,
+		Sort:           410,
 		Name:           "set-role",
-		Description:    "Configure punisher/victim/tasker roles",
-		Category:       "Administration",
+		Description:    "Appoint punisher, victim, or tasker roles.",
+		Category:       "🏰 Court Administration",
 		DCSlashHandler: setRoleHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{

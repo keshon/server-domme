@@ -11,10 +11,10 @@ import (
 
 func init() {
 	Register(&Command{
+		Sort:        420,
 		Name:        "dump-db",
-		Description: "Dump the entire datastore to a file.",
-		Category:    "Debug",
-		Sort:        999,
+		Description: "Export the secret archives of this server.",
+		Category:    "🏰 Court Administration",
 		DCSlashHandler: func(ctx *SlashContext) {
 			dumpDbSlashHandler(ctx)
 		},
