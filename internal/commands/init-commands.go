@@ -10,13 +10,13 @@ func init() {
 	Register(&Command{
 		Sort:           440,
 		Name:           "init-commands",
-		Description:    "Re-register all slash commands with authority.",
+		Description:    "Re-initialize all bot's slash commands.",
 		Category:       "🏰 Court Administration",
-		DCSlashHandler: initCommandsHandler,
+		DCSlashHandler: initCommandsSlashHandler,
 	})
 }
 
-func initCommandsHandler(ctx *SlashContext) {
+func initCommandsSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	if !isAdmin(s, i.GuildID, i.Member) {

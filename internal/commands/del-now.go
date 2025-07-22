@@ -13,7 +13,7 @@ func init() {
 		Name:           "del-now",
 		Description:    "Wipe this channel clean, no mercy shown.",
 		Category:       "🧹 Channel Cleanup",
-		DCSlashHandler: deleteMessagesNowHandler,
+		DCSlashHandler: deleteNowSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
@@ -49,7 +49,7 @@ func init() {
 	})
 }
 
-func deleteMessagesNowHandler(ctx *SlashContext) {
+func deleteNowSlashHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 	channelID, guildID := i.ChannelID, i.GuildID

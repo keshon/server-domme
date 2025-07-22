@@ -17,12 +17,12 @@ func init() {
 		Name:           "dump-tasks",
 		Description:    "Reveal and export all tasks in this server.",
 		Category:       "🏰 Court Administration",
-		DCSlashHandler: dumpTasksHandler,
+		DCSlashHandler: dumpTasksSlashHandler,
 	})
 
 }
 
-func dumpTasksHandler(ctx *SlashContext) {
+func dumpTasksSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	if !isAdmin(s, i.GuildID, i.Member) {

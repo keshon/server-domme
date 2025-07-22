@@ -13,7 +13,7 @@ func init() {
 		Name:           "set-role",
 		Description:    "Appoint punisher, victim, or tasker roles.",
 		Category:       "🏰 Court Administration",
-		DCSlashHandler: setRoleHandler,
+		DCSlashHandler: setRoleSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
@@ -37,7 +37,7 @@ func init() {
 	})
 }
 
-func setRoleHandler(ctx *SlashContext) {
+func setRoleSlashHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 

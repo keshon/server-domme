@@ -11,9 +11,9 @@ func init() {
 	Register(&Command{
 		Sort:           220,
 		Name:           "del-auto",
-		Description:    "Recurring deletion of messages older than set.",
+		Description:    "Recurring messages deletion older than set.",
 		Category:       "🧹 Channel Cleanup",
-		DCSlashHandler: deleteMessagesRecurringHandler,
+		DCSlashHandler: deleteAutoSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
@@ -41,7 +41,7 @@ func init() {
 	})
 }
 
-func deleteMessagesRecurringHandler(ctx *SlashContext) {
+func deleteAutoSlashHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 	channelID, guildID := i.ChannelID, i.GuildID

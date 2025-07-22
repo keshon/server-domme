@@ -16,11 +16,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:        920,                                               // sorting weight
-		Name:        "about",                                           // command name
-		Description: "Discover the origin of your merciless mistress.", // command description
-		Category:    "🕯️ Lore & Insight",                               // command category
-
+		Sort:           920,                                               // sorting weight
+		Name:           "about",                                           // command name
+		Description:    "Discover the origin of your merciless mistress.", // command description
+		Category:       "🕯️ Lore & Insight",                               // command category
 		DCSlashHandler: aboutSlashHandler,
 	})
 }

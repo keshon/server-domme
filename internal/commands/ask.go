@@ -11,7 +11,7 @@ func init() {
 	Register(&Command{
 		Sort:           10,
 		Name:           "ask",
-		Description:    "Request permission to contact another member, politely.",
+		Description:    "Request permission to contact another member.",
 		Category:       "🎭 Roleplay",
 		DCSlashHandler: askSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{

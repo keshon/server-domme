@@ -14,11 +14,11 @@ func init() {
 		Name:           "del-jobs",
 		Description:    "List all active deletion jobs in this realm.",
 		Category:       "🧹 Channel Cleanup",
-		DCSlashHandler: deleteMessagesListHandler,
+		DCSlashHandler: deletionJobsSlashHandler,
 	})
 }
 
-func deleteMessagesListHandler(ctx *SlashContext) {
+func deletionJobsSlashHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	guildID := i.GuildID
 
