@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -12,6 +13,7 @@ func init() {
 		Name:           "init-commands",
 		Description:    "Re-initialize all bot's slash commands.",
 		Category:       "🏰 Court Administration",
+		AdminOnly:      true,
 		DCSlashHandler: initCommandsSlashHandler,
 	})
 }
@@ -27,7 +29,7 @@ func initCommandsSlashHandler(ctx *SlashContext) {
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "Re-registering slash commands... Please hold your breath, or your tongue.",
+			Content: "Re-registering slash commands... Please hold your breath, it may take time.",
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})
@@ -73,6 +75,14 @@ func initCommandsSlashHandler(ctx *SlashContext) {
 
 		sendFollowup(s, i, "Slash commands successfully refreshed. Praise be to your glorious uptime.")
 	}()
+
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err := logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "init-commands")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }
 
 func sendFollowup(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {

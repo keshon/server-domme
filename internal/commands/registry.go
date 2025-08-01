@@ -11,6 +11,8 @@ type Command struct {
 	Aliases     []string
 	Description string
 	Category    string
+	AdminOnly   bool
+	DevOnly     bool
 
 	DCSlashHandler     func(ctx *SlashContext)
 	SlashOptions       []*discordgo.ApplicationCommandOption

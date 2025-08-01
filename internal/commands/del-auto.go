@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ func init() {
 		Name:           "del-auto",
 		Description:    "Recurring messages deletion older than set.",
 		Category:       "🧹 Channel Cleanup",
+		AdminOnly:      true,
 		DCSlashHandler: deleteAutoSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -128,4 +130,11 @@ func deleteAutoSlashHandler(ctx *SlashContext) {
 			}
 		}
 	}()
+
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "del-auto")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }

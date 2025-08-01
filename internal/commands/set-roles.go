@@ -10,9 +10,10 @@ import (
 func init() {
 	Register(&Command{
 		Sort:           410,
-		Name:           "set-role",
+		Name:           "set-roles",
 		Description:    "Appoint punisher, victim, or tasker roles.",
 		Category:       "🏰 Court Administration",
+		AdminOnly:      true,
 		DCSlashHandler: setRoleSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -104,7 +105,7 @@ func setRoleSlashHandler(ctx *SlashContext) {
 	guildID := i.GuildID
 	userID := i.Member.User.ID
 	username := i.Member.User.Username
-	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "set-role")
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "set-roles")
 	if err != nil {
 		log.Println("Failed to log command:", err)
 	}

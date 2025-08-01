@@ -2,6 +2,7 @@
 package commands
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ func init() {
 		Name:           "del-jobs",
 		Description:    "List all active deletion jobs in this realm.",
 		Category:       "🧹 Channel Cleanup",
+		AdminOnly:      true,
 		DCSlashHandler: deletionJobsSlashHandler,
 	})
 }
@@ -21,6 +23,11 @@ func init() {
 func deletionJobsSlashHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	guildID := i.GuildID
+
+	if !isAdmin(s, guildID, i.Member) {
+		respondEphemeral(s, i, "You must be a server administrator to use this command.")
+		return
+	}
 
 	jobs, err := storage.GetDeletionJobsList(guildID)
 	if err != nil || len(jobs) == 0 {
@@ -60,4 +67,11 @@ func deletionJobsSlashHandler(ctx *SlashContext) {
 			Content: builder.String(),
 		},
 	})
+
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "del-jobs")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }

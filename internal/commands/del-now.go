@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ func init() {
 		Name:           "del-now",
 		Description:    "Wipe this channel clean, no mercy shown.",
 		Category:       "🧹 Channel Cleanup",
+		AdminOnly:      true,
 		DCSlashHandler: deleteNowSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -128,4 +130,11 @@ func deleteNowSlashHandler(ctx *SlashContext) {
 
 		_ = storage.ClearDeletionJob(guildID, channelID)
 	}()
+
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "del-now")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }

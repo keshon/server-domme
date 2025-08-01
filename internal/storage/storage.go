@@ -46,6 +46,7 @@ type DeletionJob struct {
 
 type Record struct {
 	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
+	Channels            map[string]string      `json:"channels"`
 	Roles               map[string]string      `json:"roles"`
 	Tasks               map[string]UserTask    `json:"tasks"`
 	Cooldowns           map[string]time.Time   `json:"cooldowns"`
@@ -438,4 +439,32 @@ func (s *Storage) Dump() (map[string]interface{}, error) {
 		all[key] = value
 	}
 	return all, nil
+}
+
+func (s *Storage) SetSpecialChannel(guildID, kind, channelID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	if record.Channels == nil {
+		record.Channels = map[string]string{}
+	}
+
+	record.Channels["channel_"+kind] = channelID
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) GetSpecialChannel(guildID, kind string) (string, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return "", err
+	}
+
+	id, ok := record.Channels["channel_"+kind]
+	if !ok || id == "" {
+		return "", fmt.Errorf("channel not set for kind '%s'", kind)
+	}
+	return id, nil
 }

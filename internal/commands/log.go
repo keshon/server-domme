@@ -20,6 +20,7 @@ func init() {
 		Name:           "log",
 		Description:    "Review recent commands and their punishments.",
 		Category:       "🏰 Court Administration",
+		AdminOnly:      true,
 		DCSlashHandler: logSlashHandler,
 	})
 }

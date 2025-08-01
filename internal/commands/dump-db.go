@@ -15,6 +15,7 @@ func init() {
 		Name:        "dump-db",
 		Description: "Export the secret archives of this server.",
 		Category:    "🏰 Court Administration",
+		DevOnly:     true,
 		DCSlashHandler: func(ctx *SlashContext) {
 			dumpDbSlashHandler(ctx)
 		},

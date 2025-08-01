@@ -24,7 +24,7 @@ func init() {
 func helpSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
-	output := buildHelpMessage()
+	output := buildHelpMessage(ctx)
 
 	embed := &discordgo.MessageEmbed{
 		Title:       version.AppName + " Help",
@@ -48,12 +48,22 @@ func helpSlashHandler(ctx *SlashContext) {
 	}
 }
 
-func buildHelpMessage() string {
-	cmds := All()
+func buildHelpMessage(ctx *SlashContext) string {
+	s := ctx.Session
+	i := ctx.InteractionCreate
 
+	cmds := All()
 	categoryMap := make(map[string][]*Command)
 	categorySort := make(map[string]int)
+
 	for _, cmd := range cmds {
+		if cmd.AdminOnly && !isAdmin(s, i.GuildID, i.Member) {
+			continue
+		}
+		if cmd.DevOnly && !isDeveloper(ctx) {
+			continue
+		}
+
 		cat := cmd.Category
 		categoryMap[cat] = append(categoryMap[cat], cmd)
 

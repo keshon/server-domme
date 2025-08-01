@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -88,6 +89,14 @@ func askSlashHandler(ctx *SlashContext) {
 			},
 		},
 	})
+
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err := logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "ask")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }
 
 func askComponentHandler(ctx *ComponentContext) {

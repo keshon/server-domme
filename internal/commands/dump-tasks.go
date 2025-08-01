@@ -17,6 +17,7 @@ func init() {
 		Name:           "dump-tasks",
 		Description:    "Reveal and export all tasks in this server.",
 		Category:       "🏰 Court Administration",
+		AdminOnly:      true,
 		DCSlashHandler: dumpTasksSlashHandler,
 	})
 
@@ -91,5 +92,13 @@ func dumpTasksSlashHandler(ctx *SlashContext) {
 	})
 	if err != nil {
 		log.Println("Failed to respond to list-tasks command:", err)
+	}
+
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+	username := i.Member.User.Username
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, username, "dump-tasks")
+	if err != nil {
+		log.Println("Failed to log command:", err)
 	}
 }
