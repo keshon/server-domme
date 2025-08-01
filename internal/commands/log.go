@@ -29,7 +29,7 @@ func logSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 	guildID := i.GuildID
 
-	if !isAdmin(s, i.GuildID, i.Member) {
+	if !isAdministrator(s, i.GuildID, i.Member) {
 		respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
 		return
 	}
@@ -47,17 +47,26 @@ func logSlashHandler(ctx *SlashContext) {
 
 	var builder strings.Builder
 
-	header := fmt.Sprintf("%-19s\t%-15s\t%-15s\t%s\n", "# Datetime", "# Username", "# Channel", "# Command")
+	header := fmt.Sprintf("%-19s\t%-15s\t%-12s\t%s\n", "# Datetime", "# Username", "# Channel", "# Command")
 	builder.WriteString(header)
 
 	for idx := len(records) - 1; idx >= 0; idx-- {
 		rec := records[idx]
+
+		username := rec.Username
+		channelName := rec.ChannelName
+		command := rec.Command
+
+		if command == "confess" && !isDeveloper(i.Member.User.ID) {
+			username = "###"
+		}
+
 		entry := fmt.Sprintf(
-			"%-19s\t%-15s\t#%-14s\t%s\n",
+			"%-19s\t%-15s\t#%-12s\t%s\n",
 			rec.Datetime.Format("2006-01-02 15:04:05"),
-			rec.Username,
-			rec.ChannelName,
-			rec.Command,
+			username,
+			channelName,
+			"/"+command,
 		)
 
 		if builder.Len()+len(entry) > maxContentLength {

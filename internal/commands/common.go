@@ -65,7 +65,7 @@ func logCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 	)
 }
 
-func isAdmin(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
+func isAdministrator(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
 	cfg := config.New()
 	if member.User.ID == cfg.DeveloperID {
 		return true
@@ -93,9 +93,9 @@ func isAdmin(s *discordgo.Session, guildID string, member *discordgo.Member) boo
 	return false
 }
 
-func isDeveloper(ctx *SlashContext) bool {
+func isDeveloper(userID string) bool {
 	cfg := config.New()
-	return ctx.InteractionCreate.Member.User.ID == cfg.DeveloperID
+	return userID == cfg.DeveloperID
 }
 
 func checkBotPermissions(s *discordgo.Session, channelID string) bool {

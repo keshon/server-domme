@@ -39,7 +39,7 @@ func setChannelHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 
-	if !isAdmin(s, i.GuildID, i.Member) {
+	if !isAdministrator(s, i.GuildID, i.Member) {
 		respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
 		return
 	}
@@ -59,7 +59,6 @@ func setChannelHandler(ctx *SlashContext) {
 		return
 	}
 
-	// Save to storage
 	err := storage.SetSpecialChannel(i.GuildID, kind, channelID)
 	if err != nil {
 		respondEphemeral(s, i, fmt.Sprintf("Couldn’t save it: `%s`", err.Error()))

@@ -51,16 +51,17 @@ func helpSlashHandler(ctx *SlashContext) {
 func buildHelpMessage(ctx *SlashContext) string {
 	s := ctx.Session
 	i := ctx.InteractionCreate
+	userID := i.Member.User.ID
 
 	cmds := All()
 	categoryMap := make(map[string][]*Command)
 	categorySort := make(map[string]int)
 
 	for _, cmd := range cmds {
-		if cmd.AdminOnly && !isAdmin(s, i.GuildID, i.Member) {
+		if cmd.AdminOnly && !isAdministrator(s, i.GuildID, i.Member) {
 			continue
 		}
-		if cmd.DevOnly && !isDeveloper(ctx) {
+		if cmd.DevOnly && !isDeveloper(userID) {
 			continue
 		}
 

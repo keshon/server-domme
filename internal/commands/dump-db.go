@@ -24,8 +24,8 @@ func init() {
 
 func dumpDbSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
-
-	if !isDeveloper(ctx) {
+	userID := i.Member.User.ID
+	if !isDeveloper(userID) {
 		respondEphemeral(s, i, "🚫 You don't have permission to use this command.")
 		return
 	}

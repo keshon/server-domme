@@ -48,7 +48,7 @@ func deleteAutoSlashHandler(ctx *SlashContext) {
 	options := i.ApplicationCommandData().Options
 	channelID, guildID := i.ChannelID, i.GuildID
 
-	if !isAdmin(s, guildID, i.Member) {
+	if !isAdministrator(s, guildID, i.Member) {
 		respondEphemeral(s, i, "You must be a server administrator to use this command.")
 		return
 	}

@@ -21,7 +21,7 @@ func init() {
 func initCommandsSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
-	if !isAdmin(s, i.GuildID, i.Member) {
+	if !isAdministrator(s, i.GuildID, i.Member) {
 		respondEphemeral(s, i, "You're not an admin, darling. Hands off the arsenal.")
 		return
 	}

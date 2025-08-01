@@ -26,7 +26,7 @@ func init() {
 func dumpTasksSlashHandler(ctx *SlashContext) {
 	s, i := ctx.Session, ctx.InteractionCreate
 
-	if !isAdmin(s, i.GuildID, i.Member) {
+	if !isAdministrator(s, i.GuildID, i.Member) {
 		respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
 		return
 	}
