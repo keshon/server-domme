@@ -75,7 +75,7 @@ func deleteNowSlashHandler(ctx *SlashContext) {
 		case "delay":
 			delayStr = opt.StringValue()
 		case "notify_all":
-			notifyAll = strings.ToLower(opt.StringValue()) != "true"
+			notifyAll = strings.ToLower(opt.StringValue()) == "true"
 		}
 	}
 
