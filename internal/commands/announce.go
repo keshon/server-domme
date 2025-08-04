@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -16,11 +17,13 @@ func init() {
 		Sort:             80,
 		Name:             "Announce",
 		Description:      "Send a message to the announcement channel",
+		AdminOnly:        true,
 		Category:         "📢 Utilities",
 		ContextType:      discordgo.MessageApplicationCommand,
 		DCContextHandler: announceMessageHandler,
 	})
 }
+
 func announceMessageHandler(ctx *SlashContext) {
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	userID := i.Member.User.ID
@@ -28,26 +31,43 @@ func announceMessageHandler(ctx *SlashContext) {
 	guildID := i.GuildID
 	channelID := i.ChannelID
 
+	if !isAdministrator(s, guildID, i.Member) {
+		respondEphemeral(s, i, "You're not the boss of me.")
+		return
+	}
+
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	if err != nil {
+		log.Println("Failed to send deferred response:", err)
+		return
+	}
+
 	target := i.ApplicationCommandData().TargetID
 	msg, err := s.ChannelMessage(channelID, target)
 	if err != nil {
-		respondEphemeral(s, i, fmt.Sprintf("Couldn’t fetch the message: `%v`", err))
+		editResponse(s, i, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return
 	}
 
 	if msg.Author == nil || msg.Author.Bot {
-		respondEphemeral(s, i, "I won’t announce bot babble or ghost messages.")
+		editResponse(s, i, "I won't announce bot babble or ghost messages.")
 		return
 	}
 
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		respondEphemeral(s, i, "Empty? I’m not announcing tumbleweeds.")
+		editResponse(s, i, "Empty? I'm not announcing tumbleweeds.")
 		return
 	}
 
 	announceChannelID, err := storage.GetSpecialChannel(guildID, "announce")
 	if err != nil {
-		respondEphemeral(s, i, "No announcement channel configured. Bother the admin.")
+		editResponse(s, i, "No announcement channel configured. Bother the admin.")
 		return
 	}
 
@@ -73,18 +93,21 @@ func announceMessageHandler(ctx *SlashContext) {
 	}
 
 	msgSend := &discordgo.MessageSend{
-		Content: restoreMentions(s, guildID, msg.Content, msg.Mentions),
+		Content: restoreMentions(s, guildID, msg.Content),
 		Files:   files,
-		Embeds:  msg.Embeds,
+	}
+
+	if len(msg.Embeds) > 0 {
+		msgSend.Embeds = msg.Embeds
 	}
 
 	_, err = s.ChannelMessageSendComplex(announceChannelID, msgSend)
 	if err != nil {
-		respondEphemeral(s, i, fmt.Sprintf("Couldn’t announce it: `%v`", err))
+		editResponse(s, i, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return
 	}
 
-	respondEphemeral(s, i, "Announced. Everyone’s watching now.")
+	editResponse(s, i, "Announced. Everyone's watching now.")
 
 	err = logCommand(s, storage, guildID, channelID, userID, username, "announce")
 	if err != nil {
@@ -92,28 +115,43 @@ func announceMessageHandler(ctx *SlashContext) {
 	}
 }
 
-func restoreMentions(s *discordgo.Session, guildID string, content string, mentions []*discordgo.User) string {
-	for _, u := range mentions {
-		member, err := s.GuildMember(guildID, u.ID)
-		if err != nil {
-			continue
+var mentionRegex = regexp.MustCompile(`@(\S+)`)
+
+func restoreMentions(s *discordgo.Session, guildID, content string) string {
+	members, err := s.GuildMembers(guildID, "", 1000)
+	if err != nil {
+		return content
+	}
+
+	userMap := make(map[string]string)
+
+	for _, m := range members {
+		u := m.User
+		userMap[strings.ToLower(u.Username)] = u.ID
+		if m.Nick != "" {
+			userMap[strings.ToLower(m.Nick)] = u.ID
 		}
-
-		displayNames := []string{"@" + u.Username}
-
-		if member.Nick != "" {
-			displayNames = append(displayNames, "@"+member.Nick)
-		}
-
-		if u.GlobalName != "" && u.GlobalName != u.Username {
-			displayNames = append(displayNames, "@"+u.GlobalName)
-		}
-
-		for _, name := range displayNames {
-			if strings.Contains(content, name) {
-				content = strings.ReplaceAll(content, name, fmt.Sprintf("<@%s>", u.ID))
-			}
+		if u.GlobalName != "" {
+			userMap[strings.ToLower(u.GlobalName)] = u.ID
 		}
 	}
+
+	content = mentionRegex.ReplaceAllStringFunc(content, func(m string) string {
+		name := strings.TrimPrefix(m, "@")
+		if id, ok := userMap[strings.ToLower(name)]; ok {
+			return fmt.Sprintf("<@%s>", id)
+		}
+		return m
+	})
+
 	return content
+}
+
+func editResponse(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {
+	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
+	})
+	if err != nil {
+		log.Println("Failed to edit response:", err)
+	}
 }
