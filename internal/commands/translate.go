@@ -79,7 +79,6 @@ func TranslateGoogle(text, targetLang string) (string, error) {
 	params.Set("dt", "t")
 	params.Set("q", text)
 
-	fmt.Println(text, targetLang)
 	reqURL := fmt.Sprintf("%s?%s", endpoint, params.Encode())
 
 	req, err := http.NewRequest("GET", reqURL, nil)
