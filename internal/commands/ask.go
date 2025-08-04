@@ -63,7 +63,7 @@ func askSlashHandler(ctx *SlashContext) {
 	}
 
 	askerID := i.Member.User.ID
-	if targetUser == nil || targetUser.ID == askerID {
+	if !isDeveloper(askerID) && (targetUser == nil || targetUser.ID == askerID) {
 		respondEphemeral(s, i, "You must pick someone *other* than yourself, sweetheart.")
 		return
 	}
@@ -89,6 +89,14 @@ func askSlashHandler(ctx *SlashContext) {
 			},
 		},
 	})
+
+	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", i.GuildID, i.ChannelID, i.ID)
+	dm := fmt.Sprintf(
+		"<@%s> wants to **%s** with you.\nYou can view the request here:\n%s",
+		askerID, consentType, msgLink,
+	)
+
+	s.ChannelMessageSendComplex(dmChannel(s, targetUser.ID), &discordgo.MessageSend{Content: dm})
 
 	guildID := i.GuildID
 	userID := i.Member.User.ID

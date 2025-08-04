@@ -17,6 +17,9 @@ type Command struct {
 	DCSlashHandler     func(ctx *SlashContext)
 	SlashOptions       []*discordgo.ApplicationCommandOption
 	DCComponentHandler func(*ComponentContext)
+
+	ContextType      discordgo.ApplicationCommandType
+	DCContextHandler func(ctx *SlashContext)
 }
 
 var commandRegistry = map[string]*Command{}

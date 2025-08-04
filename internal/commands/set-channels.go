@@ -22,7 +22,8 @@ func init() {
 				Description: "What kind of channel are you setting?",
 				Required:    true,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{Name: "Confession channel drop point", Value: "confession"},
+					{Name: "Confession Channel", Value: "confession"},
+					{Name: "Announcement Channel", Value: "announce"},
 				},
 			},
 			{
@@ -69,6 +70,8 @@ func setChannelHandler(ctx *SlashContext) {
 	switch kind {
 	case "confession":
 		confirmation = "💬 Confession channel updated. May secrets drip in silence."
+	case "announce":
+		confirmation = "📢 Announcement channel set. Don’t disappoint me with boring news."
 	default:
 		confirmation = fmt.Sprintf("✅ Channel for `%s` set.", kind)
 	}

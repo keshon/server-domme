@@ -91,7 +91,28 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		cmdName := i.ApplicationCommandData().Name
 		args := extractArgs(i)
 
-		if cmd, ok := commands.Get(cmdName); ok && cmd.DCSlashHandler != nil {
+		cmd, ok := commands.Get(cmdName)
+		if !ok {
+			log.Printf("[WARN] Unknown command: %s\n", cmdName)
+			return
+		}
+
+		// Context menu
+		if cmd.ContextType != 0 {
+			if cmd.DCContextHandler != nil {
+				ctx := &commands.SlashContext{
+					Session:           s,
+					InteractionCreate: i,
+					Args:              args,
+					Storage:           b.storage,
+				}
+				cmd.DCContextHandler(ctx)
+			}
+			return
+		}
+
+		// Slash command
+		if cmd.DCSlashHandler != nil {
 			ctx := &commands.SlashContext{
 				Session:           s,
 				InteractionCreate: i,
@@ -132,20 +153,28 @@ func (b *Bot) registerSlashCommands(guildID string) error {
 	var cmds []*discordgo.ApplicationCommand
 
 	for _, cmd := range commands.All() {
-		if cmd.DCSlashHandler == nil {
+		// register context menu
+		if cmd.ContextType != 0 {
+			appCmd := &discordgo.ApplicationCommand{
+				Name: cmd.Name,
+				Type: cmd.ContextType,
+				// Description is ignored for context menus
+			}
+			cmds = append(cmds, appCmd)
 			continue
 		}
 
-		slashCmd := &discordgo.ApplicationCommand{
-			Name:        cmd.Name,
-			Description: cmd.Description,
-			Options:     cmd.SlashOptions,
+		// register slash command
+		if cmd.DCSlashHandler != nil {
+			appCmd := &discordgo.ApplicationCommand{
+				Name:        cmd.Name,
+				Description: cmd.Description,
+				Options:     cmd.SlashOptions,
+				Type:        discordgo.ChatApplicationCommand,
+			}
+			cmds = append(cmds, appCmd)
 		}
-
-		cmds = append(cmds, slashCmd)
 	}
-
-	var created []*discordgo.ApplicationCommand
 
 	appID := b.dg.State.User.ID
 	if appID == "" {
@@ -157,6 +186,7 @@ func (b *Bot) registerSlashCommands(guildID string) error {
 	}
 
 	var errs []string
+	var created []*discordgo.ApplicationCommand
 
 	for _, cmd := range cmds {
 		c, err := b.dg.ApplicationCommandCreate(appID, guildID, cmd)
