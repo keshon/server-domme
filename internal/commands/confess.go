@@ -12,8 +12,8 @@ func init() {
 	Register(&Command{
 		Sort:           50,
 		Name:           "confess",
-		Description:    "Send an anonymous confession to the channel.",
 		Category:       "🎭 Roleplay",
+		Description:    "Send an anonymous confession to the channel",
 		DCSlashHandler: confessSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -27,6 +27,9 @@ func init() {
 }
 
 func confessSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 

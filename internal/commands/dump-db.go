@@ -13,8 +13,8 @@ func init() {
 	Register(&Command{
 		Sort:        420,
 		Name:        "dump-db",
-		Description: "Export the secret archives of this server.",
-		Category:    "🏰 Court Administration",
+		Category:    "⚙️ Maintenance",
+		Description: "Dumps the bot database",
 		DevOnly:     true,
 		DCSlashHandler: func(ctx *SlashContext) {
 			dumpDbSlashHandler(ctx)
@@ -23,6 +23,9 @@ func init() {
 }
 
 func dumpDbSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 	userID := i.Member.User.ID
 	if !isDeveloper(userID) {

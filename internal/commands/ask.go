@@ -12,8 +12,8 @@ func init() {
 	Register(&Command{
 		Sort:           10,
 		Name:           "ask",
-		Description:    "Request permission to contact another member.",
 		Category:       "🎭 Roleplay",
+		Description:    "Request permission to contact another member",
 		DCSlashHandler: askSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -45,6 +45,9 @@ func init() {
 }
 
 func askSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 	options := i.ApplicationCommandData().Options
 

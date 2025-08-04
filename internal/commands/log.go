@@ -18,14 +18,17 @@ func init() {
 	Register(&Command{
 		Sort:           400,
 		Name:           "log",
-		Description:    "Review recent commands and their punishments.",
-		Category:       "🏰 Court Administration",
+		Category:       "⚙️ Maintenance",
+		Description:    "Review recent commands and their punishments",
 		AdminOnly:      true,
 		DCSlashHandler: logSlashHandler,
 	})
 }
 
 func logSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 	guildID := i.GuildID
 

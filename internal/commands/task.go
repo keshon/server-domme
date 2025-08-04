@@ -35,8 +35,8 @@ func init() {
 	Register(&Command{
 		Sort:               20,
 		Name:               "task",
-		Description:        "Assign or manage your personal task, slave.",
 		Category:           "🎭 Roleplay",
+		Description:        "Assign or manage your personal task, slave",
 		DCSlashHandler:     taskSlashHandler,
 		DCComponentHandler: taskComponentHandler,
 	})
@@ -57,6 +57,9 @@ func init() {
 }
 
 func taskSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 	userID, guildID := i.Member.User.ID, i.GuildID
 

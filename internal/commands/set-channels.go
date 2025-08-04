@@ -11,8 +11,8 @@ func init() {
 	Register(&Command{
 		Sort:           411,
 		Name:           "set-channels",
-		Description:    "Designate special-purpose channels.",
-		Category:       "🏰 Court Administration",
+		Category:       "⚙️ Maintenance",
+		Description:    "Designate special-purpose channels",
 		AdminOnly:      true,
 		DCSlashHandler: setChannelHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
@@ -37,6 +37,9 @@ func init() {
 }
 
 func setChannelHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 

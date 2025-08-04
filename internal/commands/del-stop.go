@@ -6,14 +6,17 @@ func init() {
 	Register(&Command{
 		Sort:           230,
 		Name:           "del-stop",
-		Description:    "Halt ongoing deletions in a channel.",
 		Category:       "🧹 Channel Cleanup",
+		Description:    "Halt ongoing deletions in a channel",
 		AdminOnly:      true,
 		DCSlashHandler: stopSlashHandler,
 	})
 }
 
 func stopSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	channelID, guildID := i.ChannelID, i.GuildID
 

@@ -13,14 +13,17 @@ func init() {
 	Register(&Command{
 		Sort:           200,
 		Name:           "del-jobs",
-		Description:    "List all active deletion jobs in this realm.",
 		Category:       "🧹 Channel Cleanup",
+		Description:    "List all active deletion jobs in this realm",
 		AdminOnly:      true,
 		DCSlashHandler: deletionJobsSlashHandler,
 	})
 }
 
 func deletionJobsSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	guildID := i.GuildID
 

@@ -14,12 +14,12 @@ type Command struct {
 	AdminOnly   bool
 	DevOnly     bool
 
-	DCSlashHandler     func(ctx *SlashContext)
 	SlashOptions       []*discordgo.ApplicationCommandOption
+	ContextType        discordgo.ApplicationCommandType
+	DCSlashHandler     func(ctx *SlashContext)
 	DCComponentHandler func(*ComponentContext)
-
-	ContextType      discordgo.ApplicationCommandType
-	DCContextHandler func(ctx *SlashContext)
+	DCContextHandler   func(ctx *SlashContext)
+	DCReactionHandler  func(ctx *ReactionContext)
 }
 
 var commandRegistry = map[string]*Command{}

@@ -15,8 +15,8 @@ func init() {
 	Register(&Command{
 		Sort:           430,
 		Name:           "dump-tasks",
-		Description:    "Reveal and export all tasks in this server.",
-		Category:       "🏰 Court Administration",
+		Category:       "⚙️ Maintenance",
+		Description:    "Dumps all tasks in this server.",
 		AdminOnly:      true,
 		DCSlashHandler: dumpTasksSlashHandler,
 	})
@@ -24,6 +24,9 @@ func init() {
 }
 
 func dumpTasksSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	if !isAdministrator(s, i.GuildID, i.Member) {

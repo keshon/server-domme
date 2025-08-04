@@ -12,8 +12,8 @@ func init() {
 	Register(&Command{
 		Sort:           210,
 		Name:           "del-now",
-		Description:    "Wipe this channel clean, no mercy shown.",
 		Category:       "🧹 Channel Cleanup",
+		Description:    "Wipe this channel clean, no mercy shown",
 		AdminOnly:      true,
 		DCSlashHandler: deleteNowSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
@@ -52,6 +52,9 @@ func init() {
 }
 
 func deleteNowSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 	channelID, guildID := i.ChannelID, i.GuildID

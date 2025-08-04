@@ -14,14 +14,16 @@ func init() {
 	Register(&Command{
 		Sort:           910,
 		Name:           "help",
-		Description:    "Your guide to serving the Server Domme well.",
 		Category:       "🕯️ Lore & Insight",
+		Description:    "Your guide to serving the Server Domme well",
 		DCSlashHandler: helpSlashHandler,
 	})
 }
 
-// Slash Discord Handler
 func helpSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	output := buildHelpMessage(ctx)

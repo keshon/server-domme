@@ -15,8 +15,8 @@ func init() {
 	Register(&Command{
 		Sort:           61,
 		Name:           "roll",
-		Description:    "Roll dice with formulas like `2d6+1d4*2-3`",
 		Category:       "🎲 Game Mechanics",
+		Description:    "Roll dice with crazy formulas like `2d6+1d4*2`",
 		DCSlashHandler: rollSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -43,6 +43,9 @@ type term struct {
 }
 
 func rollSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, interaction := ctx.Session, ctx.InteractionCreate
 	options := interaction.ApplicationCommandData().Options
 

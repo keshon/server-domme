@@ -11,8 +11,8 @@ func init() {
 	Register(&Command{
 		Sort:           410,
 		Name:           "set-roles",
-		Description:    "Appoint punisher, victim, or tasker roles.",
-		Category:       "🏰 Court Administration",
+		Category:       "⚙️ Maintenance",
+		Description:    "Appoint punisher, victim, or tasker roles",
 		AdminOnly:      true,
 		DCSlashHandler: setRoleSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
@@ -39,6 +39,9 @@ func init() {
 }
 
 func setRoleSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 

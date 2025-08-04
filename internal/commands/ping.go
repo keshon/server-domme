@@ -9,10 +9,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           900,                                       // low sort to appear early
-		Name:           "ping",                                    // command name
-		Description:    "Send a ping and receive a teasing pong.", // command description
-		Category:       "🕯️ Lore & Insight",                       // command category
+		Sort:           900,
+		Name:           "ping",
+		Category:       "🕯️ Lore & Insight",
+		Description:    "Send a ping and receive a teasing pong",
 		DCSlashHandler: pingSlashHandler,
 	})
 }
@@ -23,6 +23,9 @@ func buildPingMessage(s *discordgo.Session) (string, error) {
 }
 
 func pingSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	msg, err := buildPingMessage(s)

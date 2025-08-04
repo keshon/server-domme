@@ -16,10 +16,10 @@ import (
 
 func init() {
 	Register(&Command{
-		Sort:           920,                                               // sorting weight
-		Name:           "about",                                           // command name
-		Description:    "Discover the origin of your merciless mistress.", // command description
-		Category:       "🕯️ Lore & Insight",                               // command category
+		Sort:           920,
+		Name:           "about",
+		Category:       "🕯️ Lore & Insight",
+		Description:    "Discover the origin of your merciless mistress",
 		DCSlashHandler: aboutSlashHandler,
 	})
 }
@@ -73,6 +73,9 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 }
 
 func aboutSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i := ctx.Session, ctx.InteractionCreate
 
 	emb, file, err := buildAboutMessage()

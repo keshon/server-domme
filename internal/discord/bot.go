@@ -44,6 +44,7 @@ func (b *Bot) run(ctx context.Context, token string) error {
 
 	b.configureIntents()
 	dg.AddHandler(b.onReady)
+	dg.AddHandler(b.onMessageReactionAdd)
 	dg.AddHandler(b.onInteractionCreate)
 
 	if err := dg.Open(); err != nil {
@@ -83,6 +84,19 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	startScheduledNukeJobs(b.storage, s)
 
 	log.Printf("✅ Discord bot %v is running.", botInfo.Username)
+}
+
+func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+	for _, cmd := range commands.All() {
+		if cmd.DCReactionHandler != nil {
+			ctx := &commands.ReactionContext{
+				Session:  s,
+				Reaction: r,
+				Storage:  b.storage,
+			}
+			cmd.DCReactionHandler(ctx)
+		}
+	}
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {

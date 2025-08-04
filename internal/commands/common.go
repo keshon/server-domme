@@ -106,3 +106,17 @@ func checkBotPermissions(s *discordgo.Session, channelID string) bool {
 	}
 	return perms&discordgo.PermissionManageMessages != 0
 }
+
+func RequireGuild(ctx *SlashContext) bool {
+	if ctx.InteractionCreate.GuildID == "" {
+		_ = ctx.Session.InteractionRespond(ctx.InteractionCreate.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "You must be in a guild to use this command.",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return false
+	}
+	return true
+}

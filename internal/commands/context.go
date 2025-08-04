@@ -18,3 +18,9 @@ type ComponentContext struct {
 	InteractionCreate *discordgo.InteractionCreate
 	Storage           *storage.Storage
 }
+
+type ReactionContext struct {
+	Session  *discordgo.Session
+	Reaction *discordgo.MessageReactionAdd
+	Storage  *storage.Storage
+}

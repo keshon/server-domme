@@ -16,15 +16,18 @@ func init() {
 	Register(&Command{
 		Sort:             80,
 		Name:             "Announce",
+		Category:         "📢 Utilities",
 		Description:      "Send a message to the announcement channel",
 		AdminOnly:        true,
-		Category:         "📢 Utilities",
 		ContextType:      discordgo.MessageApplicationCommand,
 		DCContextHandler: announceMessageHandler,
 	})
 }
 
 func announceMessageHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	userID := i.Member.User.ID
 	username := i.Member.User.Username

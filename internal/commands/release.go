@@ -12,8 +12,8 @@ func init() {
 	Register(&Command{
 		Sort:           40,
 		Name:           "release",
-		Description:    "Remove the brat role and grant reprieve.",
 		Category:       "🎭 Roleplay",
+		Description:    "Remove the brat role and grant reprieve",
 		DCSlashHandler: releaseSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -27,6 +27,10 @@ func init() {
 }
 
 func releaseSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
+
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 

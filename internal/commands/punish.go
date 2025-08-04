@@ -14,8 +14,8 @@ func init() {
 	Register(&Command{
 		Sort:           30,
 		Name:           "punish",
-		Description:    "Assign the brat role for naughty behavior.",
 		Category:       "🎭 Roleplay",
+		Description:    "Assign the brat role for naughty behavior",
 		DCSlashHandler: punishSlashHandler,
 		SlashOptions: []*discordgo.ApplicationCommandOption{
 			{
@@ -39,6 +39,9 @@ func buildPunishAction(s *discordgo.Session, guildID, targetID, assignedRoleID s
 }
 
 func punishSlashHandler(ctx *SlashContext) {
+	if !RequireGuild(ctx) {
+		return
+	}
 	s, i, storage := ctx.Session, ctx.InteractionCreate, ctx.Storage
 	options := i.ApplicationCommandData().Options
 
