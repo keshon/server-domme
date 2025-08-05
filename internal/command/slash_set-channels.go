@@ -44,37 +44,34 @@ func (c *SetChannelsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *SetChannelsCommand) Run(ctx interface{}) error {
-	slashCtx, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*SlashContext)
 	if !ok {
-		return fmt.Errorf("не тот тип контекста")
+		return fmt.Errorf("wrong context type")
 	}
 
-	s := slashCtx.Session
-	i := slashCtx.Event
-	st := slashCtx.Storage
-	opts := i.ApplicationCommandData().Options
+	session, event, storage, options := slash.Session, slash.Event, slash.Storage, slash.Event.ApplicationCommandData().Options
 
-	if !isAdministrator(s, i.GuildID, i.Member) {
-		return respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
+	if !isAdministrator(session, event.GuildID, event.Member) {
+		return respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 	}
 
 	var kind, channelID string
-	for _, opt := range opts {
+	for _, opt := range options {
 		switch opt.Name {
 		case "type":
 			kind = opt.StringValue()
 		case "channel":
-			channelID = opt.ChannelValue(s).ID
+			channelID = opt.ChannelValue(session).ID
 		}
 	}
 
 	if kind == "" || channelID == "" {
-		return respondEphemeral(s, i, "Missing required parameters. Don't make me repeat myself.")
+		return respondEphemeral(session, event, "Missing required parameters. Don't make me repeat myself.")
 	}
 
-	err := st.SetSpecialChannel(i.GuildID, kind, channelID)
+	err := storage.SetSpecialChannel(event.GuildID, kind, channelID)
 	if err != nil {
-		return respondEphemeral(s, i, fmt.Sprintf("Couldn’t save it: `%s`", err.Error()))
+		return respondEphemeral(session, event, fmt.Sprintf("Couldn’t save it: `%s`", err.Error()))
 	}
 
 	var confirmation string
@@ -87,12 +84,12 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		confirmation = fmt.Sprintf("✅ Channel for `%s` set.", kind)
 	}
 
-	err = respondEphemeral(s, i, confirmation)
+	err = respondEphemeral(session, event, confirmation)
 	if err != nil {
 		return err
 	}
 
-	err = logCommand(s, st, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, c.Name())
+	err = logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log command:", err)
 	}

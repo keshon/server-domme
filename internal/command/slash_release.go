@@ -34,9 +34,9 @@ func (c *ReleaseCommand) SlashDefinition() *discordgo.ApplicationCommand {
 func (c *ReleaseCommand) Run(ctx interface{}) error {
 	slash, ok := ctx.(*SlashContext)
 	if !ok {
-		return fmt.Errorf("не тот тип контекста")
+		return fmt.Errorf("wrong context type")
 	}
-	s, i, storage := slash.Session, slash.InteractionCreate, slash.Storage
+	s, i, storage := slash.Session, slash.Event, slash.Storage
 
 	punisherRoleID, _ := storage.GetPunishRole(i.GuildID, "punisher")
 	assignedRoleID, _ := storage.GetPunishRole(i.GuildID, "assigned")

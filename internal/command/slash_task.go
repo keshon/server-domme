@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"server-domme/internal/config"
-	"server-domme/internal/storage"
+
+	st "server-domme/internal/storagetypes"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -65,22 +66,22 @@ func (t *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (t *TaskCommand) Run(ctx interface{}) error {
-	slashCtx, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*SlashContext)
 	if !ok {
 		return fmt.Errorf("не тот тип контекста")
 	}
 
-	s, i := slashCtx.Session, slashCtx.Event
-	userID, guildID := i.Member.User.ID, i.GuildID
+	session, event, storage := slash.Session, slash.Event, slash.Storage
+	userID, guildID := event.Member.User.ID, event.GuildID
 
-	if cdUntil, err := slashCtx.Storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cdUntil) {
+	if cdUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cdUntil) {
 		left := time.Until(cdUntil)
-		_ = respondEphemeral(s, i, fmt.Sprintf("Not so fast, darling. Wait **%s** before I play again.", humanDuration(left)))
+		_ = respondEphemeral(session, event, fmt.Sprintf("Not so fast, darling. Wait **%s** before I play again.", humanDuration(left)))
 		return nil
 	}
 
 	if slices.Contains(t.cfg.ProtectedUsers, userID) {
-		_ = respond(s, i, "Some lines even a Domme bot won’t cross. No tasks for the one who commands the code.")
+		_ = respond(session, event, "Some lines even a Domme bot won’t cross. No tasks for the one who commands the code.")
 		return nil
 	}
 
@@ -91,40 +92,39 @@ func (t *TaskCommand) Run(ctx interface{}) error {
 	}
 	t.cancelLock.Unlock()
 
-	if existing, _ := c.Storage.GetUserTask(guildID, userID); existing != nil && existing.Status == "pending" {
-		_ = respondEphemeral(s, i, "You already have a task. Finish one before begging for more.")
+	if existing, _ := storage.GetUserTask(guildID, userID); existing != nil && existing.Status == "pending" {
+		_ = respondEphemeral(session, event, "You already have a task. Finish one before begging for more.")
 		return nil
 	}
 
-	roleIDs, err := slashCtx.Storage.GetTaskRoles(guildID)
+	roleIDs, err := storage.GetTaskRoles(guildID)
 	if err != nil || len(roleIDs) == 0 {
-		_ = respondEphemeral(s, i, "No tasker roles set. I can’t give out toys to just anyone.")
+		_ = respondEphemeral(session, event, "No tasker roles set. I can’t give out toys to just anyone.")
 		return nil
 	}
 
-	roleMap := getMemberRoleNames(s, guildID, i.Member.Roles)
+	roleMap := getMemberRoleNames(session, guildID, event.Member.Roles)
 	filtered := filterTasksByRoles(t.tasks, roleMap)
 	if len(filtered) == 0 {
-		_ = respondEphemeral(s, i, "None of the tasks fit your… limited skill set.")
+		_ = respondEphemeral(session, event, "None of the tasks fit your… limited skill set.")
 		return nil
 	}
 
 	selected := filtered[rand.Intn(len(filtered))]
-	t.assignTask(slashCtx, selected)
+	t.assignTask(slash, selected)
 	return nil
 }
 
-func (t *TaskCommand) assignTask(slashCtx *SlashContext, task Task) {
-	s := slashCtx.Session
-	i := slashCtx.Event
-	userID, guildID := i.Member.User.ID, i.GuildID
+func (t *TaskCommand) assignTask(slash *SlashContext, task Task) {
+	session, event, storage := slash.Session, slash.Event, slash.Storage
+	userID, guildID := event.Member.User.ID, event.GuildID
 	now := time.Now()
 	expiry := now.Add(time.Duration(task.DurationMin) * time.Minute)
 	reminderDelay := time.Duration(float64(task.DurationMin)*0.9) * time.Minute
 
 	msg := fmt.Sprintf("**New Task**\n<@%s> %s\n\n*You have %s to complete this task.*", userID, task.Description, humanDuration(time.Until(expiry)))
 
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: msg,
@@ -142,27 +142,27 @@ func (t *TaskCommand) assignTask(slashCtx *SlashContext, task Task) {
 		return
 	}
 
-	savedMsg, err := s.InteractionResponse(i.Interaction)
+	savedMsg, err := session.InteractionResponse(event.Interaction)
 	if err != nil {
 		log.Println("Failed to get response msg:", err)
 		return
 	}
 
-	entry := storage.UserTask{
+	entry := st.UserTask{
 		UserID:     userID,
 		MessageID:  savedMsg.ID,
 		AssignedAt: now,
 		ExpiresAt:  expiry,
 		Status:     "pending",
 	}
-	_ = slashCtx.Storage.SetUserTask(guildID, userID, entry)
+	_ = storage.SetUserTask(guildID, userID, entry)
 
 	ctxTimer, cancel := context.WithCancel(context.Background())
 	t.cancelLock.Lock()
 	t.cancelMap[userID] = cancel
 	t.cancelLock.Unlock()
 
-	go t.handleTimers(slashCtx, ctxTimer, guildID, userID, i.ChannelID, savedMsg.ID, time.Until(expiry), reminderDelay)
+	go t.handleTimers(slash, ctxTimer, guildID, userID, event.ChannelID, savedMsg.ID, time.Until(expiry), reminderDelay)
 }
 
 func (t *TaskCommand) handleTimers(ctx *SlashContext, cancelCtx context.Context, guildID, userID, channelID, msgID string, expire, remind time.Duration) {

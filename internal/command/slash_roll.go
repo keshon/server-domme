@@ -51,17 +51,12 @@ type term struct {
 }
 
 func (c *RollCommand) Run(ctx interface{}) error {
-	slashCtx, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*SlashContext)
 	if !ok {
-		return fmt.Errorf("не тот тип контекста")
-	}
-	if !RequireGuild(slashCtx) {
-		return nil
+		return fmt.Errorf("wrong context type")
 	}
 
-	s := slashCtx.Session
-	i := slashCtx.Event
-	options := i.ApplicationCommandData().Options
+	session, event, options := slash.Session, slash.Event, slash.Event.ApplicationCommandData().Options
 
 	formula := ""
 	for _, opt := range options {
@@ -72,7 +67,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
-		return respondEphemeral(s, i, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
+		return respondEphemeral(session, event, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
 	}
 
 	var terms []term
@@ -86,7 +81,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			return respondEphemeral(s, i, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
+			return respondEphemeral(session, event, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
 		}
 
 		terms = append(terms, term{
@@ -102,7 +97,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				return respondEphemeral(s, i, "Syntax error: operator without left operand")
+				return respondEphemeral(session, event, "Syntax error: operator without left operand")
 			}
 			prev := merged[len(merged)-1]
 			merged = merged[:len(merged)-1]
@@ -113,7 +108,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					return respondEphemeral(s, i, "Division by zero is forbidden. Even in games.")
+					return respondEphemeral(session, event, "Division by zero is forbidden. Even in games.")
 				}
 				newVal = prev.value / t.value
 			}
@@ -144,7 +139,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		case "-":
 			total -= t.value
 		default:
-			return respondEphemeral(s, i, "Unexpected operator during evaluation. Blame the dev.")
+			return respondEphemeral(session, event, "Unexpected operator during evaluation. Blame the dev.")
 		}
 	}
 
@@ -156,7 +151,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		Color:       0x00cc99,
 	}
 
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
@@ -166,7 +161,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	err = logCommand(s, slashCtx.Storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, c.Name()+" "+formula)
+	err = logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, c.Name()+" "+formula)
 	if err != nil {
 		log.Println("Failed to log /roll:", err)
 	}

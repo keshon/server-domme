@@ -46,64 +46,61 @@ func (c *SetRolesCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *SetRolesCommand) Run(ctx interface{}) error {
-	slashCtx, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*SlashContext)
 	if !ok {
-		return fmt.Errorf("не тот тип контекста")
+		return fmt.Errorf("wrong context type")
 	}
 
-	s := slashCtx.Session
-	i := slashCtx.Event
-	st := slashCtx.Storage
-	opts := i.ApplicationCommandData().Options
+	session, event, storage, options := slash.Session, slash.Event, slash.Storage, slash.Event.ApplicationCommandData().Options
 
-	if !isAdministrator(s, i.GuildID, i.Member) {
-		return respondEphemeral(s, i, "You must be an Admin to use this command, darling.")
+	if !isAdministrator(session, event.GuildID, event.Member) {
+		return respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 	}
 
 	var roleType, roleID string
-	for _, opt := range opts {
+	for _, opt := range options {
 		switch opt.Name {
 		case "type":
 			roleType = opt.StringValue()
 		case "role":
-			roleID = opt.RoleValue(s, i.GuildID).ID
+			roleID = opt.RoleValue(session, event.GuildID).ID
 		}
 	}
 
 	if roleType == "" || roleID == "" {
-		return respondEphemeral(s, i, "Missing parameters. Try again without wasting my time.")
+		return respondEphemeral(session, event, "Missing parameters. Try again without wasting my time.")
 	}
 
 	switch roleType {
 	case "tasker":
-		err := st.SetTaskRole(i.GuildID, roleID)
+		err := storage.SetTaskRole(event.GuildID, roleID)
 		if err != nil {
-			return respondEphemeral(s, i, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
+			return respondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
 		}
 	default:
-		err := st.SetPunishRole(i.GuildID, roleType, roleID)
+		err := storage.SetPunishRole(event.GuildID, roleType, roleID)
 		if err != nil {
-			return respondEphemeral(s, i, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
+			return respondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
 		}
 	}
 
 	var response string
 	if roleType == "tasker" {
-		roleName, err := getRoleNameByID(s, i.GuildID, roleID)
+		roleName, err := getRoleNameByID(session, event.GuildID, roleID)
 		if err != nil {
 			roleName = roleID
 		}
-		response = fmt.Sprintf("✅ Added **%s** to the list of tasker roles. Update your tasks accordingly.", roleName)
+		response = fmt.Sprintf("Added **%s** to the list of tasker roles. Update your tasks accordingly.", roleName)
 	} else {
-		response = fmt.Sprintf("✅ The **%s** role has been updated.", roleType)
+		response = fmt.Sprintf("The **%s** role has been updated.", roleType)
 	}
 
-	err := respondEphemeral(s, i, response)
+	err := respondEphemeral(session, event, response)
 	if err != nil {
 		return err
 	}
 
-	err = logCommand(s, st, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, c.Name())
+	err = logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log command:", err)
 	}

@@ -36,7 +36,7 @@ var flags = map[string]string{
 func (t *TranslateOnReaction) Run(ctx interface{}) error {
 	rc, ok := ctx.(*ReactionContext)
 	if !ok {
-		return nil
+		return fmt.Errorf("wrong context type")
 	}
 	lang, ok := flags[rc.Reaction.Emoji.Name]
 	if !ok {

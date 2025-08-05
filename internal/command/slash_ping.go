@@ -27,7 +27,7 @@ func (p *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 func (p *PingCommand) Run(ctx interface{}) error {
 	c, ok := ctx.(*SlashContext)
 	if !ok {
-		return fmt.Errorf("не тот тип контекста")
+		return fmt.Errorf("wrong context type")
 	}
 
 	latency := c.Session.HeartbeatLatency().Milliseconds()

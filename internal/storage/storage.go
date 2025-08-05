@@ -8,49 +8,13 @@ import (
 	"time"
 
 	"server-domme/datastore"
+	st "server-domme/internal/storagetypes"
 )
 
 const commandHistoryLimit int = 50
 
 type Storage struct {
 	ds *datastore.DataStore
-}
-
-type CommandHistoryRecord struct {
-	ChannelID   string    `json:"channel_id"`
-	ChannelName string    `json:"channel_name"`
-	GuildName   string    `json:"guild_name"`
-	UserID      string    `json:"user_id"`
-	Username    string    `json:"username"`
-	Command     string    `json:"command"`
-	Datetime    time.Time `json:"datetime"`
-}
-
-type UserTask struct {
-	UserID     string    `json:"user_id"`
-	MessageID  string    `json:"task_message_id"`
-	AssignedAt time.Time `json:"assigned_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
-}
-
-type DeletionJob struct {
-	ChannelID  string    `json:"channel_id"`
-	GuildID    string    `json:"guild_id"`
-	Mode       string    `json:"mode"`        // "delayed" or "recurring"
-	DelayUntil time.Time `json:"delay_until"` // relevant only for "delayed"
-	OlderThan  string    `json:"older_than"`  // relevant only for "recurring"
-	StartedAt  time.Time `json:"started_at"`
-	Silent     bool      `json:"silent"`
-}
-
-type Record struct {
-	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
-	Channels            map[string]string      `json:"channels"`
-	Roles               map[string]string      `json:"roles"`
-	Tasks               map[string]UserTask    `json:"tasks"`
-	Cooldowns           map[string]time.Time   `json:"cooldowns"`
-	DeletionJobs        map[string]DeletionJob `json:"del_jobs"` // key = channelID
 }
 
 func New(filePath string) (*Storage, error) {
@@ -65,11 +29,11 @@ func (s *Storage) Close() error {
 	return s.ds.Close()
 }
 
-func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
+func (s *Storage) getOrCreateGuildRecord(guildID string) (*st.Record, error) {
 	data, exists := s.ds.Get(guildID)
 	if !exists {
-		newRecord := &Record{
-			CommandsHistoryList: []CommandHistoryRecord{},
+		newRecord := &st.Record{
+			CommandsHistoryList: []st.CommandHistoryRecord{},
 			Roles:               map[string]string{},
 		}
 		s.ds.Add(guildID, newRecord)
@@ -81,7 +45,7 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 		return nil, fmt.Errorf("error marshalling data: %w", err)
 	}
 
-	var record Record
+	var record st.Record
 	err = json.Unmarshal(jsonData, &record)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling to *Record: %w", err)
@@ -91,11 +55,11 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 		record.Roles = map[string]string{}
 	}
 	if record.Tasks == nil {
-		record.Tasks = make(map[string]UserTask)
+		record.Tasks = make(map[string]st.UserTask)
 	}
 
 	if record.DeletionJobs == nil {
-		record.DeletionJobs = make(map[string]DeletionJob)
+		record.DeletionJobs = make(map[string]st.DeletionJob)
 	}
 
 	if len(record.CommandsHistoryList) > commandHistoryLimit {
@@ -105,10 +69,10 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*Record, error) {
 	return &record, nil
 }
 
-func (s *Storage) GetRecordsList() map[string]Record {
+func (s *Storage) GetRecordsList() map[string]st.Record {
 	mapStringAny := s.ds.GetAll()
 
-	mapStringRecord := make(map[string]Record)
+	mapStringRecord := make(map[string]st.Record)
 	for key, value := range mapStringAny {
 		jsonData, err := json.Marshal(value)
 		if err != nil {
@@ -116,7 +80,7 @@ func (s *Storage) GetRecordsList() map[string]Record {
 			continue
 		}
 
-		var record Record
+		var record st.Record
 		err = json.Unmarshal(jsonData, &record)
 		if err != nil {
 			log.Printf("error unmarshalling to *Record: %v", err)
@@ -128,7 +92,7 @@ func (s *Storage) GetRecordsList() map[string]Record {
 	return mapStringRecord
 }
 
-func (s *Storage) appendCommandToHistory(guildID string, command CommandHistoryRecord) error {
+func (s *Storage) appendCommandToHistory(guildID string, command st.CommandHistoryRecord) error {
 
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
@@ -143,7 +107,7 @@ func (s *Storage) appendCommandToHistory(guildID string, command CommandHistoryR
 func (s *Storage) SetCommand(
 	guildID, channelID, channelName, guildName, userID, username, command string,
 ) error {
-	record := CommandHistoryRecord{
+	record := st.CommandHistoryRecord{
 		ChannelID:   channelID,
 		ChannelName: channelName,
 		GuildName:   guildName,
@@ -155,7 +119,7 @@ func (s *Storage) SetCommand(
 	return s.appendCommandToHistory(guildID, record)
 }
 
-func (s *Storage) GetCommands(guildID string) ([]CommandHistoryRecord, error) {
+func (s *Storage) GetCommands(guildID string) ([]st.CommandHistoryRecord, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
@@ -229,14 +193,14 @@ func (s *Storage) GetTaskRoles(guildID string) (map[string]string, error) {
 	return taskerRoles, nil
 }
 
-func (s *Storage) SetUserTask(guildID string, userID string, task UserTask) error {
+func (s *Storage) SetUserTask(guildID string, userID string, task st.UserTask) error {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
 	}
 
 	if record.Tasks == nil {
-		record.Tasks = make(map[string]UserTask)
+		record.Tasks = make(map[string]st.UserTask)
 	}
 
 	record.Tasks[userID] = task
@@ -244,7 +208,7 @@ func (s *Storage) SetUserTask(guildID string, userID string, task UserTask) erro
 	return nil
 }
 
-func (s *Storage) GetUserTask(guildID string, userID string) (*UserTask, error) {
+func (s *Storage) GetUserTask(guildID string, userID string) (*st.UserTask, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
@@ -361,7 +325,7 @@ func (s *Storage) SetDeletionJob(guildID, channelID, mode string, delayUntil tim
 		return err
 	}
 
-	job := DeletionJob{
+	job := st.DeletionJob{
 		ChannelID:  channelID,
 		GuildID:    guildID,
 		Mode:       mode,
@@ -389,7 +353,7 @@ func (s *Storage) ClearDeletionJob(guildID, channelID string) error {
 	return nil
 }
 
-func (s *Storage) GetDeletionJobsList(guildID string) (map[string]DeletionJob, error) {
+func (s *Storage) GetDeletionJobsList(guildID string) (map[string]st.DeletionJob, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
@@ -397,10 +361,10 @@ func (s *Storage) GetDeletionJobsList(guildID string) (map[string]DeletionJob, e
 	return record.DeletionJobs, nil
 }
 
-func (s *Storage) GetDeletionJob(guildID, channelID string) (DeletionJob, error) {
+func (s *Storage) GetDeletionJob(guildID, channelID string) (st.DeletionJob, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
-		return DeletionJob{}, err
+		return st.DeletionJob{}, err
 	}
 	return record.DeletionJobs[channelID], nil
 }
