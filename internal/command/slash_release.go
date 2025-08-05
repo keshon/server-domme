@@ -36,42 +36,45 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
-	s, i, storage := slash.Session, slash.Event, slash.Storage
 
-	punisherRoleID, _ := storage.GetPunishRole(i.GuildID, "punisher")
-	assignedRoleID, _ := storage.GetPunishRole(i.GuildID, "assigned")
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+
+	punisherRoleID, _ := storage.GetPunishRole(event.GuildID, "punisher")
+	assignedRoleID, _ := storage.GetPunishRole(event.GuildID, "assigned")
 
 	if punisherRoleID == "" || assignedRoleID == "" {
-		respondEphemeral(s, i, "Roles not configured properly. Run `/set-role` first.")
+		respondEphemeral(session, event, "Roles not configured properly. Run `/set-role` first.")
 		return nil
 	}
 
-	if !slices.Contains(i.Member.Roles, punisherRoleID) {
-		respondEphemeral(s, i, "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.")
+	if !slices.Contains(event.Member.Roles, punisherRoleID) {
+		respondEphemeral(session, event, "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.")
 		return nil
 	}
 
 	var targetID string
-	for _, opt := range i.ApplicationCommandData().Options {
+	for _, opt := range event.ApplicationCommandData().Options {
 		if opt.Name == "target" {
 			targetID = opt.Value.(string)
 		}
 	}
 
 	if targetID == "" {
-		respondEphemeral(s, i, "Release who, darling? The void?")
+		respondEphemeral(session, event, "Release who, darling? The void?")
 		return nil
 	}
 
-	err := s.GuildMemberRoleRemove(i.GuildID, targetID, assignedRoleID)
+	err := session.GuildMemberRoleRemove(event.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		respondEphemeral(s, i, fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err))
+		respondEphemeral(session, event, fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err))
 		return nil
 	}
 
-	respond(s, i, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
+	respond(session, event, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
 
-	logCommand(s, slash.Storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "release")
+	logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "release")
 	return nil
 }
 

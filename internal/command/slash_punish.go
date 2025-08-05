@@ -38,50 +38,53 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
-	s, i, storage := slash.Session, slash.Event, slash.Storage
+
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
 
 	cfg := config.New()
-	if slices.Contains(cfg.ProtectedUsers, i.Member.User.ID) {
-		respond(s, i, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
+	if slices.Contains(cfg.ProtectedUsers, event.Member.User.ID) {
+		respond(session, event, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
 		return nil
 	}
 
-	punisherRoleID, _ := storage.GetPunishRole(i.GuildID, "punisher")
-	victimRoleID, _ := storage.GetPunishRole(i.GuildID, "victim")
-	assignedRoleID, _ := storage.GetPunishRole(i.GuildID, "assigned")
+	punisherRoleID, _ := storage.GetPunishRole(event.GuildID, "punisher")
+	victimRoleID, _ := storage.GetPunishRole(event.GuildID, "victim")
+	assignedRoleID, _ := storage.GetPunishRole(event.GuildID, "assigned")
 
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
-		respondEphemeral(s, i, "Role setup incomplete. Punisher, victim, and assigned roles must be configured.")
+		respondEphemeral(session, event, "Role setup incomplete. Punisher, victim, and assigned roles must be configured.")
 		return nil
 	}
 
-	if !slices.Contains(i.Member.Roles, punisherRoleID) {
-		respondEphemeral(s, i, "Nice try, sugar. You don’t wear the right collar to give punishments.")
+	if !slices.Contains(event.Member.Roles, punisherRoleID) {
+		respondEphemeral(session, event, "Nice try, sugar. You don’t wear the right collar to give punishments.")
 		return nil
 	}
 
 	var targetID string
-	for _, opt := range i.ApplicationCommandData().Options {
+	for _, opt := range event.ApplicationCommandData().Options {
 		if opt.Name == "target" {
 			targetID = opt.Value.(string)
 		}
 	}
 
 	if targetID == "" {
-		respondEphemeral(s, i, "No brat selected? A Domme without a target? Unthinkable.")
+		respondEphemeral(session, event, "No brat selected? A Domme without a target? Unthinkable.")
 		return nil
 	}
 
-	err := s.GuildMemberRoleAdd(i.GuildID, targetID, assignedRoleID)
+	err := session.GuildMemberRoleAdd(event.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		respondEphemeral(s, i, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
+		respondEphemeral(session, event, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
 		return nil
 	}
 
 	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
-	respond(s, i, fmt.Sprintf(phrase, targetID))
+	respond(session, event, fmt.Sprintf(phrase, targetID))
 
-	logCommand(s, slash.Storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "punish")
+	logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "punish")
 	return nil
 }
 

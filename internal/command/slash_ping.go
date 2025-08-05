@@ -25,13 +25,16 @@ func (p *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (p *PingCommand) Run(ctx interface{}) error {
-	c, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
 
-	latency := c.Session.HeartbeatLatency().Milliseconds()
-	return c.Session.InteractionRespond(c.Event.Interaction, &discordgo.InteractionResponse{
+	session := slash.Session
+	event := slash.Event
+
+	latency := session.HeartbeatLatency().Milliseconds()
+	return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: fmt.Sprintf("🏓 Pong! %dms", latency),

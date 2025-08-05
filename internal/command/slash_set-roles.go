@@ -51,7 +51,10 @@ func (c *SetRolesCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("wrong context type")
 	}
 
-	session, event, storage, options := slash.Session, slash.Event, slash.Storage, slash.Event.ApplicationCommandData().Options
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+	options := event.ApplicationCommandData().Options
 
 	if !isAdministrator(session, event.GuildID, event.Member) {
 		return respondEphemeral(session, event, "You must be an Admin to use this command, darling.")

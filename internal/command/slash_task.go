@@ -18,6 +18,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var taskList []Task
+
 type TaskCommand struct {
 	cfg        *config.Config
 	tasks      []Task
@@ -33,7 +35,8 @@ type Task struct {
 
 func NewTaskCommand() *TaskCommand {
 	cfg := config.New()
-	taskList, err := loadTasks(cfg.TasksPath)
+	var err error
+	taskList, err = loadTasks(cfg.TasksPath)
 	if err != nil {
 		log.Println("Failed to load tasks:", err)
 	}
@@ -116,8 +119,13 @@ func (t *TaskCommand) Run(ctx interface{}) error {
 }
 
 func (t *TaskCommand) assignTask(slash *SlashContext, task Task) {
-	session, event, storage := slash.Session, slash.Event, slash.Storage
-	userID, guildID := event.Member.User.ID, event.GuildID
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+
+	userID := event.Member.User.ID
+	guildID := event.GuildID
+
 	now := time.Now()
 	expiry := now.Add(time.Duration(task.DurationMin) * time.Minute)
 	reminderDelay := time.Duration(float64(task.DurationMin)*0.9) * time.Minute

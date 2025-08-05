@@ -1,0 +1,116 @@
+package command
+
+import (
+	"bytes"
+	"fmt"
+	"log"
+	"os"
+	"server-domme/internal/config"
+	"strings"
+
+	"github.com/bwmarrin/discordgo"
+)
+
+type DumpTasksCommand struct{}
+
+func (c *DumpTasksCommand) Name() string        { return "dump-tasks" }
+func (c *DumpTasksCommand) Description() string { return "Dumps all tasks in this server." }
+func (c *DumpTasksCommand) Category() string    { return "⚙️ Maintenance" }
+func (c *DumpTasksCommand) Aliases() []string   { return []string{} }
+func (c *DumpTasksCommand) RequireAdmin() bool  { return true }
+func (c *DumpTasksCommand) RequireDev() bool    { return false }
+
+func (c *DumpTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name:        c.Name(),
+		Description: c.Description(),
+	}
+}
+
+func (c *DumpTasksCommand) Run(ctx interface{}) error {
+	slash, ok := ctx.(*SlashContext)
+	if !ok {
+		return fmt.Errorf("wrong context type")
+	}
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+
+	if !isAdministrator(session, event.GuildID, event.Member) {
+		respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
+		return nil
+	}
+
+	if len(taskList) == 0 {
+		respondEphemeral(session, event, "No tasks found, darling. Either you're lazy or I'm losing my edge.")
+		return nil
+	}
+
+	total := len(taskList)
+	open := 0
+	roleCounts := map[string]int{}
+	rolesUsed := map[string]bool{}
+
+	for _, t := range taskList {
+		if len(t.RolesAllowed) == 0 {
+			open++
+		} else {
+			for _, role := range t.RolesAllowed {
+				roleCounts[role]++
+				rolesUsed[role] = true
+			}
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString("```md\n")
+	b.WriteString("# Task Statistics\n")
+	b.WriteString(fmt.Sprintf("Total Tasks      : %d\n", total))
+	b.WriteString(fmt.Sprintf("Open to Anyone   : %d\n", open))
+	b.WriteString(fmt.Sprintf("Restricted Tasks : %d\n", total-open))
+
+	if len(roleCounts) > 0 {
+		b.WriteString("\n# Roles in Use\n")
+		for role, count := range roleCounts {
+			b.WriteString(fmt.Sprintf("- %s: %d\n", role, count))
+		}
+	}
+	b.WriteString("\n```")
+
+	cfg := config.New()
+	fileContent, err := os.ReadFile(cfg.TasksPath)
+	if err != nil {
+		log.Println("Failed to read tasks file:", err)
+		respondEphemeral(session, event, "Couldn't read the tasks file. Try again later when I’m in a better mood.")
+		return nil
+	}
+
+	file := &discordgo.File{
+		Name:        "tasks.private.json",
+		Reader:      bytes.NewReader(fileContent),
+		ContentType: "application/json",
+	}
+
+	err = session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: b.String(),
+			Files:   []*discordgo.File{file},
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if err != nil {
+		log.Println("Failed to respond to dump-tasks:", err)
+	}
+
+	err = logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "dump-tasks")
+	if err != nil {
+		log.Println("Failed to log dump-tasks:", err)
+	}
+
+	return nil
+}
+
+func init() {
+	Register(WithGuildOnly(&DumpTasksCommand{}))
+}

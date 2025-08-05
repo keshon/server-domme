@@ -56,7 +56,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("wrong context type")
 	}
 
-	session, event, options := slash.Session, slash.Event, slash.Event.ApplicationCommandData().Options
+	session := slash.Session
+	event := slash.Event
+	options := event.ApplicationCommandData().Options
 
 	formula := ""
 	for _, opt := range options {
