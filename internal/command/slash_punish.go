@@ -1,4 +1,93 @@
-package commands
+package command
+
+import (
+	"fmt"
+	"math/rand"
+	"server-domme/internal/config"
+	"slices"
+
+	"github.com/bwmarrin/discordgo"
+)
+
+type PunishCommand struct{}
+
+func (c *PunishCommand) Name() string        { return "punish" }
+func (c *PunishCommand) Description() string { return "Assign the brat role for naughty behavior" }
+func (c *PunishCommand) Category() string    { return "🎭 Roleplay" }
+func (c *PunishCommand) Aliases() []string   { return []string{} }
+func (c *PunishCommand) RequireAdmin() bool  { return false }
+func (c *PunishCommand) RequireDev() bool    { return false }
+
+func (c *PunishCommand) SlashDefinition() *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name:        c.Name(),
+		Description: c.Description(),
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionUser,
+				Name:        "target",
+				Description: "The brat who needs correction",
+				Required:    true,
+			},
+		},
+	}
+}
+
+func (c *PunishCommand) Run(ctx interface{}) error {
+	slash, ok := ctx.(*SlashContext)
+	if !ok {
+		return fmt.Errorf("не тот тип контекста")
+	}
+	s, i, storage := slash.Session, slash.InteractionCreate, slash.Storage
+
+	cfg := config.New()
+	if slices.Contains(cfg.ProtectedUsers, i.Member.User.ID) {
+		respond(s, i, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
+		return nil
+	}
+
+	punisherRoleID, _ := storage.GetPunishRole(i.GuildID, "punisher")
+	victimRoleID, _ := storage.GetPunishRole(i.GuildID, "victim")
+	assignedRoleID, _ := storage.GetPunishRole(i.GuildID, "assigned")
+
+	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
+		respondEphemeral(s, i, "Role setup incomplete. Punisher, victim, and assigned roles must be configured.")
+		return nil
+	}
+
+	if !slices.Contains(i.Member.Roles, punisherRoleID) {
+		respondEphemeral(s, i, "Nice try, sugar. You don’t wear the right collar to give punishments.")
+		return nil
+	}
+
+	var targetID string
+	for _, opt := range i.ApplicationCommandData().Options {
+		if opt.Name == "target" {
+			targetID = opt.Value.(string)
+		}
+	}
+
+	if targetID == "" {
+		respondEphemeral(s, i, "No brat selected? A Domme without a target? Unthinkable.")
+		return nil
+	}
+
+	err := s.GuildMemberRoleAdd(i.GuildID, targetID, assignedRoleID)
+	if err != nil {
+		respondEphemeral(s, i, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
+		return nil
+	}
+
+	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
+	respond(s, i, fmt.Sprintf(phrase, targetID))
+
+	logCommand(s, slash.Storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "punish")
+	return nil
+}
+
+func init() {
+	Register(WithGuildOnly(&PunishCommand{}))
+}
 
 var punishPhrases = []string{
 	"🔒 <@%s> has been sent to the Brat Corner. Someone finally found the line and crossed it.",

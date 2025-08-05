@@ -1,0 +1,44 @@
+package command
+
+import (
+	"fmt"
+
+	"github.com/bwmarrin/discordgo"
+)
+
+type PingCommand struct{}
+
+func (p *PingCommand) Name() string        { return "ping" }
+func (p *PingCommand) Description() string { return "Check bot latency" }
+func (p *PingCommand) Category() string    { return "🧪 Test" }
+func (p *PingCommand) Aliases() []string   { return []string{} }
+
+func (p *PingCommand) RequireAdmin() bool { return false }
+func (p *PingCommand) RequireDev() bool   { return false }
+
+func (p *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name:        p.Name(),
+		Description: p.Description(),
+		Type:        discordgo.ChatApplicationCommand,
+	}
+}
+
+func (p *PingCommand) Run(ctx interface{}) error {
+	c, ok := ctx.(*SlashContext)
+	if !ok {
+		return fmt.Errorf("не тот тип контекста")
+	}
+
+	latency := c.Session.HeartbeatLatency().Milliseconds()
+	return c.Session.InteractionRespond(c.Event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("🏓 Pong! %dms", latency),
+		},
+	})
+}
+
+func init() {
+	Register(WithGuildOnly(&PingCommand{}))
+}

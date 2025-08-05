@@ -1,16 +1,27 @@
-package commands
+package command
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
-var flagToLang = map[string]string{
+type TranslateOnReaction struct{}
+
+func (t *TranslateOnReaction) Name() string { return "translate_reaction" }
+func (t *TranslateOnReaction) Description() string {
+	return "Translate message on flag emoji reaction"
+}
+func (t *TranslateOnReaction) Category() string  { return "🌍 Translate" }
+func (t *TranslateOnReaction) Aliases() []string { return []string{} }
+
+func (r *TranslateOnReaction) RequireAdmin() bool { return false }
+func (r *TranslateOnReaction) RequireDev() bool   { return false }
+
+var flags = map[string]string{
 	"🇷🇺": "ru",
 	"🇬🇧": "en",
 	"🇺🇸": "en",
@@ -22,55 +33,36 @@ var flagToLang = map[string]string{
 	"🇨🇳": "zh",
 }
 
-func init() {
-	Register(&Command{
-		Sort:              90,
-		Name:              "translate reaction",
-		Category:          "📢 Utilities",
-		Description:       "Translate message on flag reaction",
-		DCReactionHandler: handleTranslationReaction,
-	})
-}
-
-func handleTranslationReaction(ctx *ReactionContext) {
-	s := ctx.Session
-	r := ctx.Reaction
-	channelID := r.ChannelID
-	messageID := r.MessageID
-	userID := r.UserID
-	emoji := r.Emoji.Name
-
-	lang, ok := flagToLang[emoji]
+func (t *TranslateOnReaction) Run(ctx interface{}) error {
+	rc, ok := ctx.(*ReactionContext)
 	if !ok {
-		return
+		return nil
+	}
+	lang, ok := flags[rc.Reaction.Emoji.Name]
+	if !ok {
+		return nil
 	}
 
-	msg, err := s.ChannelMessage(channelID, messageID)
-	if err != nil || msg.Content == "" || msg.Author.Bot {
-		return
+	msg, err := rc.Session.ChannelMessage(rc.Reaction.ChannelID, rc.Reaction.MessageID)
+	if err != nil || msg.Author.Bot || msg.Content == "" {
+		return nil
 	}
 
-	translated, err := TranslateGoogle(msg.Content, lang)
+	translated, err := googleTranslate(msg.Content, lang)
 	if err != nil {
-		log.Printf("Translation failed: %v", err)
-		return
+		return nil
 	}
 
-	channel, err := s.UserChannelCreate(userID)
+	dm, err := rc.Session.UserChannelCreate(rc.Reaction.UserID)
 	if err != nil {
-		log.Printf("Failed to create DM channel: %v", err)
-		return
+		return nil
 	}
 
-	_, err = s.ChannelMessageSend(channel.ID, fmt.Sprintf("Translated (%s):\n%s", lang, translated))
-	if err != nil {
-		log.Printf("Failed to send DM: %v", err)
-	}
-
-	_ = s.MessageReactionRemove(channelID, messageID, emoji, userID)
+	_, _ = rc.Session.ChannelMessageSend(dm.ID, fmt.Sprintf("Translated (%s): %s", lang, translated))
+	return rc.Session.MessageReactionRemove(rc.Reaction.ChannelID, rc.Reaction.MessageID, rc.Reaction.Emoji.Name, rc.Reaction.UserID)
 }
 
-func TranslateGoogle(text, targetLang string) (string, error) {
+func googleTranslate(text, targetLang string) (string, error) {
 	endpoint := "https://translate.googleapis.com/translate_a/single"
 	params := url.Values{}
 	params.Set("client", "gtx")
@@ -126,4 +118,8 @@ func TranslateGoogle(text, targetLang string) (string, error) {
 	}
 
 	return translated.String(), nil
+}
+
+func init() {
+	Register(&TranslateOnReaction{})
 }

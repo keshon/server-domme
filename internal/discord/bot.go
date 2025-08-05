@@ -3,15 +3,13 @@ package discord
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"server-domme/internal/commands"
+	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -81,81 +79,58 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	}
 
 	log.Println("Starting scheduled nukes...")
-	startScheduledNukeJobs(b.storage, s)
+	//startScheduledNukeJobs(b.storage, s)
 
 	log.Printf("✅ Discord bot %v is running.", botInfo.Username)
 }
 
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	for _, cmd := range commands.All() {
-		if cmd.DCReactionHandler != nil {
-			ctx := &commands.ReactionContext{
-				Session:  s,
-				Reaction: r,
-				Storage:  b.storage,
-			}
-			cmd.DCReactionHandler(ctx)
+	for _, cmd := range command.All() {
+		ctx := &command.ReactionContext{
+			Session:  s,
+			Reaction: r,
+			Storage:  b.storage,
 		}
+		_ = cmd.Run(ctx)
 	}
 }
-
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		cmdName := i.ApplicationCommandData().Name
-		args := extractArgs(i)
-
-		cmd, ok := commands.Get(cmdName)
+		cmd, ok := command.Get(cmdName)
 		if !ok {
 			log.Printf("[WARN] Unknown command: %s\n", cmdName)
 			return
 		}
 
-		// Context menu
-		if cmd.ContextType != 0 {
-			if cmd.DCContextHandler != nil {
-				ctx := &commands.SlashContext{
-					Session:           s,
-					InteractionCreate: i,
-					Args:              args,
-					Storage:           b.storage,
-				}
-				cmd.DCContextHandler(ctx)
-			}
-			return
+		ctx := &command.SlashContext{
+			Session: s,
+			Event:   i,
+			Storage: b.storage,
 		}
-
-		// Slash command
-		if cmd.DCSlashHandler != nil {
-			ctx := &commands.SlashContext{
-				Session:           s,
-				InteractionCreate: i,
-				Args:              args,
-				Storage:           b.storage,
-			}
-			cmd.DCSlashHandler(ctx)
-		}
+		_ = cmd.Run(ctx)
 
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
+		var matched command.Command
 
-		var matchedCommand *commands.Command
-		for _, cmd := range commands.All() {
-			if strings.HasPrefix(customID, cmd.Name) || strings.HasPrefix(customID, cmd.Name+":") || strings.HasPrefix(customID, cmd.Name+"_") {
-				matchedCommand = cmd
+		for _, cmd := range command.All() {
+			if strings.HasPrefix(customID, cmd.Name()) {
+				matched = cmd
 				break
 			}
 		}
 
-		if matchedCommand != nil && matchedCommand.DCComponentHandler != nil {
-			ctx := &commands.ComponentContext{
-				Session:           s,
-				InteractionCreate: i,
-				Storage:           b.storage,
+		if matched != nil {
+			ctx := &command.ComponentContext{
+				Session: s,
+				Event:   i,
+				Storage: b.storage,
 			}
-			matchedCommand.DCComponentHandler(ctx)
+			_ = matched.Run(ctx)
 		} else {
-			log.Printf("[WARN] No matching command handler for CustomID: %s\n", customID)
+			log.Printf("[WARN] No matching component: %s\n", customID)
 		}
 
 	default:
@@ -166,27 +141,21 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 func (b *Bot) registerSlashCommands(guildID string) error {
 	var cmds []*discordgo.ApplicationCommand
 
-	for _, cmd := range commands.All() {
-		// register context menu
-		if cmd.ContextType != 0 {
-			appCmd := &discordgo.ApplicationCommand{
-				Name: cmd.Name,
-				Type: cmd.ContextType,
-				// Description is ignored for context menus
+	for _, cmd := range command.All() {
+		// Если команда реализует SlashProvider
+		if slash, ok := cmd.(command.SlashProvider); ok {
+			def := slash.SlashDefinition()
+			if def != nil {
+				cmds = append(cmds, def)
 			}
-			cmds = append(cmds, appCmd)
-			continue
 		}
 
-		// register slash command
-		if cmd.DCSlashHandler != nil {
-			appCmd := &discordgo.ApplicationCommand{
-				Name:        cmd.Name,
-				Description: cmd.Description,
-				Options:     cmd.SlashOptions,
-				Type:        discordgo.ChatApplicationCommand,
+		// Если команда реализует ContextMenuProvider
+		if menu, ok := cmd.(command.ContextMenuProvider); ok {
+			def := menu.ContextDefinition()
+			if def != nil {
+				cmds = append(cmds, def)
 			}
-			cmds = append(cmds, appCmd)
 		}
 	}
 
@@ -242,6 +211,7 @@ func extractArgs(i *discordgo.InteractionCreate) []string {
 	return args
 }
 
+/*
 func startScheduledNukeJobs(st *storage.Storage, session *discordgo.Session) {
 	records := st.GetRecordsList()
 
@@ -323,3 +293,4 @@ func startScheduledNukeJobs(st *storage.Storage, session *discordgo.Session) {
 		}
 	}
 }
+*/

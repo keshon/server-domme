@@ -1,4 +1,4 @@
-package commands
+package command
 
 import (
 	"fmt"
@@ -11,14 +11,22 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func init() {
-	Register(&Command{
-		Sort:           61,
-		Name:           "roll",
-		Category:       "🎲 Game Mechanics",
-		Description:    "Roll dice with crazy formulas like `2d6+1d4*2`",
-		DCSlashHandler: rollSlashHandler,
-		SlashOptions: []*discordgo.ApplicationCommandOption{
+type RollCommand struct{}
+
+func (c *RollCommand) Name() string        { return "roll" }
+func (c *RollCommand) Description() string { return "Roll dice with crazy formulas like `2d6+1d4*2`" }
+func (c *RollCommand) Category() string    { return "🎲 Game Mechanics" }
+func (c *RollCommand) Aliases() []string   { return nil }
+
+func (c *RollCommand) RequireAdmin() bool { return false }
+func (c *RollCommand) RequireDev() bool   { return false }
+
+func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name:        c.Name(),
+		Description: c.Description(),
+		Type:        discordgo.ChatApplicationCommand,
+		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "formula",
@@ -26,7 +34,7 @@ func init() {
 				Required:    true,
 			},
 		},
-	})
+	}
 }
 
 var (
@@ -42,12 +50,18 @@ type term struct {
 	isDice bool
 }
 
-func rollSlashHandler(ctx *SlashContext) {
-	if !RequireGuild(ctx) {
-		return
+func (c *RollCommand) Run(ctx interface{}) error {
+	slashCtx, ok := ctx.(*SlashContext)
+	if !ok {
+		return fmt.Errorf("не тот тип контекста")
 	}
-	s, interaction := ctx.Session, ctx.InteractionCreate
-	options := interaction.ApplicationCommandData().Options
+	if !RequireGuild(slashCtx) {
+		return nil
+	}
+
+	s := slashCtx.Session
+	i := slashCtx.Event
+	options := i.ApplicationCommandData().Options
 
 	formula := ""
 	for _, opt := range options {
@@ -58,8 +72,7 @@ func rollSlashHandler(ctx *SlashContext) {
 
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
-		respondEphemeral(s, interaction, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
-		return
+		return respondEphemeral(s, i, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
 	}
 
 	var terms []term
@@ -73,8 +86,7 @@ func rollSlashHandler(ctx *SlashContext) {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			respondEphemeral(s, interaction, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
-			return
+			return respondEphemeral(s, i, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
 		}
 
 		terms = append(terms, term{
@@ -85,14 +97,12 @@ func rollSlashHandler(ctx *SlashContext) {
 		})
 	}
 
-	// * and / first
 	var merged []term
 	for i := 0; i < len(terms); i++ {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				respondEphemeral(s, interaction, "Syntax error: operator without left operand")
-				return
+				return respondEphemeral(s, i, "Syntax error: operator without left operand")
 			}
 			prev := merged[len(merged)-1]
 			merged = merged[:len(merged)-1]
@@ -103,8 +113,7 @@ func rollSlashHandler(ctx *SlashContext) {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					respondEphemeral(s, interaction, "Division by zero is forbidden. Even in games.")
-					return
+					return respondEphemeral(s, i, "Division by zero is forbidden. Even in games.")
 				}
 				newVal = prev.value / t.value
 			}
@@ -121,7 +130,6 @@ func rollSlashHandler(ctx *SlashContext) {
 		}
 	}
 
-	// + and -
 	total := 0
 	var details []string
 	for _, t := range merged {
@@ -136,8 +144,7 @@ func rollSlashHandler(ctx *SlashContext) {
 		case "-":
 			total -= t.value
 		default:
-			respondEphemeral(s, interaction, "Unexpected operator during evaluation. Blame the dev.")
-			return
+			return respondEphemeral(s, i, "Unexpected operator during evaluation. Blame the dev.")
 		}
 	}
 
@@ -149,17 +156,22 @@ func rollSlashHandler(ctx *SlashContext) {
 		Color:       0x00cc99,
 	}
 
-	_ = s.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
 		},
 	})
+	if err != nil {
+		return err
+	}
 
-	err := logCommand(s, ctx.Storage, interaction.GuildID, interaction.ChannelID, interaction.Member.User.ID, interaction.Member.User.Username, "roll "+formula)
+	err = logCommand(s, slashCtx.Storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, c.Name()+" "+formula)
 	if err != nil {
 		log.Println("Failed to log /roll:", err)
 	}
+
+	return nil
 }
 
 func evaluateToken(token string) (int, string, error) {
@@ -196,10 +208,13 @@ func evaluateToken(token string) (int, string, error) {
 		return sum, fmt.Sprintf("`%s` [%s]", token, strings.Join(rolls, ", ")), nil
 	}
 
-	// plain number
 	num, err := strconv.Atoi(token)
 	if err != nil {
 		return 0, "", fmt.Errorf("not a number or dice")
 	}
 	return num, fmt.Sprintf("`%d`", num), nil
+}
+
+func init() {
+	Register(WithGuildOnly(&RollCommand{}))
 }
