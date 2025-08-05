@@ -41,17 +41,17 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	if len(taskList) == 0 {
+	if len(tasks) == 0 {
 		respondEphemeral(session, event, "No tasks found, darling. Either you're lazy or I'm losing my edge.")
 		return nil
 	}
 
-	total := len(taskList)
+	total := len(tasks)
 	open := 0
 	roleCounts := map[string]int{}
 	rolesUsed := map[string]bool{}
 
-	for _, t := range taskList {
+	for _, t := range tasks {
 		if len(t.RolesAllowed) == 0 {
 			open++
 		} else {

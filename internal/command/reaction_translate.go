@@ -11,11 +11,11 @@ import (
 
 type TranslateOnReaction struct{}
 
-func (t *TranslateOnReaction) Name() string { return "translate_reaction" }
+func (t *TranslateOnReaction) Name() string { return "translate (reaction)" }
 func (t *TranslateOnReaction) Description() string {
 	return "Translate message on flag emoji reaction"
 }
-func (t *TranslateOnReaction) Category() string  { return "🌍 Translate" }
+func (t *TranslateOnReaction) Category() string  { return "📢 Utilities" }
 func (t *TranslateOnReaction) Aliases() []string { return []string{} }
 
 func (r *TranslateOnReaction) RequireAdmin() bool { return false }

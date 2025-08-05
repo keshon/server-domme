@@ -16,7 +16,7 @@ type AboutCommand struct{}
 
 func (c *AboutCommand) Name() string        { return "about" }
 func (c *AboutCommand) Description() string { return "Discover the origin of your merciless mistress" }
-func (c *AboutCommand) Category() string    { return "🕯️ Lore & Insight" }
+func (c *AboutCommand) Category() string    { return "🕯️ Insight" }
 func (c *AboutCommand) Aliases() []string   { return []string{} }
 func (c *AboutCommand) RequireAdmin() bool  { return false }
 func (c *AboutCommand) RequireDev() bool    { return false }

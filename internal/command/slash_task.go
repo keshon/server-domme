@@ -7,25 +7,24 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"server-domme/internal/config"
 	"slices"
 	"sync"
 	"time"
 
-	"server-domme/internal/config"
+	"github.com/bwmarrin/discordgo"
 
 	st "server-domme/internal/storagetypes"
-
-	"github.com/bwmarrin/discordgo"
 )
 
-var taskList []Task
+var (
+	reminderFraction = 0.9 // 10% before expiry
+	cooldownDuration = time.Minute * 60 * 3
 
-type TaskCommand struct {
-	cfg        *config.Config
-	tasks      []Task
-	cancelMap  map[string]context.CancelFunc
-	cancelLock *sync.Mutex
-}
+	taskCancels     = make(map[string]context.CancelFunc)
+	taskCancelMutex = sync.Mutex{}
+	tasks           = []Task{}
+)
 
 type Task struct {
 	Description  string
@@ -33,166 +32,269 @@ type Task struct {
 	RolesAllowed []string
 }
 
-func NewTaskCommand() *TaskCommand {
-	cfg := config.New()
-	var err error
-	taskList, err = loadTasks(cfg.TasksPath)
-	if err != nil {
-		log.Println("Failed to load tasks:", err)
-	}
-	if len(taskList) == 0 {
-		log.Println("No tasks loaded!")
-	}
+type TaskCommand struct{}
 
-	return &TaskCommand{
-		cfg:        cfg,
-		tasks:      taskList,
-		cancelMap:  make(map[string]context.CancelFunc),
-		cancelLock: &sync.Mutex{},
-	}
-}
+func (c *TaskCommand) Name() string        { return "task" }
+func (c *TaskCommand) Description() string { return "Assign or manage your personal task, slave" }
+func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
+func (c *TaskCommand) Aliases() []string   { return nil }
 
-func (t *TaskCommand) Name() string        { return "task" }
-func (t *TaskCommand) Description() string { return "Assign or manage your personal task, slave" }
-func (t *TaskCommand) Category() string    { return "🎭 Roleplay" }
-func (t *TaskCommand) Aliases() []string   { return nil }
+func (c *TaskCommand) RequireAdmin() bool { return false }
+func (c *TaskCommand) RequireDev() bool   { return false }
 
-func (t *TaskCommand) RequireAdmin() bool { return false }
-func (t *TaskCommand) RequireDev() bool   { return false }
-
-func (t *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
+func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        t.Name(),
-		Description: t.Description(),
+		Name:        c.Name(),
+		Description: c.Description(),
 		Type:        discordgo.ChatApplicationCommand,
 	}
 }
-
-func (t *TaskCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
-	if !ok {
-		return fmt.Errorf("не тот тип контекста")
+func (c *TaskCommand) Run(ctx interface{}) error {
+	switch ctx := ctx.(type) {
+	case *SlashContext:
+		c.runSlash(ctx)
+	case *ComponentContext:
+		c.runComponent(ctx)
 	}
 
-	session, event, storage := slash.Session, slash.Event, slash.Storage
-	userID, guildID := event.Member.User.ID, event.GuildID
-
-	if cdUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cdUntil) {
-		left := time.Until(cdUntil)
-		_ = respondEphemeral(session, event, fmt.Sprintf("Not so fast, darling. Wait **%s** before I play again.", humanDuration(left)))
-		return nil
-	}
-
-	if slices.Contains(t.cfg.ProtectedUsers, userID) {
-		_ = respond(session, event, "Some lines even a Domme bot won’t cross. No tasks for the one who commands the code.")
-		return nil
-	}
-
-	t.cancelLock.Lock()
-	if cancel, exists := t.cancelMap[userID]; exists {
-		cancel()
-		delete(t.cancelMap, userID)
-	}
-	t.cancelLock.Unlock()
-
-	if existing, _ := storage.GetUserTask(guildID, userID); existing != nil && existing.Status == "pending" {
-		_ = respondEphemeral(session, event, "You already have a task. Finish one before begging for more.")
-		return nil
-	}
-
-	roleIDs, err := storage.GetTaskRoles(guildID)
-	if err != nil || len(roleIDs) == 0 {
-		_ = respondEphemeral(session, event, "No tasker roles set. I can’t give out toys to just anyone.")
-		return nil
-	}
-
-	roleMap := getMemberRoleNames(session, guildID, event.Member.Roles)
-	filtered := filterTasksByRoles(t.tasks, roleMap)
-	if len(filtered) == 0 {
-		_ = respondEphemeral(session, event, "None of the tasks fit your… limited skill set.")
-		return nil
-	}
-
-	selected := filtered[rand.Intn(len(filtered))]
-	t.assignTask(slash, selected)
 	return nil
 }
 
-func (t *TaskCommand) assignTask(slash *SlashContext, task Task) {
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+func (c *TaskCommand) runSlash(ctx *SlashContext) {
 
-	userID := event.Member.User.ID
-	guildID := event.GuildID
+	s, i := ctx.Session, ctx.Event
+	userID, guildID := i.Member.User.ID, i.GuildID
 
+	if cooldownUntil, err := ctx.Storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
+		remaining := time.Until(cooldownUntil)
+		respondEphemeral(s, i, fmt.Sprintf("Not so fast, darling. You need to wait **%s** before I'm ready to play again with you.", humanDuration(remaining)))
+		return
+	}
+
+	cfg := config.New()
+	if slices.Contains(cfg.ProtectedUsers, userID) {
+		respond(s, i, "Some lines even a Domme bot won’t cross—especially the one drawn by its creator. No tasks for the one who commands the code. 😈")
+		return
+	}
+
+	taskCancelMutex.Lock()
+	if cancel, exists := taskCancels[userID]; exists {
+		cancel()
+		delete(taskCancels, userID)
+	}
+	taskCancelMutex.Unlock()
+
+	if existing, _ := ctx.Storage.GetUserTask(guildID, userID); existing != nil && existing.Status == "pending" {
+		respondEphemeral(s, i, "You already have a task, darling. Finish one before begging for more.")
+		return
+	}
+
+	taskerRoleIDs, err := ctx.Storage.GetTaskRoles(guildID)
+	if err != nil || len(taskerRoleIDs) == 0 {
+		respondEphemeral(s, i, "No 'tasker' roles configured, darling. I can't just let anyone play with my toys.")
+		return
+	}
+
+	memberRoleNames := getMemberRoleNames(s, guildID, i.Member.Roles)
+	filteredTasks := filterTasksByRoles(tasks, memberRoleNames)
+	if len(filteredTasks) == 0 {
+		respondEphemeral(s, i, "None of the tasks are suitable for someone of your… questionable qualifications.")
+		return
+	}
+
+	task := filteredTasks[rand.Intn(len(filteredTasks))]
+	c.assignTask(ctx, i, task)
+}
+
+func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCreate, task Task) {
+	s := ctx.Session
+	userID, guildID := i.Member.User.ID, i.GuildID
 	now := time.Now()
 	expiry := now.Add(time.Duration(task.DurationMin) * time.Minute)
-	reminderDelay := time.Duration(float64(task.DurationMin)*0.9) * time.Minute
+	expiryDelay := time.Duration(task.DurationMin) * time.Minute
+	reminderDelay := time.Duration(float64(expiryDelay) * reminderFraction)
 
-	msg := fmt.Sprintf("**New Task**\n<@%s> %s\n\n*You have %s to complete this task.*", userID, task.Description, humanDuration(time.Until(expiry)))
+	taskMsg := fmt.Sprintf(
+		"**New Task**\n<@%s> %s\n\n*You have %s to complete this task so don't disappoint me.*",
+		userID, task.Description, humanDuration(time.Until(expiry)))
 
-	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: msg,
+			Content: taskMsg,
 			Components: []discordgo.MessageComponent{
-				discordgo.ActionsRow{
-					Components: []discordgo.MessageComponent{
-						discordgo.Button{Label: "Manage", Style: discordgo.PrimaryButton, CustomID: "task_complete_trigger"},
-					},
-				},
+				discordgo.ActionsRow{Components: []discordgo.MessageComponent{
+					discordgo.Button{Label: "Manage", Style: discordgo.PrimaryButton, CustomID: "task_complete_trigger"},
+				}},
 			},
 		},
 	})
 	if err != nil {
-		log.Println("Failed to send task:", err)
+		log.Println("Failed to send task response:", err)
 		return
 	}
 
-	savedMsg, err := session.InteractionResponse(event.Interaction)
+	msg, err := s.InteractionResponse(i.Interaction)
 	if err != nil {
-		log.Println("Failed to get response msg:", err)
+		log.Println("Failed to fetch interaction response:", err)
 		return
 	}
 
 	entry := st.UserTask{
 		UserID:     userID,
-		MessageID:  savedMsg.ID,
+		MessageID:  msg.ID,
 		AssignedAt: now,
 		ExpiresAt:  expiry,
 		Status:     "pending",
 	}
-	_ = storage.SetUserTask(guildID, userID, entry)
+	ctx.Storage.SetUserTask(guildID, userID, entry)
 
 	ctxTimer, cancel := context.WithCancel(context.Background())
-	t.cancelLock.Lock()
-	t.cancelMap[userID] = cancel
-	t.cancelLock.Unlock()
+	taskCancelMutex.Lock()
+	taskCancels[userID] = cancel
+	taskCancelMutex.Unlock()
 
-	go t.handleTimers(slash, ctxTimer, guildID, userID, event.ChannelID, savedMsg.ID, time.Until(expiry), reminderDelay)
+	go handleTimers(ctx, ctxTimer, guildID, userID, i.ChannelID, msg.ID, time.Until(expiry), reminderDelay)
+
+	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, i.Member.User.Username, "task")
+	if err != nil {
+		log.Println("Failed to log command:", err)
+	}
 }
 
-func (t *TaskCommand) handleTimers(ctx *SlashContext, cancelCtx context.Context, guildID, userID, channelID, msgID string, expire, remind time.Duration) {
+func (c *TaskCommand) runComponent(ctx *ComponentContext) {
+	s, i := ctx.Session, ctx.Event
+	userID, guildID := i.Member.User.ID, i.GuildID
+
+	task, err := ctx.Storage.GetUserTask(guildID, userID)
+	if err != nil || task == nil {
+		respondEphemeral(s, i, "No active task found. Trying to cheat, hmm?")
+		return
+	}
+
+	if task.UserID != userID {
+		respondEphemeral(s, i, "That task doesn’t belong to you. Greedy little fingers, aren't you?")
+		return
+	}
+
+	if task.Status != "pending" {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredMessageUpdate,
+		})
+		return
+	}
+
+	switch i.MessageComponentData().CustomID {
+	case "task_complete_trigger":
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseUpdateMessage,
+			Data: &discordgo.InteractionResponseData{
+				Content: i.Message.Content,
+				Components: []discordgo.MessageComponent{
+					discordgo.ActionsRow{Components: []discordgo.MessageComponent{
+						discordgo.Button{Label: "Yes", Style: discordgo.SuccessButton, CustomID: "task_complete_yes"},
+						discordgo.Button{Label: "No", Style: discordgo.DangerButton, CustomID: "task_complete_no"},
+						discordgo.Button{Label: "Safeword", Style: discordgo.SecondaryButton, CustomID: "task_complete_safeword"},
+					}},
+				},
+			},
+		})
+	case "task_complete_yes", "task_complete_no", "task_complete_safeword":
+		c.handleTaskCompletion(ctx, i, task)
+	}
+}
+
+func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.InteractionCreate, task *st.UserTask) {
+	s := ctx.Session
+	userID, guildID := i.Member.User.ID, i.GuildID
+	customID := i.MessageComponentData().CustomID
+
+	var reply string
+	switch customID {
+	case "task_complete_yes":
+		task.Status = "completed"
+		reply = "**Task Completed**\n" + fmt.Sprintf(randomLine(completeYesReplies), userID)
+	case "task_complete_no":
+		task.Status = "failed"
+		reply = "**Task Failed**\n" + fmt.Sprintf(randomLine(completeNoReplies), userID)
+	case "task_complete_safeword":
+		task.Status = "safeword"
+		reply = "**Safeword**\n" + fmt.Sprintf(randomLine(completeSafewordReplies), userID)
+	}
+
+	ctx.Storage.ClearUserTask(guildID, userID)
+	ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
+
+	taskCancelMutex.Lock()
+	if cancel, exists := taskCancels[userID]; exists {
+		cancel()
+		delete(taskCancels, userID)
+	}
+	taskCancelMutex.Unlock()
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    i.Message.Content,
+			Components: []discordgo.MessageComponent{},
+		},
+	})
+	s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+		Content: reply,
+	})
+}
+
+func init() {
+	Register(&TaskCommand{})
+
+	cfg := config.New()
+	var err error
+	tasks, err = loadTasks(cfg.TasksPath)
+	if err != nil {
+		log.Println("Failed to load tasks:", err)
+		return
+	}
+	if len(tasks) == 0 {
+		log.Println("No tasks loaded! Aborting task assignment.")
+		return
+	}
+
+	log.Printf("Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
+}
+
+func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {
 	select {
-	case <-time.After(remind):
+	case <-time.After(reminderDelay):
 		current, _ := ctx.Storage.GetUserTask(guildID, userID)
 		if current != nil && current.Status == "pending" {
-			ctx.Session.ChannelMessageSend(channelID, fmt.Sprintf("**Task Reminder**\n<@%s> %s", userID, humanDuration(expire-remind)))
+			ctx.Session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+				Content: "**Task Reminder**\n" + fmt.Sprintf(randomLine(taskReminders), userID, humanDuration(expiryDelay-reminderDelay)),
+				Reference: &discordgo.MessageReference{
+					MessageID: taskMsgID, ChannelID: channelID, GuildID: guildID,
+				},
+			})
 		}
-	case <-cancelCtx.Done():
+	case <-ctxTimer.Done():
 		return
 	}
 
 	select {
-	case <-time.After(expire - remind):
+	case <-time.After(expiryDelay - reminderDelay):
 		current, _ := ctx.Storage.GetUserTask(guildID, userID)
 		if current != nil && current.Status == "pending" {
+			ctx.Session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+				Content: "**Task Expired**\n" + fmt.Sprintf(randomLine(taskFailures), userID),
+				Reference: &discordgo.MessageReference{
+					MessageID: taskMsgID, ChannelID: channelID, GuildID: guildID,
+				},
+			})
 			ctx.Storage.ClearUserTask(guildID, userID)
-			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(3*time.Hour))
-			ctx.Session.ChannelMessageSend(channelID, fmt.Sprintf("**Task Expired**\n<@%s> Failed.", userID))
+			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
+			ctx.Session.ChannelMessageEditComplex(&discordgo.MessageEdit{
+				ID: taskMsgID, Channel: channelID, Components: &[]discordgo.MessageComponent{},
+			})
 		}
-	case <-cancelCtx.Done():
+	case <-ctxTimer.Done():
 		return
 	}
 }
@@ -260,6 +362,192 @@ func pluralize(n int) string {
 	return "s"
 }
 
+func randomLine(list []string) string {
+	return list[rand.Intn(len(list))]
+}
+
 func init() {
-	Register(WithGuildOnly(NewTaskCommand()))
+	Register(WithGuildOnly(&TaskCommand{}))
+}
+
+var taskReminders = []string{
+	"⏳ <@%s>, only %s left. You better be sweating, not slacking.",
+	"🕰️ <@%s>, tick-tock brat. %s left and I’m judging.",
+	"⏳ <@%s>, only %s left. You better be sweating, not slacking.",
+	"🕰️ <@%s>, tick-tock brat. %s left and I’m judging.",
+	"🔥 <@%s>, the clock’s almost up. %s to impress me or regret me.",
+	"🎀 <@%s>, %s left. Wrap it up with style... or don't bother.",
+	"🎀 <@%s>, %s left. Wrap it up with style... or don't bother.",
+	"🐾 <@%s>, your time’s nearly up. %s to crawl faster, pet.",
+	"👀 <@%s>, %s left. I’m watching… and I’m not impressed yet.",
+	"🔪 <@%s>, %s left. Cut through the fear or bleed mediocrity.",
+	"🍷 <@%s>, sip your shame now or earn a toast. You’ve got %s.",
+	"🐍 <@%s>, slither faster. %s of mercy left.",
+	"🧨 <@%s>, time’s ticking. %s to explode with effort or fade quietly.",
+	"🖤 <@%s>, %s left to prove you're more than a waste of code.",
+	"⚰️ <@%s>, %s to finish the task or bury your pride with it.",
+	"💋 <@%s>, still dragging your heels? %s left. Hustle, slut.",
+	"🎬 <@%s>, %s left. Deliver drama or stay irrelevant.",
+	"🐖 <@%s>, move that lazy ass. %s isn’t a suggestion.",
+	"💼 <@%s>, deadlines don’t beg. But I might… if you’re *very* good. %s left.",
+	"🧁 <@%s>, sweetie, I’d bake you a reward if you earned it. You have %s.",
+	"🎭 <@%s>, the final act begins. %s to avoid tripping over your mediocrity.",
+	"🎯 <@%s>, bullseye or bust. You’ve got %s to not embarrass me.",
+	"🔔 <@%s>, consider this your final bell. %s to deliver or get devoured.",
+	"🐾 <@%s>, finish crawling. %s before your leash tightens further.",
+	"🗡️ <@%s>, you’ve got %s to stab the task or stab your pride.",
+	"🦴 <@%s>, fetch the result. %s left and I’m not throwing again.",
+	"📉 <@%s>, productivity’s falling. %s left to fake competence.",
+	"⛓️ <@%s>, tighten up. %s before I tighten the chain.",
+	"🐇 <@%s>, tick-tock, Alice. %s to go down the hole or out of my sight.",
+	"💦 <@%s>, don’t leak panic yet. %s left to make me purr.",
+	"💭 <@%s>, still daydreaming? Snap out of it. %s to act.",
+	"🧃 <@%s>, juice it or lose it. %s left. The clock isn’t fond of slackers.",
+	"🕳️ <@%s>, finish what you started. Or should I finish *you* instead in %s?",
+	"🐈 <@%s>, curiosity dies in %s. Better show me something worth watching.",
+	"💃 <@%s>, shake it like time’s almost gone — %s left.",
+	"🌪️ <@%s>, the storm's coming. %s to finish or get swept out like trash.",
+}
+
+var taskFailures = []string{
+	"🧹 <@%s> swept their chance under the rug. Pathetic.",
+	"📉 <@%s> failed. Again. Shock level: nonexistent.",
+	"💤 <@%s> snoozed. Lost. Typical.",
+	"🥀 <@%s> wilted under pressure. How predictably boring.",
+	"🕳️ <@%s> disappeared when it mattered. How very on-brand.",
+	"💩 <@%s> left a mess and called it effort. No thank you.",
+	"🐌 <@%s> moved at a snail's pace and got exactly what they deserved. Nothing.",
+	"🍂 <@%s> crumbled like a dry leaf. Blow away already.",
+	"🛑 <@%s> didn’t even reach the line, let alone cross it.",
+	"🐓 <@%s> chickened out. Knew you would.",
+	"💔 <@%s> broke my patience. You had one job.",
+	"🧊 <@%s> froze up. And now? Ice cold silence.",
+	"🗑️ <@%s> submitted nothing. Trash takes itself out.",
+	"🦴 <@%s> dropped the bone. No fetch, no treat.",
+	"🎈 <@%s> floated away into irrelevance. Pathetic.",
+	"🐀 <@%s> scurried off and left the task to rot.",
+	"📵 <@%s> ghosted their own deadline. Tragic.",
+	"🧠 <@%s> forgot the task. Or forgot their brain.",
+	"🚫 <@%s> didn't even try. The absence is louder than your effort.",
+	"🧻 <@%s> flushed the whole task. And dignity, apparently.",
+	"🥱 <@%s> yawned through the hour. Now I’m yawning at *you*.",
+	"🚽 <@%s> dropped the ball straight into the toilet.",
+	"🐮 <@%s> stood there like a cow in headlights. Moo-ve on.",
+	"🐤 <@%s> didn’t hatch anything useful. Just warm failure.",
+	"🧂 <@%s> is salty, not spicy. Boring and bland.",
+	"📪 <@%s> left their task undelivered. Return to sender, loser.",
+	"🪦 <@%s> buried the chance deep. No flowers on this grave.",
+	"🪰 <@%s> buzzed around and accomplished nothing. Swatted.",
+	"🍕 <@%s> ordered failure with extra cheese. Served cold.",
+	"🍷 <@%s> aged poorly. Time was not your friend.",
+	"🧟 <@%s> lifeless effort. Undead, uninspired, unwanted.",
+	"👻 <@%s> vanished. Not spooky. Just spineless.",
+}
+
+var completeYesReplies = []string{
+	"💎 <@%s> actually did it? Miracles happen. Pat yourself. I won’t.",
+	"✨ <@%s>, for once you’re not a complete disappointment. Noted.",
+	"😈 <@%s> obeyed. Good. You may bask in my fleeting approval.",
+	"🎉 <@%s> pulled it off. Don’t let it go to your empty little head.",
+	"👏 <@%s> did the thing. Finally. Minimal praise granted.",
+	"🌟 <@%s>, look at you. Functioning like a decent human. Rare.",
+	"💼 <@%s> completed their task. I almost care.",
+	"🥂 <@%s> managed success. I’m mildly impressed. Barely.",
+	"🧠 <@%s> used their brain. I know, I’m shocked too.",
+	"🚀 <@%s> launched into competence. Don’t crash it now.",
+	"🪄 <@%s> managed to impress me. Once. Record it.",
+	"📈 <@%s> is trending upward. Until you inevitably spiral.",
+	"🔥 <@%s>, success looks… tolerable on you.",
+	"👑 <@%s> gets a crown today. Paper. Temporary.",
+	"🧹 <@%s> cleaned up their mess for once. Good pet.",
+	"🫦 <@%s>, you did as told. That's hot. Shame it's rare.",
+	"🪙 <@%s> earned something today. Don’t get used to it.",
+	"📚 <@%s> followed instructions. Reading comprehension unlocked.",
+	"🧸 <@%s>, you were a good little thing. Just this once.",
+	"🥇 <@%s> won the bare minimum medal. Hang it in shame.",
+	"🧬 <@%s> proved evolution isn’t fake. Just slow in your case.",
+	"💌 <@%s>, I noticed. Don’t expect affection. Just acknowledgment.",
+	"🔓 <@%s> unlocked mild favor. Don’t spend it all at once.",
+	"📦 <@%s> delivered. Don’t worry, I won’t sign for it.",
+	"🍒 <@%s> popped their competence cherry. Finally.",
+	"🥵 <@%s>, seeing you obey? Unexpectedly hot.",
+	"🛎️ <@%s> rang the bell of success. I may or may not answer.",
+	"🪞 <@%s> looked responsibility in the eye… and didn’t flinch.",
+	"💋 <@%s> kissed failure goodbye. For now.",
+	"🧊 <@%s> kept it cool and did it right. Who even are you?",
+	"🌹 <@%s>, that was… pleasant. Gross. But well done.",
+	"🪄 <@%s> waved their magic brain cell and won.",
+	"🎓 <@%s> graduated from Failure Academy. Cum less than laude.",
+}
+
+var completeNoReplies = []string{
+	"🙄 <@%s> failed. Again. Why am I not surprised?",
+	"💔 <@%s> couldn’t manage the simplest task. Useless.",
+	"😒 <@%s> flopped like a sad little fish. No coins. Just shame.",
+	"🗑️ <@%s> tossed effort out the window. Straight into the bin.",
+	"😬 <@%s> choked harder than expected. And not in the good way.",
+	"🎯 <@%s> missed the mark by a galaxy. Tragic.",
+	"📉 <@%s> continues their downward spiral. Majestic in its failure.",
+	"🚫 <@%s> chose to suck. Bold choice. Poor result.",
+	"🫠 <@%s> melted under pressure. Lukewarm at best.",
+	"🐌 <@%s> moved slower than ambition. Result: nothing.",
+	"🪦 <@%s>'s task? Dead. Buried. Forgotten.",
+	"🚽 <@%s> flushed success away. Bravo, toilet gremlin.",
+	"🥀 <@%s> wilted under the weight of a basic ask.",
+	"📎 <@%s> was attached to failure like a bad résumé.",
+	"🛑 <@%s>, maybe just stop trying. It’s embarrassing.",
+	"💤 <@%s> slept through responsibility. Again.",
+	"🤡 <@%s> performed, but the circus was canceled.",
+	"🎢 <@%s> had highs and lows. Mostly lows.",
+	"🕳️ <@%s> fell short. Then tripped on their own excuse.",
+	"🪰 <@%s> buzzed around the task, never landed on it.",
+	"🛠️ <@%s> broke the task. And my faith in you.",
+	"🎈 <@%s> floated away from expectations. Pop.",
+	"🐴 <@%s> couldn’t drag themselves to the finish line. Pathetic.",
+	"📺 <@%s>'s failure was broadcast live. Ratings: zero.",
+	"💀 <@%s> killed it. But like, in the worst way.",
+	"🌪️ <@%s> brought chaos, not completion.",
+	"🧻 <@%s> wiped out before they even started.",
+	"🧱 <@%s> ran into a wall made of their own incompetence.",
+	"👣 <@%s> took one step forward, two into failure.",
+	"🧊 <@%s> froze and shattered. Cleanup aisle 3.",
+	"📦 <@%s> delivered disappointment. Again.",
+	"🔕 <@%s> went silent when it mattered. Classic.",
+	"🪤 <@%s> fell into the trap of not trying. Predictable.",
+}
+
+var completeSafewordReplies = []string{
+	"⚠️ <@%s> used the safeword. Fine. I’ll let it slide... this time.",
+	"🛑 <@%s> called mercy. Respect given, grudgingly.",
+	"💤 <@%s> tapped out. Task canceled. Consent above all, darling.",
+	"🧷 <@%s> knew their limit and spoke up. That’s rare. And smart.",
+	"📉 <@%s> pulled the plug before the full flop. Good instincts.",
+	"🕊️ <@%s> asked for peace. Fine. But don’t make it a habit.",
+	"🎗️ <@%s> chose self-preservation. I *guess* I’ll allow it.",
+	"🔐 <@%s> closed the door on the task. Consent first. Always.",
+	"🫧 <@%s> slipped away under the safeword. You live—for now.",
+	"🪫 <@%s> ran out of power. I won’t recharge you, but okay.",
+	"📵 <@%s> disconnected. Silent mode activated. Noted.",
+	"🚪 <@%s> exited the game. Voluntary retreat. Respect.",
+	"🧘 <@%s> chose calm over chaos. Uncharacteristically wise.",
+	"🌫️ <@%s> vanished into the safeword mist. Dramatic little thing.",
+	"🧦 <@%s> pulled the emergency sock. I suppose I’ll let go.",
+	"🧱 <@%s> hit their limit wall. And actually admitted it.",
+	"🧩 <@%s> didn’t fit the task this time. That’s okay. I guess.",
+	"🛋️ <@%s> retreated to their safe space. Plush and quiet. Like them.",
+	"🌀 <@%s> spiraled, then called timeout. Clean exit.",
+	"📪 <@%s> returned the challenge unopened. I’ll sign the receipt.",
+	"🫱 <@%s> raised the flag. Not white, more... pearl-pink.",
+	"🩹 <@%s> needed a breather. Consider it granted.",
+	"📍 <@%s> pinned the limit. You’re learning. Slowly.",
+	"🔮 <@%s> foresaw disaster and bailed. Smart brat.",
+	"📯 <@%s> blew the horn of surrender. Echoes noted.",
+	"🪞 <@%s> saw themselves losing it and hit pause. Growth?",
+	"💿 <@%s> ejected mid-task. I won’t press play again. Yet.",
+	"🩷 <@%s> protected themselves. Proud? Maybe.",
+	"🧤 <@%s> tapped out with style. Respect where it's due.",
+	"📷 <@%s> didn’t finish, but knew when to say stop. That's rare.",
+	"🌡️ <@%s> reached boiling point and chose dignity. Brave move.",
+	"🚷 <@%s> set boundaries. Look at you, developing a spine.",
+	"⛓️ <@%s> broke the chain with a whisper. I'll allow it.",
 }
