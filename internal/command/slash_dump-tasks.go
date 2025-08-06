@@ -18,7 +18,7 @@ func (c *DumpTasksCommand) Description() string { return "Dumps all tasks as JSO
 func (c *DumpTasksCommand) Aliases() []string   { return []string{} }
 
 func (c *DumpTasksCommand) Group() string    { return "dump" }
-func (c *DumpTasksCommand) Category() string { return "⚙️ Maintenance" }
+func (c *DumpTasksCommand) Category() string { return "🛠️ Maintenance" }
 
 func (c *DumpTasksCommand) RequireAdmin() bool { return true }
 func (c *DumpTasksCommand) RequireDev() bool   { return false }

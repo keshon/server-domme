@@ -16,7 +16,7 @@ func (c *PurgeNowCommand) Description() string { return "Purge messages in this 
 func (c *PurgeNowCommand) Aliases() []string   { return []string{} }
 
 func (c *PurgeNowCommand) Group() string    { return "purge" }
-func (c *PurgeNowCommand) Category() string { return "🧹 Channel Cleanup" }
+func (c *PurgeNowCommand) Category() string { return "🧹 Cleanup" }
 
 func (c *PurgeNowCommand) RequireAdmin() bool { return true }
 func (c *PurgeNowCommand) RequireDev() bool   { return false }

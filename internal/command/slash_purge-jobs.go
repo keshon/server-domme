@@ -16,7 +16,7 @@ func (c *PurgeJobsCommand) Description() string { return "List all active purge 
 func (c *PurgeJobsCommand) Aliases() []string   { return []string{} }
 
 func (c *PurgeJobsCommand) Group() string    { return "purge" }
-func (c *PurgeJobsCommand) Category() string { return "🧹 Channel Cleanup" }
+func (c *PurgeJobsCommand) Category() string { return "🧹 Cleanup" }
 
 func (c *PurgeJobsCommand) RequireAdmin() bool { return true }
 func (c *PurgeJobsCommand) RequireDev() bool   { return false }

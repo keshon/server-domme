@@ -11,6 +11,16 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var categoryWeights = map[string]int{
+	"🕯️ Information": 0,
+	"📢 Utilities":    10,
+	"🎲 Gameplay":     20,
+	"🎭 Roleplay":     30,
+	"🧹 Cleanup":      40,
+	"⚙️ Settings":    50,
+	"🛠️ Maintenance": 60,
+}
+
 type HelpCommand struct{}
 
 func (c *HelpCommand) Name() string        { return "help" }
@@ -83,8 +93,12 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 		cat := cmd.Category()
 		categoryMap[cat] = append(categoryMap[cat], cmd)
 
-		if val, ok := categorySort[cat]; !ok || cmdOrder(cmd) < val {
-			categorySort[cat] = cmdOrder(cmd)
+		if _, ok := categorySort[cat]; !ok {
+			weight, exists := categoryWeights[cat]
+			if !exists {
+				weight = 999
+			}
+			categorySort[cat] = weight
 		}
 	}
 
@@ -106,11 +120,7 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 		cmds := categoryMap[cat.Name]
 
 		sort.Slice(cmds, func(i, j int) bool {
-			a, b := cmdOrder(cmds[i]), cmdOrder(cmds[j])
-			if a == b {
-				return cmds[i].Name() < cmds[j].Name()
-			}
-			return a < b
+			return cmds[i].Name() < cmds[j].Name()
 		})
 
 		for _, cmd := range cmds {
@@ -130,12 +140,4 @@ func init() {
 			),
 		),
 	)
-}
-
-// optional: define command sort order fallback if needed
-func cmdOrder(cmd Command) int {
-	if sd, ok := cmd.(interface{ Sort() int }); ok {
-		return sd.Sort()
-	}
-	return 999
 }
