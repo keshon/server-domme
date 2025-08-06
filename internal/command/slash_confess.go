@@ -12,10 +12,13 @@ type ConfessCommand struct{}
 
 func (c *ConfessCommand) Name() string        { return "confess" }
 func (c *ConfessCommand) Description() string { return "Send an anonymous confession to the channel" }
-func (c *ConfessCommand) Category() string    { return "🎭 Roleplay" }
 func (c *ConfessCommand) Aliases() []string   { return []string{} }
-func (c *ConfessCommand) RequireAdmin() bool  { return false }
-func (c *ConfessCommand) RequireDev() bool    { return false }
+
+func (c *ConfessCommand) Group() string    { return "confess" }
+func (c *ConfessCommand) Category() string { return "🎭 Roleplay" }
+
+func (c *ConfessCommand) RequireAdmin() bool { return false }
+func (c *ConfessCommand) RequireDev() bool   { return false }
 
 func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

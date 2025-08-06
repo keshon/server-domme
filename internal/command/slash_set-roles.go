@@ -11,8 +11,10 @@ type SetRolesCommand struct{}
 
 func (c *SetRolesCommand) Name() string        { return "set-roles" }
 func (c *SetRolesCommand) Description() string { return "Appoint punisher, victim, or tasker roles" }
-func (c *SetRolesCommand) Category() string    { return "⚙️ Maintenance" }
-func (c *SetRolesCommand) Aliases() []string   { return nil }
+func (c *SetRolesCommand) Aliases() []string   { return []string{} }
+
+func (c *SetRolesCommand) Group() string    { return "core" }
+func (c *SetRolesCommand) Category() string { return "⚙️ Settings" }
 
 func (c *SetRolesCommand) RequireAdmin() bool { return true }
 func (c *SetRolesCommand) RequireDev() bool   { return false }

@@ -11,12 +11,12 @@ import (
 
 type TranslateOnReaction struct{}
 
-func (t *TranslateOnReaction) Name() string { return "translate (reaction)" }
-func (t *TranslateOnReaction) Description() string {
-	return "Translate message on flag emoji reaction"
-}
-func (t *TranslateOnReaction) Category() string  { return "📢 Utilities" }
-func (t *TranslateOnReaction) Aliases() []string { return []string{} }
+func (t *TranslateOnReaction) Name() string        { return "translate (reaction)" }
+func (t *TranslateOnReaction) Description() string { return "Translate message on flag emoji reaction" }
+func (t *TranslateOnReaction) Aliases() []string   { return []string{} }
+
+func (c *TranslateOnReaction) Group() string    { return "translate" }
+func (t *TranslateOnReaction) Category() string { return "📢 Utilities" }
 
 func (r *TranslateOnReaction) RequireAdmin() bool { return false }
 func (r *TranslateOnReaction) RequireDev() bool   { return false }

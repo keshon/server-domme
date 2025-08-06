@@ -15,8 +15,10 @@ type RollCommand struct{}
 
 func (c *RollCommand) Name() string        { return "roll" }
 func (c *RollCommand) Description() string { return "Roll dice with crazy formulas like `2d6+1d4*2`" }
-func (c *RollCommand) Category() string    { return "🎲 Game Mechanics" }
-func (c *RollCommand) Aliases() []string   { return nil }
+func (c *RollCommand) Aliases() []string   { return []string{} }
+
+func (c *RollCommand) Group() string    { return "roll" }
+func (c *RollCommand) Category() string { return "🎲 Game Mechanics" }
 
 func (c *RollCommand) RequireAdmin() bool { return false }
 func (c *RollCommand) RequireDev() bool   { return false }

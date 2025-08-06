@@ -15,10 +15,13 @@ type DumpTasksCommand struct{}
 
 func (c *DumpTasksCommand) Name() string        { return "dump-tasks" }
 func (c *DumpTasksCommand) Description() string { return "Dumps all tasks in this server." }
-func (c *DumpTasksCommand) Category() string    { return "⚙️ Maintenance" }
 func (c *DumpTasksCommand) Aliases() []string   { return []string{} }
-func (c *DumpTasksCommand) RequireAdmin() bool  { return true }
-func (c *DumpTasksCommand) RequireDev() bool    { return false }
+
+func (c *DumpTasksCommand) Group() string    { return "dump-tasks" }
+func (c *DumpTasksCommand) Category() string { return "⚙️ Maintenance" }
+
+func (c *DumpTasksCommand) RequireAdmin() bool { return true }
+func (c *DumpTasksCommand) RequireDev() bool   { return false }
 
 func (c *DumpTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

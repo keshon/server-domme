@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-type CommandHistoryRecord struct {
+type CommandHistory struct {
 	ChannelID   string    `json:"channel_id"`
 	ChannelName string    `json:"channel_name"`
 	GuildName   string    `json:"guild_name"`
@@ -14,7 +14,7 @@ type CommandHistoryRecord struct {
 	Datetime    time.Time `json:"datetime"`
 }
 
-type UserTask struct {
+type Task struct {
 	UserID     string    `json:"user_id"`
 	MessageID  string    `json:"task_message_id"`
 	AssignedAt time.Time `json:"assigned_at"`
@@ -33,10 +33,11 @@ type DeletionJob struct {
 }
 
 type Record struct {
-	CommandsHistoryList []CommandHistoryRecord `json:"cmd_history"`
-	Channels            map[string]string      `json:"channels"`
-	Roles               map[string]string      `json:"roles"`
-	Tasks               map[string]UserTask    `json:"tasks"`
-	Cooldowns           map[string]time.Time   `json:"cooldowns"`
-	DeletionJobs        map[string]DeletionJob `json:"del_jobs"` // key = channelID
+	CommandsHistory []CommandHistory       `json:"cmd_history"`
+	Channels        map[string]string      `json:"channels"`
+	Roles           map[string]string      `json:"roles"`
+	Tasks           map[string]Task        `json:"tasks"`
+	Cooldowns       map[string]time.Time   `json:"cooldowns"`
+	DeletionJobs    map[string]DeletionJob `json:"del_jobs"` // key = channelID
+	DisabledGroups  []string               `json:"disabled_groups"`
 }

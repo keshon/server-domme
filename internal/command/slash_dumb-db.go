@@ -13,10 +13,13 @@ type DumpDBCommand struct{}
 
 func (c *DumpDBCommand) Name() string        { return "dump-db" }
 func (c *DumpDBCommand) Description() string { return "Dumps the bot database" }
-func (c *DumpDBCommand) Category() string    { return "⚙️ Maintenance" }
 func (c *DumpDBCommand) Aliases() []string   { return []string{} }
-func (c *DumpDBCommand) RequireAdmin() bool  { return false }
-func (c *DumpDBCommand) RequireDev() bool    { return true }
+
+func (c *DumpDBCommand) Group() string    { return "dump-db" }
+func (c *DumpDBCommand) Category() string { return "⚙️ Maintenance" }
+
+func (c *DumpDBCommand) RequireAdmin() bool { return false }
+func (c *DumpDBCommand) RequireDev() bool   { return true }
 
 func (c *DumpDBCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

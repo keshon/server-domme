@@ -16,10 +16,13 @@ type AnnounceCommand struct{}
 
 func (c *AnnounceCommand) Name() string        { return "announce (context)" }
 func (c *AnnounceCommand) Description() string { return "Send a message to the announcement channel" }
-func (c *AnnounceCommand) Category() string    { return "📢 Utilities" }
 func (c *AnnounceCommand) Aliases() []string   { return []string{} }
-func (c *AnnounceCommand) RequireAdmin() bool  { return true }
-func (c *AnnounceCommand) RequireDev() bool    { return false }
+
+func (c *AnnounceCommand) Group() string    { return "announce" }
+func (c *AnnounceCommand) Category() string { return "📢 Utilities" }
+
+func (c *AnnounceCommand) RequireAdmin() bool { return true }
+func (c *AnnounceCommand) RequireDev() bool   { return false }
 
 func (c *AnnounceCommand) ContextType() discordgo.ApplicationCommandType {
 	return discordgo.MessageApplicationCommand

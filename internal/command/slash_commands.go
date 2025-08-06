@@ -1,0 +1,19 @@
+package command
+
+import "sort"
+
+func GetUniqueGroups() []string {
+	set := map[string]struct{}{}
+	for _, cmd := range All() {
+		group := cmd.Group()
+		if group != "" {
+			set[group] = struct{}{}
+		}
+	}
+	var result []string
+	for group := range set {
+		result = append(result, group)
+	}
+	sort.Strings(result)
+	return result
+}

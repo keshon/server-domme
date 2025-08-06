@@ -108,3 +108,19 @@ func checkBotPermissions(s *discordgo.Session, channelID string) bool {
 	}
 	return perms&discordgo.PermissionManageMessages != 0
 }
+
+func CheckGroupAccess(c Command, guildID string, s *storage.Storage, respond func(string)) bool {
+	group := c.Group()
+	if group == "" {
+		return true
+	}
+	disabled, err := s.IsGroupDisabled(guildID, group)
+	if err != nil {
+		return true
+	}
+	if disabled {
+		respond("Эта группа команд отключена на этом сервере.")
+		return false
+	}
+	return true
+}

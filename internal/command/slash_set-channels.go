@@ -11,8 +11,10 @@ type SetChannelsCommand struct{}
 
 func (c *SetChannelsCommand) Name() string        { return "set-channels" }
 func (c *SetChannelsCommand) Description() string { return "Designate special-purpose channels" }
-func (c *SetChannelsCommand) Category() string    { return "⚙️ Maintenance" }
-func (c *SetChannelsCommand) Aliases() []string   { return nil }
+func (c *SetChannelsCommand) Aliases() []string   { return []string{} }
+
+func (c *SetChannelsCommand) Group() string    { return "core" }
+func (c *SetChannelsCommand) Category() string { return "⚙️ Settings" }
 
 func (c *SetChannelsCommand) RequireAdmin() bool { return true }
 func (c *SetChannelsCommand) RequireDev() bool   { return false }

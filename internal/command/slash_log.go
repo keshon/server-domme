@@ -20,10 +20,13 @@ type LogCommand struct{}
 
 func (c *LogCommand) Name() string        { return "log" }
 func (c *LogCommand) Description() string { return "Review recent commands and their punishments" }
-func (c *LogCommand) Category() string    { return "⚙️ Maintenance" }
 func (c *LogCommand) Aliases() []string   { return []string{} }
-func (c *LogCommand) RequireAdmin() bool  { return true }
-func (c *LogCommand) RequireDev() bool    { return false }
+
+func (c *LogCommand) Group() string    { return "log" }
+func (c *LogCommand) Category() string { return "⚙️ Maintenance" }
+
+func (c *LogCommand) RequireAdmin() bool { return true }
+func (c *LogCommand) RequireDev() bool   { return false }
 
 func (c *LogCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

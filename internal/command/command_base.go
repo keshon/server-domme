@@ -9,12 +9,12 @@ import (
 type Command interface {
 	Name() string
 	Description() string
-	Category() string
 	Aliases() []string
-	Run(ctx interface{}) error
-
+	Group() string
+	Category() string
 	RequireAdmin() bool
 	RequireDev() bool
+	Run(ctx interface{}) error
 }
 
 type SlashProvider interface {

@@ -15,10 +15,20 @@ type HelpCommand struct{}
 
 func (c *HelpCommand) Name() string        { return "help" }
 func (c *HelpCommand) Description() string { return "Your guide to serving the Server Domme well" }
-func (c *HelpCommand) Category() string    { return "🕯️ Insight" }
 func (c *HelpCommand) Aliases() []string   { return []string{} }
-func (c *HelpCommand) RequireAdmin() bool  { return false }
-func (c *HelpCommand) RequireDev() bool    { return false }
+
+func (c *HelpCommand) Group() string    { return "help" }
+func (c *HelpCommand) Category() string { return "🕯️ Insight" }
+
+func (c *HelpCommand) RequireAdmin() bool { return false }
+func (c *HelpCommand) RequireDev() bool   { return false }
+
+func (c *HelpCommand) SlashDefinition() *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name:        c.Name(),
+		Description: c.Description(),
+	}
+}
 
 func (c *HelpCommand) Run(ctx interface{}) error {
 	slash, ok := ctx.(*SlashContext)

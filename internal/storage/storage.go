@@ -33,8 +33,8 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*st.Record, error) {
 	data, exists := s.ds.Get(guildID)
 	if !exists {
 		newRecord := &st.Record{
-			CommandsHistoryList: []st.CommandHistoryRecord{},
-			Roles:               map[string]string{},
+			CommandsHistory: []st.CommandHistory{},
+			Roles:           map[string]string{},
 		}
 		s.ds.Add(guildID, newRecord)
 		return newRecord, nil
@@ -55,15 +55,15 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*st.Record, error) {
 		record.Roles = map[string]string{}
 	}
 	if record.Tasks == nil {
-		record.Tasks = make(map[string]st.UserTask)
+		record.Tasks = make(map[string]st.Task)
 	}
 
 	if record.DeletionJobs == nil {
 		record.DeletionJobs = make(map[string]st.DeletionJob)
 	}
 
-	if len(record.CommandsHistoryList) > commandHistoryLimit {
-		record.CommandsHistoryList = record.CommandsHistoryList[len(record.CommandsHistoryList)-commandHistoryLimit:]
+	if len(record.CommandsHistory) > commandHistoryLimit {
+		record.CommandsHistory = record.CommandsHistory[len(record.CommandsHistory)-commandHistoryLimit:]
 	}
 
 	return &record, nil
@@ -92,14 +92,14 @@ func (s *Storage) GetRecordsList() map[string]st.Record {
 	return mapStringRecord
 }
 
-func (s *Storage) appendCommandToHistory(guildID string, command st.CommandHistoryRecord) error {
+func (s *Storage) appendCommandToHistory(guildID string, command st.CommandHistory) error {
 
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
 	}
 
-	record.CommandsHistoryList = append(record.CommandsHistoryList, command)
+	record.CommandsHistory = append(record.CommandsHistory, command)
 	s.ds.Add(guildID, record)
 	return nil
 }
@@ -107,7 +107,7 @@ func (s *Storage) appendCommandToHistory(guildID string, command st.CommandHisto
 func (s *Storage) SetCommand(
 	guildID, channelID, channelName, guildName, userID, username, command string,
 ) error {
-	record := st.CommandHistoryRecord{
+	record := st.CommandHistory{
 		ChannelID:   channelID,
 		ChannelName: channelName,
 		GuildName:   guildName,
@@ -119,13 +119,13 @@ func (s *Storage) SetCommand(
 	return s.appendCommandToHistory(guildID, record)
 }
 
-func (s *Storage) GetCommands(guildID string) ([]st.CommandHistoryRecord, error) {
+func (s *Storage) GetCommands(guildID string) ([]st.CommandHistory, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
 	}
 
-	return record.CommandsHistoryList, nil
+	return record.CommandsHistory, nil
 }
 
 func (s *Storage) SetPunishRole(guildID string, roleType string, roleID string) error {
@@ -193,14 +193,14 @@ func (s *Storage) GetTaskRoles(guildID string) (map[string]string, error) {
 	return taskerRoles, nil
 }
 
-func (s *Storage) SetUserTask(guildID string, userID string, task st.UserTask) error {
+func (s *Storage) SetTask(guildID string, userID string, task st.Task) error {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
 	}
 
 	if record.Tasks == nil {
-		record.Tasks = make(map[string]st.UserTask)
+		record.Tasks = make(map[string]st.Task)
 	}
 
 	record.Tasks[userID] = task
@@ -208,7 +208,7 @@ func (s *Storage) SetUserTask(guildID string, userID string, task st.UserTask) e
 	return nil
 }
 
-func (s *Storage) GetUserTask(guildID string, userID string) (*st.UserTask, error) {
+func (s *Storage) GetTask(guildID string, userID string) (*st.Task, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
@@ -226,7 +226,7 @@ func (s *Storage) GetUserTask(guildID string, userID string) (*st.UserTask, erro
 	return &task, nil
 }
 
-func (s *Storage) ClearUserTask(guildID string, userID string) error {
+func (s *Storage) ClearTask(guildID string, userID string) error {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return err
@@ -431,4 +431,59 @@ func (s *Storage) GetSpecialChannel(guildID, kind string) (string, error) {
 		return "", fmt.Errorf("channel not set for kind '%s'", kind)
 	}
 	return id, nil
+}
+
+func (s *Storage) DisableGroup(guildID, group string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	for _, g := range record.DisabledGroups {
+		if g == group {
+			return nil // уже выключено
+		}
+	}
+
+	record.DisabledGroups = append(record.DisabledGroups, group)
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) EnableGroup(guildID, group string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+
+	updated := make([]string, 0, len(record.DisabledGroups))
+	for _, g := range record.DisabledGroups {
+		if g != group {
+			updated = append(updated, g)
+		}
+	}
+	record.DisabledGroups = updated
+	s.ds.Add(guildID, record)
+	return nil
+}
+
+func (s *Storage) IsGroupDisabled(guildID, group string) (bool, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return false, err
+	}
+	for _, g := range record.DisabledGroups {
+		if g == group {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *Storage) GetDisabledGroups(guildID string) ([]string, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return nil, err
+	}
+	return record.DisabledGroups, nil
 }

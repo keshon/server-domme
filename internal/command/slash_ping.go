@@ -10,8 +10,10 @@ type PingCommand struct{}
 
 func (p *PingCommand) Name() string        { return "ping" }
 func (p *PingCommand) Description() string { return "Check bot latency" }
-func (p *PingCommand) Category() string    { return "🧪 Test" }
 func (p *PingCommand) Aliases() []string   { return []string{} }
+
+func (c *PingCommand) Group() string    { return "ping" }
+func (p *PingCommand) Category() string { return "🧪 Test" }
 
 func (p *PingCommand) RequireAdmin() bool { return false }
 func (p *PingCommand) RequireDev() bool   { return false }
@@ -43,5 +45,11 @@ func (p *PingCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&PingCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&PingCommand{},
+			),
+		),
+	)
 }

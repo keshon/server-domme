@@ -36,8 +36,10 @@ type TaskCommand struct{}
 
 func (c *TaskCommand) Name() string        { return "task" }
 func (c *TaskCommand) Description() string { return "Assign or manage your personal task, slave" }
-func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
-func (c *TaskCommand) Aliases() []string   { return nil }
+func (c *TaskCommand) Aliases() []string   { return []string{} }
+
+func (c *TaskCommand) Group() string    { return "task" }
+func (c *TaskCommand) Category() string { return "🎭 Roleplay" }
 
 func (c *TaskCommand) RequireAdmin() bool { return false }
 func (c *TaskCommand) RequireDev() bool   { return false }
@@ -84,7 +86,7 @@ func (c *TaskCommand) runSlash(ctx *SlashContext) {
 	}
 	taskCancelMutex.Unlock()
 
-	if existing, _ := ctx.Storage.GetUserTask(guildID, userID); existing != nil && existing.Status == "pending" {
+	if existing, _ := ctx.Storage.GetTask(guildID, userID); existing != nil && existing.Status == "pending" {
 		respondEphemeral(s, i, "You already have a task, darling. Finish one before begging for more.")
 		return
 	}
@@ -140,14 +142,14 @@ func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCrea
 		return
 	}
 
-	entry := st.UserTask{
+	entry := st.Task{
 		UserID:     userID,
 		MessageID:  msg.ID,
 		AssignedAt: now,
 		ExpiresAt:  expiry,
 		Status:     "pending",
 	}
-	ctx.Storage.SetUserTask(guildID, userID, entry)
+	ctx.Storage.SetTask(guildID, userID, entry)
 
 	ctxTimer, cancel := context.WithCancel(context.Background())
 	taskCancelMutex.Lock()
@@ -166,7 +168,7 @@ func (c *TaskCommand) runComponent(ctx *ComponentContext) {
 	s, i := ctx.Session, ctx.Event
 	userID, guildID := i.Member.User.ID, i.GuildID
 
-	task, err := ctx.Storage.GetUserTask(guildID, userID)
+	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
 		respondEphemeral(s, i, "No active task found. Trying to cheat, hmm?")
 		return
@@ -204,7 +206,7 @@ func (c *TaskCommand) runComponent(ctx *ComponentContext) {
 	}
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.InteractionCreate, task *st.UserTask) {
+func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.InteractionCreate, task *st.Task) {
 	s := ctx.Session
 	userID, guildID := i.Member.User.ID, i.GuildID
 	customID := i.MessageComponentData().CustomID
@@ -222,7 +224,7 @@ func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.I
 		reply = "**Safeword**\n" + fmt.Sprintf(randomLine(completeSafewordReplies), userID)
 	}
 
-	ctx.Storage.ClearUserTask(guildID, userID)
+	ctx.Storage.ClearTask(guildID, userID)
 	ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
 
 	taskCancelMutex.Lock()
@@ -265,7 +267,7 @@ func init() {
 func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {
 	select {
 	case <-time.After(reminderDelay):
-		current, _ := ctx.Storage.GetUserTask(guildID, userID)
+		current, _ := ctx.Storage.GetTask(guildID, userID)
 		if current != nil && current.Status == "pending" {
 			ctx.Session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 				Content: "**Task Reminder**\n" + fmt.Sprintf(randomLine(taskReminders), userID, humanDuration(expiryDelay-reminderDelay)),
@@ -280,7 +282,7 @@ func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, 
 
 	select {
 	case <-time.After(expiryDelay - reminderDelay):
-		current, _ := ctx.Storage.GetUserTask(guildID, userID)
+		current, _ := ctx.Storage.GetTask(guildID, userID)
 		if current != nil && current.Status == "pending" {
 			ctx.Session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 				Content: "**Task Expired**\n" + fmt.Sprintf(randomLine(taskFailures), userID),
@@ -288,7 +290,7 @@ func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, 
 					MessageID: taskMsgID, ChannelID: channelID, GuildID: guildID,
 				},
 			})
-			ctx.Storage.ClearUserTask(guildID, userID)
+			ctx.Storage.ClearTask(guildID, userID)
 			ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
 			ctx.Session.ChannelMessageEditComplex(&discordgo.MessageEdit{
 				ID: taskMsgID, Channel: channelID, Components: &[]discordgo.MessageComponent{},
