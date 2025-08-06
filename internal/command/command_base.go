@@ -43,3 +43,10 @@ type ReactionContext struct {
 	Reaction *discordgo.MessageReactionAdd
 	Storage  *storage.Storage
 }
+
+type ContextMessageContext struct {
+	Session *discordgo.Session
+	Event   *discordgo.InteractionCreate
+	Storage *storage.Storage
+	Target  *discordgo.Message
+}

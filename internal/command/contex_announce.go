@@ -14,7 +14,7 @@ import (
 
 type AnnounceCommand struct{}
 
-func (c *AnnounceCommand) Name() string        { return "announce (context)" }
+func (c *AnnounceCommand) Name() string        { return "Announce" }
 func (c *AnnounceCommand) Description() string { return "Send a message to the announcement channel" }
 func (c *AnnounceCommand) Aliases() []string   { return []string{} }
 
@@ -24,32 +24,34 @@ func (c *AnnounceCommand) Category() string { return "📢 Utilities" }
 func (c *AnnounceCommand) RequireAdmin() bool { return true }
 func (c *AnnounceCommand) RequireDev() bool   { return false }
 
-func (c *AnnounceCommand) ContextType() discordgo.ApplicationCommandType {
-	return discordgo.MessageApplicationCommand
+func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name: c.Name(),
+		Type: discordgo.MessageApplicationCommand,
+	}
 }
 
 func (c *AnnounceCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	context, ok := ctx.(*ComponentContext)
 	if !ok {
-		return fmt.Errorf("wrong context type")
+		return fmt.Errorf("wrong context type (expected ComponentContext)")
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	s := context.Session
+	e := context.Event
+	st := context.Storage
 
-	guildID := event.GuildID
-	channelID := event.ChannelID
+	guildID := e.GuildID
+	channelID := e.ChannelID
+	userID := e.Member.User.ID
+	username := e.Member.User.Username
 
-	userID := event.Member.User.ID
-	username := event.Member.User.Username
-
-	if !isAdministrator(session, guildID, event.Member) {
-		respondEphemeral(session, event, "You're not the boss of me.")
+	if !isAdministrator(s, guildID, e.Member) {
+		respondEphemeral(s, e, "You're not the boss of me.")
 		return nil
 	}
 
-	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags: discordgo.MessageFlagsEphemeral,
@@ -60,25 +62,25 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	target := event.ApplicationCommandData().TargetID
-	msg, err := session.ChannelMessage(channelID, target)
+	targetMsgID := e.ApplicationCommandData().TargetID
+	msg, err := s.ChannelMessage(channelID, targetMsgID)
 	if err != nil {
-		editResponse(session, event, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
+		editResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return nil
 	}
 
 	if msg.Author == nil || msg.Author.Bot {
-		editResponse(session, event, "I won't announce bot babble or ghost messages.")
+		editResponse(s, e, "I won't announce bot babble or ghost messages.")
 		return nil
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		editResponse(session, event, "Empty? I'm not announcing tumbleweeds.")
+		editResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
 		return nil
 	}
 
-	announceChannelID, err := storage.GetSpecialChannel(guildID, "announce")
+	announceChannelID, err := st.GetSpecialChannel(guildID, "announce")
 	if err != nil || announceChannelID == "" {
-		editResponse(session, event, "No announcement channel configured. Bother the admin.")
+		editResponse(s, e, "No announcement channel configured. Bother the admin.")
 		return nil
 	}
 
@@ -103,26 +105,35 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 		})
 	}
 
-	msgSend := &discordgo.MessageSend{
-		Content: restoreMentions(session, guildID, msg.Content),
-		Files:   files,
+	message := &discordgo.MessageSend{
+		Content: restoreMentions(s, guildID, msg.Content),
 		Embeds:  msg.Embeds,
+		Files:   files,
 	}
 
-	_, err = session.ChannelMessageSendComplex(announceChannelID, msgSend)
+	_, err = s.ChannelMessageSendComplex(announceChannelID, message)
 	if err != nil {
-		editResponse(session, event, fmt.Sprintf("Couldn't announce it: `%v`", err))
+		editResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return nil
 	}
 
-	editResponse(session, event, "Announced. Everyone's watching now.")
+	editResponse(s, e, "Announced. Everyone's watching now.")
 
-	err = logCommand(session, storage, guildID, channelID, userID, username, "announce")
+	err = logCommand(s, st, guildID, channelID, userID, username, "announce")
 	if err != nil {
-		log.Println("Failed to log /announce:", err)
+		log.Println("Failed to log announce command:", err)
 	}
 
 	return nil
+}
+
+func editResponse(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {
+	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
+	})
+	if err != nil {
+		log.Println("Failed to edit response:", err)
+	}
 }
 
 var mentionRegex = regexp.MustCompile(`@(\S+)`)
@@ -152,15 +163,6 @@ func restoreMentions(s *discordgo.Session, guildID, content string) string {
 		}
 		return m
 	})
-}
-
-func editResponse(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {
-	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
-	})
-	if err != nil {
-		log.Println("Failed to edit response:", err)
-	}
 }
 
 func init() {

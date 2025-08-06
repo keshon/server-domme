@@ -11,45 +11,63 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var categoryWeights = map[string]int{
-	"🕯️ Information": 0,
-	"📢 Utilities":    10,
-	"🎲 Gameplay":     20,
-	"🎭 Roleplay":     30,
-	"🧹 Cleanup":      40,
-	"⚙️ Settings":    50,
-	"🛠️ Maintenance": 60,
-}
+type HelpUnifiedCommand struct{}
 
-type HelpCommand struct{}
+func (c *HelpUnifiedCommand) Name() string        { return "help" }
+func (c *HelpUnifiedCommand) Description() string { return "Get a list of available commands" }
+func (c *HelpUnifiedCommand) Aliases() []string   { return []string{} }
 
-func (c *HelpCommand) Name() string        { return "help" }
-func (c *HelpCommand) Description() string { return "Get a list of available commands" }
-func (c *HelpCommand) Aliases() []string   { return []string{} }
+func (c *HelpUnifiedCommand) Group() string    { return "core" }
+func (c *HelpUnifiedCommand) Category() string { return "🕯️ Information" }
 
-func (c *HelpCommand) Group() string    { return "core" }
-func (c *HelpCommand) Category() string { return "🕯️ Information" }
+func (c *HelpUnifiedCommand) RequireAdmin() bool { return false }
+func (c *HelpUnifiedCommand) RequireDev() bool   { return false }
 
-func (c *HelpCommand) RequireAdmin() bool { return false }
-func (c *HelpCommand) RequireDev() bool   { return false }
-
-func (c *HelpCommand) SlashDefinition() *discordgo.ApplicationCommand {
+func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "view_by",
+				Description: "How to view the commands",
+				Required:    false,
+				Choices: []*discordgo.ApplicationCommandOptionChoice{
+					{Name: "Categories", Value: "category"},
+					{Name: "Groups", Value: "group"},
+					{Name: "Flat list", Value: "flat"},
+				},
+			},
+		},
 	}
 }
 
-func (c *HelpCommand) Run(ctx interface{}) error {
+func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	slash, ok := ctx.(*SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
 
-	output := buildHelpMessage(session, event)
+	s := slash.Session
+	e := slash.Event
+	st := slash.Storage
+
+	viewBy := "category"
+	opts := e.ApplicationCommandData().Options
+	if len(opts) > 0 {
+		viewBy = opts[0].StringValue()
+	}
+
+	var output string
+	switch viewBy {
+	case "group":
+		output = buildHelpByGroup(s, e)
+	case "flat":
+		output = buildHelpFlat(s, e)
+	default:
+		output = buildHelpByCategory(s, e)
+	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       version.AppName + " Help",
@@ -57,7 +75,7 @@ func (c *HelpCommand) Run(ctx interface{}) error {
 		Color:       embedColor,
 	}
 
-	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
@@ -69,14 +87,24 @@ func (c *HelpCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	logErr := logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "help")
+	logErr := logCommand(s, st, e.GuildID, e.ChannelID, e.Member.User.ID, e.Member.User.Username, "help ("+viewBy+")")
 	if logErr != nil {
 		log.Println("Failed to log help command:", logErr)
 	}
 	return nil
 }
 
-func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) string {
+var categoryWeights = map[string]int{
+	"🕯️ Information": 0,
+	"📢 Utilities":    10,
+	"🎲 Gameplay":     20,
+	"🎭 Roleplay":     30,
+	"🧹 Cleanup":      40,
+	"⚙️ Settings":    50,
+	"🛠️ Maintenance": 60,
+}
+
+func buildHelpByCategory(s *discordgo.Session, i *discordgo.InteractionCreate) string {
 	userID := i.Member.User.ID
 	all := All()
 
@@ -92,13 +120,8 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 		}
 		cat := cmd.Category()
 		categoryMap[cat] = append(categoryMap[cat], cmd)
-
 		if _, ok := categorySort[cat]; !ok {
-			weight, exists := categoryWeights[cat]
-			if !exists {
-				weight = 999
-			}
-			categorySort[cat] = weight
+			categorySort[cat] = categoryWeights[cat]
 		}
 	}
 
@@ -118,11 +141,9 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 	for _, cat := range sortedCats {
 		sb.WriteString(fmt.Sprintf("**%s**\n", cat.Name))
 		cmds := categoryMap[cat.Name]
-
 		sort.Slice(cmds, func(i, j int) bool {
 			return cmds[i].Name() < cmds[j].Name()
 		})
-
 		for _, cmd := range cmds {
 			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
 		}
@@ -132,11 +153,75 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 	return sb.String()
 }
 
+func buildHelpByGroup(s *discordgo.Session, i *discordgo.InteractionCreate) string {
+	userID := i.Member.User.ID
+	all := All()
+
+	groupMap := make(map[string][]Command)
+
+	for _, cmd := range all {
+		if cmd.RequireAdmin() && !isAdministrator(s, i.GuildID, i.Member) {
+			continue
+		}
+		if cmd.RequireDev() && !isDeveloper(userID) {
+			continue
+		}
+		group := cmd.Group()
+		groupMap[group] = append(groupMap[group], cmd)
+	}
+
+	var sortedGroups []string
+	for group := range groupMap {
+		sortedGroups = append(sortedGroups, group)
+	}
+	sort.Strings(sortedGroups)
+
+	var sb strings.Builder
+	for _, group := range sortedGroups {
+		sb.WriteString(fmt.Sprintf("**%s**\n", group))
+		cmds := groupMap[group]
+		sort.Slice(cmds, func(i, j int) bool {
+			return cmds[i].Name() < cmds[j].Name()
+		})
+		for _, cmd := range cmds {
+			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+func buildHelpFlat(s *discordgo.Session, i *discordgo.InteractionCreate) string {
+	userID := i.Member.User.ID
+	all := All()
+
+	var cmds []Command
+	for _, cmd := range all {
+		if cmd.RequireAdmin() && !isAdministrator(s, i.GuildID, i.Member) {
+			continue
+		}
+		if cmd.RequireDev() && !isDeveloper(userID) {
+			continue
+		}
+		cmds = append(cmds, cmd)
+	}
+	sort.Slice(cmds, func(i, j int) bool {
+		return cmds[i].Name() < cmds[j].Name()
+	})
+
+	var sb strings.Builder
+	for _, cmd := range cmds {
+		sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
+	}
+	return sb.String()
+}
+
 func init() {
 	Register(
 		WithGroupAccessCheck()(
 			WithGuildOnly(
-				&HelpCommand{},
+				&HelpUnifiedCommand{},
 			),
 		),
 	)

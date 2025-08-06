@@ -81,8 +81,8 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		log.Println("Registering slash commands skipped")
 	}
 
-	log.Println("Starting scheduled nukes...")
-	startScheduledNukeJobs(b.storage, s)
+	log.Println("Starting scheduled purge jobs...")
+	startScheduledPurgeJobs(b.storage, s)
 
 	log.Printf("✅ Discord bot %v is running.", botInfo.Username)
 }
@@ -222,7 +222,7 @@ func (b *Bot) registerSlashCommands(guildID string) error {
 	return nil
 }
 
-func startScheduledNukeJobs(storage *storage.Storage, session *discordgo.Session) {
+func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Session) {
 	records := storage.GetRecordsList()
 
 	for _, data := range records {

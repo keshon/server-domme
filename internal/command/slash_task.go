@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"server-domme/internal/config"
 	"slices"
 	"sync"
@@ -63,19 +64,16 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 }
 
 func (c *TaskCommand) runSlash(ctx *SlashContext) {
-
 	s, i := ctx.Session, ctx.Event
 	userID, guildID := i.Member.User.ID, i.GuildID
 
 	if cooldownUntil, err := ctx.Storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		remaining := time.Until(cooldownUntil)
-		respondEphemeral(s, i, fmt.Sprintf("Not so fast, darling. You need to wait **%s** before I'm ready to play again with you.", humanDuration(remaining)))
+		respondEphemeral(s, i, fmt.Sprintf("Not so fast, darling. Wait **%s**.", humanDuration(time.Until(cooldownUntil))))
 		return
 	}
 
-	cfg := config.New()
-	if slices.Contains(cfg.ProtectedUsers, userID) {
-		respond(s, i, "Some lines even a Domme bot won’t cross—especially the one drawn by its creator. No tasks for the one who commands the code. 😈")
+	if slices.Contains(config.New().ProtectedUsers, userID) {
+		respond(s, i, "You’re above this. No tasks for you.")
 		return
 	}
 
@@ -87,25 +85,42 @@ func (c *TaskCommand) runSlash(ctx *SlashContext) {
 	taskCancelMutex.Unlock()
 
 	if existing, _ := ctx.Storage.GetTask(guildID, userID); existing != nil && existing.Status == "pending" {
-		respondEphemeral(s, i, "You already have a task, darling. Finish one before begging for more.")
+		respondEphemeral(s, i, "One task at a time, sweetheart.")
 		return
 	}
 
-	taskerRoleIDs, err := ctx.Storage.GetTaskRoles(guildID)
-	if err != nil || len(taskerRoleIDs) == 0 {
-		respondEphemeral(s, i, "No 'tasker' roles configured, darling. I can't just let anyone play with my toys.")
+	taskerRoles, _ := ctx.Storage.GetTaskRoles(guildID)
+	if len(taskerRoles) == 0 {
+		respondEphemeral(s, i, "No tasker roles set. So sad.")
 		return
 	}
 
 	memberRoleNames := getMemberRoleNames(s, guildID, i.Member.Roles)
-	filteredTasks := filterTasksByRoles(tasks, memberRoleNames)
-	if len(filteredTasks) == 0 {
-		respondEphemeral(s, i, "None of the tasks are suitable for someone of your… questionable qualifications.")
+	tasks, err := loadTasksForGuild(guildID)
+	if err != nil {
+		respondEphemeral(s, i, "Failed to load tasks.")
+		log.Println("loadTasksForGuild:", err)
 		return
 	}
 
-	task := filteredTasks[rand.Intn(len(filteredTasks))]
+	filtered := filterTasksByRoles(tasks, memberRoleNames)
+	if len(filtered) == 0 {
+		respondEphemeral(s, i, "No task suits your... profile.")
+		return
+	}
+
+	task := filtered[rand.Intn(len(filtered))]
 	c.assignTask(ctx, i, task)
+}
+
+func loadTasksForGuild(guildID string) ([]Task, error) {
+	file := filepath.Join("data", fmt.Sprintf("%s_tasks.json", guildID))
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	var tasks []Task
+	return tasks, json.Unmarshal(raw, &tasks)
 }
 
 func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCreate, task Task) {
@@ -247,8 +262,6 @@ func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.I
 }
 
 func init() {
-	Register(&TaskCommand{})
-
 	cfg := config.New()
 	var err error
 	tasks, err = loadTasks(cfg.TasksPath)

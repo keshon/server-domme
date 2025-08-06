@@ -7,3 +7,5 @@ datastore.json*
 *.txt
 *private*
 datastore_dump.json
+
+/data/*_tasks.json
