@@ -10,7 +10,7 @@ import (
 type SetRolesCommand struct{}
 
 func (c *SetRolesCommand) Name() string        { return "set-roles" }
-func (c *SetRolesCommand) Description() string { return "Appoint punisher, victim, or tasker roles" }
+func (c *SetRolesCommand) Description() string { return "Setup special-purpose roles" }
 func (c *SetRolesCommand) Aliases() []string   { return []string{} }
 
 func (c *SetRolesCommand) Group() string    { return "core" }
@@ -130,5 +130,11 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 }
 
 func init() {
-	Register(WithGuildOnly(&SetRolesCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&SetRolesCommand{},
+			),
+		),
+	)
 }

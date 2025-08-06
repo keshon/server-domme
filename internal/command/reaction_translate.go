@@ -121,5 +121,11 @@ func googleTranslate(text, targetLang string) (string, error) {
 }
 
 func init() {
-	Register(&TranslateOnReaction{})
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&TranslateOnReaction{},
+			),
+		),
+	)
 }

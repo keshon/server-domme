@@ -69,6 +69,10 @@ func (s *Storage) getOrCreateGuildRecord(guildID string) (*st.Record, error) {
 	return &record, nil
 }
 
+func (s *Storage) GetGuildRecord(guildID string) (*st.Record, error) {
+	return s.getOrCreateGuildRecord(guildID)
+}
+
 func (s *Storage) GetRecordsList() map[string]st.Record {
 	mapStringAny := s.ds.GetAll()
 

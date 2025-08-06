@@ -11,7 +11,7 @@ import (
 type ConfessCommand struct{}
 
 func (c *ConfessCommand) Name() string        { return "confess" }
-func (c *ConfessCommand) Description() string { return "Send an anonymous confession to the channel" }
+func (c *ConfessCommand) Description() string { return "Send an anonymous confession" }
 func (c *ConfessCommand) Aliases() []string   { return []string{} }
 
 func (c *ConfessCommand) Group() string    { return "confess" }
@@ -90,5 +90,11 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&ConfessCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&ConfessCommand{},
+			),
+		),
+	)
 }

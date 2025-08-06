@@ -12,14 +12,14 @@ import (
 type DumpDBCommand struct{}
 
 func (c *DumpDBCommand) Name() string        { return "dump-db" }
-func (c *DumpDBCommand) Description() string { return "Dumps the bot database" }
+func (c *DumpDBCommand) Description() string { return "Dumps server database as JSON" }
 func (c *DumpDBCommand) Aliases() []string   { return []string{} }
 
-func (c *DumpDBCommand) Group() string    { return "dump-db" }
+func (c *DumpDBCommand) Group() string    { return "dump" }
 func (c *DumpDBCommand) Category() string { return "⚙️ Maintenance" }
 
-func (c *DumpDBCommand) RequireAdmin() bool { return false }
-func (c *DumpDBCommand) RequireDev() bool   { return true }
+func (c *DumpDBCommand) RequireAdmin() bool { return true }
+func (c *DumpDBCommand) RequireDev() bool   { return false }
 
 func (c *DumpDBCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -37,21 +37,20 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 	event := slash.Event
 	storage := slash.Storage
 
-	userID := event.Member.User.ID
-	if !isDeveloper(userID) {
-		respondEphemeral(session, event, "🚫 You don't have permission to use this command.")
+	if !isAdministrator(session, event.GuildID, event.Member) {
+		respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 		return nil
 	}
 
-	dumpData, err := storage.Dump()
+	record, err := storage.GetGuildRecord(event.GuildID)
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("❌ Failed to dump datastore: ```%v```", err))
+		respondEphemeral(session, event, fmt.Sprintf("Failed to fetch record: ```%v```", err))
 		return nil
 	}
 
-	jsonBytes, err := json.MarshalIndent(dumpData, "", "  ")
+	jsonBytes, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("❌ JSON encode failed: ```%v```", err))
+		respondEphemeral(session, event, fmt.Sprintf("JSON encode failed: ```%v```", err))
 		return nil
 	}
 
@@ -77,5 +76,11 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&DumpDBCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&DumpDBCommand{},
+			),
+		),
+	)
 }

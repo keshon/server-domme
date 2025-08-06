@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -10,9 +9,9 @@ import (
 
 type CommandsStatus struct{}
 
-func (c *CommandsStatus) Name() string { return "command-status" }
+func (c *CommandsStatus) Name() string { return "commands-status" }
 func (c *CommandsStatus) Description() string {
-	return "Check which command groups are enabled or disabled"
+	return "Check which command is enabled or disabled"
 }
 func (c *CommandsStatus) Aliases() []string { return []string{} }
 
@@ -44,7 +43,7 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Command groups status:\n\n")
+	sb.WriteString("Commands status:\n\n")
 
 	groups := getUniqueGroups()
 	for _, group := range groups {
@@ -52,28 +51,18 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		if disabledMap[group] {
 			status = "🚫 disabled"
 		}
-		sb.WriteString(fmt.Sprintf("• `%s`: %s\n", group, status))
+		sb.WriteString(fmt.Sprintf("`%s`\t\t: %s\n", group, status))
 	}
 
 	return respondEphemeral(slash.Session, slash.Event, sb.String())
 }
 
 func init() {
-	Register(WithGuildOnly(WithGroupAccessCheck()(&CommandsStatus{})))
-}
-
-func getUniqueGroups() []string {
-	set := map[string]struct{}{}
-	for _, cmd := range All() {
-		group := cmd.Group()
-		if group != "" {
-			set[group] = struct{}{}
-		}
-	}
-	var result []string
-	for group := range set {
-		result = append(result, group)
-	}
-	sort.Strings(result)
-	return result
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&CommandsStatus{},
+			),
+		),
+	)
 }

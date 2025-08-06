@@ -13,7 +13,7 @@ func (p *PingCommand) Description() string { return "Check bot latency" }
 func (p *PingCommand) Aliases() []string   { return []string{} }
 
 func (c *PingCommand) Group() string    { return "ping" }
-func (p *PingCommand) Category() string { return "🧪 Test" }
+func (p *PingCommand) Category() string { return "⚙️ Maintenance" }
 
 func (p *PingCommand) RequireAdmin() bool { return false }
 func (p *PingCommand) RequireDev() bool   { return false }

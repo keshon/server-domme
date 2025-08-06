@@ -12,7 +12,7 @@ import (
 type PurgeAutoCommand struct{}
 
 func (c *PurgeAutoCommand) Name() string        { return "purge-auto" }
-func (c *PurgeAutoCommand) Description() string { return "Recurring purge of messages older than set" }
+func (c *PurgeAutoCommand) Description() string { return "Purge messages regularly in this channel" }
 func (c *PurgeAutoCommand) Aliases() []string   { return []string{} }
 
 func (c *PurgeAutoCommand) Group() string    { return "purge" }
@@ -150,5 +150,11 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&PurgeAutoCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&PurgeAutoCommand{},
+			),
+		),
+	)
 }

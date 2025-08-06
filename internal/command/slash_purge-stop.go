@@ -55,5 +55,11 @@ func (c *PurgeStopCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&PurgeStopCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&PurgeStopCommand{},
+			),
+		),
+	)
 }

@@ -11,10 +11,23 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var (
+	tokenRegex = regexp.MustCompile(`(?i)(\d*d\d+|\d+|[+\-*/])`)
+	diceRegex  = regexp.MustCompile(`(?i)^(\d*)d(\d+)$`)
+	validOps   = map[string]bool{"+": true, "-": true, "*": true, "/": true}
+)
+
+type term struct {
+	value  int
+	desc   string
+	op     string
+	isDice bool
+}
+
 type RollCommand struct{}
 
 func (c *RollCommand) Name() string        { return "roll" }
-func (c *RollCommand) Description() string { return "Roll dice with crazy formulas like `2d6+1d4*2`" }
+func (c *RollCommand) Description() string { return "Roll dices like `2d20+1d6-2`" }
 func (c *RollCommand) Aliases() []string   { return []string{} }
 
 func (c *RollCommand) Group() string    { return "roll" }
@@ -37,19 +50,6 @@ func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 		},
 	}
-}
-
-var (
-	tokenRegex = regexp.MustCompile(`(?i)(\d*d\d+|\d+|[+\-*/])`)
-	diceRegex  = regexp.MustCompile(`(?i)^(\d*)d(\d+)$`)
-	validOps   = map[string]bool{"+": true, "-": true, "*": true, "/": true}
-)
-
-type term struct {
-	value  int
-	desc   string
-	op     string
-	isDice bool
 }
 
 func (c *RollCommand) Run(ctx interface{}) error {
@@ -215,5 +215,11 @@ func evaluateToken(token string) (int, string, error) {
 }
 
 func init() {
-	Register(WithGuildOnly(&RollCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&RollCommand{},
+			),
+		),
+	)
 }

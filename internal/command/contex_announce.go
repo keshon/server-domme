@@ -164,5 +164,11 @@ func editResponse(s *discordgo.Session, i *discordgo.InteractionCreate, content 
 }
 
 func init() {
-	Register(WithGuildOnly(&AnnounceCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&AnnounceCommand{},
+			),
+		),
+	)
 }

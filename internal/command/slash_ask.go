@@ -217,5 +217,11 @@ func dmChannel(s *discordgo.Session, userID string) string {
 }
 
 func init() {
-	Register(WithGuildOnly(&AskCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&AskCommand{},
+			),
+		),
+	)
 }

@@ -12,7 +12,7 @@ import (
 type PurgeJobsCommand struct{}
 
 func (c *PurgeJobsCommand) Name() string        { return "purge-jobs" }
-func (c *PurgeJobsCommand) Description() string { return "List all active purge jobs in this server" }
+func (c *PurgeJobsCommand) Description() string { return "List all active purge jobs" }
 func (c *PurgeJobsCommand) Aliases() []string   { return []string{} }
 
 func (c *PurgeJobsCommand) Group() string    { return "purge" }
@@ -81,5 +81,11 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&PurgeJobsCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&PurgeJobsCommand{},
+			),
+		),
+	)
 }

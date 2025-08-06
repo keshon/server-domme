@@ -12,7 +12,7 @@ import (
 type PunishCommand struct{}
 
 func (c *PunishCommand) Name() string        { return "punish" }
-func (c *PunishCommand) Description() string { return "Assign the brat role for naughty behavior" }
+func (c *PunishCommand) Description() string { return "Assign the brat role" }
 func (c *PunishCommand) Aliases() []string   { return []string{} }
 
 func (c *PunishCommand) Group() string    { return "punish" }
@@ -92,7 +92,13 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&PunishCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&PunishCommand{},
+			),
+		),
+	)
 }
 
 var punishPhrases = []string{

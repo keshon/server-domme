@@ -15,11 +15,11 @@ import (
 type AboutCommand struct{}
 
 func (c *AboutCommand) Name() string        { return "about" }
-func (c *AboutCommand) Description() string { return "Discover the origin of your merciless mistress" }
+func (c *AboutCommand) Description() string { return "Discover the origin of this bot" }
 func (c *AboutCommand) Aliases() []string   { return []string{} }
 
-func (c *AboutCommand) Group() string    { return "about" }
-func (c *AboutCommand) Category() string { return "🕯️ Insight" }
+func (c *AboutCommand) Group() string    { return "core" }
+func (c *AboutCommand) Category() string { return "🕯️ Information" }
 
 func (c *AboutCommand) RequireAdmin() bool { return false }
 func (c *AboutCommand) RequireDev() bool   { return false }
@@ -116,5 +116,11 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 }
 
 func init() {
-	Register(WithGuildOnly(&AboutCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&AboutCommand{},
+			),
+		),
+	)
 }

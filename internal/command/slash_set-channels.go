@@ -10,7 +10,7 @@ import (
 type SetChannelsCommand struct{}
 
 func (c *SetChannelsCommand) Name() string        { return "set-channels" }
-func (c *SetChannelsCommand) Description() string { return "Designate special-purpose channels" }
+func (c *SetChannelsCommand) Description() string { return "Setup special-purpose channels" }
 func (c *SetChannelsCommand) Aliases() []string   { return []string{} }
 
 func (c *SetChannelsCommand) Group() string    { return "core" }
@@ -103,5 +103,11 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&SetChannelsCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&SetChannelsCommand{},
+			),
+		),
+	)
 }

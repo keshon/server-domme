@@ -19,20 +19,11 @@ func (c *CommandsToggleCommand) RequireDev() bool    { return false }
 
 func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	groupChoices := []*discordgo.ApplicationCommandOptionChoice{}
-	seen := map[string]struct{}{}
-	for _, cmd := range All() {
-		group := cmd.Group()
-		if group == "" {
-			continue
-		}
-		if _, ok := seen[group]; ok {
-			continue
-		}
+	for _, group := range getUniqueGroups() {
 		groupChoices = append(groupChoices, &discordgo.ApplicationCommandOptionChoice{
 			Name:  group,
 			Value: group,
 		})
-		seen[group] = struct{}{}
 	}
 	sort.Slice(groupChoices, func(i, j int) bool {
 		return groupChoices[i].Name < groupChoices[j].Name
@@ -45,14 +36,14 @@ func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand 
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "group",
-				Description: "Choose command group",
+				Description: "Choose command to toggle",
 				Required:    true,
 				Choices:     groupChoices,
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "state",
-				Description: "Enable or disable the group",
+				Description: "Enable or disable the command",
 				Required:    true,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{Name: "Enable", Value: "enable"},
@@ -73,22 +64,32 @@ func (c *CommandsToggleCommand) Run(ctx interface{}) error {
 	group := data.Options[0].StringValue()
 	state := data.Options[1].StringValue()
 
+	if group == "core" && state == "disable" {
+		return respondEphemeral(slash.Session, slash.Event, "You can't disable the `core` group. That's the spine of this whole circus.")
+	}
+
 	var err error
 	if state == "disable" {
 		err = slash.Storage.DisableGroup(slash.Event.GuildID, group)
 		if err != nil {
-			return respondEphemeral(slash.Session, slash.Event, "Failed to disable the group.")
+			return respondEphemeral(slash.Session, slash.Event, "Failed to disable the command.")
 		}
-		return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Group `%s` disabled.", group))
+		return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Command `%s` disabled.", group))
 	}
 
 	err = slash.Storage.EnableGroup(slash.Event.GuildID, group)
 	if err != nil {
-		return respondEphemeral(slash.Session, slash.Event, "Failed to enable the group.")
+		return respondEphemeral(slash.Session, slash.Event, "Failed to enable the command.")
 	}
-	return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Group `%s` enabled.", group))
+	return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Command `%s` enabled.", group))
 }
 
 func init() {
-	Register(WithGuildOnly(WithGroupAccessCheck()(&CommandsToggleCommand{})))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&CommandsToggleCommand{},
+			),
+		),
+	)
 }

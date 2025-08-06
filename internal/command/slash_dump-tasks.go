@@ -14,10 +14,10 @@ import (
 type DumpTasksCommand struct{}
 
 func (c *DumpTasksCommand) Name() string        { return "dump-tasks" }
-func (c *DumpTasksCommand) Description() string { return "Dumps all tasks in this server." }
+func (c *DumpTasksCommand) Description() string { return "Dumps all tasks as JSON" }
 func (c *DumpTasksCommand) Aliases() []string   { return []string{} }
 
-func (c *DumpTasksCommand) Group() string    { return "dump-tasks" }
+func (c *DumpTasksCommand) Group() string    { return "dump" }
 func (c *DumpTasksCommand) Category() string { return "⚙️ Maintenance" }
 
 func (c *DumpTasksCommand) RequireAdmin() bool { return true }
@@ -115,5 +115,11 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&DumpTasksCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&DumpTasksCommand{},
+			),
+		),
+	)
 }

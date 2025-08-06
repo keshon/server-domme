@@ -12,7 +12,7 @@ import (
 type PurgeNowCommand struct{}
 
 func (c *PurgeNowCommand) Name() string        { return "purge-now" }
-func (c *PurgeNowCommand) Description() string { return "Wipe this channel clean, no mercy shown" }
+func (c *PurgeNowCommand) Description() string { return "Purge messages in this channel" }
 func (c *PurgeNowCommand) Aliases() []string   { return []string{} }
 
 func (c *PurgeNowCommand) Group() string    { return "purge" }
@@ -149,5 +149,11 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&PurgeNowCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&PurgeNowCommand{},
+			),
+		),
+	)
 }

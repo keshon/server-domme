@@ -18,12 +18,12 @@ var maxContentLength = discordMaxMessageLength - len(codeLeftBlockWrapper) - len
 
 type LogCommand struct{}
 
-func (c *LogCommand) Name() string        { return "log" }
+func (c *LogCommand) Name() string        { return "commands-log" }
 func (c *LogCommand) Description() string { return "Review recent commands and their punishments" }
 func (c *LogCommand) Aliases() []string   { return []string{} }
 
-func (c *LogCommand) Group() string    { return "log" }
-func (c *LogCommand) Category() string { return "⚙️ Maintenance" }
+func (c *LogCommand) Group() string    { return "core" }
+func (c *LogCommand) Category() string { return "⚙️ Settings" }
 
 func (c *LogCommand) RequireAdmin() bool { return true }
 func (c *LogCommand) RequireDev() bool   { return false }
@@ -103,5 +103,11 @@ func (c *LogCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&LogCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&LogCommand{},
+			),
+		),
+	)
 }

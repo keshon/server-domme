@@ -14,11 +14,11 @@ import (
 type HelpCommand struct{}
 
 func (c *HelpCommand) Name() string        { return "help" }
-func (c *HelpCommand) Description() string { return "Your guide to serving the Server Domme well" }
+func (c *HelpCommand) Description() string { return "Get a list of available commands" }
 func (c *HelpCommand) Aliases() []string   { return []string{} }
 
-func (c *HelpCommand) Group() string    { return "help" }
-func (c *HelpCommand) Category() string { return "🕯️ Insight" }
+func (c *HelpCommand) Group() string    { return "core" }
+func (c *HelpCommand) Category() string { return "🕯️ Information" }
 
 func (c *HelpCommand) RequireAdmin() bool { return false }
 func (c *HelpCommand) RequireDev() bool   { return false }
@@ -104,9 +104,15 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 	for _, cat := range sortedCats {
 		sb.WriteString(fmt.Sprintf("**%s**\n", cat.Name))
 		cmds := categoryMap[cat.Name]
+
 		sort.Slice(cmds, func(i, j int) bool {
-			return cmdOrder(cmds[i]) < cmdOrder(cmds[j])
+			a, b := cmdOrder(cmds[i]), cmdOrder(cmds[j])
+			if a == b {
+				return cmds[i].Name() < cmds[j].Name()
+			}
+			return a < b
 		})
+
 		for _, cmd := range cmds {
 			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
 		}
@@ -117,7 +123,13 @@ func buildHelpMessage(s *discordgo.Session, i *discordgo.InteractionCreate) stri
 }
 
 func init() {
-	Register(WithGuildOnly(&HelpCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&HelpCommand{},
+			),
+		),
+	)
 }
 
 // optional: define command sort order fallback if needed

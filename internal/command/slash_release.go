@@ -10,7 +10,7 @@ import (
 type ReleaseCommand struct{}
 
 func (c *ReleaseCommand) Name() string        { return "release" }
-func (c *ReleaseCommand) Description() string { return "Remove the brat role and grant reprieve" }
+func (c *ReleaseCommand) Description() string { return "Remove the brat role" }
 func (c *ReleaseCommand) Aliases() []string   { return []string{} }
 
 func (c *ReleaseCommand) Group() string    { return "punish" }
@@ -82,5 +82,11 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(WithGuildOnly(&ReleaseCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&ReleaseCommand{},
+			),
+		),
+	)
 }

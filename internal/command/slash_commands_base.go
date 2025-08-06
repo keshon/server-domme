@@ -2,7 +2,7 @@ package command
 
 import "sort"
 
-func GetUniqueGroups() []string {
+func getUniqueGroups() []string {
 	set := map[string]struct{}{}
 	for _, cmd := range All() {
 		group := cmd.Group()

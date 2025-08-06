@@ -35,7 +35,7 @@ type Task struct {
 type TaskCommand struct{}
 
 func (c *TaskCommand) Name() string        { return "task" }
-func (c *TaskCommand) Description() string { return "Assign or manage your personal task, slave" }
+func (c *TaskCommand) Description() string { return "Assign or manage your personal task" }
 func (c *TaskCommand) Aliases() []string   { return []string{} }
 
 func (c *TaskCommand) Group() string    { return "task" }
@@ -369,7 +369,13 @@ func randomLine(list []string) string {
 }
 
 func init() {
-	Register(WithGuildOnly(&TaskCommand{}))
+	Register(
+		WithGroupAccessCheck()(
+			WithGuildOnly(
+				&TaskCommand{},
+			),
+		),
+	)
 }
 
 var taskReminders = []string{
