@@ -3,13 +3,11 @@ package discord
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
-	st "server-domme/internal/storagetypes"
 	"strings"
 	"sync"
 	"time"
@@ -73,7 +71,7 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	if cfg.InitSlashCommands {
 		log.Println("Registering slash commands...")
 		for _, g := range r.Guilds {
-			if err := b.registerSlashCommands(g.ID); err != nil {
+			if err := b.registerCommands(g.ID); err != nil {
 				log.Println("Error registering slash commands for guild", g.ID, ":", err)
 			}
 		}
@@ -97,27 +95,46 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 		_ = cmd.Run(ctx)
 	}
 }
+
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		cmdName := i.ApplicationCommandData().Name
+
 		cmd, ok := command.Get(cmdName)
 		if !ok {
 			log.Printf("[WARN] Unknown command: %s\n", cmdName)
 			return
 		}
 
-		ctx := &command.SlashContext{
-			Session: s,
-			Event:   i,
-			Storage: b.storage,
+		switch i.ApplicationCommandData().CommandType {
+		case discordgo.MessageApplicationCommand:
+			ctx := &command.MessageApplicationContext{
+				Session: s,
+				Event:   i,
+				Storage: b.storage,
+				Target:  i.Message,
+			}
+			err := cmd.Run(ctx)
+			if err != nil {
+				log.Println("Error running context menu command:", err)
+			}
+		case discordgo.ChatApplicationCommand:
+			ctx := &command.SlashContext{
+				Session: s,
+				Event:   i,
+				Storage: b.storage,
+			}
+			err := cmd.Run(ctx)
+			if err != nil {
+				log.Println("Error running slash command:", err)
+			}
 		}
-		_ = cmd.Run(ctx)
 
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
-		var matched command.Command
 
+		var matched command.Command
 		for _, cmd := range command.All() {
 			if strings.HasPrefix(customID, cmd.Name()) {
 				matched = cmd
@@ -131,7 +148,10 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 				Event:   i,
 				Storage: b.storage,
 			}
-			_ = matched.Run(ctx)
+			err := matched.Run(ctx)
+			if err != nil {
+				log.Println("Error running component command:", err)
+			}
 		} else {
 			log.Printf("[WARN] No matching component: %s\n", customID)
 		}
@@ -141,165 +161,136 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	}
 }
 
-func (b *Bot) registerSlashCommands(guildID string) error {
+func (b *Bot) registerCommands(guildID string) error {
 	appID := b.dg.State.User.ID
 	if appID == "" {
 		user, err := b.dg.User("@me")
 		if err != nil {
-			return fmt.Errorf("get bot user: %w", err)
+			return err
 		}
 		appID = user.ID
 	}
 
-	globalCommands, err := b.dg.ApplicationCommands(appID, "")
-	if err != nil {
-		log.Printf("Failed to fetch global commands: %v\n", err)
-	} else {
-		for _, cmd := range globalCommands {
-			err := b.dg.ApplicationCommandDelete(appID, "", cmd.ID)
-			if err != nil {
-				log.Printf("Failed to delete global command %s (%s): %v\n", cmd.Name, cmd.ID, err)
-			} else {
-				log.Printf("Deleted old global command: %s\n", cmd.Name)
-			}
-		}
-	}
+	existing, _ := b.dg.ApplicationCommands(appID, guildID)
 
-	existing, err := b.dg.ApplicationCommands(appID, guildID)
-	if err != nil {
-		log.Printf("Failed to fetch existing commands for guild %s: %v\n", guildID, err)
-	} else {
-		log.Printf("Found %d existing commands in guild %s\n", len(existing), guildID)
-		for _, cmd := range existing {
-			log.Printf("Existing command: %s (ID: %s)\n", cmd.Name, cmd.ID)
-			err := b.dg.ApplicationCommandDelete(appID, guildID, cmd.ID)
-			if err != nil {
-				log.Printf("Failed to delete command %s (%s): %v\n", cmd.Name, cmd.ID, err)
-			} else {
-				log.Printf("Deleted old command: %s\n", cmd.Name)
-			}
-		}
-	}
-
-	var cmds []*discordgo.ApplicationCommand
+	var wanted []*discordgo.ApplicationCommand
 	for _, cmd := range command.All() {
-		if slash, ok := cmd.(command.SlashProvider); ok {
-			def := slash.SlashDefinition()
-			if def != nil {
-				log.Printf("Will create command: %s\n", def.Name)
-				cmds = append(cmds, def)
-			}
-		}
-		if menu, ok := cmd.(command.ContextMenuProvider); ok {
-			def := menu.ContextDefinition()
-			if def != nil {
-				log.Printf("Will create context menu: %s\n", def.Name)
-				cmds = append(cmds, def)
-			}
+		if def := normalizeDefinition(cmd); def != nil {
+			wanted = append(wanted, def)
 		}
 	}
 
-	var errs []string
-	var created []*discordgo.ApplicationCommand
+	toCreate := commandsToUpdate(existing, wanted)
+	log.Printf("[INFO] %d commands to register (out of %d)\n", len(toCreate), len(wanted))
 
-	for _, cmd := range cmds {
-		c, err := b.dg.ApplicationCommandCreate(appID, guildID, cmd)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", cmd.Name, err))
-			continue
-		}
-		created = append(created, c)
+	if len(toCreate) == 0 {
+		return nil
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to register commands:\n%s", strings.Join(errs, "\n"))
-	}
-
-	b.mu.Lock()
-	b.slashCmds[guildID] = created
-	b.mu.Unlock()
+	registerCommandsWithRateLimit(b, guildID, toCreate)
 
 	return nil
 }
 
-func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Session) {
-	records := storage.GetRecordsList()
-
-	for _, data := range records {
-		jsonData, _ := json.Marshal(data)
-		var record st.Record
-		err := json.Unmarshal(jsonData, &record)
-		if err != nil {
-			log.Printf("Error unmarshalling to *Record: %v", err)
-			continue
-		}
-
-		for _, job := range record.DeletionJobs {
-			log.Printf("Found nuke job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
-
-			switch job.Mode {
-			case "delayed":
-				dur := time.Until(job.DelayUntil)
-
-				if dur <= 0 {
-					log.Printf("DelayUntil is in the past — executing delayed nuke immediately for channel %s", job.ChannelID)
-					command.DeleteMessages(session, job.ChannelID, nil, nil, nil)
-
-					err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
-					if err != nil {
-						log.Printf("Failed to delete nuke job for channel %s: %v", job.ChannelID, err)
-					}
-				} else {
-					log.Printf("Scheduling delayed nuke in %v for channel %s", dur, job.ChannelID)
-					go func(job st.DeletionJob) {
-						time.Sleep(dur)
-						log.Printf("Executing delayed nuke for channel %s", job.ChannelID)
-						command.DeleteMessages(session, job.ChannelID, nil, nil, nil)
-
-						err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
-						if err != nil {
-							log.Printf("Failed to delete nuke job for channel %s: %v", job.ChannelID, err)
-						} else {
-							log.Printf("Delayed nuke complete and removed for channel %s", job.ChannelID)
-						}
-					}(job)
-				}
-
-			case "recurring":
-				dur, err := time.ParseDuration(job.OlderThan)
-				if err != nil {
-					log.Printf("Failed to parse OlderThan duration '%s' for channel %s: %v", job.OlderThan, job.ChannelID, err)
-					continue
-				}
-
-				stopChan := make(chan struct{})
-				command.ActiveDeletionsMu.Lock()
-				command.ActiveDeletions[job.ChannelID] = stopChan
-				command.ActiveDeletionsMu.Unlock()
-
-				log.Printf("Starting recurring nuke for channel %s every 30s (older than %v)", job.ChannelID, dur)
-
-				go func(job st.DeletionJob, d time.Duration) {
-					ticker := time.NewTicker(30 * time.Second)
-					defer ticker.Stop()
-
-					for {
-						select {
-						case <-stopChan:
-							log.Printf("Stopping recurring nuke for channel %s", job.ChannelID)
-							return
-						case <-ticker.C:
-							start := time.Now().Add(-d)
-							now := time.Now()
-							log.Printf("Recurring nuke triggered for channel %s", job.ChannelID)
-							command.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
-						}
-					}
-				}(job, dur)
-
-			default:
-				log.Printf("Unknown nuke mode '%s' for channel %s", job.Mode, job.ChannelID)
+func normalizeDefinition(cmd command.Command) *discordgo.ApplicationCommand {
+	if slash, ok := cmd.(command.SlashProvider); ok {
+		if def := slash.SlashDefinition(); def != nil {
+			if def.Type == 0 {
+				def.Type = discordgo.ChatApplicationCommand
 			}
+			return def
 		}
 	}
+	if menu, ok := cmd.(command.ContextMenuProvider); ok {
+		if def := menu.ContextDefinition(); def != nil {
+			if def.Type == 0 {
+				def.Type = discordgo.MessageApplicationCommand
+			}
+			return def
+		}
+	}
+	return nil
+}
+
+func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.ApplicationCommand) {
+	rateLimit := time.Second / 40
+	ticker := time.NewTicker(rateLimit)
+	defer ticker.Stop()
+
+	var wg sync.WaitGroup
+
+	for _, job := range cmds {
+		wg.Add(1)
+
+		go func(cmd *discordgo.ApplicationCommand) {
+			defer wg.Done()
+			<-ticker.C
+
+			_, err := b.dg.ApplicationCommandCreate(b.dg.State.User.ID, guildID, cmd)
+			if err != nil {
+				log.Printf("[ERR] Can't create command %s: %v", cmd.Name, err)
+			} else {
+				log.Printf("[OK] Command created: %s", cmd.Name)
+			}
+		}(job)
+	}
+
+	wg.Wait()
+}
+
+func commandsToUpdate(existing []*discordgo.ApplicationCommand, wanted []*discordgo.ApplicationCommand) []*discordgo.ApplicationCommand {
+	toCreate := make([]*discordgo.ApplicationCommand, 0)
+
+	existingMap := make(map[string]*discordgo.ApplicationCommand)
+	for _, e := range existing {
+		existingMap[e.Name] = e
+	}
+
+	for _, newCmd := range wanted {
+		oldCmd, exists := existingMap[newCmd.Name]
+		if !exists || !commandsEqual(oldCmd, newCmd) {
+			toCreate = append(toCreate, newCmd)
+			/*
+				fmt.Printf("Command '%s' differs:\n", newCmd.Name)
+				spew.Dump(oldCmd)
+				fmt.Println("VS:")
+				spew.Dump(newCmd)
+			*/
+		}
+	}
+
+	return toCreate
+}
+
+func commandsEqual(a, b *discordgo.ApplicationCommand) bool {
+	if a == nil || b == nil {
+		return false
+	}
+
+	if a.Name != b.Name || a.Description != b.Description || a.Type != b.Type {
+		return false
+	}
+
+	if !compareOptions(a.Options, b.Options) {
+		return false
+	}
+
+	return true
+}
+
+func compareOptions(a, b []*discordgo.ApplicationCommandOption) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i].Name != b[i].Name ||
+			a[i].Description != b[i].Description ||
+			a[i].Type != b[i].Type ||
+			a[i].Required != b[i].Required {
+			return false
+		}
+	}
+
+	return true
 }

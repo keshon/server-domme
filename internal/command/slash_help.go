@@ -30,8 +30,8 @@ func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "view_by",
-				Description: "How to view the commands",
+				Name:        "view_as",
+				Description: "View commands as categories, groups, or a flat list",
 				Required:    false,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{Name: "Categories", Value: "category"},
@@ -53,14 +53,14 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	e := slash.Event
 	st := slash.Storage
 
-	viewBy := "category"
+	viewAs := "category"
 	opts := e.ApplicationCommandData().Options
 	if len(opts) > 0 {
-		viewBy = opts[0].StringValue()
+		viewAs = opts[0].StringValue()
 	}
 
 	var output string
-	switch viewBy {
+	switch viewAs {
 	case "group":
 		output = buildHelpByGroup(s, e)
 	case "flat":
@@ -87,7 +87,7 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	logErr := logCommand(s, st, e.GuildID, e.ChannelID, e.Member.User.ID, e.Member.User.Username, "help ("+viewBy+")")
+	logErr := logCommand(s, st, e.GuildID, e.ChannelID, e.Member.User.ID, e.Member.User.Username, "help ("+viewAs+")")
 	if logErr != nil {
 		log.Println("Failed to log help command:", logErr)
 	}

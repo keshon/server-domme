@@ -34,7 +34,13 @@ func WithGroupAccessCheck() Middleware {
 					guildID = v.Reaction.GuildID
 					storage = v.Storage
 					respond = func(msg string) {
-						// Здесь тебе нужно будет дописать отправку DM или лог в канал
+						// need to add sending DM or log to channel
+					}
+				case *MessageApplicationContext:
+					guildID = v.Event.GuildID
+					storage = v.Storage
+					respond = func(msg string) {
+						respondEphemeral(v.Session, v.Event, msg)
 					}
 				default:
 					return cmd.Run(ctx)
@@ -43,7 +49,7 @@ func WithGroupAccessCheck() Middleware {
 				if cmd.Group() != "" {
 					disabled, err := storage.IsGroupDisabled(guildID, cmd.Group())
 					if err == nil && disabled {
-						respond("This group of commands is disabled on this server.")
+						respond("This command is disabled on this server. Use `/commands-status` to check which commands are disabled.")
 						return nil
 					}
 				}

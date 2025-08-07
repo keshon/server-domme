@@ -44,7 +44,7 @@ type ReactionContext struct {
 	Storage  *storage.Storage
 }
 
-type ContextMessageContext struct {
+type MessageApplicationContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate
 	Storage *storage.Storage

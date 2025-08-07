@@ -5,6 +5,7 @@ go 1.23.0
 require github.com/clinet/discordgo-embed v0.0.0-20220113222025-bafe0c917646
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/robertkrimen/otto v0.5.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/text v0.27.0 // indirect

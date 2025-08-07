@@ -42,16 +42,31 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		disabledMap[g] = true
 	}
 
-	var sb strings.Builder
-	sb.WriteString("Commands status:\n\n")
+	var enabled []string
+	var disabled []string
 
-	groups := getUniqueGroups()
-	for _, group := range groups {
-		status := "✅ enabled"
+	for _, group := range getUniqueGroups() {
 		if disabledMap[group] {
-			status = "🚫 disabled"
+			disabled = append(disabled, fmt.Sprintf("`%s`", group))
+		} else {
+			enabled = append(enabled, fmt.Sprintf("`%s`", group))
 		}
-		sb.WriteString(fmt.Sprintf("`%s`\t\t: %s\n", group, status))
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString("**Disabled**\n")
+	if len(disabled) > 0 {
+		sb.WriteString(strings.Join(disabled, ", "))
+	} else {
+		sb.WriteString("_none_")
+	}
+
+	sb.WriteString("\n\n**Enabled**\n")
+	if len(enabled) > 0 {
+		sb.WriteString(strings.Join(enabled, ", "))
+	} else {
+		sb.WriteString("_none_")
 	}
 
 	return respondEphemeral(slash.Session, slash.Event, sb.String())
