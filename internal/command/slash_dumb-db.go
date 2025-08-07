@@ -55,7 +55,7 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 	}
 
 	file := &discordgo.File{
-		Name:        "datastore_dump.json",
+		Name:        fmt.Sprintf("%s_database_dump.json", event.GuildID),
 		ContentType: "application/json",
 		Reader:      bytes.NewReader(jsonBytes),
 	}

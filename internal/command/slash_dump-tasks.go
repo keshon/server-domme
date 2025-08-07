@@ -89,7 +89,7 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 	}
 
 	file := &discordgo.File{
-		Name:        "tasks.private.json",
+		Name:        fmt.Sprintf("%s_tasks.json", event.GuildID),
 		Reader:      bytes.NewReader(fileContent),
 		ContentType: "application/json",
 	}
