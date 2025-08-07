@@ -19,37 +19,37 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 		var record st.Record
 		err := json.Unmarshal(jsonData, &record)
 		if err != nil {
-			log.Printf("Error unmarshalling to *Record: %v", err)
+			log.Printf("[ERR] Error unmarshalling to *Record: %v", err)
 			continue
 		}
 
 		for _, job := range record.DeletionJobs {
-			log.Printf("Found nuke job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
+			log.Printf("[INFO] Found purge job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
 
 			switch job.Mode {
 			case "delayed":
 				dur := time.Until(job.DelayUntil)
 
 				if dur <= 0 {
-					log.Printf("DelayUntil is in the past — executing delayed nuke immediately for channel %s", job.ChannelID)
+					log.Printf("[INFO] DelayUntil is in the past — executing delayed purge immediately for channel %s", job.ChannelID)
 					command.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
 					err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
 					if err != nil {
-						log.Printf("Failed to delete nuke job for channel %s: %v", job.ChannelID, err)
+						log.Printf("[ERR] Failed to delete purge job for channel %s: %v", job.ChannelID, err)
 					}
 				} else {
-					log.Printf("Scheduling delayed nuke in %v for channel %s", dur, job.ChannelID)
+					log.Printf("[INFO] Scheduling delayed purge in %v for channel %s", dur, job.ChannelID)
 					go func(job st.DeletionJob) {
 						time.Sleep(dur)
-						log.Printf("Executing delayed nuke for channel %s", job.ChannelID)
+						log.Printf("[INFO] Executing delayed purge for channel %s", job.ChannelID)
 						command.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
 						err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
 						if err != nil {
-							log.Printf("Failed to delete nuke job for channel %s: %v", job.ChannelID, err)
+							log.Printf("[ERR] Failed to delete purge job for channel %s: %v", job.ChannelID, err)
 						} else {
-							log.Printf("Delayed nuke complete and removed for channel %s", job.ChannelID)
+							log.Printf("[INFO] Delayed purge complete and removed for channel %s", job.ChannelID)
 						}
 					}(job)
 				}
@@ -57,7 +57,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 			case "recurring":
 				dur, err := time.ParseDuration(job.OlderThan)
 				if err != nil {
-					log.Printf("Failed to parse OlderThan duration '%s' for channel %s: %v", job.OlderThan, job.ChannelID, err)
+					log.Printf("[ERR] Failed to parse OlderThan duration '%s' for channel %s: %v", job.OlderThan, job.ChannelID, err)
 					continue
 				}
 
@@ -66,7 +66,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 				command.ActiveDeletions[job.ChannelID] = stopChan
 				command.ActiveDeletionsMu.Unlock()
 
-				log.Printf("Starting recurring nuke for channel %s every 30s (older than %v)", job.ChannelID, dur)
+				log.Printf("[INFO] Starting recurring purge for channel %s every 30s (older than %v)", job.ChannelID, dur)
 
 				go func(job st.DeletionJob, d time.Duration) {
 					ticker := time.NewTicker(30 * time.Second)
@@ -75,19 +75,19 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 					for {
 						select {
 						case <-stopChan:
-							log.Printf("Stopping recurring nuke for channel %s", job.ChannelID)
+							log.Printf("[INFO] Stopping recurring purge for channel %s", job.ChannelID)
 							return
 						case <-ticker.C:
 							start := time.Now().Add(-d)
 							now := time.Now()
-							log.Printf("Recurring nuke triggered for channel %s", job.ChannelID)
+							log.Printf("[INFO] Recurring purge triggered for channel %s", job.ChannelID)
 							command.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
 						}
 					}
 				}(job, dur)
 
 			default:
-				log.Printf("Unknown nuke mode '%s' for channel %s", job.Mode, job.ChannelID)
+				log.Printf("[ERR] Unknown purge mode '%s' for channel %s", job.Mode, job.ChannelID)
 			}
 		}
 	}

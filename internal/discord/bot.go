@@ -16,7 +16,6 @@ import (
 )
 
 type Bot struct {
-	mu        sync.RWMutex
 	dg        *discordgo.Session
 	storage   *storage.Storage
 	slashCmds map[string][]*discordgo.ApplicationCommand
@@ -52,7 +51,7 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	defer dg.Close()
 
 	<-ctx.Done()
-	log.Println("❎ Shutdown signal received. Cleaning up...")
+	log.Println("[INFO] ❎ Shutdown signal received. Cleaning up...")
 	return nil
 }
 
@@ -63,26 +62,26 @@ func (b *Bot) configureIntents() {
 func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	botInfo, err := s.User("@me")
 	if err != nil {
-		log.Println("Warning: Error retrieving bot user:", err)
+		log.Println("[WARN] Error retrieving bot user:", err)
 		return
 	}
 
 	cfg := config.New()
 	if cfg.InitSlashCommands {
-		log.Println("Registering slash commands...")
+		log.Println("[INFO] Registering slash commands...")
 		for _, g := range r.Guilds {
 			if err := b.registerCommands(g.ID); err != nil {
-				log.Println("Error registering slash commands for guild", g.ID, ":", err)
+				log.Println("[ERR] Error registering slash commands for guild", g.ID, ":", err)
 			}
 		}
 	} else {
-		log.Println("Registering slash commands skipped")
+		log.Println("[INFO] Registering slash commands skipped")
 	}
 
-	log.Println("Starting scheduled purge jobs...")
+	log.Println("[INFO] Starting scheduled purge jobs...")
 	startScheduledPurgeJobs(b.storage, s)
 
-	log.Printf("✅ Discord bot %v is running.", botInfo.Username)
+	log.Printf("[INFO] ✅ Discord bot %v is running.", botInfo.Username)
 }
 
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
@@ -117,7 +116,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			}
 			err := cmd.Run(ctx)
 			if err != nil {
-				log.Println("Error running context menu command:", err)
+				log.Println("[ERR] Error running context menu command:", err)
 			}
 		case discordgo.ChatApplicationCommand:
 			ctx := &command.SlashContext{
@@ -127,7 +126,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			}
 			err := cmd.Run(ctx)
 			if err != nil {
-				log.Println("Error running slash command:", err)
+				log.Println("[ERR] Error running slash command:", err)
 			}
 		}
 
@@ -150,7 +149,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			}
 			err := matched.Run(ctx)
 			if err != nil {
-				log.Println("Error running component command:", err)
+				log.Println("[ERR] Error running component command:", err)
 			}
 		} else {
 			log.Printf("[WARN] No matching component: %s\n", customID)
@@ -230,7 +229,7 @@ func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.App
 			if err != nil {
 				log.Printf("[ERR] Can't create command %s: %v", cmd.Name, err)
 			} else {
-				log.Printf("[OK] Command created: %s", cmd.Name)
+				log.Printf("[DONE] Command created: %s", cmd.Name)
 			}
 		}(job)
 	}

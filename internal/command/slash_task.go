@@ -266,15 +266,15 @@ func init() {
 	var err error
 	tasks, err = loadTasks(cfg.TasksPath)
 	if err != nil {
-		log.Println("Failed to load tasks:", err)
+		log.Println("[ERR] Failed to load tasks:", err)
 		return
 	}
 	if len(tasks) == 0 {
-		log.Println("No tasks loaded! Aborting task assignment.")
+		log.Println("[WARN] No tasks loaded! Aborting task assignment.")
 		return
 	}
 
-	log.Printf("Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
+	log.Printf("[INFO] Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
 }
 
 func handleTimers(ctx *SlashContext, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {

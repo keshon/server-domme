@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	log.Printf("Starting %v bot...", v.AppName)
+	log.Printf("[INFO] Starting %v bot...", v.AppName)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -49,17 +49,17 @@ func main() {
 
 	select {
 	case s := <-sig:
-		log.Printf("Received signal %s, shutting down...\n", s)
+		log.Printf("[INFO] Received signal %s, shutting down...\n", s)
 		cancel()
 	case err := <-errCh:
 		if err != nil {
-			log.Println("Discord bot error:", err)
+			log.Println("[ERR] Discord bot error:", err)
 		}
 		cancel()
 	case <-ctx.Done():
 	}
 
-	log.Println("Discord bot exited cleanly")
+	log.Println("[INFO] Discord bot exited cleanly")
 }
 
 func startCooldownCleaner(storage *storage.Storage) error {
@@ -68,7 +68,7 @@ func startCooldownCleaner(storage *storage.Storage) error {
 		for range ticker.C {
 			err := storage.ClearExpiredCooldowns()
 			if err != nil {
-				log.Println("Error clearing expired cooldowns:", err)
+				log.Println("[ERR] Error clearing expired cooldowns:", err)
 			}
 		}
 	}()
