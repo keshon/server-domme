@@ -173,9 +173,22 @@ func (b *Bot) registerCommands(guildID string) error {
 	existing, _ := b.dg.ApplicationCommands(appID, guildID)
 
 	var wanted []*discordgo.ApplicationCommand
+	wantedNames := make(map[string]bool)
+
 	for _, cmd := range command.All() {
 		if def := normalizeDefinition(cmd); def != nil {
 			wanted = append(wanted, def)
+			wantedNames[def.Name] = true
+		}
+	}
+
+	for _, old := range existing {
+		if !wantedNames[old.Name] {
+			log.Printf("[INFO] Deleting obsolete command: %s\n", old.Name)
+			err := b.dg.ApplicationCommandDelete(appID, guildID, old.ID)
+			if err != nil {
+				log.Printf("[ERR] Failed to delete command %s: %v", old.Name, err)
+			}
 		}
 	}
 
