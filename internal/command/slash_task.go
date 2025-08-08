@@ -64,16 +64,21 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 }
 
 func (c *TaskCommand) runSlash(ctx *SlashContext) {
-	s, i := ctx.Session, ctx.Event
-	userID, guildID := i.Member.User.ID, i.GuildID
+	session := ctx.Session
+	event := ctx.Event
+	storage := ctx.Storage
+
+	guildID := event.GuildID
+	member := event.Member
+	userID := member.User.ID
 
 	if cooldownUntil, err := ctx.Storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		respondEphemeral(s, i, fmt.Sprintf("Not so fast, darling. Wait **%s**.", humanDuration(time.Until(cooldownUntil))))
+		respondEphemeral(session, event, fmt.Sprintf("Not so fast, darling. Wait **%s**.", humanDuration(time.Until(cooldownUntil))))
 		return
 	}
 
 	if slices.Contains(config.New().ProtectedUsers, userID) {
-		respond(s, i, "You’re above this. No tasks for you.")
+		respond(session, event, "You’re above this. No tasks for you.")
 		return
 	}
 
@@ -85,32 +90,37 @@ func (c *TaskCommand) runSlash(ctx *SlashContext) {
 	taskCancelMutex.Unlock()
 
 	if existing, _ := ctx.Storage.GetTask(guildID, userID); existing != nil && existing.Status == "pending" {
-		respondEphemeral(s, i, "One task at a time, sweetheart.")
+		respondEphemeral(session, event, "One task at a time, sweetheart.")
 		return
 	}
 
 	taskerRoles, _ := ctx.Storage.GetTaskRoles(guildID)
 	if len(taskerRoles) == 0 {
-		respondEphemeral(s, i, "No tasker roles set. So sad.")
+		respondEphemeral(session, event, "No tasker roles set. So sad.")
 		return
 	}
 
-	memberRoleNames := getMemberRoleNames(s, guildID, i.Member.Roles)
+	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		respondEphemeral(s, i, "Failed to load tasks.")
+		respondEphemeral(session, event, "Failed to load tasks.")
 		log.Println("loadTasksForGuild:", err)
 		return
 	}
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		respondEphemeral(s, i, "No task suits your... profile.")
+		respondEphemeral(session, event, "No task suits your... profile.")
 		return
 	}
 
 	task := filtered[rand.Intn(len(filtered))]
-	c.assignTask(ctx, i, task)
+	c.assignTask(ctx, event, task)
+
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
+	}
 }
 
 func loadTasksForGuild(guildID string) ([]Task, error) {
@@ -123,9 +133,12 @@ func loadTasksForGuild(guildID string) ([]Task, error) {
 	return tasks, json.Unmarshal(raw, &tasks)
 }
 
-func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCreate, task Task) {
-	s := ctx.Session
-	userID, guildID := i.Member.User.ID, i.GuildID
+func (c *TaskCommand) assignTask(ctx *SlashContext, event *discordgo.InteractionCreate, task Task) {
+	session := ctx.Session
+
+	guildID := event.GuildID
+	userID := event.Member.User.ID
+
 	now := time.Now()
 	expiry := now.Add(time.Duration(task.DurationMin) * time.Minute)
 	expiryDelay := time.Duration(task.DurationMin) * time.Minute
@@ -135,7 +148,7 @@ func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCrea
 		"**New Task**\n<@%s> %s\n\n*You have %s to complete this task so don't disappoint me.*",
 		userID, task.Description, humanDuration(time.Until(expiry)))
 
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: taskMsg,
@@ -151,7 +164,7 @@ func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCrea
 		return
 	}
 
-	msg, err := s.InteractionResponse(i.Interaction)
+	msg, err := session.InteractionResponse(event.Interaction)
 	if err != nil {
 		log.Println("Failed to fetch interaction response:", err)
 		return
@@ -171,42 +184,44 @@ func (c *TaskCommand) assignTask(ctx *SlashContext, i *discordgo.InteractionCrea
 	taskCancels[userID] = cancel
 	taskCancelMutex.Unlock()
 
-	go handleTimers(ctx, ctxTimer, guildID, userID, i.ChannelID, msg.ID, time.Until(expiry), reminderDelay)
+	go handleTimers(ctx, ctxTimer, guildID, userID, event.ChannelID, msg.ID, time.Until(expiry), reminderDelay)
 
-	err = logCommand(s, ctx.Storage, guildID, i.ChannelID, userID, i.Member.User.Username, "task")
+	err = logCommand(session, ctx.Storage, guildID, event.ChannelID, userID, event.Member.User.Username, "task")
 	if err != nil {
 		log.Println("Failed to log command:", err)
 	}
 }
 
 func (c *TaskCommand) runComponent(ctx *ComponentContext) {
-	s, i := ctx.Session, ctx.Event
-	userID, guildID := i.Member.User.ID, i.GuildID
+	session := ctx.Session
+	event := ctx.Event
+	guildID := event.GuildID
+	userID := event.Member.User.ID
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		respondEphemeral(s, i, "No active task found. Trying to cheat, hmm?")
+		respondEphemeral(session, event, "No active task found. Trying to cheat, hmm?")
 		return
 	}
 
 	if task.UserID != userID {
-		respondEphemeral(s, i, "That task doesn’t belong to you. Greedy little fingers, aren't you?")
+		respondEphemeral(session, event, "That task doesn’t belong to you. Greedy little fingers, aren't you?")
 		return
 	}
 
 	if task.Status != "pending" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredMessageUpdate,
 		})
 		return
 	}
 
-	switch i.MessageComponentData().CustomID {
+	switch event.MessageComponentData().CustomID {
 	case "task_complete_trigger":
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseUpdateMessage,
 			Data: &discordgo.InteractionResponseData{
-				Content: i.Message.Content,
+				Content: event.Message.Content,
 				Components: []discordgo.MessageComponent{
 					discordgo.ActionsRow{Components: []discordgo.MessageComponent{
 						discordgo.Button{Label: "Yes", Style: discordgo.SuccessButton, CustomID: "task_complete_yes"},
@@ -217,14 +232,14 @@ func (c *TaskCommand) runComponent(ctx *ComponentContext) {
 			},
 		})
 	case "task_complete_yes", "task_complete_no", "task_complete_safeword":
-		c.handleTaskCompletion(ctx, i, task)
+		c.handleTaskCompletion(ctx, event, task)
 	}
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.InteractionCreate, task *st.Task) {
-	s := ctx.Session
-	userID, guildID := i.Member.User.ID, i.GuildID
-	customID := i.MessageComponentData().CustomID
+func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, event *discordgo.InteractionCreate, task *st.Task) {
+	session := ctx.Session
+	userID, guildID := event.Member.User.ID, event.GuildID
+	customID := event.MessageComponentData().CustomID
 
 	var reply string
 	switch customID {
@@ -249,14 +264,14 @@ func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, i *discordgo.I
 	}
 	taskCancelMutex.Unlock()
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content:    i.Message.Content,
+			Content:    event.Message.Content,
 			Components: []discordgo.MessageComponent{},
 		},
 	})
-	s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+	session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
 		Content: reply,
 	})
 }
@@ -323,12 +338,12 @@ func loadTasks(file string) ([]Task, error) {
 	return list, json.Unmarshal(raw, &list)
 }
 
-func getMemberRoleNames(s *discordgo.Session, guildID string, roleIDs []string) map[string]bool {
+func getMemberRoleNames(session *discordgo.Session, guildID string, roleIDs []string) map[string]bool {
 	names := make(map[string]bool)
 	for _, rid := range roleIDs {
-		role, err := s.State.Role(guildID, rid)
+		role, err := session.State.Role(guildID, rid)
 		if err != nil || role == nil {
-			allRoles, _ := s.GuildRoles(guildID)
+			allRoles, _ := session.GuildRoles(guildID)
 			for _, r := range allRoles {
 				if r.ID == rid {
 					role = r
@@ -402,7 +417,7 @@ var taskReminders = []string{
 	"🐾 <@%s>, your time’s nearly up. %s to crawl faster, pet.",
 	"👀 <@%s>, %s left. I’m watching… and I’m not impressed yet.",
 	"🔪 <@%s>, %s left. Cut through the fear or bleed mediocrity.",
-	"🍷 <@%s>, sip your shame now or earn a toast. You’ve got %s.",
+	"🍷 <@%s>, sip your shame now or earn a toast. You’ve got %session.",
 	"🐍 <@%s>, slither faster. %s of mercy left.",
 	"🧨 <@%s>, time’s ticking. %s to explode with effort or fade quietly.",
 	"🖤 <@%s>, %s left to prove you're more than a waste of code.",
@@ -411,7 +426,7 @@ var taskReminders = []string{
 	"🎬 <@%s>, %s left. Deliver drama or stay irrelevant.",
 	"🐖 <@%s>, move that lazy ass. %s isn’t a suggestion.",
 	"💼 <@%s>, deadlines don’t beg. But I might… if you’re *very* good. %s left.",
-	"🧁 <@%s>, sweetie, I’d bake you a reward if you earned it. You have %s.",
+	"🧁 <@%s>, sweetie, I’d bake you a reward if you earned it. You have %session.",
 	"🎭 <@%s>, the final act begins. %s to avoid tripping over your mediocrity.",
 	"🎯 <@%s>, bullseye or bust. You’ve got %s to not embarrass me.",
 	"🔔 <@%s>, consider this your final bell. %s to deliver or get devoured.",
@@ -425,7 +440,7 @@ var taskReminders = []string{
 	"💭 <@%s>, still daydreaming? Snap out of it. %s to act.",
 	"🧃 <@%s>, juice it or lose it. %s left. The clock isn’t fond of slackers.",
 	"🕳️ <@%s>, finish what you started. Or should I finish *you* instead in %s?",
-	"🐈 <@%s>, curiosity dies in %s. Better show me something worth watching.",
+	"🐈 <@%s>, curiosity dies in %session. Better show me something worth watching.",
 	"💃 <@%s>, shake it like time’s almost gone — %s left.",
 	"🌪️ <@%s>, the storm's coming. %s to finish or get swept out like trash.",
 }

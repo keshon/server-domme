@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/bwmarrin/discordgo"
@@ -60,6 +61,13 @@ func (c *CommandsToggleCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("invalid context")
 	}
 
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
+
 	data := slash.Event.ApplicationCommandData()
 	group := data.Options[0].StringValue()
 	state := data.Options[1].StringValue()
@@ -81,6 +89,12 @@ func (c *CommandsToggleCommand) Run(ctx interface{}) error {
 	if err != nil {
 		return respondEphemeral(slash.Session, slash.Event, "Failed to enable the command.")
 	}
+
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
+	}
+
 	return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Command `%s` enabled.", group))
 }
 

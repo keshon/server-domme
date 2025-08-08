@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"server-domme/internal/version"
@@ -39,6 +40,10 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 
 	session := slash.Session
 	event := slash.Event
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	embedMsg, file, err := buildAboutMessage()
 	if err != nil {
@@ -59,9 +64,9 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 
 	session.InteractionRespond(event.Interaction, resp)
 
-	err = logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "about")
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
-		fmt.Println("Failed to log /about:", err)
+		log.Println("Failed to log:", err)
 	}
 
 	return nil

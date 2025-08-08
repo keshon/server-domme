@@ -61,6 +61,10 @@ func (c *RollCommand) Run(ctx interface{}) error {
 	session := slash.Session
 	event := slash.Event
 	options := event.ApplicationCommandData().Options
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	formula := ""
 	for _, opt := range options {
@@ -165,9 +169,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	err = logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, c.Name()+" "+formula)
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
-		log.Println("Failed to log /roll:", err)
+		log.Println("Failed to log:", err)
 	}
 
 	return nil

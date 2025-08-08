@@ -45,6 +45,13 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("invalid context")
 	}
 
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
+
 	data := slash.Event.ApplicationCommandData()
 	if len(data.Options) == 0 {
 		return respondEphemeral(slash.Session, slash.Event, "No file uploaded.")
@@ -101,7 +108,6 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 		return respondEphemeral(slash.Session, slash.Event, "No tasks found in the uploaded file.")
 	}
 
-	guildID := slash.Event.GuildID
 	path := fmt.Sprintf("data/%s_tasks.json", guildID)
 
 	if err := os.MkdirAll("data", 0755); err != nil {
@@ -112,6 +118,11 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 	if err := os.WriteFile(path, body, 0644); err != nil {
 		log.Println("Failed to save file:", err)
 		return respondEphemeral(slash.Session, slash.Event, "Failed to save the uploaded file.")
+	}
+
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
 
 	return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Successfully uploaded %d tasks for this guild.", len(parsed)))

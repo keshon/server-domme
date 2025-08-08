@@ -40,9 +40,13 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
+
 	session := slash.Session
 	event := slash.Event
 	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	var message string
 	for _, opt := range event.ApplicationCommandData().Options {
@@ -81,9 +85,9 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 		respondEphemeral(session, event, "💌 Delivered. Nobody saw a thing.")
 	}
 
-	logErr := logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "confess")
-	if logErr != nil {
-		log.Println("Failed to log confess:", logErr)
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
 
 	return nil

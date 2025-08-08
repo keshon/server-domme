@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"server-domme/internal/config"
 	"slices"
@@ -46,6 +47,9 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 	event := slash.Event
 	storage := slash.Storage
 
+	guildID := event.GuildID
+	member := event.Member
+
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, event.Member.User.ID) {
 		respond(session, event, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
@@ -87,7 +91,11 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
 	respond(session, event, fmt.Sprintf(phrase, targetID))
 
-	logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "punish")
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
+	}
+
 	return nil
 }
 

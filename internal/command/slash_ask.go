@@ -3,6 +3,7 @@ package command
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -57,9 +58,14 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context")
 	}
+
 	session := slash.Session
 	event := slash.Event
 	options := event.ApplicationCommandData().Options
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	var consentType, reason string
 	var targetUser *discordgo.User
@@ -109,11 +115,14 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	)
 	session.ChannelMessageSend(dmChannel(session, targetUser.ID), dm)
 
-	logCommand(session, slash.Storage, event.GuildID, event.ChannelID, askerID, event.Member.User.Username, "ask")
+	err := logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
+	}
+
 	return nil
 }
 
-// Реализуем метод Component для обработки нажатий кнопок
 func (c *AskCommand) Component(ctx *ComponentContext) error {
 	session, event := ctx.Session, ctx.Event
 	customID := event.MessageComponentData().CustomID
@@ -127,26 +136,27 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 	askerID, targetID, consentType, action := parts[1], parts[2], parts[3], parts[4]
 	clickerID := event.Member.User.ID
 
+	if clickerID != askerID && clickerID != targetID {
+		respondEphemeral(session, event, "This ain't your party. Button's not meant for you.")
+		return nil
+	}
+
 	embed := event.Message.Embeds[0]
 	desc := embed.Description
 	reason := extractReason(desc)
 	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
 
-	// был ли уже ответ
 	alreadyAnswered := strings.Contains(desc, "**accepted**") || strings.Contains(desc, "**declined**")
 
-	// доступ к revoke:
-	// до ответа — только инициатор
-	// после ответа — только target
 	if action == "revoke" {
 		if alreadyAnswered {
 			if clickerID != targetID {
-				respondEphemeral(session, event, "Too late to chicken out. The ball's not in your court anymore.")
+				respondEphemeral(session, event, "Too late to chicken out. The ball's not in your court anymore. This button is for the other side to decide at this point.")
 				return nil
 			}
 		} else {
 			if clickerID != askerID {
-				respondEphemeral(session, event, "Only the one who begged can revoke this.")
+				respondEphemeral(session, event, "At this point only the one who begged can revoke this. You can use this button once you accept the request (or just ignore it).")
 				return nil
 			}
 		}
@@ -154,7 +164,7 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 
 	if action == "accept" || action == "deny" {
 		if clickerID != targetID {
-			respondEphemeral(session, event, "Only the target can do that.")
+			respondEphemeral(session, event, "Oh no no no. Only the *chosen one* can respond to this request. But if you changed your mind, use the revoke button until it's too late.")
 			return nil
 		}
 	}

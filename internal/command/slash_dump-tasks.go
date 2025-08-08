@@ -35,9 +35,13 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
+
 	session := slash.Session
 	event := slash.Event
 	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	if !isAdministrator(session, event.GuildID, event.Member) {
 		respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
@@ -106,9 +110,9 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 		log.Println("Failed to respond to dump-tasks:", err)
 	}
 
-	err = logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "dump-tasks")
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
-		log.Println("Failed to log dump-tasks:", err)
+		log.Println("Failed to log:", err)
 	}
 
 	return nil

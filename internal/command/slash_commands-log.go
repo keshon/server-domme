@@ -94,9 +94,9 @@ func (c *LogCommand) Run(ctx interface{}) error {
 	out := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
 	respondEphemeral(session, event, out)
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, "log")
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
-		log.Println("Failed to log /log:", err)
+		log.Println("Failed to log:", err)
 	}
 
 	return nil

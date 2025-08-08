@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -35,7 +36,13 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		return fmt.Errorf("invalid context")
 	}
 
-	guildID := slash.Event.GuildID
+	session := slash.Session
+	event := slash.Event
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
+
 	disabledGroups, _ := slash.Storage.GetDisabledGroups(guildID)
 	disabledMap := make(map[string]bool)
 	for _, g := range disabledGroups {
@@ -67,6 +74,11 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		sb.WriteString(strings.Join(enabled, ", "))
 	} else {
 		sb.WriteString("_none_")
+	}
+
+	err := logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
 
 	return respondEphemeral(slash.Session, slash.Event, sb.String())

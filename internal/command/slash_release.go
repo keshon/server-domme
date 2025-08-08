@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -44,6 +45,9 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 	event := slash.Event
 	storage := slash.Storage
 
+	guildID := event.GuildID
+	member := event.Member
+
 	punisherRoleID, _ := storage.GetPunishRole(event.GuildID, "punisher")
 	assignedRoleID, _ := storage.GetPunishRole(event.GuildID, "assigned")
 
@@ -77,7 +81,11 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 
 	respond(session, event, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
 
-	logCommand(session, slash.Storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, "release")
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
+	}
+
 	return nil
 }
 

@@ -66,19 +66,22 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("wrong context type")
 	}
 
-	s := slash.Session
-	i := slash.Event
+	session := slash.Session
+	event := slash.Event
 	storage := slash.Storage
 
-	if !checkBotPermissions(s, i.ChannelID) {
-		respondEphemeral(s, i, "Missing permissions to delete messages in this channel.")
+	guildID := event.GuildID
+	member := event.Member
+
+	if !checkBotPermissions(session, event.ChannelID) {
+		respondEphemeral(session, event, "Missing permissions to delete messages in this channel.")
 		return nil
 	}
 
 	var delayStr, confirm string
 	var notifyAll bool
 
-	for _, opt := range i.ApplicationCommandData().Options {
+	for _, opt := range event.ApplicationCommandData().Options {
 		switch opt.Name {
 		case "delay":
 			delayStr = opt.StringValue()
@@ -90,7 +93,7 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		respondEphemeral(s, i, "Action not confirmed. Please type 'yes' to proceed.")
+		respondEphemeral(session, event, "Action not confirmed. Please type 'yes' to proceed.")
 		return nil
 	}
 
@@ -100,17 +103,17 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 
 	dur, err := parseDuration(delayStr)
 	if err != nil {
-		respondEphemeral(s, i, "Invalid delay format. Use formats like `10m`, `1h`, `1d`.")
+		respondEphemeral(session, event, "Invalid delay format. Use formats like `10m`, `1h`, `1d`.")
 		return nil
 	}
 
 	delayUntil := time.Now().Add(dur)
-	if err := storage.SetDeletionJob(i.GuildID, i.ChannelID, "delayed", delayUntil, notifyAll); err != nil {
-		respondEphemeral(s, i, "Failed to schedule purge: "+err.Error())
+	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, "delayed", delayUntil, notifyAll); err != nil {
+		respondEphemeral(session, event, "Failed to schedule purge: "+err.Error())
 		return nil
 	}
 
-	respondEphemeral(s, i, "Message purge scheduled.\nThis channel will be purged in **"+dur.String()+"**.")
+	respondEphemeral(session, event, "Message purge scheduled.\nThis channel will be purged in **"+dur.String()+"**.")
 
 	if notifyAll {
 		embed := &discordgo.MessageEmbed{
@@ -121,7 +124,7 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 			Footer:      &discordgo.MessageEmbedFooter{Text: "May your sins be incinerated."},
 			Timestamp:   time.Now().Format(time.RFC3339),
 		}
-		_, _ = s.ChannelMessageSendEmbed(i.ChannelID, embed)
+		_, _ = session.ChannelMessageSendEmbed(event.ChannelID, embed)
 	}
 
 	go func() {
@@ -129,22 +132,23 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 
 		stopChan := make(chan struct{})
 		ActiveDeletionsMu.Lock()
-		ActiveDeletions[i.ChannelID] = stopChan
+		ActiveDeletions[event.ChannelID] = stopChan
 		ActiveDeletionsMu.Unlock()
 
-		DeleteMessages(s, i.ChannelID, nil, nil, stopChan)
+		DeleteMessages(session, event.ChannelID, nil, nil, stopChan)
 
 		ActiveDeletionsMu.Lock()
-		delete(ActiveDeletions, i.ChannelID)
+		delete(ActiveDeletions, event.ChannelID)
 		ActiveDeletionsMu.Unlock()
 
-		_ = storage.ClearDeletionJob(i.GuildID, i.ChannelID)
+		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
 	}()
 
-	logErr := logCommand(s, storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "purge-now")
-	if logErr != nil {
-		log.Println("Failed to log command:", logErr)
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
+
 	return nil
 }
 

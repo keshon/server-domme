@@ -34,13 +34,16 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
-	s := slash.Session
-	i := slash.Event
+	session := slash.Session
+	event := slash.Event
 	storage := slash.Storage
 
-	jobs, err := storage.GetDeletionJobsList(i.GuildID)
+	guildID := event.GuildID
+	member := event.Member
+
+	jobs, err := storage.GetDeletionJobsList(event.GuildID)
 	if err != nil || len(jobs) == 0 {
-		respondEphemeral(s, i, "No active purge jobs found in this server.")
+		respondEphemeral(session, event, "No active purge jobs found in this server.")
 		return nil
 	}
 
@@ -65,7 +68,7 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 	}
 	sb.WriteString("Note: use `/purge-stop` in any listed channel to cancel the purge.")
 
-	_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	_ = session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags:   discordgo.MessageFlagsEphemeral,
@@ -73,10 +76,11 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 		},
 	})
 
-	logErr := logCommand(s, storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "purge-jobs")
-	if logErr != nil {
-		log.Println("Failed to log command:", logErr)
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
+
 	return nil
 }
 

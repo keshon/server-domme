@@ -33,24 +33,28 @@ func (c *PurgeStopCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("wrong context type")
 	}
 
-	s := slash.Session
-	i := slash.Event
+	session := slash.Session
+	event := slash.Event
 	storage := slash.Storage
 
-	stopDeletion(i.ChannelID)
+	guildID := event.GuildID
+	member := event.Member
 
-	_, err := storage.GetDeletionJob(i.GuildID, i.ChannelID)
+	stopDeletion(event.ChannelID)
+
+	_, err := storage.GetDeletionJob(event.GuildID, event.ChannelID)
 	if err == nil {
-		_ = storage.ClearDeletionJob(i.GuildID, i.ChannelID)
-		respondEphemeral(s, i, "Message purge job stopped.")
+		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
+		respondEphemeral(session, event, "Message purge job stopped.")
 	} else {
-		respondEphemeral(s, i, "There was no purge job, but I stopped any running deletions anyway.")
+		respondEphemeral(session, event, "There was no purge job, but I stopped any running deletions anyway.")
 	}
 
-	logErr := logCommand(s, storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "purge-stop")
-	if logErr != nil {
-		log.Println("Failed to log command:", logErr)
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
+
 	return nil
 }
 

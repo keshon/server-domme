@@ -53,8 +53,11 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 
 	session := slash.Session
 	event := slash.Event
-	storage := slash.Storage
 	options := event.ApplicationCommandData().Options
+	storage := slash.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	if !isAdministrator(session, event.GuildID, event.Member) {
 		return respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
@@ -94,9 +97,9 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	err = logCommand(session, storage, event.GuildID, event.ChannelID, event.Member.User.ID, event.Member.User.Username, c.Name())
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
-		log.Println("Failed to log command:", err)
+		log.Println("Failed to log:", err)
 	}
 
 	return nil

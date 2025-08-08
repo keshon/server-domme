@@ -58,19 +58,22 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 		return fmt.Errorf("wrong context type")
 	}
 
-	s := slash.Session
-	i := slash.Event
+	session := slash.Session
+	event := slash.Event
 	storage := slash.Storage
 
-	if !checkBotPermissions(s, i.ChannelID) {
-		respondEphemeral(s, i, "Missing permissions to purge messages in this channel.")
+	guildID := event.GuildID
+	member := event.Member
+
+	if !checkBotPermissions(session, event.ChannelID) {
+		respondEphemeral(session, event, "Missing permissions to purge messages in this channel.")
 		return nil
 	}
 
 	var confirm, olderThan string
 	var notifyAll bool
 
-	for _, opt := range i.ApplicationCommandData().Options {
+	for _, opt := range event.ApplicationCommandData().Options {
 		switch opt.Name {
 		case "confirm":
 			confirm = opt.StringValue()
@@ -82,34 +85,34 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		respondEphemeral(s, i, "Action not confirmed. Please type 'yes' to proceed.")
+		respondEphemeral(session, event, "Action not confirmed. Please type 'yes' to proceed.")
 		return nil
 	}
 
 	dur, err := parseDuration(olderThan)
 	if err != nil {
-		respondEphemeral(s, i, "Invalid duration format. Use values like `10m`, `2h`, `1d`, `1w` etc.")
+		respondEphemeral(session, event, "Invalid duration format. Use values like `10m`, `2h`, `1d`, `1w` etc.")
 		return nil
 	}
 
 	ActiveDeletionsMu.Lock()
-	if _, exists := ActiveDeletions[i.ChannelID]; exists {
+	if _, exists := ActiveDeletions[event.ChannelID]; exists {
 		ActiveDeletionsMu.Unlock()
-		respondEphemeral(s, i, "This channel is already undergoing recurring purge.")
+		respondEphemeral(session, event, "This channel is already undergoing recurring purge.")
 		return nil
 	}
 	stopChan := make(chan struct{})
-	ActiveDeletions[i.ChannelID] = stopChan
+	ActiveDeletions[event.ChannelID] = stopChan
 	ActiveDeletionsMu.Unlock()
 
-	err = storage.SetDeletionJob(i.GuildID, i.ChannelID, "recurring", time.Now(), notifyAll, olderThan)
+	err = storage.SetDeletionJob(event.GuildID, event.ChannelID, "recurring", time.Now(), notifyAll, olderThan)
 	if err != nil {
-		stopDeletion(i.ChannelID)
-		respondEphemeral(s, i, "Failed to schedule recurring purge: "+err.Error())
+		stopDeletion(event.ChannelID)
+		respondEphemeral(session, event, "Failed to schedule recurring purge: "+err.Error())
 		return nil
 	}
 
-	respondEphemeral(s, i, "Recurring message purge started.\nMessages older than **"+dur.String()+"** will be removed.")
+	respondEphemeral(session, event, "Recurring message purge started.\nMessages older than **"+dur.String()+"** will be removed.")
 
 	if notifyAll {
 		imgURL := "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp"
@@ -121,13 +124,13 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 			Footer:      &discordgo.MessageEmbedFooter{Text: "History has a half-life."},
 			Timestamp:   time.Now().Format(time.RFC3339),
 		}
-		_, _ = s.ChannelMessageSendEmbed(i.ChannelID, embed)
+		_, _ = session.ChannelMessageSendEmbed(event.ChannelID, embed)
 	}
 
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		defer stopDeletion(i.ChannelID)
+		defer stopDeletion(event.ChannelID)
 
 		for {
 			select {
@@ -136,14 +139,14 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 			case <-ticker.C:
 				start := time.Now().Add(-dur)
 				now := time.Now()
-				DeleteMessages(s, i.ChannelID, &now, &start, stopChan)
+				DeleteMessages(session, event.ChannelID, &now, &start, stopChan)
 			}
 		}
 	}()
 
-	logErr := logCommand(s, slash.Storage, i.GuildID, i.ChannelID, i.Member.User.ID, i.Member.User.Username, "purge-auto")
-	if logErr != nil {
-		log.Println("Failed to log command:", logErr)
+	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	if err != nil {
+		log.Println("Failed to log:", err)
 	}
 
 	return nil
