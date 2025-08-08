@@ -6,6 +6,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var _ ComponentHandler = (*wrappedCommand)(nil)
+
 type Middleware func(Command) Command
 
 func WithGroupAccessCheck() Middleware {
@@ -102,6 +104,14 @@ func (w *wrappedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 func (w *wrappedCommand) ContextDefinition() *discordgo.ApplicationCommand {
 	if menu, ok := w.Command.(ContextMenuProvider); ok {
 		return menu.ContextDefinition()
+	}
+	return nil
+}
+
+// Proxy the ComponentHandler if the original command implements it
+func (w *wrappedCommand) Component(ctx *ComponentContext) error {
+	if comp, ok := w.Command.(ComponentHandler); ok {
+		return comp.Component(ctx)
 	}
 	return nil
 }

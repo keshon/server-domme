@@ -25,6 +25,10 @@ type ContextMenuProvider interface {
 	ContextDefinition() *discordgo.ApplicationCommand
 }
 
+type ComponentHandler interface {
+	Component(*ComponentContext) error
+}
+
 type SlashContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate

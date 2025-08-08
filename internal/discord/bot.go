@@ -132,27 +132,35 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
+		log.Printf("[DEBUG] Processing component interaction: %s\n", customID)
 
 		var matched command.Command
 		for _, cmd := range command.All() {
-			if strings.HasPrefix(customID, cmd.Name()) {
+			if strings.HasPrefix(customID, cmd.Name()) || strings.HasPrefix(customID, cmd.Name()+":") || strings.HasPrefix(customID, cmd.Name()+"_") {
 				matched = cmd
+				log.Printf("[DEBUG] Found matching command: %s\n", cmd.Name())
 				break
 			}
 		}
 
 		if matched != nil {
-			ctx := &command.ComponentContext{
-				Session: s,
-				Event:   i,
-				Storage: b.storage,
-			}
-			err := matched.Run(ctx)
-			if err != nil {
-				log.Println("[ERR] Error running component command:", err)
+			compHandler, ok := matched.(command.ComponentHandler)
+			if ok {
+				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
+				ctx := &command.ComponentContext{
+					Session: s,
+					Event:   i,
+					Storage: b.storage,
+				}
+				if err := compHandler.Component(ctx); err != nil {
+					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
+				}
+			} else {
+				log.Printf("[WARN] Command %s does not implement ComponentHandler interface\n", matched.Name())
+				log.Printf("[DEBUG] Command type: %T\n", matched)
 			}
 		} else {
-			log.Printf("[WARN] No matching component: %s\n", customID)
+			log.Printf("[WARN] No matching component for customID: %s\n", customID)
 		}
 
 	default:

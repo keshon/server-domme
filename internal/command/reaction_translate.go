@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type TranslateOnReaction struct{}
@@ -38,7 +41,8 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
-	lang, ok := flags[rc.Reaction.Emoji.Name]
+
+	toLangCode, ok := flags[rc.Reaction.Emoji.Name]
 	if !ok {
 		return nil
 	}
@@ -48,21 +52,47 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 		return nil
 	}
 
-	translated, err := googleTranslate(msg.Content, lang)
+	translated, detectedLang, err := googleTranslate(msg.Content, toLangCode)
 	if err != nil {
 		return nil
 	}
+
+	if detectedLang == toLangCode {
+		return nil
+	}
+
+	fromFlag := "🌐"
+	for flag, code := range flags {
+		if code == detectedLang {
+			fromFlag = flag
+			break
+		}
+	}
+	toFlag := rc.Reaction.Emoji.Name
+
+	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", rc.Reaction.GuildID, rc.Reaction.ChannelID, rc.Reaction.MessageID)
 
 	dm, err := rc.Session.UserChannelCreate(rc.Reaction.UserID)
 	if err != nil {
 		return nil
 	}
 
-	_, _ = rc.Session.ChannelMessageSend(dm.ID, fmt.Sprintf("Translated (%s): %s", lang, translated))
+	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, toFlag, translated, link)
+	_, _ = rc.Session.ChannelMessageSend(dm.ID, content)
+
+	perms, err := rc.Session.State.UserChannelPermissions(rc.Session.State.User.ID, rc.Reaction.ChannelID)
+	if err != nil {
+		return nil
+	}
+	if perms&discordgo.PermissionManageMessages == 0 {
+		log.Printf("[WARN] No permission to remove reaction in channel, skipping translation %s\n", rc.Reaction.ChannelID)
+		return nil
+	}
+
 	return rc.Session.MessageReactionRemove(rc.Reaction.ChannelID, rc.Reaction.MessageID, rc.Reaction.Emoji.Name, rc.Reaction.UserID)
 }
 
-func googleTranslate(text, targetLang string) (string, error) {
+func googleTranslate(text, targetLang string) (string, string, error) {
 	endpoint := "https://translate.googleapis.com/translate_a/single"
 	params := url.Values{}
 	params.Set("client", "gtx")
@@ -75,34 +105,43 @@ func googleTranslate(text, targetLang string) (string, error) {
 
 	req, err := http.NewRequest("GET", reqURL, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	var raw interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return "", fmt.Errorf("unmarshal error: %w", err)
+		return "", "", fmt.Errorf("unmarshal error: %w", err)
 	}
 
 	arr, ok := raw.([]interface{})
-	if !ok || len(arr) < 1 {
-		return "", fmt.Errorf("unexpected top-level structure")
+	if !ok || len(arr) < 2 {
+		return "", "", fmt.Errorf("unexpected top-level structure")
+	}
+
+	// arr[0] — переведённые строки
+	// arr[2] — определённый язык (может быть nil)
+	detectedLang := "auto"
+	if arr[2] != nil {
+		if detectedStr, ok := arr[2].(string); ok {
+			detectedLang = detectedStr
+		}
 	}
 
 	sentences, ok := arr[0].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("unexpected sentences structure")
+		return "", "", fmt.Errorf("unexpected sentences structure")
 	}
 
 	var translated strings.Builder
@@ -117,7 +156,7 @@ func googleTranslate(text, targetLang string) (string, error) {
 		}
 	}
 
-	return translated.String(), nil
+	return translated.String(), detectedLang, nil
 }
 
 func init() {

@@ -104,7 +104,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	})
 
 	dm := fmt.Sprintf(
-		"<@%s> wants to **%s** with you.\nRequest: https://discord.com/channels/%s/%s/%s",
+		"<@%s> wants to **%s** with you.\nhttps://discord.com/channels/%s/%s/%s",
 		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
 	)
 	session.ChannelMessageSend(dmChannel(session, targetUser.ID), dm)
@@ -113,10 +113,12 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	return nil
 }
 
+// Реализуем метод Component для обработки нажатий кнопок
 func (c *AskCommand) Component(ctx *ComponentContext) error {
 	session, event := ctx.Session, ctx.Event
 	customID := event.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")
+
 	if len(parts) != 5 || parts[0] != "ask" {
 		respondEphemeral(session, event, "Something smells off about this button.")
 		return nil
@@ -125,25 +127,37 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 	askerID, targetID, consentType, action := parts[1], parts[2], parts[3], parts[4]
 	clickerID := event.Member.User.ID
 
-	switch action {
-	case "accept", "deny":
+	embed := event.Message.Embeds[0]
+	desc := embed.Description
+	reason := extractReason(desc)
+	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
+
+	// был ли уже ответ
+	alreadyAnswered := strings.Contains(desc, "**accepted**") || strings.Contains(desc, "**declined**")
+
+	// доступ к revoke:
+	// до ответа — только инициатор
+	// после ответа — только target
+	if action == "revoke" {
+		if alreadyAnswered {
+			if clickerID != targetID {
+				respondEphemeral(session, event, "Too late to chicken out. The ball's not in your court anymore.")
+				return nil
+			}
+		} else {
+			if clickerID != askerID {
+				respondEphemeral(session, event, "Only the one who begged can revoke this.")
+				return nil
+			}
+		}
+	}
+
+	if action == "accept" || action == "deny" {
 		if clickerID != targetID {
 			respondEphemeral(session, event, "Only the target can do that.")
 			return nil
 		}
-	case "revoke":
-		if clickerID != askerID {
-			respondEphemeral(session, event, "Only the one who begged can revoke it.")
-			return nil
-		}
-	default:
-		respondEphemeral(session, event, "Unknown action. Not touching that.")
-		return nil
 	}
-
-	desc := event.Message.Embeds[0].Description
-	reason := extractReason(desc)
-	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
 
 	var status string
 	switch action {
@@ -152,24 +166,48 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 	case "deny":
 		status = fmt.Sprintf("<@%s> **declined** <@%s>'s **%s** request.", targetID, askerID, consentType)
 	case "revoke":
-		status = fmt.Sprintf("<@%s> **revoked** their **%s** request to <@%s>.", askerID, consentType, targetID)
+		if alreadyAnswered {
+			status = fmt.Sprintf("<@%s> **revoked** their agreement with <@%s>.", targetID, askerID)
+		} else {
+			status = fmt.Sprintf("<@%s> **revoked** their **%s** request to <@%s>.", askerID, consentType, targetID)
+		}
+	default:
+		respondEphemeral(session, event, "Unknown action. Not touching that.")
+		return nil
 	}
 
 	updated := &discordgo.MessageEmbed{
-		Title:       event.Message.Embeds[0].Title,
+		Title:       embed.Title,
 		Description: fmt.Sprintf("%s\n\n%s", status, reason),
 		Color:       embedColor,
+	}
+
+	var components []discordgo.MessageComponent
+
+	if action == "accept" || action == "deny" {
+		components = []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label:    "🚫 Revoke",
+						Style:    discordgo.SecondaryButton,
+						CustomID: fmt.Sprintf("ask:%s:%s:%s:revoke", askerID, targetID, consentType),
+					},
+				},
+			},
+		}
 	}
 
 	session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
 			Embeds:     []*discordgo.MessageEmbed{updated},
-			Components: []discordgo.MessageComponent{},
+			Components: components,
 		},
 	})
 
-	notify(session, action, askerID, targetID, consentType, msgLink, reason)
+	notifyParticipants(session, action, askerID, targetID, clickerID, consentType, msgLink)
+
 	return nil
 }
 
@@ -188,23 +226,32 @@ func extractReason(desc string) string {
 	return fmt.Sprintf("Reason was:\n`%s`", strings.TrimSpace(desc[idx+len("Reason:"):]))
 }
 
-func notify(session *discordgo.Session, action, askerID, targetID, consentType, link, reason string) {
-	var msg string
+func notifyParticipants(session *discordgo.Session, action, askerID, targetID, clickerID, consentType, link string) {
 	switch action {
 	case "accept":
-		msg = fmt.Sprintf("Your request to <@%s> for **%s** was accepted.\n%s", targetID, consentType, link)
-		session.ChannelMessageSend(dmChannel(session, askerID), msg)
-		session.ChannelMessageSend(dmChannel(session, targetID), fmt.Sprintf("You accepted <@%s>'s request.\n%s", askerID, link))
+		session.ChannelMessageSend(dmChannel(session, askerID),
+			fmt.Sprintf("<@%s> accepted your **%s** request.\n%s", targetID, consentType, link))
+		session.ChannelMessageSend(dmChannel(session, targetID),
+			fmt.Sprintf("You accepted <@%s>'s **%s** request.\n%s", askerID, consentType, link))
 
 	case "deny":
-		msg = fmt.Sprintf("Your request to <@%s> for **%s** was denied.\n%s", targetID, consentType, link)
-		session.ChannelMessageSend(dmChannel(session, askerID), msg)
-		session.ChannelMessageSend(dmChannel(session, targetID), fmt.Sprintf("You declined <@%s>'s request.\n%s", askerID, link))
+		session.ChannelMessageSend(dmChannel(session, askerID),
+			fmt.Sprintf("<@%s> denied your **%s** request.\n%s", targetID, consentType, link))
+		session.ChannelMessageSend(dmChannel(session, targetID),
+			fmt.Sprintf("You denied <@%s>'s **%s** request.\n%s", askerID, consentType, link))
 
 	case "revoke":
-		msg = fmt.Sprintf("You revoked your **%s** request to <@%s>.\n%s", consentType, targetID, link)
-		session.ChannelMessageSend(dmChannel(session, askerID), msg)
-		session.ChannelMessageSend(dmChannel(session, targetID), fmt.Sprintf("<@%s> revoked their request to you.\n%s", askerID, link))
+		if clickerID == askerID {
+			session.ChannelMessageSend(dmChannel(session, askerID),
+				fmt.Sprintf("You revoked your **%s** request to <@%s>.\n%s", consentType, targetID, link))
+			session.ChannelMessageSend(dmChannel(session, targetID),
+				fmt.Sprintf("<@%s> revoked their **%s** request to you.\n%s", askerID, consentType, link))
+		} else {
+			session.ChannelMessageSend(dmChannel(session, askerID),
+				fmt.Sprintf("<@%s> revoked their agreement with you.\n%s", targetID, link))
+			session.ChannelMessageSend(dmChannel(session, targetID),
+				fmt.Sprintf("You revoked your agreement with <@%s>.\n%s", askerID, link))
+		}
 	}
 }
 
