@@ -1,84 +1,93 @@
 # Server Domme Discord Bot
 
-Server Domme empowers moderators and organizers to assign tasks, manage roles, and keep channels tidy with ease. Whether you're fostering community engagement, organizing tasks, or maintaining order, this bot puts you firmly in control—with just the right amount of attitude.
+Server Domme is a general purpose Discord bot.
 
 ---
 
 ## 💎 Features
 
+### 🕯️ Information
+
+* **`/about`**
+  Discover the origin of this bot
+
+* **`/help`**
+  Get a list of available commands
+
+### 🎲 Gameplay
+
+* **`/roll`**
+  Roll dices like `2d20+1d6-2`
+
 ### 🎭 Roleplay
 
 * **`/ask`**
-  Request permission to contact another member. Because politeness is protocol.
+  Request permission to contact another member
+
+* **`/confess`**
+  Send an anonymous confession
+
+* **`/punish`**
+  Assign the brat role
+
+* **`/release`**
+  Remove the brat role
 
 * **`/task`**
-  Assign or manage your personal task. Comes with timers, reminders, and... consequences.
-  *(Proof submission via buttons. Whimpering optional.)*
+  Assign or manage your personal task
 
-* **`/punish [user]`**
-  Assigns the “brat” role with a snarky, randomly chosen reprimand. Only users with the `punisher` role may wield the paddle.
+### ⚙️ Settings
 
-* **`/release [user]`**
-  Removes the “brat” role and grants reprieve. Forgiveness... how boring.
+* **`/commands-log`**
+  Review recent commands and their punishments
 
----
+* **`/commands-status`**
+  Check which command is enabled or disabled
 
-### 🧹 Channel Cleanup
+* **`/commands-toggle`**
+  Enable or disable a group of commands
 
-* **`/del-now`**
-  Obliterates all messages in the current channel. Total devastation. No warnings.
+* **`/set-channels`**
+  Setup special-purpose channels
 
-* **`/del-auto [older_than]`**
-  Enables recurring purges of messages older than a set duration (e.g., 2h, 1d, 1w). Set it and forget them.
+* **`/set-roles`**
+  Setup special-purpose roles
 
-* **`/del-stop`**
-  Stops any active deletion jobs. Sometimes mercy is sexy.
+* **`/set-tasks`**
+  Upload a new task list for this server
 
-* **`/del-jobs`**
-  Lists all active deletion jobs. Because control means knowing everything.
+### 📢 Utilities
 
----
+* **`/Announce`**
+  Send a message to the announcement channel
 
-### 🏰 Court Administration
+* **`/translate (reaction)`**
+  Translate message on flag emoji reaction
 
-* **`/set-role`**
-  Assign bot roles: `punisher`, `victim`, `tasker`. No title, no power.
-
-* **`/log`**
-  View recent command usage—who served, who sinned.
+### 🛠️ Maintenance
 
 * **`/dump-db`**
-  Export the bot's full internal datastore. Secret scrolls for your eyes only.
+  Dumps server database as JSON
 
 * **`/dump-tasks`**
-  Export all active tasks. Useful for audits, or just shaming the lazy.
-
-* **`/init-commands`**
-  Re-register all slash commands with Discord. It’s like snapping your fingers and realigning the universe.
-
----
-
-### 🕯️ Lore & Insight
+  Dumps all tasks as JSON
 
 * **`/ping`**
-  Pong. Yes, she’s listening.
+  Check bot latency
 
-* **`/help`**
-  Show the full list of Server Domme commands—organized, brutal, delicious.
+### 🧹 Cleanup
 
-* **`/about`**
-  Get info about the bot and the entity that birthed her.
+* **`/purge-auto`**
+  Purge messages regularly in this channel
 
----
+* **`/purge-jobs`**
+  List all active purge jobs
 
-## 🧷 Requirements
+* **`/purge-now`**
+  Purge messages in this channel
 
-* **Server Roles Configured for:**
-
-  * `punisher` – Users who can assign/release brat roles.
-  * `assigned` – The “brat” role itself.
-  * `victim` – Users eligible for punishment.
-  * `tasker` – Who can take tasks designed for this role (e.g. gender based filter).
+* **`/purge-stop`**
+  Halt ongoing purge in this channel
 
 ---
 
