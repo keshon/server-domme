@@ -17,6 +17,7 @@ type Command interface {
 	Run(ctx interface{}) error
 }
 
+// Providers - how this command should be registered with Discord
 type SlashProvider interface {
 	SlashDefinition() *discordgo.ApplicationCommand
 }
@@ -25,10 +26,16 @@ type ContextMenuProvider interface {
 	ContextDefinition() *discordgo.ApplicationCommand
 }
 
+// Handlers - optional specialized hooks beyond Run
 type ComponentHandler interface {
 	Component(*ComponentContext) error
 }
 
+type MessageHandler interface {
+	Message(*MessageContext) error
+}
+
+// Contexts - what runtime hands you when executing a command
 type SlashContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate
@@ -53,4 +60,15 @@ type MessageApplicationContext struct {
 	Event   *discordgo.InteractionCreate
 	Storage *storage.Storage
 	Target  *discordgo.Message
+}
+
+type MessageContext struct {
+	Session *discordgo.Session
+	Event   *discordgo.MessageCreate
+	Storage *storage.Storage
+}
+
+type CLIContext struct {
+	Args    []string
+	Storage *storage.Storage
 }

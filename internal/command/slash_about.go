@@ -1,3 +1,4 @@
+// / internal/command/slash_about.go
 package command
 
 import (

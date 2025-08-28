@@ -14,10 +14,30 @@ Server Domme is a general purpose Discord bot.
 * **`/help`**
   Get a list of available commands
 
-### 🎲 Gameplay
+### 🛠️ Maintenance
 
-* **`/roll`**
-  Roll dices like `2d20+1d6-2`
+* **`/dump-db`**
+  Dumps server database as JSON
+
+* **`/dump-tasks`**
+  Dumps all tasks as JSON
+
+* **`/ping`**
+  Check bot latency
+
+### 🧹 Cleanup
+
+* **`/purge-auto`**
+  Purge messages regularly in this channel
+
+* **`/purge-jobs`**
+  List all active purge jobs
+
+* **`/purge-now`**
+  Purge messages in this channel
+
+* **`/purge-stop`**
+  Halt ongoing purge in this channel
 
 ### 🎭 Roleplay
 
@@ -35,6 +55,16 @@ Server Domme is a general purpose Discord bot.
 
 * **`/task`**
   Assign or manage your personal task
+
+### 🎲 Gameplay
+
+* **`/roll`**
+  Roll dices like `2d20+1d6-2`
+
+### 💬 Chat
+
+* **`/chat`**
+  Responds when bot is mentioned (just a test)
 
 ### ⚙️ Settings
 
@@ -64,30 +94,7 @@ Server Domme is a general purpose Discord bot.
 * **`/translate (reaction)`**
   Translate message on flag emoji reaction
 
-### 🛠️ Maintenance
 
-* **`/dump-db`**
-  Dumps server database as JSON
-
-* **`/dump-tasks`**
-  Dumps all tasks as JSON
-
-* **`/ping`**
-  Check bot latency
-
-### 🧹 Cleanup
-
-* **`/purge-auto`**
-  Purge messages regularly in this channel
-
-* **`/purge-jobs`**
-  List all active purge jobs
-
-* **`/purge-now`**
-  Purge messages in this channel
-
-* **`/purge-stop`**
-  Halt ongoing purge in this channel
 
 ---
 
