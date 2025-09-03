@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"server-domme/internal/core"
 	"server-domme/internal/version"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ func (c *AboutCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AboutCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -48,7 +49,7 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 
 	embedMsg, file, err := buildAboutMessage()
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("Failed to build about message: ```%v```", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to build about message: ```%v```", err))
 		return nil
 	}
 
@@ -65,7 +66,7 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 
 	session.InteractionRespond(event.Interaction, resp)
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -99,7 +100,7 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 	imageFile, err := os.Open(imagePath)
 	if err != nil {
 		embedMsg := embed.NewEmbed().
-			SetColor(embedColor).
+			SetColor(core.EmbedColor).
 			SetDescription(fmt.Sprintf("ℹ️ About\n\n**%s** — %s", version.AppName, version.AppDescription))
 		for title, value := range infoFields {
 			embedMsg = embedMsg.AddField(title, value)
@@ -108,7 +109,7 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 	}
 
 	embedMsg := embed.NewEmbed().
-		SetColor(embedColor).
+		SetColor(core.EmbedColor).
 		SetDescription(fmt.Sprintf("ℹ️ **About %s**\n\n%s", version.AppName, version.AppDescription))
 	for title, value := range infoFields {
 		embedMsg = embedMsg.AddField(title, value)
@@ -122,9 +123,9 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&AboutCommand{},
 			),
 		),

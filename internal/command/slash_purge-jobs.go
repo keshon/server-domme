@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"strings"
 	"time"
 
@@ -30,7 +31,7 @@ func (c *PurgeJobsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PurgeJobsCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -43,7 +44,7 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 
 	jobs, err := storage.GetDeletionJobsList(event.GuildID)
 	if err != nil || len(jobs) == 0 {
-		respondEphemeral(session, event, "No active purge jobs found in this server.")
+		core.RespondEphemeral(session, event, "No active purge jobs found in this server.")
 		return nil
 	}
 
@@ -76,7 +77,7 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 		},
 	})
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -85,9 +86,9 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&PurgeJobsCommand{},
 			),
 		),

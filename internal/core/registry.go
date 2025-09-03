@@ -1,20 +1,20 @@
-package command
+package core
 
 var registry = map[string]Command{}
 
-func Register(cmd Command) {
+func RegisterCommand(cmd Command) {
 	registry[cmd.Name()] = cmd
 	for _, a := range cmd.Aliases() {
 		registry[a] = cmd
 	}
 }
 
-func Get(name string) (Command, bool) {
+func GetCommand(name string) (Command, bool) {
 	cmd, ok := registry[name]
 	return cmd, ok
 }
 
-func All() []Command {
+func AllCommands() []Command {
 	seen := map[string]bool{}
 	var list []Command
 	for _, cmd := range registry {

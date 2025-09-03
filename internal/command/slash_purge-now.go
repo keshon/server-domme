@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"strings"
 	"time"
 
@@ -61,7 +62,7 @@ func (c *PurgeNowCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PurgeNowCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -73,8 +74,8 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !checkBotPermissions(session, event.ChannelID) {
-		respondEphemeral(session, event, "Missing permissions to delete messages in this channel.")
+	if !core.CheckBotPermissions(session, event.ChannelID) {
+		core.RespondEphemeral(session, event, "Missing permissions to delete messages in this channel.")
 		return nil
 	}
 
@@ -93,7 +94,7 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		respondEphemeral(session, event, "Action not confirmed. Please type 'yes' to proceed.")
+		core.RespondEphemeral(session, event, "Action not confirmed. Please type 'yes' to proceed.")
 		return nil
 	}
 
@@ -103,23 +104,23 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 
 	dur, err := parseDuration(delayStr)
 	if err != nil {
-		respondEphemeral(session, event, "Invalid delay format. Use formats like `10m`, `1h`, `1d`.")
+		core.RespondEphemeral(session, event, "Invalid delay format. Use formats like `10m`, `1h`, `1d`.")
 		return nil
 	}
 
 	delayUntil := time.Now().Add(dur)
 	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, "delayed", delayUntil, notifyAll); err != nil {
-		respondEphemeral(session, event, "Failed to schedule purge: "+err.Error())
+		core.RespondEphemeral(session, event, "Failed to schedule purge: "+err.Error())
 		return nil
 	}
 
-	respondEphemeral(session, event, "Message purge scheduled.\nThis channel will be purged in **"+dur.String()+"**.")
+	core.RespondEphemeral(session, event, "Message purge scheduled.\nThis channel will be purged in **"+dur.String()+"**.")
 
 	if notifyAll {
 		embed := &discordgo.MessageEmbed{
 			Title:       "☢️ Upcoming Nuke Detonation",
 			Description: "Countdown initiated.\nAll messages in this channel will be *obliterated* in `" + dur.String() + "`.\nPrepare for impact.",
-			Color:       embedColor,
+			Color:       core.EmbedColor,
 			Image:       &discordgo.MessageEmbedImage{URL: "https://c.tenor.com/qDvLEFO5bAkAAAAd/tenor.gif"},
 			Footer:      &discordgo.MessageEmbedFooter{Text: "May your sins be incinerated."},
 			Timestamp:   time.Now().Format(time.RFC3339),
@@ -144,7 +145,7 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
 	}()
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -153,9 +154,9 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&PurgeNowCommand{},
 			),
 		),

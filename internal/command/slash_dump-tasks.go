@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"server-domme/internal/config"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -31,7 +32,7 @@ func (c *DumpTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *DumpTasksCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -43,13 +44,13 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !isAdministrator(session, event.GuildID, event.Member) {
-		respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
+	if !core.IsAdministrator(session, event.GuildID, event.Member) {
+		core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 		return nil
 	}
 
 	if len(tasks) == 0 {
-		respondEphemeral(session, event, "No tasks found, darling. Either you're lazy or I'm losing my edge.")
+		core.RespondEphemeral(session, event, "No tasks found, darling. Either you're lazy or I'm losing my edge.")
 		return nil
 	}
 
@@ -88,7 +89,7 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 	fileContent, err := os.ReadFile(cfg.TasksPath)
 	if err != nil {
 		log.Println("Failed to read tasks file:", err)
-		respondEphemeral(session, event, "Couldn't read the tasks file. Try again later when I’m in a better mood.")
+		core.RespondEphemeral(session, event, "Couldn't read the tasks file. Try again later when I’m in a better mood.")
 		return nil
 	}
 
@@ -110,7 +111,7 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 		log.Println("Failed to respond to dump-tasks:", err)
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -119,9 +120,9 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&DumpTasksCommand{},
 			),
 		),

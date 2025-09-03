@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 )
 
 type ChatCommand struct{}
@@ -16,7 +17,7 @@ func (c *ChatCommand) RequireAdmin() bool        { return false }
 func (c *ChatCommand) RequireDev() bool          { return false }
 func (c *ChatCommand) Run(ctx interface{}) error { return nil } // unused for message
 
-func (c *ChatCommand) Message(ctx *MessageContext) error {
+func (c *ChatCommand) Message(ctx *core.MessageContext) error {
 	user := ctx.Event.Author.Username
 	msg := ctx.Event.Content
 
@@ -31,5 +32,5 @@ func (c *ChatCommand) Message(ctx *MessageContext) error {
 }
 
 func init() {
-	Register(&ChatCommand{})
+	core.RegisterCommand(&ChatCommand{})
 }

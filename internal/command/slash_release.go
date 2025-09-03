@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -36,7 +37,7 @@ func (c *ReleaseCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *ReleaseCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -52,12 +53,12 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 	assignedRoleID, _ := storage.GetPunishRole(event.GuildID, "assigned")
 
 	if punisherRoleID == "" || assignedRoleID == "" {
-		respondEphemeral(session, event, "Roles not configured properly. Run `/set-role` first.")
+		core.RespondEphemeral(session, event, "Roles not configured properly. Run `/set-role` first.")
 		return nil
 	}
 
 	if !slices.Contains(event.Member.Roles, punisherRoleID) {
-		respondEphemeral(session, event, "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.")
+		core.RespondEphemeral(session, event, "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.")
 		return nil
 	}
 
@@ -69,19 +70,19 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 	}
 
 	if targetID == "" {
-		respondEphemeral(session, event, "Release who, darling? The void?")
+		core.RespondEphemeral(session, event, "Release who, darling? The void?")
 		return nil
 	}
 
 	err := session.GuildMemberRoleRemove(event.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err))
 		return nil
 	}
 
-	respond(session, event, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
+	core.Respond(session, event, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -90,9 +91,9 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&ReleaseCommand{},
 			),
 		),

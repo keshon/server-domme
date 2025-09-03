@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"server-domme/internal/command"
 	"server-domme/internal/config"
+	"server-domme/internal/core"
 	"server-domme/internal/storage"
 	"strings"
 	"sync"
@@ -76,9 +76,9 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
-	for _, cmd := range command.All() {
-		if msgHandler, ok := cmd.(command.MessageHandler); ok {
-			ctx := &command.MessageContext{
+	for _, cmd := range core.AllCommands() {
+		if msgHandler, ok := cmd.(core.MessageHandler); ok {
+			ctx := &core.MessageContext{
 				Session: s,
 				Event:   m,
 				Storage: b.storage,
@@ -116,8 +116,8 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 }
 
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	for _, cmd := range command.All() {
-		ctx := &command.ReactionContext{
+	for _, cmd := range core.AllCommands() {
+		ctx := &core.ReactionContext{
 			Session:  s,
 			Reaction: r,
 			Storage:  b.storage,
@@ -131,7 +131,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	case discordgo.InteractionApplicationCommand:
 		cmdName := i.ApplicationCommandData().Name
 
-		cmd, ok := command.Get(cmdName)
+		cmd, ok := core.GetCommand(cmdName)
 		if !ok {
 			log.Printf("[WARN] Unknown command: %s\n", cmdName)
 			return
@@ -139,7 +139,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 		switch i.ApplicationCommandData().CommandType {
 		case discordgo.MessageApplicationCommand:
-			ctx := &command.MessageApplicationContext{
+			ctx := &core.MessageApplicationContext{
 				Session: s,
 				Event:   i,
 				Storage: b.storage,
@@ -150,7 +150,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 				log.Println("[ERR] Error running context menu command:", err)
 			}
 		case discordgo.ChatApplicationCommand:
-			ctx := &command.SlashContext{
+			ctx := &core.SlashContext{
 				Session: s,
 				Event:   i,
 				Storage: b.storage,
@@ -165,8 +165,8 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		customID := i.MessageComponentData().CustomID
 		log.Printf("[DEBUG] Processing component interaction: %s\n", customID)
 
-		var matched command.Command
-		for _, cmd := range command.All() {
+		var matched core.Command
+		for _, cmd := range core.AllCommands() {
 			if strings.HasPrefix(customID, cmd.Name()) || strings.HasPrefix(customID, cmd.Name()+":") || strings.HasPrefix(customID, cmd.Name()+"_") {
 				matched = cmd
 				log.Printf("[DEBUG] Found matching command: %s\n", cmd.Name())
@@ -175,10 +175,10 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 
 		if matched != nil {
-			compHandler, ok := matched.(command.ComponentHandler)
+			compHandler, ok := matched.(core.ComponentHandler)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
-				ctx := &command.ComponentContext{
+				ctx := &core.ComponentContext{
 					Session: s,
 					Event:   i,
 					Storage: b.storage,
@@ -214,7 +214,7 @@ func (b *Bot) registerCommands(guildID string) error {
 	var wanted []*discordgo.ApplicationCommand
 	wantedNames := make(map[string]bool)
 
-	for _, cmd := range command.All() {
+	for _, cmd := range core.AllCommands() {
 		if def := normalizeDefinition(cmd); def != nil {
 			wanted = append(wanted, def)
 			wantedNames[def.Name] = true
@@ -243,8 +243,8 @@ func (b *Bot) registerCommands(guildID string) error {
 	return nil
 }
 
-func normalizeDefinition(cmd command.Command) *discordgo.ApplicationCommand {
-	if slash, ok := cmd.(command.SlashProvider); ok {
+func normalizeDefinition(cmd core.Command) *discordgo.ApplicationCommand {
+	if slash, ok := cmd.(core.SlashProvider); ok {
 		if def := slash.SlashDefinition(); def != nil {
 			if def.Type == 0 {
 				def.Type = discordgo.ChatApplicationCommand
@@ -252,7 +252,7 @@ func normalizeDefinition(cmd command.Command) *discordgo.ApplicationCommand {
 			return def
 		}
 	}
-	if menu, ok := cmd.(command.ContextMenuProvider); ok {
+	if menu, ok := cmd.(core.ContextMenuProvider); ok {
 		if def := menu.ContextDefinition(); def != nil {
 			if def.Type == 0 {
 				def.Type = discordgo.MessageApplicationCommand

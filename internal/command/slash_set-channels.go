@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -46,7 +47,7 @@ func (c *SetChannelsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *SetChannelsCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -59,8 +60,8 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !isAdministrator(session, event.GuildID, event.Member) {
-		return respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
+	if !core.IsAdministrator(session, event.GuildID, event.Member) {
+		return core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 	}
 
 	var kind, channelID string
@@ -74,12 +75,12 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 	}
 
 	if kind == "" || channelID == "" {
-		return respondEphemeral(session, event, "Missing required parameters. Don't make me repeat myself.")
+		return core.RespondEphemeral(session, event, "Missing required parameters. Don't make me repeat myself.")
 	}
 
 	err := storage.SetSpecialChannel(event.GuildID, kind, channelID)
 	if err != nil {
-		return respondEphemeral(session, event, fmt.Sprintf("Couldn’t save it: `%s`", err.Error()))
+		return core.RespondEphemeral(session, event, fmt.Sprintf("Couldn’t save it: `%s`", err.Error()))
 	}
 
 	var confirmation string
@@ -92,12 +93,12 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		confirmation = fmt.Sprintf("✅ Channel for `%s` set.", kind)
 	}
 
-	err = respondEphemeral(session, event, confirmation)
+	err = core.RespondEphemeral(session, event, confirmation)
 	if err != nil {
 		return err
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -106,9 +107,9 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&SetChannelsCommand{},
 			),
 		),

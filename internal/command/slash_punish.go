@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"server-domme/internal/config"
+	"server-domme/internal/core"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -38,7 +39,7 @@ func (c *PunishCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PunishCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -52,7 +53,7 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, event.Member.User.ID) {
-		respond(session, event, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
+		core.Respond(session, event, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
 		return nil
 	}
 
@@ -61,12 +62,12 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 	assignedRoleID, _ := storage.GetPunishRole(event.GuildID, "assigned")
 
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
-		respondEphemeral(session, event, "Role setup incomplete. Punisher, victim, and assigned roles must be configured.")
+		core.RespondEphemeral(session, event, "Role setup incomplete. Punisher, victim, and assigned roles must be configured.")
 		return nil
 	}
 
 	if !slices.Contains(event.Member.Roles, punisherRoleID) {
-		respondEphemeral(session, event, "Nice try, sugar. You don’t wear the right collar to give punishments.")
+		core.RespondEphemeral(session, event, "Nice try, sugar. You don’t wear the right collar to give punishments.")
 		return nil
 	}
 
@@ -78,20 +79,20 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 	}
 
 	if targetID == "" {
-		respondEphemeral(session, event, "No brat selected? A Domme without a target? Unthinkable.")
+		core.RespondEphemeral(session, event, "No brat selected? A Domme without a target? Unthinkable.")
 		return nil
 	}
 
 	err := session.GuildMemberRoleAdd(event.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
 		return nil
 	}
 
 	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
-	respond(session, event, fmt.Sprintf(phrase, targetID))
+	core.Respond(session, event, fmt.Sprintf(phrase, targetID))
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -100,9 +101,9 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&PunishCommand{},
 			),
 		),

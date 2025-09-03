@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -36,7 +37,7 @@ func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *ConfessCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -56,36 +57,36 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 	}
 
 	if message == "" {
-		respondEphemeral(session, event, "You can't confess silence. Try again.")
+		core.RespondEphemeral(session, event, "You can't confess silence. Try again.")
 		return nil
 	}
 
 	confessChannelID, err := storage.GetSpecialChannel(event.GuildID, "confession")
 	if err != nil || confessChannelID == "" {
-		respondEphemeral(session, event, "No confession channel is configured. Ask a mod to set it up.")
+		core.RespondEphemeral(session, event, "No confession channel is configured. Ask a mod to set it up.")
 		return nil
 	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "📢 Anonymous Confession",
 		Description: fmt.Sprintf("> %s", message),
-		Color:       embedColor,
+		Color:       core.EmbedColor,
 	}
 
 	_, err = session.ChannelMessageSendEmbed(confessChannelID, embed)
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("Couldn’t send your confession: ```%v```", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Couldn’t send your confession: ```%v```", err))
 		return nil
 	}
 
 	if event.ChannelID != confessChannelID {
 		link := fmt.Sprintf("https://discord.com/channels/%s/%s", event.GuildID, confessChannelID)
-		respondEphemeral(session, event, fmt.Sprintf("Your secret has been dropped into the void.\nSee it echo: %s", link))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Your secret has been dropped into the void.\nSee it echo: %s", link))
 	} else {
-		respondEphemeral(session, event, "💌 Delivered. Nobody saw a thing.")
+		core.RespondEphemeral(session, event, "💌 Delivered. Nobody saw a thing.")
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -94,9 +95,9 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&ConfessCommand{},
 			),
 		),

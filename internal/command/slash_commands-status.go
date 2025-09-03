@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -31,7 +32,7 @@ func (c *CommandsStatus) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *CommandsStatus) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("invalid context")
 	}
@@ -76,18 +77,18 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		sb.WriteString("_none_")
 	}
 
-	err := logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	return respondEphemeral(slash.Session, slash.Event, sb.String())
+	return core.RespondEphemeral(slash.Session, slash.Event, sb.String())
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&CommandsStatus{},
 			),
 		),

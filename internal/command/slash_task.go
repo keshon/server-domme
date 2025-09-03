@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"server-domme/internal/config"
+	"server-domme/internal/core"
 	"server-domme/internal/storage"
 	"slices"
 	"sync"
@@ -54,7 +55,7 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 func (c *TaskCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context")
 	}
@@ -68,12 +69,12 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 	userID := member.User.ID
 
 	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		respondEphemeral(session, event, fmt.Sprintf("Not so fast, darling. Wait **%s**.", humanDuration(time.Until(cooldownUntil))))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Not so fast, darling. Wait **%s**.", humanDuration(time.Until(cooldownUntil))))
 		return nil
 	}
 
 	if slices.Contains(config.New().ProtectedUsers, userID) {
-		respond(session, event, "You’re above this. No tasks for you.")
+		core.Respond(session, event, "You’re above this. No tasks for you.")
 		return nil
 	}
 
@@ -85,34 +86,34 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 	taskCancelMutex.Unlock()
 
 	if existing, _ := storage.GetTask(guildID, userID); existing != nil && existing.Status == "pending" {
-		respondEphemeral(session, event, "One task at a time, sweetheart.")
+		core.RespondEphemeral(session, event, "One task at a time, sweetheart.")
 		return nil
 	}
 
 	taskerRoles, _ := storage.GetTaskRoles(guildID)
 	if len(taskerRoles) == 0 {
-		respondEphemeral(session, event, "No tasker roles set. So sad.")
+		core.RespondEphemeral(session, event, "No tasker roles set. So sad.")
 		return nil
 	}
 
 	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		respondEphemeral(session, event, "Failed to load tasks.")
+		core.RespondEphemeral(session, event, "Failed to load tasks.")
 		log.Println("loadTasksForGuild:", err)
 		return nil
 	}
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		respondEphemeral(session, event, "No task suits your... profile.")
+		core.RespondEphemeral(session, event, "No task suits your... profile.")
 		return nil
 	}
 
 	task := filtered[rand.Intn(len(filtered))]
 	c.assignTask(session, event, task, storage)
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -183,7 +184,7 @@ func (c *TaskCommand) assignTask(session *discordgo.Session, event *discordgo.In
 
 }
 
-func (c *TaskCommand) Component(ctx *ComponentContext) error {
+func (c *TaskCommand) Component(ctx *core.ComponentContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	guildID := event.GuildID
@@ -191,12 +192,12 @@ func (c *TaskCommand) Component(ctx *ComponentContext) error {
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		respondEphemeral(session, event, "No active task found. Trying to cheat, hmm?")
+		core.RespondEphemeral(session, event, "No active task found. Trying to cheat, hmm?")
 		return nil
 	}
 
 	if task.UserID != userID {
-		respondEphemeral(session, event, "That task doesn’t belong to you. Greedy little fingers, aren't you?")
+		core.RespondEphemeral(session, event, "That task doesn’t belong to you. Greedy little fingers, aren't you?")
 		return nil
 	}
 
@@ -229,7 +230,7 @@ func (c *TaskCommand) Component(ctx *ComponentContext) error {
 	return nil
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *ComponentContext, event *discordgo.InteractionCreate, task *st.Task) {
+func (c *TaskCommand) handleTaskCompletion(ctx *core.ComponentContext, event *discordgo.InteractionCreate, task *st.Task) {
 	session := ctx.Session
 	userID, guildID := event.Member.User.ID, event.GuildID
 	customID := event.MessageComponentData().CustomID
@@ -390,9 +391,9 @@ func randomLine(list []string) string {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&TaskCommand{},
 			),
 		),

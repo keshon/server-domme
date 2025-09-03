@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"server-domme/internal/core"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -32,7 +34,7 @@ func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AnnounceCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*MessageApplicationContext)
+	context, ok := ctx.(*core.MessageApplicationContext)
 	if !ok {
 		return fmt.Errorf("wrong context type (expected MessageApplicationContext)")
 	}
@@ -46,8 +48,8 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 	userID := e.Member.User.ID
 	username := e.Member.User.Username
 
-	if !isAdministrator(s, guildID, e.Member) {
-		respondEphemeral(s, e, "You're not the boss of me.")
+	if !core.IsAdministrator(s, guildID, e.Member) {
+		core.RespondEphemeral(s, e, "You're not the boss of me.")
 		return nil
 	}
 
@@ -119,7 +121,7 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 
 	editResponse(s, e, "Announced. Everyone's watching now.")
 
-	err = logCommand(s, st, guildID, channelID, userID, username, "announce")
+	err = core.LogCommand(s, st, guildID, channelID, userID, username, "announce")
 	if err != nil {
 		log.Println("Failed to log announce command:", err)
 	}
@@ -166,9 +168,9 @@ func restoreMentions(s *discordgo.Session, guildID, content string) string {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&AnnounceCommand{},
 			),
 		),

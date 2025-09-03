@@ -1,10 +1,13 @@
 package command
 
-import "sort"
+import (
+	"server-domme/internal/core"
+	"sort"
+)
 
 func getUniqueGroups() []string {
 	set := map[string]struct{}{}
-	for _, cmd := range All() {
+	for _, cmd := range core.AllCommands() {
 		group := cmd.Group()
 		if group != "" {
 			set[group] = struct{}{}

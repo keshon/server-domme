@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -28,7 +29,7 @@ func (c *PurgeStopCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PurgeStopCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -45,12 +46,12 @@ func (c *PurgeStopCommand) Run(ctx interface{}) error {
 	_, err := storage.GetDeletionJob(event.GuildID, event.ChannelID)
 	if err == nil {
 		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
-		respondEphemeral(session, event, "Message purge job stopped.")
+		core.RespondEphemeral(session, event, "Message purge job stopped.")
 	} else {
-		respondEphemeral(session, event, "There was no purge job, but I stopped any running deletions anyway.")
+		core.RespondEphemeral(session, event, "There was no purge job, but I stopped any running deletions anyway.")
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -59,9 +60,9 @@ func (c *PurgeStopCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&PurgeStopCommand{},
 			),
 		),

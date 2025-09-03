@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -28,7 +29,7 @@ func (c *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PingCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -40,7 +41,7 @@ func (c *PingCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	err := logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -56,9 +57,9 @@ func (c *PingCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&PingCommand{},
 			),
 		),

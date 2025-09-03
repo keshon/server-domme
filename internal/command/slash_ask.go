@@ -4,6 +4,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -54,7 +55,7 @@ func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AskCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context")
 	}
@@ -83,14 +84,14 @@ func (c *AskCommand) Run(ctx interface{}) error {
 
 	askerID := event.Member.User.ID
 	if targetUser == nil || targetUser.ID == askerID {
-		respondEphemeral(session, event, "Pick someone other than yourself, darling.")
+		core.RespondEphemeral(session, event, "Pick someone other than yourself, darling.")
 		return nil
 	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       strings.ToUpper(consentType),
 		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetUser.ID, formatReason(reason)),
-		Color:       embedColor,
+		Color:       core.EmbedColor,
 	}
 
 	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetUser.ID, consentType)
@@ -115,7 +116,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	)
 	session.ChannelMessageSend(dmChannel(session, targetUser.ID), dm)
 
-	err := logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -123,13 +124,13 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	return nil
 }
 
-func (c *AskCommand) Component(ctx *ComponentContext) error {
+func (c *AskCommand) Component(ctx *core.ComponentContext) error {
 	session, event := ctx.Session, ctx.Event
 	customID := event.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")
 
 	if len(parts) != 5 || parts[0] != "ask" {
-		respondEphemeral(session, event, "Something smells off about this button.")
+		core.RespondEphemeral(session, event, "Something smells off about this button.")
 		return nil
 	}
 
@@ -137,7 +138,7 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 	clickerID := event.Member.User.ID
 
 	if clickerID != askerID && clickerID != targetID {
-		respondEphemeral(session, event, "This ain't your party. Button's not meant for you.")
+		core.RespondEphemeral(session, event, "This ain't your party. Button's not meant for you.")
 		return nil
 	}
 
@@ -151,12 +152,12 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 	if action == "revoke" {
 		if alreadyAnswered {
 			if clickerID != targetID {
-				respondEphemeral(session, event, "Too late to chicken out. The ball's not in your court anymore. This button is for the other side to decide at this point.")
+				core.RespondEphemeral(session, event, "Too late to chicken out. The ball's not in your court anymore. This button is for the other side to decide at this point.")
 				return nil
 			}
 		} else {
 			if clickerID != askerID {
-				respondEphemeral(session, event, "At this point only the one who begged can revoke this. You can use this button once you accept the request (or just ignore it).")
+				core.RespondEphemeral(session, event, "At this point only the one who begged can revoke this. You can use this button once you accept the request (or just ignore it).")
 				return nil
 			}
 		}
@@ -164,7 +165,7 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 
 	if action == "accept" || action == "deny" {
 		if clickerID != targetID {
-			respondEphemeral(session, event, "Oh no no no. Only the *chosen one* can respond to this request. But if you changed your mind, use the revoke button until it's too late.")
+			core.RespondEphemeral(session, event, "Oh no no no. Only the *chosen one* can respond to this request. But if you changed your mind, use the revoke button until it's too late.")
 			return nil
 		}
 	}
@@ -182,14 +183,14 @@ func (c *AskCommand) Component(ctx *ComponentContext) error {
 			status = fmt.Sprintf("<@%s> **revoked** their **%s** request to <@%s>.", askerID, consentType, targetID)
 		}
 	default:
-		respondEphemeral(session, event, "Unknown action. Not touching that.")
+		core.RespondEphemeral(session, event, "Unknown action. Not touching that.")
 		return nil
 	}
 
 	updated := &discordgo.MessageEmbed{
 		Title:       embed.Title,
 		Description: fmt.Sprintf("%s\n\n%s", status, reason),
-		Color:       embedColor,
+		Color:       core.EmbedColor,
 	}
 
 	var components []discordgo.MessageComponent
@@ -274,9 +275,9 @@ func dmChannel(s *discordgo.Session, userID string) string {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&AskCommand{},
 			),
 		),

@@ -1,4 +1,4 @@
-package command
+package core
 
 import (
 	"log"
@@ -8,9 +8,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-const embedColor = 0xb01e66
+const EmbedColor = 0xb01e66
 
-func respond(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error {
+func Respond(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error {
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -20,7 +20,7 @@ func respond(s *discordgo.Session, i *discordgo.InteractionCreate, content strin
 	return err
 }
 
-func respondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error {
+func RespondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error {
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -31,7 +31,7 @@ func respondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, cont
 	return err
 }
 
-func logCommand(s *discordgo.Session, storage *storage.Storage, guildID, channelID, userID, username, commandName string) error {
+func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channelID, userID, username, commandName string) error {
 	channel, err := s.State.Channel(channelID)
 	if err != nil {
 		channel, err = s.Channel(channelID)
@@ -67,7 +67,7 @@ func logCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 	)
 }
 
-func isAdministrator(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
+func IsAdministrator(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
 	cfg := config.New()
 	if member.User.ID == cfg.DeveloperID {
 		return true
@@ -95,12 +95,12 @@ func isAdministrator(s *discordgo.Session, guildID string, member *discordgo.Mem
 	return false
 }
 
-func isDeveloper(userID string) bool {
+func IsDeveloper(userID string) bool {
 	cfg := config.New()
 	return userID == cfg.DeveloperID
 }
 
-func checkBotPermissions(s *discordgo.Session, channelID string) bool {
+func CheckBotPermissions(s *discordgo.Session, channelID string) bool {
 	botID := s.State.User.ID
 	perms, err := s.UserChannelPermissions(botID, channelID)
 	if err != nil {

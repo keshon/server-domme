@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -40,7 +41,7 @@ func (c *SetTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *SetTasksCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("invalid context")
 	}
@@ -54,84 +55,84 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 
 	data := slash.Event.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respondEphemeral(slash.Session, slash.Event, "No file uploaded.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "No file uploaded.")
 	}
 
 	attachmentID, ok := data.Options[0].Value.(string)
 	if !ok {
-		return respondEphemeral(slash.Session, slash.Event, "Failed to get attachment ID.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to get attachment ID.")
 	}
 
 	if slash.Event.ApplicationCommandData().Resolved == nil ||
 		slash.Event.ApplicationCommandData().Resolved.Attachments == nil {
-		return respondEphemeral(slash.Session, slash.Event, "No attachments found in resolved data.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "No attachments found in resolved data.")
 	}
 
 	attachment, exists := slash.Event.ApplicationCommandData().Resolved.Attachments[attachmentID]
 	if !exists {
-		return respondEphemeral(slash.Session, slash.Event, "Failed to get the uploaded file.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to get the uploaded file.")
 	}
 
 	if !strings.HasSuffix(attachment.Filename, ".json") {
-		return respondEphemeral(slash.Session, slash.Event, "Only .json files are accepted.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Only .json files are accepted.")
 	}
 
 	resp, err := http.Get(attachment.URL)
 	if err != nil {
 		log.Println("Failed to download file:", err)
-		return respondEphemeral(slash.Session, slash.Event, "Failed to download the uploaded file.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to download the uploaded file.")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("HTTP error when downloading file: %d %s", resp.StatusCode, resp.Status)
-		return respondEphemeral(slash.Session, slash.Event, "Failed to download the uploaded file.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to download the uploaded file.")
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Println("Failed to read file body:", err)
-		return respondEphemeral(slash.Session, slash.Event, "Failed to read the uploaded file.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to read the uploaded file.")
 	}
 
 	if len(body) == 0 {
-		return respondEphemeral(slash.Session, slash.Event, "Uploaded file is empty.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Uploaded file is empty.")
 	}
 
 	var parsed []Task
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		log.Printf("Failed to parse uploaded JSON: %v", err)
-		return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Invalid JSON format: %v", err))
+		return core.RespondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Invalid JSON format: %v", err))
 	}
 
 	if len(parsed) == 0 {
-		return respondEphemeral(slash.Session, slash.Event, "No tasks found in the uploaded file.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "No tasks found in the uploaded file.")
 	}
 
 	path := fmt.Sprintf("data/%s_tasks.json", guildID)
 
 	if err := os.MkdirAll("data", 0755); err != nil {
 		log.Println("Failed to create data directory:", err)
-		return respondEphemeral(slash.Session, slash.Event, "Failed to create data directory.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to create data directory.")
 	}
 
 	if err := os.WriteFile(path, body, 0644); err != nil {
 		log.Println("Failed to save file:", err)
-		return respondEphemeral(slash.Session, slash.Event, "Failed to save the uploaded file.")
+		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to save the uploaded file.")
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	return respondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Successfully uploaded %d tasks for this guild.", len(parsed)))
+	return core.RespondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Successfully uploaded %d tasks for this guild.", len(parsed)))
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&SetTasksCommand{},
 			),
 		),

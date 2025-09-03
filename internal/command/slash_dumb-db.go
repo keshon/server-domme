@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -29,7 +30,7 @@ func (c *DumpDBCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *DumpDBCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -41,20 +42,20 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !isAdministrator(session, event.GuildID, event.Member) {
-		respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
+	if !core.IsAdministrator(session, event.GuildID, event.Member) {
+		core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 		return nil
 	}
 
 	record, err := storage.GetGuildRecord(event.GuildID)
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("Failed to fetch record: ```%v```", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to fetch record: ```%v```", err))
 		return nil
 	}
 
 	jsonBytes, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("JSON encode failed: ```%v```", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("JSON encode failed: ```%v```", err))
 		return nil
 	}
 
@@ -76,7 +77,7 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 		log.Println("Failed to send dump:", err)
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -85,9 +86,9 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&DumpDBCommand{},
 			),
 		),

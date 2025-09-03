@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -37,7 +38,7 @@ var flags = map[string]string{
 }
 
 func (t *TranslateOnReaction) Run(ctx interface{}) error {
-	rc, ok := ctx.(*ReactionContext)
+	rc, ok := ctx.(*core.ReactionContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -130,8 +131,8 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 		return "", "", fmt.Errorf("unexpected top-level structure")
 	}
 
-	// arr[0] — переведённые строки
-	// arr[2] — определённый язык (может быть nil)
+	// arr[0] — translated sentences
+	// arr[2] — source language
 	detectedLang := "auto"
 	if arr[2] != nil {
 		if detectedStr, ok := arr[2].(string); ok {
@@ -160,9 +161,9 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&TranslateOnReaction{},
 			),
 		),

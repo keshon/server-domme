@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"regexp"
+	"server-domme/internal/core"
 	"strconv"
 	"strings"
 
@@ -53,7 +54,7 @@ func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *RollCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -75,7 +76,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
-		return respondEphemeral(session, event, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
+		return core.RespondEphemeral(session, event, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
 	}
 
 	var terms []term
@@ -89,7 +90,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			return respondEphemeral(session, event, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
+			return core.RespondEphemeral(session, event, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
 		}
 
 		terms = append(terms, term{
@@ -105,7 +106,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				return respondEphemeral(session, event, "Syntax error: operator without left operand")
+				return core.RespondEphemeral(session, event, "Syntax error: operator without left operand")
 			}
 			prev := merged[len(merged)-1]
 			merged = merged[:len(merged)-1]
@@ -116,7 +117,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					return respondEphemeral(session, event, "Division by zero is forbidden. Even in games.")
+					return core.RespondEphemeral(session, event, "Division by zero is forbidden. Even in games.")
 				}
 				newVal = prev.value / t.value
 			}
@@ -147,7 +148,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		case "-":
 			total -= t.value
 		default:
-			return respondEphemeral(session, event, "Unexpected operator during evaluation. Blame the dev.")
+			return core.RespondEphemeral(session, event, "Unexpected operator during evaluation. Blame the dev.")
 		}
 	}
 
@@ -169,7 +170,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -219,9 +220,9 @@ func evaluateToken(token string) (int, string, error) {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&RollCommand{},
 			),
 		),

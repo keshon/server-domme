@@ -1,4 +1,4 @@
-package command
+package core
 
 import (
 	"server-domme/internal/storage"
@@ -24,13 +24,13 @@ func WithGroupAccessCheck() Middleware {
 					guildID = v.Event.GuildID
 					storage = v.Storage
 					respond = func(msg string) {
-						respondEphemeral(v.Session, v.Event, msg)
+						RespondEphemeral(v.Session, v.Event, msg)
 					}
 				case *ComponentContext:
 					guildID = v.Event.GuildID
 					storage = v.Storage
 					respond = func(msg string) {
-						respondEphemeral(v.Session, v.Event, msg)
+						RespondEphemeral(v.Session, v.Event, msg)
 					}
 				case *ReactionContext:
 					guildID = v.Reaction.GuildID
@@ -42,7 +42,7 @@ func WithGroupAccessCheck() Middleware {
 					guildID = v.Event.GuildID
 					storage = v.Storage
 					respond = func(msg string) {
-						respondEphemeral(v.Session, v.Event, msg)
+						RespondEphemeral(v.Session, v.Event, msg)
 					}
 				default:
 					return cmd.Run(ctx)

@@ -1,4 +1,4 @@
-package command
+package core
 
 import (
 	"server-domme/internal/storage"

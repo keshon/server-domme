@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"server-domme/internal/core"
 	"sort"
 	"text/template"
-
-	"server-domme/internal/command"
 )
 
 type CmdInfo struct {
@@ -18,7 +17,7 @@ type CmdInfo struct {
 }
 
 func main() {
-	cmds := command.All()
+	cmds := core.AllCommands()
 
 	sections := make(map[string][]CmdInfo)
 	for _, cmd := range cmds {

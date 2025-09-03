@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"server-domme/internal/core"
 	"server-domme/internal/version"
 
 	"github.com/bwmarrin/discordgo"
@@ -44,7 +45,7 @@ func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -75,7 +76,7 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       version.AppName + " Help",
 		Description: output,
-		Color:       embedColor,
+		Color:       core.EmbedColor,
 	}
 
 	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
@@ -90,7 +91,7 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -110,16 +111,16 @@ var categoryWeights = map[string]int{
 
 func buildHelpByCategory(session *discordgo.Session, event *discordgo.InteractionCreate) string {
 	userID := event.Member.User.ID
-	all := All()
+	all := core.AllCommands()
 
-	categoryMap := make(map[string][]Command)
+	categoryMap := make(map[string][]core.Command)
 	categorySort := make(map[string]int)
 
 	for _, cmd := range all {
-		if cmd.RequireAdmin() && !isAdministrator(session, event.GuildID, event.Member) {
+		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
 			continue
 		}
-		if cmd.RequireDev() && !isDeveloper(userID) {
+		if cmd.RequireDev() && !core.IsDeveloper(userID) {
 			continue
 		}
 		cat := cmd.Category()
@@ -159,15 +160,15 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 
 func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCreate) string {
 	userID := event.Member.User.ID
-	all := All()
+	all := core.AllCommands()
 
-	groupMap := make(map[string][]Command)
+	groupMap := make(map[string][]core.Command)
 
 	for _, cmd := range all {
-		if cmd.RequireAdmin() && !isAdministrator(session, event.GuildID, event.Member) {
+		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
 			continue
 		}
-		if cmd.RequireDev() && !isDeveloper(userID) {
+		if cmd.RequireDev() && !core.IsDeveloper(userID) {
 			continue
 		}
 		group := cmd.Group()
@@ -198,14 +199,14 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 
 func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreate) string {
 	userID := event.Member.User.ID
-	all := All()
+	all := core.AllCommands()
 
-	var cmds []Command
+	var cmds []core.Command
 	for _, cmd := range all {
-		if cmd.RequireAdmin() && !isAdministrator(session, event.GuildID, event.Member) {
+		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
 			continue
 		}
-		if cmd.RequireDev() && !isDeveloper(userID) {
+		if cmd.RequireDev() && !core.IsDeveloper(userID) {
 			continue
 		}
 		cmds = append(cmds, cmd)
@@ -222,9 +223,9 @@ func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreat
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&HelpUnifiedCommand{},
 			),
 		),

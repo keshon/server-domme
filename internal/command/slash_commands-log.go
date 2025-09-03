@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -36,7 +37,7 @@ func (c *LogCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *LogCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -48,19 +49,19 @@ func (c *LogCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !isAdministrator(session, guildID, member) {
-		respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
+	if !core.IsAdministrator(session, guildID, member) {
+		core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 		return nil
 	}
 
 	records, err := storage.GetCommands(guildID)
 	if err != nil {
-		respondEphemeral(session, event, fmt.Sprintf("Failed to fetch command logs: %v", err))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to fetch command logs: %v", err))
 		return nil
 	}
 
 	if len(records) == 0 {
-		respondEphemeral(session, event, "No command history found. Such a quiet guild, or lazy users.")
+		core.RespondEphemeral(session, event, "No command history found. Such a quiet guild, or lazy users.")
 		return nil
 	}
 
@@ -72,7 +73,7 @@ func (c *LogCommand) Run(ctx interface{}) error {
 		r := records[idx]
 
 		username := r.Username
-		if r.Command == "confess" && !isDeveloper(member.User.ID) {
+		if r.Command == "confess" && !core.IsDeveloper(member.User.ID) {
 			username = "###"
 		}
 
@@ -92,9 +93,9 @@ func (c *LogCommand) Run(ctx interface{}) error {
 	}
 
 	out := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
-	respondEphemeral(session, event, out)
+	core.RespondEphemeral(session, event, out)
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -103,9 +104,9 @@ func (c *LogCommand) Run(ctx interface{}) error {
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&LogCommand{},
 			),
 		),

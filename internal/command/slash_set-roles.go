@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"log"
+	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -48,7 +49,7 @@ func (c *SetRolesCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *SetRolesCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*SlashContext)
+	slash, ok := ctx.(*core.SlashContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}
@@ -61,8 +62,8 @@ func (c *SetRolesCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !isAdministrator(session, event.GuildID, event.Member) {
-		return respondEphemeral(session, event, "You must be an Admin to use this command, darling.")
+	if !core.IsAdministrator(session, event.GuildID, event.Member) {
+		return core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
 	}
 
 	var roleType, roleID string
@@ -76,19 +77,19 @@ func (c *SetRolesCommand) Run(ctx interface{}) error {
 	}
 
 	if roleType == "" || roleID == "" {
-		return respondEphemeral(session, event, "Missing parameters. Try again without wasting my time.")
+		return core.RespondEphemeral(session, event, "Missing parameters. Try again without wasting my time.")
 	}
 
 	switch roleType {
 	case "tasker":
 		err := storage.SetTaskRole(event.GuildID, roleID)
 		if err != nil {
-			return respondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
+			return core.RespondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
 		}
 	default:
 		err := storage.SetPunishRole(event.GuildID, roleType, roleID)
 		if err != nil {
-			return respondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
+			return core.RespondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
 		}
 	}
 
@@ -103,12 +104,12 @@ func (c *SetRolesCommand) Run(ctx interface{}) error {
 		response = fmt.Sprintf("The **%s** role has been updated.", roleType)
 	}
 
-	err := respondEphemeral(session, event, response)
+	err := core.RespondEphemeral(session, event, response)
 	if err != nil {
 		return err
 	}
 
-	err = logCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
+	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -133,9 +134,9 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 }
 
 func init() {
-	Register(
-		WithGroupAccessCheck()(
-			WithGuildOnly(
+	core.RegisterCommand(
+		core.WithGroupAccessCheck()(
+			core.WithGuildOnly(
 				&SetRolesCommand{},
 			),
 		),
