@@ -7,6 +7,8 @@ import (
 	"log"
 	"server-domme/internal/config"
 	"server-domme/internal/core"
+	"server-domme/internal/music/player"
+	"server-domme/internal/music/source_resolver"
 	"server-domme/internal/storage"
 	"strings"
 	"sync"
@@ -19,12 +21,17 @@ type Bot struct {
 	dg        *discordgo.Session
 	storage   *storage.Storage
 	slashCmds map[string][]*discordgo.ApplicationCommand
+
+	mu             sync.RWMutex
+	sourceResolver *source_resolver.SourceResolver
+	players        map[string]*player.Player
 }
 
 func StartBot(ctx context.Context, token string, storage *storage.Storage) error {
 	b := &Bot{
 		storage:   storage,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
+		players:   make(map[string]*player.Player),
 	}
 	if err := b.run(ctx, token); err != nil {
 		return fmt.Errorf("bot run error: %w", err)
@@ -96,6 +103,8 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		log.Println("[WARN] Error retrieving bot user:", err)
 		return
 	}
+
+	b.registerMusicCommands()
 
 	cfg := config.New()
 	if cfg.InitSlashCommands {

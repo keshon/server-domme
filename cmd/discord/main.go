@@ -34,7 +34,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Run the bot in a separate goroutine
 	errCh := make(chan error, 1)
 	go func() {
 		if err := discord.StartBot(ctx, cfg.DiscordToken, storage); err != nil {
@@ -43,7 +42,6 @@ func main() {
 		close(errCh)
 	}()
 
-	// Catch system signals for correct termination
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
