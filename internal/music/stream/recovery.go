@@ -12,18 +12,20 @@ const maxRecoveryAttempts = 3
 // RecoveryStream wraps a TrackStream and attempts to auto-recover on early stream termination.
 type RecoveryStream struct {
 	track       *parsers.TrackParse
-	parserIndex int // index in AvailableParsers
-	stream      *TrackStream
-	cleanup     func()
-	seekSec     float64        // current playback position
-	retries     map[string]int // parser => attempts
+	parserIndex int            // current parser index
+	stream      *TrackStream   // active stream
+	cleanup     func()         // cleanup function for the current stream
+	seekSec     float64        // approximate playback position
+	retries     map[string]int // parser => recovery attempts
+	firstRead   bool           // used to detect immediate EOF at start
 }
 
 // NewRecoveryStream creates a new resilient wrapper for a track
 func NewRecoveryStream(track *parsers.TrackParse) *RecoveryStream {
 	return &RecoveryStream{
-		track:   track,
-		retries: make(map[string]int),
+		track:     track,
+		retries:   make(map[string]int),
+		firstRead: true,
 	}
 }
 
@@ -48,7 +50,8 @@ func (rs *RecoveryStream) Open(seek float64) error {
 		rs.stream = stream
 		rs.cleanup = cleanup
 		rs.seekSec = seek
-		log.Printf("[RecoveryStream] Successfully opened stream with parser %s at seek %.2f", parser, seek)
+		rs.firstRead = true
+		log.Printf("[RecoveryStream] Opened stream with parser %s at seek %.2f", parser, seek)
 		return nil
 	}
 
@@ -62,25 +65,55 @@ func (rs *RecoveryStream) Read(p []byte) (int, error) {
 	}
 
 	n, err := rs.stream.Read(p)
+
+	// Update seek position
+	rs.seekSec += float64(n) / (SampleRate * Channels * 2)
+
+	// Detect early EOF or first-frame stop
 	if err == io.EOF && n == 0 {
-		// Early EOF detected; attempt recovery
-		return rs.handleRecovery(p)
+		if rs.shouldRecover() {
+			return rs.handleRecovery(p)
+		}
+		return 0, io.EOF
 	}
 
-	// Normal read
-	rs.seekSec += float64(n) / (SampleRate * Channels * 2) // approximate playback seconds
+	rs.firstRead = false
 	return n, err
+}
+
+// shouldRecover decides if we need to attempt recovery
+func (rs *RecoveryStream) shouldRecover() bool {
+	parser := rs.track.CurrentParser
+
+	// Already exceeded max attempts
+	if rs.retries[parser] >= maxRecoveryAttempts {
+		log.Printf("[RecoveryStream] Max recovery attempts reached for parser %s", parser)
+		return false
+	}
+
+	// Track duration available: recover if stopped too early
+	if rs.track.Duration > 0 {
+		if rs.seekSec < 0.95*float64(rs.track.Duration) {
+			log.Printf("[RecoveryStream] Early EOF detected (%.2f/%.2f), will attempt recovery", rs.seekSec, float64(rs.track.Duration))
+			return true
+		}
+		return false
+	}
+
+	// No duration info: recover if it's the first read or immediate EOF mid-stream
+	if rs.firstRead || rs.seekSec < 1.0 {
+		log.Printf("[RecoveryStream] Early EOF detected without duration, attempting recovery")
+		return true
+	}
+
+	return false
 }
 
 // handleRecovery attempts to reopen the stream from the current seek position
 func (rs *RecoveryStream) handleRecovery(p []byte) (int, error) {
-	if rs.retries[rs.track.CurrentParser] >= maxRecoveryAttempts {
-		log.Printf("[RecoveryStream] Max recovery attempts reached for parser %s", rs.track.CurrentParser)
-		return 0, io.EOF
-	}
-
-	log.Printf("[RecoveryStream] Stream ended prematurely, attempting recovery (attempt %d) ...", rs.retries[rs.track.CurrentParser]+1)
-	rs.retries[rs.track.CurrentParser]++
+	parser := rs.track.CurrentParser
+	rs.retries[parser]++
+	log.Printf("[RecoveryStream] Recovering stream for parser %s (attempt %d)...", parser, rs.retries[parser])
 
 	// Clean up old stream
 	if rs.cleanup != nil {
