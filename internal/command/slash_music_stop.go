@@ -46,8 +46,13 @@ func (c *StopCommand) Run(ctx interface{}) error {
 	player.Stop(true)
 
 	_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-		Content: "🎵 Playback stopped and queue cleared.",
+		Embeds: []*discordgo.MessageEmbed{{
+			Title:       "⏹️ Playback Stopped",
+			Description: "Queue cleared.",
+			Color:       core.EmbedColor,
+		}},
 	})
+
 	return nil
 }
 

@@ -1,4 +1,3 @@
-// /internal/core/stream/stream.go
 package stream
 
 import (
@@ -12,12 +11,30 @@ import (
 )
 
 const (
-	channels   = 2
-	sampleRate = 48000
-	frameSize  = 960 // 20ms at 48kHz
+	Channels   = 2
+	SampleRate = 48000
+	FrameSize  = 960 // 20ms at 48kHz
 )
 
-var StreamersRegistry = map[string]parsers.Streamer{
+// TrackStream wraps a track's PCM stream and metadata.
+type TrackStream struct {
+	io.ReadCloser
+	Track  *parsers.TrackParse
+	Parser string
+}
+
+// GetTrack returns the underlying track
+func (ts *TrackStream) GetTrack() *parsers.TrackParse {
+	return ts.Track
+}
+
+// GetParser returns the parser used for this stream
+func (ts *TrackStream) GetParser() string {
+	return ts.Parser
+}
+
+// StreamerRegistry maps parser names to streamer implementations
+var StreamerRegistry = map[string]parsers.Streamer{
 	"ytdlp-link":  &ytdlp.YTDLPStreamer{},
 	"ytdlp-pipe":  &ytdlp.YTDLPStreamer{},
 	"kkdai-link":  &kkdai.KKDAIStreamer{},
@@ -25,78 +42,62 @@ var StreamersRegistry = map[string]parsers.Streamer{
 	"ffmpeg-link": &ffmpeg.FFMPEGStreamer{},
 }
 
-func isPipeMode(parser string) bool {
-	return parser == "ytdlp-pipe" || parser == "kkdai-pipe"
-}
-
-func AutoOpenStream(track *parsers.TrackParse) (*TrackStream, func(), string, error) {
-	var cleanup func()
-	var usedMode string
+// OpenTrack attempts to open a stream for a track, trying parsers in order
+func OpenTrack(track *parsers.TrackParse, seekSec float64) (*TrackStream, func(), string, error) {
 	var errs []error
+	var cleanup func()
+	var lastParser string
 
 	for _, parser := range track.SourceInfo.AvailableParsers {
-		track.CurrentParser = parser
-		stream, c, mode, err := OpenStream(track, parser, 0)
+		lastParser = parser
+		stream, c, err := openWithParser(track, parser, seekSec)
 		if err == nil {
-			return stream, c, mode, nil // success
+			return stream, c, parser, nil
 		}
 
-		errs = append(errs, fmt.Errorf("parser %s failed: %w", parser, err))
+		errs = append(errs, fmt.Errorf("[%s] %w", parser, err))
 		cleanup = c
-		usedMode = mode
 		log.Printf("Parser %s failed for track %s: %v, trying next parser...", parser, track.Title, err)
 	}
 
-	var combinedErrStr string
+	// Combine all parser errors
+	var combinedErr string
 	for _, e := range errs {
-		combinedErrStr += e.Error() + "; "
+		combinedErr += e.Error() + "; "
 	}
 
-	return nil, cleanup, usedMode, fmt.Errorf("all parsers failed for track %s: %s", track.Title, combinedErrStr)
+	return nil, cleanup, lastParser, fmt.Errorf("all parsers failed for track %s: %s", track.Title, combinedErr)
 }
 
-type TrackStream struct {
-	io.ReadCloser
-	track  *parsers.TrackParse
-	parser string
-}
-
-func (m *TrackStream) GetTrack() *parsers.TrackParse {
-	return m.track
-}
-
-func (m *TrackStream) GetMode() string {
-	return m.parser
-}
-
-func OpenStream(track *parsers.TrackParse, parser string, seekSec float64) (*TrackStream, func(), string, error) {
-	var (
-		r        io.ReadCloser
-		cleanup  func()
-		err      error
-		usedMode string = parser
-	)
-
-	streamer, ok := StreamersRegistry[parser]
+// openWithParser opens a stream using the specified parser
+func openWithParser(track *parsers.TrackParse, parser string, seekSec float64) (*TrackStream, func(), error) {
+	streamer, ok := StreamerRegistry[parser]
 	if !ok {
-		return nil, nil, parser, fmt.Errorf("streamer not found for parser: %v", parser)
+		return nil, nil, fmt.Errorf("streamer not found for parser: %s", parser)
 	}
 
-	if isPipeMode(parser) && streamer.SupportsPipe() {
+	var r io.ReadCloser
+	var cleanup func()
+	var err error
+
+	if streamer.SupportsPipe() && isPipeParser(parser) {
 		r, cleanup, err = streamer.GetPipeStream(track, seekSec)
 	} else {
 		r, cleanup, err = streamer.GetLinkStream(track, seekSec)
 	}
 
 	if err != nil {
-		return nil, nil, usedMode, err
+		return nil, cleanup, err
 	}
 
-	stream := &TrackStream{
+	ts := &TrackStream{
 		ReadCloser: r,
-		track:      track,
-		parser:     usedMode,
+		Track:      track,
+		Parser:     parser,
 	}
+	return ts, cleanup, nil
+}
 
-	return stream, cleanup, usedMode, nil
+func isPipeParser(parser string) bool {
+	return parser == "ytdlp-pipe" || parser == "kkdai-pipe"
 }

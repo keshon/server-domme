@@ -45,6 +45,7 @@ func (b *Bot) GetOrCreatePlayer(guildID string) *player.Player {
 
 	p := player.New(b.dg, guildID, b.storage, b.sourceResolver)
 	b.players[guildID] = p
+
 	return p
 }
 

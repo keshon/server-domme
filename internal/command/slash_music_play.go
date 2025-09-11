@@ -134,9 +134,11 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 		player.PlayNext(voiceState.ChannelID)
 	}
 
-	_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-		Content: fmt.Sprintf("🎵 Now playing: **%s**\n%s", currentTrack.Title, currentTrack.URL),
-	})
+	listenPlayerStatusSlash(session, event, player)
+
+	// _, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+	// 	Content: fmt.Sprintf("🎵 Now playing: **%s**\n%s", currentTrack.Title, currentTrack.URL),
+	// })
 
 	return nil
 }

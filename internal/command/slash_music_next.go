@@ -71,8 +71,11 @@ func (c *NextCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-		Content: "🎵 Skipped to next track.",
-	})
+	listenPlayerStatusSlash(session, event, player)
+
+	// _, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+	// 	Content: "🎵 Skipped to next track.",
+	// })
+
 	return nil
 }

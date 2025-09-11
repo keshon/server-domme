@@ -25,6 +25,7 @@ func kkdaiPipe(track *parsers.TrackParse, seekSec float64) (io.ReadCloser, func(
 	}
 
 	track.Duration = video.Duration
+	track.Title = video.Title
 
 	formats := video.Formats.WithAudioChannels()
 	if len(formats) == 0 {

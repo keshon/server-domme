@@ -1,4 +1,3 @@
-// /internal/core/stream/discord.go
 package stream
 
 import (
@@ -11,15 +10,15 @@ import (
 )
 
 func StreamToDiscord(stream io.ReadCloser, stop <-chan struct{}, vc *discordgo.VoiceConnection) error {
-	encoder, err := gopus.NewEncoder(sampleRate, channels, gopus.Audio)
+	defer stream.Close()
+
+	encoder, err := gopus.NewEncoder(SampleRate, Channels, gopus.Audio)
 	if err != nil {
 		return fmt.Errorf("encoder error: %w", err)
 	}
 
-	defer stream.Close()
-
-	pcmBuf := make([]byte, frameSize*channels*2)
-	intBuf := make([]int16, frameSize*channels)
+	pcmBuf := make([]byte, FrameSize*Channels*2)
+	intBuf := make([]int16, FrameSize*Channels)
 
 	for {
 		select {
@@ -28,6 +27,9 @@ func StreamToDiscord(stream io.ReadCloser, stop <-chan struct{}, vc *discordgo.V
 		default:
 			_, err := io.ReadFull(stream, pcmBuf)
 			if err != nil {
+				if err == io.EOF {
+					return nil
+				}
 				return fmt.Errorf("read error: %w", err)
 			}
 
@@ -35,7 +37,7 @@ func StreamToDiscord(stream io.ReadCloser, stop <-chan struct{}, vc *discordgo.V
 				intBuf[i] = int16(binary.LittleEndian.Uint16(pcmBuf[i*2 : i*2+2]))
 			}
 
-			opus, err := encoder.Encode(intBuf, frameSize, len(pcmBuf))
+			opus, err := encoder.Encode(intBuf, FrameSize, len(pcmBuf))
 			if err != nil {
 				return fmt.Errorf("encode error: %w", err)
 			}
