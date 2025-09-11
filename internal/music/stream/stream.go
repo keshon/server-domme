@@ -4,6 +4,7 @@ package stream
 import (
 	"fmt"
 	"io"
+	"log"
 	"server-domme/internal/music/parsers"
 	"server-domme/internal/music/parsers/ffmpeg"
 	"server-domme/internal/music/parsers/kkdai"
@@ -29,7 +30,29 @@ func isPipeMode(parser string) bool {
 }
 
 func AutoOpenStream(track *parsers.TrackParse) (*TrackStream, func(), string, error) {
-	return OpenStream(track, track.CurrentParser, 0)
+	var cleanup func()
+	var usedMode string
+	var errs []error
+
+	for _, parser := range track.SourceInfo.AvailableParsers {
+		track.CurrentParser = parser
+		stream, c, mode, err := OpenStream(track, parser, 0)
+		if err == nil {
+			return stream, c, mode, nil // success
+		}
+
+		errs = append(errs, fmt.Errorf("parser %s failed: %w", parser, err))
+		cleanup = c
+		usedMode = mode
+		log.Printf("Parser %s failed for track %s: %v, trying next parser...", parser, track.Title, err)
+	}
+
+	var combinedErrStr string
+	for _, e := range errs {
+		combinedErrStr += e.Error() + "; "
+	}
+
+	return nil, cleanup, usedMode, fmt.Errorf("all parsers failed for track %s: %s", track.Title, combinedErrStr)
 }
 
 type TrackStream struct {

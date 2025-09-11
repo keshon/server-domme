@@ -39,6 +39,12 @@ func (c *NextCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
+	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	}); err != nil {
+		return fmt.Errorf("failed to defer response: %w", err)
+	}
+
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
 		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
@@ -55,6 +61,8 @@ func (c *NextCommand) Run(ctx interface{}) error {
 		})
 		return nil
 	}
+
+	player.Stop(false)
 
 	if err := player.PlayNext(voiceState.ChannelID); err != nil {
 		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{

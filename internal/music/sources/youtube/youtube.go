@@ -40,26 +40,9 @@ func (y *YouTubeSource) Resolve(input string, selectedParser string) ([]source.T
 
 	input = strings.TrimSpace(input)
 
-	// playlist URL
-	if isYouTubePlaylistURL(input) {
-		urls, err := y.resolver.ExtractPlaylistVideos(input)
-		if err != nil {
-			return nil, err
-		}
-		var tracks []source.TrackInfo
-		for _, u := range urls {
-			tracks = append(tracks, source.TrackInfo{
-				URL:              u,
-				Title:            "",
-				SourceName:       SourceYouTube,
-				AvailableParsers: MoveToFront(parsers, selectedParser),
-			})
-		}
-		return tracks, nil
-	}
-
 	// direct video URL
 	if isYouTubeVideoURL(input) {
+		input = CleanVideoURL(input)
 		return []source.TrackInfo{
 			{
 				URL:              input,

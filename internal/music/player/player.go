@@ -14,7 +14,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// Output defines playback output
 type Output int
 
 const (
@@ -22,7 +21,6 @@ const (
 	OutputSpeaker
 )
 
-// PlayerStatus defines playback-related signals
 type PlayerStatus string
 
 const (
@@ -43,19 +41,15 @@ func (status PlayerStatus) StringEmoji() string {
 		StatusResumed: "▶️",
 		StatusError:   "❌",
 	}
-
 	return m[status]
 }
 
-// Errors
 var (
 	ErrNoTrackPlaying  = errors.New("no track is currently playing")
 	ErrNoTracksInQueue = errors.New("no tracks in queue")
 )
 
-// Player handles playback logic per guild
 type Player struct {
-	// Core state
 	mu           sync.Mutex
 	playing      bool
 	currTrack    *parsers.TrackParse
@@ -64,41 +58,42 @@ type Player struct {
 	output       Output
 	ListenerOnce sync.Once
 
-	// Dependencies
 	resolver *source_resolver.SourceResolver
 	store    *storage.Storage
 
 	dg *discordgo.Session
 
-	// Discord context
 	guildID   string
 	channelID string
 	vc        *discordgo.VoiceConnection
 
-	// Playback control
+	stopOnce     sync.Once
 	stopPlayback chan struct{}
+	playbackDone chan struct{}
 	PlayerStatus chan PlayerStatus
 }
 
 // New creates a new Player instance
-func New(dg *discordgo.Session, guildID string, store *storage.Storage, sourceResolver *source_resolver.SourceResolver) *Player {
+func New(dg *discordgo.Session, guildID string, store *storage.Storage, resolver *source_resolver.SourceResolver) *Player {
 	return &Player{
 		dg:           dg,
 		guildID:      guildID,
 		store:        store,
-		resolver:     sourceResolver,
+		resolver:     resolver,
 		queue:        make([]parsers.TrackParse, 0),
 		history:      make([]parsers.TrackParse, 0),
 		stopPlayback: make(chan struct{}),
-		PlayerStatus: make(chan PlayerStatus, 5),
+		playbackDone: make(chan struct{}),
+		PlayerStatus: make(chan PlayerStatus, 10), // buffered to reduce drops
 	}
 }
 
-// Public Methods – Queue / Playback API
-
+// Enqueue adds tracks to the queue
 func (p *Player) Enqueue(input string, source string, parser string) error {
+	log.Printf("[Player] Enqueue called | input=%q source=%q parser=%q", input, source, parser)
 	tracksInfo, err := p.resolver.Resolve(input, source, parser)
 	if err != nil {
+		log.Printf("[Player] Failed to resolve tracks: %v", err)
 		p.emitStatus(StatusError)
 		return err
 	}
@@ -117,51 +112,97 @@ func (p *Player) Enqueue(input string, source string, parser string) error {
 	}
 
 	p.queue = append(p.queue, tracksParse...)
+	log.Printf("[Player] Added %d track(s) to queue | QueueLen=%d", len(tracksParse), len(p.queue))
 	if p.currTrack != nil {
 		p.emitStatus(StatusAdded)
 	}
 	return nil
 }
 
+// PlayNext stops current track (if any) and plays the next in queue// PlayNext stops current track (if any) and plays the next in queue
 func (p *Player) PlayNext(channelID string) error {
-	p.mu.Lock()
-	if len(p.queue) == 0 {
+	log.Printf("[Player] PlayNext called | QueueLen=%d", len(p.queue))
+	for {
+		p.mu.Lock()
+		if len(p.queue) == 0 {
+			p.mu.Unlock()
+			log.Printf("[Player] Queue is empty, nothing to play")
+			return ErrNoTracksInQueue
+		}
+
+		track := p.queue[0]
+		p.queue = p.queue[1:]
+		p.channelID = channelID
 		p.mu.Unlock()
-		return ErrNoTracksInQueue
+
+		log.Printf("[Player] Attempting to play track %q (%s)", track.Title, track.URL)
+
+		if p.IsPlaying() {
+			log.Printf("[Player] Stopping current track before playing next")
+			_ = p.Stop(false)
+		}
+
+		err := p.startTrack(&track, false)
+		if err != nil {
+			log.Printf("[Player] Skipping track %q due to error: %v", track.Title, err)
+			continue // try next track
+		}
+
+		p.mu.Lock()
+		p.currTrack = &track
+		p.playing = true
+		p.history = append(p.history, track)
+		p.mu.Unlock()
+
+		log.Printf("[Player] Now playing track %q | QueueLen=%d", track.Title, len(p.queue))
+		return nil
 	}
-
-	track := p.queue[0]
-	p.queue = p.queue[1:]
-	p.channelID = channelID
-	p.currTrack = &track
-	p.playing = true
-	p.history = append(p.history, track)
-	p.mu.Unlock()
-
-	return p.startTrack(&track, false)
 }
 
-func (p *Player) Stop() error {
+// Stop safely stops current playback
+func (p *Player) Stop(exitVc bool) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.playing {
+		p.mu.Unlock()
+		log.Printf("[Player] Stop called but no track is playing")
 		return ErrNoTrackPlaying
 	}
-	close(p.stopPlayback)
+	p.mu.Unlock()
+
+	log.Printf("[Player] Stop called | exitVc=%v", exitVc)
+
+	p.stopOnce.Do(func() {
+		close(p.stopPlayback)
+	})
+
+	<-p.playbackDone // wait for goroutine to finish
+	log.Printf("[Player] Playback goroutine finished")
+
+	p.mu.Lock()
 	p.playing = false
 	p.currTrack = nil
 
-	if p.vc != nil {
-		p.vc.Disconnect()
-		p.vc = nil
+	if exitVc {
+		log.Printf("[Player] Exiting voice channel and clearing queue")
+		p.queue = nil
+		p.channelID = ""
+		if p.vc != nil {
+			p.vc.Disconnect()
+			p.vc = nil
+		}
 	}
 
 	p.stopPlayback = make(chan struct{})
+	p.playbackDone = make(chan struct{})
+	p.stopOnce = sync.Once{}
 	p.emitStatus(StatusStopped)
+	p.mu.Unlock()
+
+	log.Printf("[Player] Stop finished")
 	return nil
 }
 
+// Pause pauses playback
 func (p *Player) Pause() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -174,25 +215,29 @@ func (p *Player) Pause() error {
 	return nil
 }
 
+// Resume resumes playback
 func (p *Player) Resume() error {
 	p.mu.Lock()
 	if p.currTrack == nil {
 		p.mu.Unlock()
 		return ErrNoTrackPlaying
 	}
-	p.playing = true
 	track := p.currTrack
+	p.playing = true
 	p.mu.Unlock()
 
+	// Restart playback for resume
 	return p.startTrack(track, true)
 }
 
+// IsPlaying returns current playback state
 func (p *Player) IsPlaying() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.playing
 }
 
+// CurrentTrack returns currently playing track
 func (p *Player) CurrentTrack() (*parsers.TrackParse, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -203,68 +248,73 @@ func (p *Player) CurrentTrack() (*parsers.TrackParse, error) {
 	return p.currTrack, nil
 }
 
+// Queue returns a copy of current queue
 func (p *Player) Queue() []parsers.TrackParse {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Clone(p.queue)
 }
 
+// History returns a copy of played tracks
 func (p *Player) History() []parsers.TrackParse {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Clone(p.history)
 }
 
-// Internal Methods – Playback & Voice
-
-// startTrack handles opening stream and starting playback goroutine
+// startTrack launches playback goroutine
 func (p *Player) startTrack(track *parsers.TrackParse, resumed bool) error {
-	log.Printf("Preparing playback for track: %s (%s)", track.Title, track.URL)
+	log.Printf("[Player] Preparing playback for track: %q (%s) | CurrentParser=%s | QueueLen=%d",
+		track.Title, track.URL, track.CurrentParser, len(p.queue))
 
 	currStream, cleanup, usedStreamMode, err := stream.AutoOpenStream(track)
 	if err != nil {
+		log.Printf("[Player] Failed to open stream for track %q: %v", track.Title, err)
 		p.emitStatus(StatusError)
 		return fmt.Errorf("failed to create PCM stream for track: %w", err)
 	}
 
+	log.Printf("[Player] Stream opened successfully for track %q with parser %s", track.Title, usedStreamMode)
 	track.CurrentParser = usedStreamMode
 
 	if resumed {
 		p.emitStatus(StatusResumed)
+		log.Printf("[Player] Resuming track %q", track.Title)
 	} else {
 		p.emitStatus(StatusPlaying)
+		log.Printf("[Player] Starting track %q", track.Title)
 	}
 
 	go func() {
 		if err := p.runPlayback(currStream, cleanup); err != nil {
-			log.Printf("Playback error in goroutine: %v", err)
+			log.Printf("[Player] Playback error for track %q: %v", track.Title, err)
 		}
 	}()
 
 	return nil
 }
 
-// runPlayback starts playback in a separate goroutine
+// runPlayback handles actual streaming
 func (p *Player) runPlayback(currStream *stream.TrackStream, cleanup func()) error {
 	defer cleanup()
+	defer func() { close(p.playbackDone) }()
 
 	var err error
+	log.Printf("[Player] Running playback for track: %q", currStream.GetTrack().Title)
+
 	switch p.output {
 	case OutputSpeaker:
-		// err = stream.StreamToSpeaker(currStream, p.stopPlayback)
+		log.Printf("[Player] Output mode: Speaker (not implemented)")
 	default:
 		vc, vErr := p.getOrCreateVoiceConnection()
 		if vErr != nil {
 			err = vErr
+			log.Printf("[Player] Failed to get/create voice connection: %v", err)
 		} else {
 			p.vc = vc
+			log.Printf("[Player] Streaming to Discord VC: channel=%s guild=%s", p.vc.ChannelID, p.guildID)
 			stream.StreamToDiscord(currStream, p.stopPlayback, vc)
 		}
-	}
-
-	if err != nil {
-		err = fmt.Errorf("playback error: %w", err)
-		p.emitStatus(StatusError)
 	}
 
 	p.mu.Lock()
@@ -272,35 +322,46 @@ func (p *Player) runPlayback(currStream *stream.TrackStream, cleanup func()) err
 	p.currTrack = nil
 	p.mu.Unlock()
 
-	log.Println("Playback finished")
-	p.emitStatus(StatusStopped)
+	if err != nil {
+		err = fmt.Errorf("playback error: %w", err)
+		p.emitStatus(StatusError)
+		log.Printf("[Player] Playback finished with error: %v", err)
+	} else {
+		log.Printf("[Player] Playback finished successfully")
+		p.emitStatus(StatusStopped)
+	}
 
 	return err
 }
 
+// getOrCreateVoiceConnection joins or reuses existing VC
 func (p *Player) getOrCreateVoiceConnection() (*discordgo.VoiceConnection, error) {
 	if p.channelID == "" {
 		return nil, errors.New("voice channel ID is not set")
+	}
+
+	if p.vc != nil && p.vc.ChannelID == p.channelID {
+		return p.vc, nil // reuse
 	}
 
 	vc, err := p.dg.ChannelVoiceJoin(p.guildID, p.channelID, false, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to join voice channel: %w", err)
 	}
-	log.Printf("Joined voice channel %s on guild %s", p.channelID, p.guildID)
+	log.Printf("[Player] Joined voice channel %s on guild %s", p.channelID, p.guildID)
 	return vc, nil
 }
 
-// Internal Method – Signal helper
-
+// emitStatus safely sends player status
 func (p *Player) emitStatus(status PlayerStatus) {
 	select {
 	case p.PlayerStatus <- status:
 	default:
-		log.Printf("Player status signal dropped (channel full) - %s", status)
+		log.Printf("[Player] Player status signal dropped (channel full) - %s", status)
 	}
 }
 
+// SetOutput sets playback output
 func (p *Player) SetOutput(mode Output) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

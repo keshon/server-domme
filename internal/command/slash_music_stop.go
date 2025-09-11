@@ -43,7 +43,7 @@ func (c *StopCommand) Run(ctx interface{}) error {
 	}
 
 	player := c.Bot.GetOrCreatePlayer(guildID)
-	player.Stop()
+	player.Stop(true)
 
 	_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 		Content: "🎵 Playback stopped and queue cleared.",

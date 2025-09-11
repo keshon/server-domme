@@ -38,7 +38,7 @@ func (c *PlayCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "source",
-				Description: "Source to use",
+				Description: "Source to use if song name is given",
 				Required:    false,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{Name: "youtube", Value: "youtube"},
@@ -49,14 +49,14 @@ func (c *PlayCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "parser",
-				Description: "Parser to use",
+				Description: "Parser to use (overrides autodetect)",
 				Required:    false,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{Name: "ytdlp as pipe", Value: "ytdlp-pipe"},
-					{Name: "ytdlp as link", Value: "ytdlp-link"},
-					{Name: "kkdai as pipe", Value: "kkdai-pipe"},
-					{Name: "kkdai as link", Value: "kkdai-link"},
-					{Name: "ffmpeg direct", Value: "ffmpeg-link"},
+					{Name: "ytdlp pipe", Value: "ytdlp-pipe"},
+					{Name: "ytdlp link", Value: "ytdlp-link"},
+					{Name: "kkdai pipe", Value: "kkdai-pipe"},
+					{Name: "kkdai link", Value: "kkdai-link"},
+					{Name: "ffmpeg direct link", Value: "ffmpeg-link"},
 				},
 			},
 		},
@@ -76,7 +76,6 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	// Log command use
 	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
 		log.Println("Failed to log:", err)
 	}
@@ -104,14 +103,12 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 		})
 	}
 
-	// Respond immediately to avoid 404 (deferred = "thinking…")
 	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	}); err != nil {
 		return fmt.Errorf("failed to send deferred response: %w", err)
 	}
 
-	// Check if user is in voice channel
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
 		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
@@ -120,7 +117,6 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	// Resolve track(s)
 	resolver := source_resolver.New()
 	tracks, err := resolver.Resolve(input, selectedSource, selectedParser)
 	if err != nil || len(tracks) == 0 {
@@ -132,12 +128,12 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 
 	currentTrack := tracks[0]
 
-	// Get or create player for this guild
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	player.Enqueue(currentTrack.URL, selectedSource, selectedParser)
-	player.PlayNext(voiceState.ChannelID)
+	if !player.IsPlaying() {
+		player.PlayNext(voiceState.ChannelID)
+	}
 
-	// Final message
 	_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 		Content: fmt.Sprintf("🎵 Now playing: **%s**\n%s", currentTrack.Title, currentTrack.URL),
 	})
