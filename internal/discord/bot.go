@@ -121,6 +121,10 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	log.Println("[INFO] Starting scheduled purge jobs...")
 	startScheduledPurgeJobs(b.storage, s)
 
+	if err := updateReadme(); err != nil {
+		log.Println("[ERR] Failed to update README:", err)
+	}
+
 	log.Printf("[INFO] ✅ Discord bot %v is running.", botInfo.Username)
 }
 
