@@ -46,7 +46,14 @@ func updateReadme() error {
 			currentCategory = cmd.Category()
 			buf.WriteString(fmt.Sprintf("### %s\n\n", currentCategory))
 		}
-		buf.WriteString(fmt.Sprintf("- **/%s** — %s\n", cmd.Name(), cmd.Description()))
+
+		name := cmd.Name()
+		display := name
+		if !(hasSpace(name) || startsWithUpper(name)) {
+			display = "/" + display
+		}
+
+		buf.WriteString(fmt.Sprintf("- **%s** — %s\n", display, cmd.Description()))
 	}
 
 	tmplPath := filepath.Join(".", "README.md.tmpl")
@@ -73,4 +80,21 @@ func updateReadme() error {
 
 	log.Println("[INFO] README.md updated with current commands")
 	return nil
+}
+
+func hasSpace(s string) bool {
+	for _, r := range s {
+		if r == ' ' {
+			return true
+		}
+	}
+	return false
+}
+
+func startsWithUpper(s string) bool {
+	if s == "" {
+		return false
+	}
+	r := rune(s[0])
+	return r >= 'A' && r <= 'Z'
 }

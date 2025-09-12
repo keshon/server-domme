@@ -36,8 +36,8 @@ It’s designed to be practical for server management while providing light, int
 
 ### 📢 Utilities
 
-- **/Announce** — Send a message to the announcement channel
-- **/translate (reaction)** — Translate message on flag emoji reaction
+- **Announce** — Send a message to the announcement channel (context command)
+- **translate (reaction)** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
 
@@ -53,7 +53,7 @@ It’s designed to be practical for server management while providing light, int
 
 ### 💬 Chat
 
-- **/chat** — Responds when bot is mentioned (just a test)
+- **mention bot** — Talk to the bot when it is mentioned
 
 ### 🧹 Cleanup
 

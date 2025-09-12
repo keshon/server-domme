@@ -16,9 +16,11 @@ import (
 
 type AnnounceCommand struct{}
 
-func (c *AnnounceCommand) Name() string        { return "Announce" }
-func (c *AnnounceCommand) Description() string { return "Send a message to the announcement channel" }
-func (c *AnnounceCommand) Aliases() []string   { return []string{} }
+func (c *AnnounceCommand) Name() string { return "Announce" }
+func (c *AnnounceCommand) Description() string {
+	return "Send a message to the announcement channel (context command)"
+}
+func (c *AnnounceCommand) Aliases() []string { return []string{} }
 
 func (c *AnnounceCommand) Group() string    { return "announce" }
 func (c *AnnounceCommand) Category() string { return "📢 Utilities" }
