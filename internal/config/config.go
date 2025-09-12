@@ -14,6 +14,8 @@ type Config struct {
 	ProtectedUsers    []string `env:"PROTECTED_USERS" envSeparator:","`
 	DeveloperID       string   `env:"DEVELOPER_ID"`
 	InitSlashCommands bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
+	AIProvider        string   `env:"AI_PROVIDER"`
+	AIPromtPath       string   `env:"AI_PROMPT_PATH"`
 }
 
 func New() *Config {

@@ -12,4 +12,6 @@ services:
       - PROTECTED_USERS=${PROTECTED_USERS}
       - DEVELOPER_ID=${DEVELOPER_ID}
       - INIT_SLASH_COMMANDS=${INIT_SLASH_COMMANDS}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - AI_PROMPT_PATH=${AI_PROMPT_PATH}
     entrypoint: /usr/project/app
