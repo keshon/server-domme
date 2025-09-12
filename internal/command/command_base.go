@@ -29,6 +29,10 @@ type ComponentHandler interface {
 	Component(*ComponentContext) error
 }
 
+type MessageHandler interface {
+	Message(*MessageContext) error
+}
+
 type SlashContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate
@@ -53,4 +57,10 @@ type MessageApplicationContext struct {
 	Event   *discordgo.InteractionCreate
 	Storage *storage.Storage
 	Target  *discordgo.Message
+}
+
+type MessageContext struct {
+	Session *discordgo.Session
+	Event   *discordgo.MessageCreate
+	Storage *storage.Storage
 }

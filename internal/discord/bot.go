@@ -42,6 +42,7 @@ func (b *Bot) run(ctx context.Context, token string) error {
 
 	b.configureIntents()
 	dg.AddHandler(b.onReady)
+	dg.AddHandler(b.onMessageCreate)
 	dg.AddHandler(b.onMessageReactionAdd)
 	dg.AddHandler(b.onInteractionCreate)
 
@@ -82,6 +83,39 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	startScheduledPurgeJobs(b.storage, s)
 
 	log.Printf("[INFO] ✅ Discord bot %v is running.", botInfo.Username)
+}
+
+func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// Ignore bot’s own messages
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+
+	// Only react if the bot was mentioned
+	mentioned := false
+	for _, user := range m.Mentions {
+		if user.ID == s.State.User.ID {
+			mentioned = true
+			break
+		}
+	}
+	if !mentioned {
+		return
+	}
+
+	// Run all commands that implement MessageHandler
+	for _, cmd := range command.All() {
+		if msgHandler, ok := cmd.(command.MessageHandler); ok {
+			ctx := &command.MessageContext{
+				Session: s,
+				Event:   m,
+				Storage: b.storage,
+			}
+			if err := msgHandler.Message(ctx); err != nil {
+				log.Printf("[ERR] Error running message command %s: %v", cmd.Name(), err)
+			}
+		}
+	}
 }
 
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
