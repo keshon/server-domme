@@ -91,16 +91,21 @@ func (rs *RecoveryStream) shouldRecover() bool {
 		return false
 	}
 
-	// Track duration available: recover if stopped too early
+	// Normalize duration (seconds)
+	var durSec float64
 	if rs.track.Duration > 0 {
-		if rs.seekSec < 0.95*float64(rs.track.Duration) {
-			log.Printf("[RecoveryStream] Early EOF detected (%.2f/%.2f), will attempt recovery", rs.seekSec, float64(rs.track.Duration))
+		durSec = float64(rs.track.Duration) / float64(1e9) // if stored in ns
+	}
+
+	if durSec > 0 {
+		if rs.seekSec < 0.95*durSec {
+			log.Printf("[RecoveryStream] Early EOF detected (%.2f/%.2f), will attempt recovery", rs.seekSec, durSec)
 			return true
 		}
 		return false
 	}
 
-	// No duration info: recover if it's the first read or immediate EOF mid-stream
+	// No duration: only recover on immediate EOF
 	if rs.firstRead || rs.seekSec < 1.0 {
 		log.Printf("[RecoveryStream] Early EOF detected without duration, attempting recovery")
 		return true
