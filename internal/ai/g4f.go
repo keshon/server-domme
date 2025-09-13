@@ -1,3 +1,4 @@
+// g4f.go
 package ai
 
 import (
@@ -7,28 +8,53 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
 
 type G4FProvider struct {
 	baseURL string
+	model   string
 	client  *http.Client
 }
 
-func NewG4FProvider() *G4FProvider {
-	base := "https://g4f.dev/api/gpt-oss-120b"
+func NewG4FProvider(engine string) *G4FProvider {
+	// engine examples:
+	//   g4f:gpt-oss-120b
+	//   g4f:groq/qwen/qwen3-32b
+	//   g4f:ollama/gpt-oss:20b
+	parts := strings.SplitN(engine, ":", 2)
+	if len(parts) != 2 {
+		// fallback to legacy
+		parts = []string{"g4f", "gpt-oss-120b"}
+	}
+	target := parts[1]
+
+	var base, model string
+	switch {
+	case strings.HasPrefix(target, "groq/"):
+		base = "https://g4f.dev/api/groq"
+		model = strings.TrimPrefix(target, "groq/")
+	case strings.HasPrefix(target, "ollama/"):
+		base = "https://g4f.dev/api/ollama"
+		model = strings.TrimPrefix(target, "ollama/")
+	default:
+		// default OSS
+		base = "https://g4f.dev/api/gpt-oss-120b"
+		model = target
+	}
+
 	return &G4FProvider{
 		baseURL: base,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		model:   model,
+		client:  &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
 func (p *G4FProvider) Generate(messages []Message) (string, error) {
 	payload := map[string]interface{}{
-		"model":    "gpt-oss-120b",
+		"model":    p.model,
 		"messages": messages,
 	}
 	bodyBytes, _ := json.Marshal(payload)
@@ -62,12 +88,18 @@ func (p *G4FProvider) Generate(messages []Message) (string, error) {
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", err
+		return "", fmt.Errorf("unmarshal: %w body=%s", err, string(respBody))
 	}
 	if len(parsed.Choices) == 0 {
 		return "No answer 🤐", nil
 	}
 	reply := strings.TrimSpace(parsed.Choices[0].Message.Content)
+
+	// strip any <think>...</think> blocks
+	re := regexp.MustCompile(`(?s)<think>.*?</think>`)
+	reply = re.ReplaceAllString(reply, "")
+	reply = strings.TrimSpace(reply)
+
 	if len(reply) > 1800 {
 		reply = reply[:1800] + "\n\n[truncated]"
 	}
