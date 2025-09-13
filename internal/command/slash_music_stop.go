@@ -43,7 +43,10 @@ func (c *StopCommand) Run(ctx interface{}) error {
 	}
 
 	player := c.Bot.GetOrCreatePlayer(guildID)
-	player.Stop(true)
+
+	go func() {
+		player.Stop(true)
+	}()
 
 	_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 		Embeds: []*discordgo.MessageEmbed{{

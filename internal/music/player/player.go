@@ -66,6 +66,7 @@ type Player struct {
 	channelID string
 	vc        *discordgo.VoiceConnection
 
+	// playback lifecycle channels and sync
 	stopOnce     sync.Once
 	stopPlayback chan struct{}
 	playbackDone chan struct{}
@@ -160,22 +161,20 @@ func (p *Player) PlayNext(channelID string) error {
 
 // Stop safely stops current playback
 func (p *Player) Stop(exitVc bool) error {
-	p.mu.Lock()
-	if !p.playing {
-		p.mu.Unlock()
-		log.Printf("[Player] Stop called but no track is playing")
-		return ErrNoTrackPlaying
-	}
-	p.mu.Unlock()
 
 	log.Printf("[Player] Stop called | exitVc=%v", exitVc)
 
+	// ensure stopPlayback is closed once
 	p.stopOnce.Do(func() {
+		// safe: close existing stopPlayback only once
 		close(p.stopPlayback)
 	})
 
-	<-p.playbackDone // wait for goroutine to finish
-	log.Printf("[Player] Playback goroutine finished")
+	// wait only if something is playing
+	if p.IsPlaying() {
+		<-p.playbackDone
+		log.Printf("[Player] Playback goroutine finished")
+	}
 
 	p.mu.Lock()
 	p.playing = false
@@ -191,6 +190,7 @@ func (p *Player) Stop(exitVc bool) error {
 		}
 	}
 
+	// reinitialize channels and stopOnce for next playback session
 	p.stopPlayback = make(chan struct{})
 	p.playbackDone = make(chan struct{})
 	p.stopOnce = sync.Once{}
@@ -257,84 +257,20 @@ func (p *Player) History() []parsers.TrackParse {
 	return slices.Clone(p.history)
 }
 
-// // startTrack launches playback goroutine
-// func (p *Player) startTrack(track *parsers.TrackParse, resumed bool) error {
-// 	log.Printf("[Player] Preparing playback for track: %q (%s) | CurrentParser=%s | QueueLen=%d",
-// 		track.Title, track.URL, track.CurrentParser, len(p.queue))
-
-// 	currStream, cleanup, usedStreamMode, err := stream.OpenTrack(track, 0)
-// 	if err != nil {
-// 		log.Printf("[Player] Failed to open stream for track %q: %v", track.Title, err)
-// 		p.emitStatus(StatusError)
-// 		return fmt.Errorf("failed to create PCM stream for track: %w", err)
-// 	}
-
-// 	log.Printf("[Player] Stream opened successfully for track %q with parser %s", track.Title, usedStreamMode)
-// 	track.CurrentParser = usedStreamMode
-
-// 	if resumed {
-// 		p.emitStatus(StatusResumed)
-// 		log.Printf("[Player] Resuming track %q", track.Title)
-// 	} else {
-// 		p.emitStatus(StatusPlaying)
-// 		log.Printf("[Player] Starting track %q", track.Title)
-// 	}
-
-// 	go func() {
-// 		if err := p.runPlayback(currStream, cleanup); err != nil {
-// 			log.Printf("[Player] Playback error for track %q: %v", track.Title, err)
-// 		}
-// 	}()
-
-//		return nil
-//	}
-
-// runPlayback handles actual streaming
-// func (p *Player) runPlayback(currStream *stream.TrackStream, cleanup func()) error {
-// 	defer cleanup()
-// 	defer func() { close(p.playbackDone) }()
-
-// 	var err error
-// 	log.Printf("[Player] Running playback for track: %q", currStream.GetTrack().Title)
-
-// 	switch p.output {
-// 	case OutputSpeaker:
-// 		log.Printf("[Player] Output mode: Speaker (not implemented)")
-// 	default:
-// 		vc, vErr := p.getOrCreateVoiceConnection()
-// 		if vErr != nil {
-// 			err = vErr
-// 			log.Printf("[Player] Failed to get/create voice connection: %v", err)
-// 		} else {
-// 			p.vc = vc
-// 			log.Printf("[Player] Streaming to Discord VC: channel=%s guild=%s", p.vc.ChannelID, p.guildID)
-// 			stream.StreamToDiscord(currStream, p.stopPlayback, vc)
-// 		}
-// 	}
-
-// 	p.mu.Lock()
-// 	p.playing = false
-// 	p.currTrack = nil
-// 	p.mu.Unlock()
-
-// 	if err != nil {
-// 		err = fmt.Errorf("playback error: %w", err)
-// 		p.emitStatus(StatusError)
-// 		log.Printf("[Player] Playback finished with error: %v", err)
-// 	} else {
-// 		log.Printf("[Player] Playback stopped due to: %v", err)
-// 		p.emitStatus(StatusStopped)
-// 	}
-
-// 	return err
-// }
-
 // startTrack launches playback goroutine
 func (p *Player) startTrack(track *parsers.TrackParse, resumed bool) error {
 	log.Printf("[Player] Preparing playback for track: %q (%s) | CurrentParser=%s | QueueLen=%d",
 		track.Title, track.URL, track.CurrentParser, len(p.queue))
 
-	rs := stream.NewRecoveryStream(track) // <- your new recovery stream
+	// Reinitialize lifecycle channels for this playback run.
+	// We do this under lock so there is no race between Stop() and a new start.
+	p.mu.Lock()
+	p.stopPlayback = make(chan struct{})
+	p.playbackDone = make(chan struct{})
+	p.stopOnce = sync.Once{}
+	p.mu.Unlock()
+
+	rs := stream.NewRecoveryStream(track)
 	if err := rs.Open(0); err != nil {
 		log.Printf("[Player] Failed to open resilient stream: %v", err)
 		return err
@@ -352,8 +288,15 @@ func (p *Player) startTrack(track *parsers.TrackParse, resumed bool) error {
 	p.playing = true
 
 	go func() {
+		// runPlayback will close p.playbackDone (the channel set above) exactly once.
 		if err := p.runPlayback(rs); err != nil {
 			log.Printf("[Player] Playback error for track %q: %v", track.Title, err)
+		}
+
+		// Attempt to play next track automatically (if any). If no tracks, PlayNext returns ErrNoTracksInQueue.
+		// We ignore the error here because empty queue is fine; PlayNext has its own logging.
+		if nextErr := p.PlayNext(p.channelID); nextErr != nil && errors.Is(nextErr, ErrNoTracksInQueue) {
+			// nothing queued; nothing to do
 		}
 	}()
 
@@ -362,11 +305,32 @@ func (p *Player) startTrack(track *parsers.TrackParse, resumed bool) error {
 
 // runPlayback handles actual streaming
 func (p *Player) runPlayback(rs io.ReadCloser) error {
+	// Ensure we close stream and signal done exactly once.
 	defer rs.Close()
-	defer func() { close(p.playbackDone) }()
+
+	// close the playbackDone channel for the run under lock, but only if it still matches.
+	defer func() {
+		p.mu.Lock()
+		// close if non-nil and not already closed; setting to nil prevents future close attempts
+		if p.playbackDone != nil {
+			close(p.playbackDone)
+			p.playbackDone = nil
+		}
+		p.mu.Unlock()
+	}()
 
 	var err error
-	log.Printf("[Player] Running playback for track: %q", p.currTrack.Title)
+	// Guard access to currTrack safely for logging
+	p.mu.Lock()
+	ct := p.currTrack
+	p.mu.Unlock()
+
+	title := "(unknown)"
+	if ct != nil {
+		title = ct.Title
+	}
+
+	log.Printf("[Player] Running playback for track: %q", title)
 
 	switch p.output {
 	case OutputSpeaker:
@@ -375,7 +339,7 @@ func (p *Player) runPlayback(rs io.ReadCloser) error {
 		vc, vErr := p.getOrCreateVoiceConnection()
 		if vErr != nil {
 			err = vErr
-			log.Printf("[Player] Failed to get/create voice connection: %v", err)
+			log.Printf("[Player] Failed to get/create voice connection: %v", vErr)
 		} else {
 			p.vc = vc
 			log.Printf("[Player] Streaming to Discord VC: channel=%s guild=%s", p.vc.ChannelID, p.guildID)
@@ -398,6 +362,13 @@ func (p *Player) runPlayback(rs io.ReadCloser) error {
 	} else {
 		log.Printf("[Player] Playback stopped")
 		p.emitStatus(StatusStopped)
+	}
+
+	// Auto-stop (disconnect) when queue empty
+	if len(p.Queue()) == 0 {
+		log.Printf("[Player] Queue empty after track, auto-stopping player")
+		// call Stop(true) but ignore its error here
+		_ = p.Stop(true)
 	}
 
 	return err
