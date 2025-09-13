@@ -87,6 +87,7 @@ func DefaultProvider() Provider {
 		"g4f:ollama/deepseek-v3.1:671b",
 		"g4f:ollama/gpt-oss:120b",
 		"g4f:ollama/gpt-oss:20b",
+		"pollinations",
 	}
 
 	// If user set preferred engine, put it first in the list
