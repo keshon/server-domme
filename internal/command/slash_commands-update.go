@@ -11,9 +11,9 @@ type CommandUpdate struct{}
 
 func (c *CommandUpdate) Name() string        { return "commands-update" }
 func (c *CommandUpdate) Description() string { return "Re-register or update slash commands" }
-func (c *CommandUpdate) Aliases() []string   { return nil }
-func (c *CommandUpdate) Group() string       { return "maintenance" }
-func (c *CommandUpdate) Category() string    { return "🛠️ Maintenance" }
+func (c *CommandUpdate) Aliases() []string   { return []string{} }
+func (c *CommandUpdate) Group() string       { return "core" }
+func (c *CommandUpdate) Category() string    { return "⚙️ Settings" }
 func (c *CommandUpdate) RequireAdmin() bool  { return true }
 func (c *CommandUpdate) RequireDev() bool    { return true }
 
