@@ -100,10 +100,10 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&PunishCommand{},
-			),
+		core.ApplyMiddlewares(
+			&PunishCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

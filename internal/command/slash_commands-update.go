@@ -51,10 +51,10 @@ func (c *CommandUpdate) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&CommandUpdate{},
-			),
+		core.ApplyMiddlewares(
+			&CommandUpdate{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

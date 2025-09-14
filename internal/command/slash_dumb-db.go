@@ -85,10 +85,10 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&DumpDBCommand{},
-			),
+		core.ApplyMiddlewares(
+			&DumpDBCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

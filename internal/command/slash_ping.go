@@ -56,10 +56,10 @@ func (c *PingCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&PingCommand{},
-			),
+		core.ApplyMiddlewares(
+			&PingCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

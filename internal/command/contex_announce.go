@@ -169,10 +169,10 @@ func restoreMentions(s *discordgo.Session, guildID, content string) string {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&AnnounceCommand{},
-			),
+		core.ApplyMiddlewares(
+			&AnnounceCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

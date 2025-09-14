@@ -119,10 +119,10 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&DumpTasksCommand{},
-			),
+		core.ApplyMiddlewares(
+			&DumpTasksCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

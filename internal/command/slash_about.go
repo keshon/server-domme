@@ -122,10 +122,10 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&AboutCommand{},
-			),
+		core.ApplyMiddlewares(
+			&AboutCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

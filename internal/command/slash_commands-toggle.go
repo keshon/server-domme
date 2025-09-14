@@ -101,10 +101,10 @@ func (c *CommandsToggleCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&CommandsToggleCommand{},
-			),
+		core.ApplyMiddlewares(
+			&CommandsToggleCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

@@ -16,7 +16,7 @@ func GetCommand(name string) (Command, bool) {
 
 func AllCommands() []Command {
 	seen := map[string]bool{}
-	var list []Command
+	list := make([]Command, 0)
 	for _, cmd := range registry {
 		if seen[cmd.Name()] {
 			continue

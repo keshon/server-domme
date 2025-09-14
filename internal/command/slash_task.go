@@ -390,10 +390,10 @@ func randomLine(list []string) string {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&TaskCommand{},
-			),
+		core.ApplyMiddlewares(
+			&TaskCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

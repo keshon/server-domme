@@ -9,26 +9,31 @@ import (
 )
 
 func (b *Bot) registerMusicCommands() {
-	play := &command.PlayCommand{Bot: b}
+
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(play),
+		core.ApplyMiddlewares(
+			&command.PlayCommand{Bot: b},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 
-	stop := &command.StopCommand{Bot: b}
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(stop),
+		core.ApplyMiddlewares(
+			&command.StopCommand{Bot: b},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 
-	next := &command.NextCommand{Bot: b}
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(next),
+		core.ApplyMiddlewares(
+			&command.NextCommand{Bot: b},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
+
 }
 
 func (b *Bot) GetOrCreatePlayer(guildID string) *player.Player {

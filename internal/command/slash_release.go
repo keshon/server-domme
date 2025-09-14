@@ -90,10 +90,10 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&ReleaseCommand{},
-			),
+		core.ApplyMiddlewares(
+			&ReleaseCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

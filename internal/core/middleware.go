@@ -6,8 +6,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var _ ComponentHandler = (*wrappedCommand)(nil)
-
 type Middleware func(Command) Command
 
 func WithGroupAccessCheck() Middleware {
@@ -17,33 +15,19 @@ func WithGroupAccessCheck() Middleware {
 			wrap: func(ctx interface{}) error {
 				var guildID string
 				var storage *storage.Storage
-				var respond func(msg string)
 
 				switch v := ctx.(type) {
 				case *SlashContext:
 					guildID = v.Event.GuildID
 					storage = v.Storage
-					respond = func(msg string) {
-						RespondEphemeral(v.Session, v.Event, msg)
-					}
+
+				case *MessageContext:
+					guildID = v.Event.GuildID
+					storage = v.Storage
+
 				case *ComponentContext:
 					guildID = v.Event.GuildID
 					storage = v.Storage
-					respond = func(msg string) {
-						RespondEphemeral(v.Session, v.Event, msg)
-					}
-				case *ReactionContext:
-					guildID = v.Reaction.GuildID
-					storage = v.Storage
-					respond = func(msg string) {
-						// need to add sending DM or log to channel
-					}
-				case *MessageApplicationContext:
-					guildID = v.Event.GuildID
-					storage = v.Storage
-					respond = func(msg string) {
-						RespondEphemeral(v.Session, v.Event, msg)
-					}
 				default:
 					return cmd.Run(ctx)
 				}
@@ -51,35 +35,47 @@ func WithGroupAccessCheck() Middleware {
 				if cmd.Group() != "" {
 					disabled, err := storage.IsGroupDisabled(guildID, cmd.Group())
 					if err == nil && disabled {
-						respond("This command is disabled on this server. Use `/commands-status` to check which commands are disabled.")
 						return nil
 					}
 				}
-				return cmd.Run(ctx)
+
+				switch v := ctx.(type) {
+				case *MessageContext:
+					if mh, ok := cmd.(MessageHandler); ok {
+						return mh.Message(v)
+					}
+				case *SlashContext:
+					return cmd.Run(v)
+				case *ComponentContext:
+					if ch, ok := cmd.(ComponentHandler); ok {
+						return ch.Component(v)
+					}
+				case *ReactionContext, *MessageApplicationContext:
+					return cmd.Run(ctx)
+				default:
+					return cmd.Run(ctx)
+				}
+
+				return nil
 			},
 		}
 	}
 }
 
-func WithGuildOnly(cmd Command) Command {
-	return &wrappedCommand{
-		Command: cmd,
-		wrap: func(ctx interface{}) error {
-			switch v := ctx.(type) {
-			case *SlashContext:
-				if v.Event.GuildID == "" {
-					_ = v.Session.InteractionRespond(v.Event.Interaction, &discordgo.InteractionResponse{
-						Type: discordgo.InteractionResponseChannelMessageWithSource,
-						Data: &discordgo.InteractionResponseData{
-							Content: "You must be in a guild to use this command.",
-							Flags:   discordgo.MessageFlagsEphemeral,
-						},
-					})
+func WithGuildOnly() Middleware {
+	return func(cmd Command) Command {
+		return &wrappedCommand{
+			Command: cmd,
+			wrap: func(ctx interface{}) error {
+				if v, ok := ctx.(*SlashContext); ok && v.Event.GuildID == "" {
 					return nil
 				}
-			}
-			return cmd.Run(ctx)
-		},
+				if v, ok := ctx.(*MessageContext); ok && v.Event.GuildID == "" {
+					return nil
+				}
+				return cmd.Run(ctx)
+			},
+		}
 	}
 }
 
@@ -89,29 +85,49 @@ type wrappedCommand struct {
 }
 
 func (w *wrappedCommand) Run(ctx interface{}) error {
-	return w.wrap(ctx)
+	if w.wrap != nil {
+		return w.wrap(ctx)
+	}
+	return w.Command.Run(ctx)
 }
 
-// Proxy the SlashProvider if the original command implements it
-func (w *wrappedCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	if slash, ok := w.Command.(SlashProvider); ok {
-		return slash.SlashDefinition()
+func (w *wrappedCommand) Message(ctx *MessageContext) error {
+	if w.wrap != nil {
+		return w.wrap(ctx)
+	}
+	if mh, ok := w.Command.(MessageHandler); ok {
+		return mh.Message(ctx)
 	}
 	return nil
 }
 
-// Proxy the ContextMenuProvider if the original command implements it
-func (w *wrappedCommand) ContextDefinition() *discordgo.ApplicationCommand {
-	if menu, ok := w.Command.(ContextMenuProvider); ok {
-		return menu.ContextDefinition()
-	}
-	return nil
-}
-
-// Proxy the ComponentHandler if the original command implements it
 func (w *wrappedCommand) Component(ctx *ComponentContext) error {
-	if comp, ok := w.Command.(ComponentHandler); ok {
-		return comp.Component(ctx)
+	if w.wrap != nil {
+		return w.wrap(ctx)
+	}
+	if ch, ok := w.Command.(ComponentHandler); ok {
+		return ch.Component(ctx)
 	}
 	return nil
+}
+
+func (w *wrappedCommand) SlashDefinition() *discordgo.ApplicationCommand {
+	if sp, ok := w.Command.(SlashProvider); ok {
+		return sp.SlashDefinition()
+	}
+	return nil
+}
+
+func (w *wrappedCommand) ContextDefinition() *discordgo.ApplicationCommand {
+	if sp, ok := w.Command.(ContextMenuProvider); ok {
+		return sp.ContextDefinition()
+	}
+	return nil
+}
+
+func ApplyMiddlewares(cmd Command, mws ...Middleware) Command {
+	for _, mw := range mws {
+		cmd = mw(cmd)
+	}
+	return cmd
 }

@@ -103,10 +103,10 @@ func (c *LogCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&LogCommand{},
-			),
+		core.ApplyMiddlewares(
+			&LogCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

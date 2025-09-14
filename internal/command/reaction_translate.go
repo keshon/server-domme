@@ -160,10 +160,10 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&TranslateOnReaction{},
-			),
+		core.ApplyMiddlewares(
+			&TranslateOnReaction{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

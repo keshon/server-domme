@@ -94,10 +94,10 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&ConfessCommand{},
-			),
+		core.ApplyMiddlewares(
+			&ConfessCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

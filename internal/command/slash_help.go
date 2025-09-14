@@ -223,10 +223,10 @@ func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreat
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&HelpUnifiedCommand{},
-			),
+		core.ApplyMiddlewares(
+			&HelpUnifiedCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

@@ -85,10 +85,10 @@ func (c *PurgeJobsCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&PurgeJobsCommand{},
-			),
+		core.ApplyMiddlewares(
+			&PurgeJobsCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

@@ -129,10 +129,10 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&SetTasksCommand{},
-			),
+		core.ApplyMiddlewares(
+			&SetTasksCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

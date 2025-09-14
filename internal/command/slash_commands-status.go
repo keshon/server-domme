@@ -83,10 +83,10 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&CommandsStatus{},
-			),
+		core.ApplyMiddlewares(
+			&CommandsStatus{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

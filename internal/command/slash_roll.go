@@ -219,10 +219,10 @@ func evaluateToken(token string) (int, string, error) {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&RollCommand{},
-			),
+		core.ApplyMiddlewares(
+			&RollCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

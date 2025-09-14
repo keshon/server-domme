@@ -153,10 +153,10 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&PurgeNowCommand{},
-			),
+		core.ApplyMiddlewares(
+			&PurgeNowCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

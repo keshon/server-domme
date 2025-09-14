@@ -59,10 +59,10 @@ func (c *PurgeStopCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&PurgeStopCommand{},
-			),
+		core.ApplyMiddlewares(
+			&PurgeStopCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

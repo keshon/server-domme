@@ -29,10 +29,6 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	return nil
 }
 
-func init() {
-	core.RegisterCommand(&ChatCommand{})
-}
-
 // Conversation store
 type convoMsg struct {
 	Role    string
@@ -179,4 +175,14 @@ func splitMessage(msg string, limit int) []string {
 		result = append(result, msg)
 	}
 	return result
+}
+
+func init() {
+	core.RegisterCommand(
+		core.ApplyMiddlewares(
+			&ChatCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
+		),
+	)
 }

@@ -61,10 +61,10 @@ func (c *StopCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&StopCommand{},
-			),
+		core.ApplyMiddlewares(
+			&StopCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }

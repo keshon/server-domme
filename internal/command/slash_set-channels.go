@@ -106,10 +106,10 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 
 func init() {
 	core.RegisterCommand(
-		core.WithGroupAccessCheck()(
-			core.WithGuildOnly(
-				&SetChannelsCommand{},
-			),
+		core.ApplyMiddlewares(
+			&SetChannelsCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 		),
 	)
 }
