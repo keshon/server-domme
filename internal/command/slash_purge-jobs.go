@@ -15,12 +15,10 @@ type PurgeJobsCommand struct{}
 func (c *PurgeJobsCommand) Name() string        { return "purge-jobs" }
 func (c *PurgeJobsCommand) Description() string { return "List all active purge jobs" }
 func (c *PurgeJobsCommand) Aliases() []string   { return []string{} }
-
-func (c *PurgeJobsCommand) Group() string    { return "purge" }
-func (c *PurgeJobsCommand) Category() string { return "🧹 Cleanup" }
-
-func (c *PurgeJobsCommand) RequireAdmin() bool { return true }
-func (c *PurgeJobsCommand) RequireDev() bool   { return false }
+func (c *PurgeJobsCommand) Group() string       { return "purge" }
+func (c *PurgeJobsCommand) Category() string    { return "🧹 Cleanup" }
+func (c *PurgeJobsCommand) RequireAdmin() bool  { return true }
+func (c *PurgeJobsCommand) RequireDev() bool    { return false }
 
 func (c *PurgeJobsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

@@ -15,12 +15,10 @@ type DumpDBCommand struct{}
 func (c *DumpDBCommand) Name() string        { return "dump-db" }
 func (c *DumpDBCommand) Description() string { return "Dumps server database as JSON" }
 func (c *DumpDBCommand) Aliases() []string   { return []string{} }
-
-func (c *DumpDBCommand) Group() string    { return "dump" }
-func (c *DumpDBCommand) Category() string { return "🛠️ Maintenance" }
-
-func (c *DumpDBCommand) RequireAdmin() bool { return true }
-func (c *DumpDBCommand) RequireDev() bool   { return false }
+func (c *DumpDBCommand) Group() string       { return "dump" }
+func (c *DumpDBCommand) Category() string    { return "🛠️ Maintenance" }
+func (c *DumpDBCommand) RequireAdmin() bool  { return true }
+func (c *DumpDBCommand) RequireDev() bool    { return false }
 
 func (c *DumpDBCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

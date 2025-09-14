@@ -18,12 +18,10 @@ type SetTasksCommand struct{}
 func (c *SetTasksCommand) Name() string        { return "set-tasks" }
 func (c *SetTasksCommand) Description() string { return "Upload a new task list for this server" }
 func (c *SetTasksCommand) Aliases() []string   { return []string{} }
-
-func (c *SetTasksCommand) Group() string    { return "task" }
-func (c *SetTasksCommand) Category() string { return "⚙️ Settings" }
-
-func (c *SetTasksCommand) RequireAdmin() bool { return true }
-func (c *SetTasksCommand) RequireDev() bool   { return false }
+func (c *SetTasksCommand) Group() string       { return "task" }
+func (c *SetTasksCommand) Category() string    { return "⚙️ Settings" }
+func (c *SetTasksCommand) RequireAdmin() bool  { return true }
+func (c *SetTasksCommand) RequireDev() bool    { return false }
 
 func (c *SetTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

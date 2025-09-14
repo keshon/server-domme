@@ -13,12 +13,10 @@ type SetRolesCommand struct{}
 func (c *SetRolesCommand) Name() string        { return "set-roles" }
 func (c *SetRolesCommand) Description() string { return "Setup special-purpose roles" }
 func (c *SetRolesCommand) Aliases() []string   { return []string{} }
-
-func (c *SetRolesCommand) Group() string    { return "core" }
-func (c *SetRolesCommand) Category() string { return "⚙️ Settings" }
-
-func (c *SetRolesCommand) RequireAdmin() bool { return true }
-func (c *SetRolesCommand) RequireDev() bool   { return false }
+func (c *SetRolesCommand) Group() string       { return "core" }
+func (c *SetRolesCommand) Category() string    { return "⚙️ Settings" }
+func (c *SetRolesCommand) RequireAdmin() bool  { return true }
+func (c *SetRolesCommand) RequireDev() bool    { return false }
 
 func (c *SetRolesCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

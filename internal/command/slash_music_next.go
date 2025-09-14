@@ -14,12 +14,10 @@ type NextCommand struct {
 func (c *NextCommand) Name() string        { return "music-next" }
 func (c *NextCommand) Description() string { return "Skip to the next track" }
 func (c *NextCommand) Aliases() []string   { return []string{} }
-
-func (c *NextCommand) Group() string    { return "music" }
-func (c *NextCommand) Category() string { return "🎵 Music" }
-
-func (c *NextCommand) RequireAdmin() bool { return false }
-func (c *NextCommand) RequireDev() bool   { return false }
+func (c *NextCommand) Group() string       { return "music" }
+func (c *NextCommand) Category() string    { return "🎵 Music" }
+func (c *NextCommand) RequireAdmin() bool  { return false }
+func (c *NextCommand) RequireDev() bool    { return false }
 
 func (c *NextCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

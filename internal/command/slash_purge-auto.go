@@ -15,12 +15,10 @@ type PurgeAutoCommand struct{}
 func (c *PurgeAutoCommand) Name() string        { return "purge-auto" }
 func (c *PurgeAutoCommand) Description() string { return "Purge messages regularly in this channel" }
 func (c *PurgeAutoCommand) Aliases() []string   { return []string{} }
-
-func (c *PurgeAutoCommand) Group() string    { return "purge" }
-func (c *PurgeAutoCommand) Category() string { return "🧹 Cleanup" }
-
-func (c *PurgeAutoCommand) RequireAdmin() bool { return true }
-func (c *PurgeAutoCommand) RequireDev() bool   { return false }
+func (c *PurgeAutoCommand) Group() string       { return "purge" }
+func (c *PurgeAutoCommand) Category() string    { return "🧹 Cleanup" }
+func (c *PurgeAutoCommand) RequireAdmin() bool  { return true }
+func (c *PurgeAutoCommand) RequireDev() bool    { return false }
 
 func (c *PurgeAutoCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

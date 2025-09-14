@@ -11,17 +11,13 @@ import (
 
 type CommandsStatus struct{}
 
-func (c *CommandsStatus) Name() string { return "commands-status" }
-func (c *CommandsStatus) Description() string {
-	return "Check which command is enabled or disabled"
-}
-func (c *CommandsStatus) Aliases() []string { return []string{} }
-
-func (c *CommandsStatus) Group() string    { return "core" }
-func (c *CommandsStatus) Category() string { return "⚙️ Settings" }
-
-func (c *CommandsStatus) RequireAdmin() bool { return true }
-func (c *CommandsStatus) RequireDev() bool   { return false }
+func (c *CommandsStatus) Name() string        { return "commands-status" }
+func (c *CommandsStatus) Description() string { return "Check which command is enabled or disabled" }
+func (c *CommandsStatus) Aliases() []string   { return []string{} }
+func (c *CommandsStatus) Group() string       { return "core" }
+func (c *CommandsStatus) Category() string    { return "⚙️ Settings" }
+func (c *CommandsStatus) RequireAdmin() bool  { return true }
+func (c *CommandsStatus) RequireDev() bool    { return false }
 
 func (c *CommandsStatus) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

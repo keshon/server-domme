@@ -15,7 +15,6 @@ import (
 	"server-domme/internal/core"
 )
 
-// Command definition
 type ChatCommand struct{}
 
 func (c *ChatCommand) Name() string        { return "mention bot" }
@@ -25,6 +24,7 @@ func (c *ChatCommand) Group() string       { return "chat" }
 func (c *ChatCommand) Category() string    { return "💬 Chat" }
 func (c *ChatCommand) RequireAdmin() bool  { return false }
 func (c *ChatCommand) RequireDev() bool    { return false }
+
 func (c *ChatCommand) Run(ctx interface{}) error {
 	return nil
 }

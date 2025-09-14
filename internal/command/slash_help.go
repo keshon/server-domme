@@ -17,12 +17,10 @@ type HelpUnifiedCommand struct{}
 func (c *HelpUnifiedCommand) Name() string        { return "help" }
 func (c *HelpUnifiedCommand) Description() string { return "Get a list of available commands" }
 func (c *HelpUnifiedCommand) Aliases() []string   { return []string{} }
-
-func (c *HelpUnifiedCommand) Group() string    { return "core" }
-func (c *HelpUnifiedCommand) Category() string { return "🕯️ Information" }
-
-func (c *HelpUnifiedCommand) RequireAdmin() bool { return false }
-func (c *HelpUnifiedCommand) RequireDev() bool   { return false }
+func (c *HelpUnifiedCommand) Group() string       { return "core" }
+func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information" }
+func (c *HelpUnifiedCommand) RequireAdmin() bool  { return false }
+func (c *HelpUnifiedCommand) RequireDev() bool    { return false }
 
 func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

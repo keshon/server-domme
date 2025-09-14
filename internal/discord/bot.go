@@ -58,6 +58,8 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	}
 	defer dg.Close()
 
+	go b.handleSystemEvents(ctx)
+
 	<-ctx.Done()
 	log.Println("[INFO] ❎ Shutdown signal received. Cleaning up...")
 	return nil

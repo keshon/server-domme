@@ -22,12 +22,10 @@ type LogCommand struct{}
 func (c *LogCommand) Name() string        { return "commands-log" }
 func (c *LogCommand) Description() string { return "Review recent commands and their punishments" }
 func (c *LogCommand) Aliases() []string   { return []string{} }
-
-func (c *LogCommand) Group() string    { return "core" }
-func (c *LogCommand) Category() string { return "⚙️ Settings" }
-
-func (c *LogCommand) RequireAdmin() bool { return true }
-func (c *LogCommand) RequireDev() bool   { return false }
+func (c *LogCommand) Group() string       { return "core" }
+func (c *LogCommand) Category() string    { return "⚙️ Settings" }
+func (c *LogCommand) RequireAdmin() bool  { return true }
+func (c *LogCommand) RequireDev() bool    { return false }
 
 func (c *LogCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

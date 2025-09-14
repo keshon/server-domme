@@ -73,6 +73,7 @@ It’s designed to be practical for server management while providing light, int
 
 ### 🛠️ Maintenance
 
+- **/commands-update** — Re-register or update slash commands
 - **/dump-db** — Dumps server database as JSON
 - **/dump-tasks** — Dumps all tasks as JSON
 - **/ping** — Check bot latency

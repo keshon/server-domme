@@ -13,12 +13,10 @@ type PingCommand struct{}
 func (c *PingCommand) Name() string        { return "ping" }
 func (c *PingCommand) Description() string { return "Check bot latency" }
 func (c *PingCommand) Aliases() []string   { return []string{} }
-
-func (c *PingCommand) Group() string    { return "ping" }
-func (c *PingCommand) Category() string { return "🛠️ Maintenance" }
-
-func (c *PingCommand) RequireAdmin() bool { return false }
-func (c *PingCommand) RequireDev() bool   { return false }
+func (c *PingCommand) Group() string       { return "ping" }
+func (c *PingCommand) Category() string    { return "🛠️ Maintenance" }
+func (c *PingCommand) RequireAdmin() bool  { return false }
+func (c *PingCommand) RequireDev() bool    { return false }
 
 func (c *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

@@ -16,12 +16,10 @@ type PlayCommand struct {
 func (c *PlayCommand) Name() string        { return "music-play" }
 func (c *PlayCommand) Description() string { return "Play music track" }
 func (c *PlayCommand) Aliases() []string   { return []string{} }
-
-func (c *PlayCommand) Group() string    { return "music" }
-func (c *PlayCommand) Category() string { return "🎵 Music" }
-
-func (c *PlayCommand) RequireAdmin() bool { return false }
-func (c *PlayCommand) RequireDev() bool   { return false }
+func (c *PlayCommand) Group() string       { return "music" }
+func (c *PlayCommand) Category() string    { return "🎵 Music" }
+func (c *PlayCommand) RequireAdmin() bool  { return false }
+func (c *PlayCommand) RequireDev() bool    { return false }
 
 func (c *PlayCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

@@ -14,12 +14,10 @@ type ReleaseCommand struct{}
 func (c *ReleaseCommand) Name() string        { return "release" }
 func (c *ReleaseCommand) Description() string { return "Remove the brat role" }
 func (c *ReleaseCommand) Aliases() []string   { return []string{} }
-
-func (c *ReleaseCommand) Group() string    { return "punish" }
-func (c *ReleaseCommand) Category() string { return "🎭 Roleplay" }
-
-func (c *ReleaseCommand) RequireAdmin() bool { return false }
-func (c *ReleaseCommand) RequireDev() bool   { return false }
+func (c *ReleaseCommand) Group() string       { return "punish" }
+func (c *ReleaseCommand) Category() string    { return "🎭 Roleplay" }
+func (c *ReleaseCommand) RequireAdmin() bool  { return false }
+func (c *ReleaseCommand) RequireDev() bool    { return false }
 
 func (c *ReleaseCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

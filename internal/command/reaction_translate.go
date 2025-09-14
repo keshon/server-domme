@@ -18,12 +18,10 @@ type TranslateOnReaction struct{}
 func (t *TranslateOnReaction) Name() string        { return "translate (reaction)" }
 func (t *TranslateOnReaction) Description() string { return "Translate message on flag emoji reaction" }
 func (t *TranslateOnReaction) Aliases() []string   { return []string{} }
-
-func (c *TranslateOnReaction) Group() string    { return "translate" }
-func (t *TranslateOnReaction) Category() string { return "📢 Utilities" }
-
-func (r *TranslateOnReaction) RequireAdmin() bool { return false }
-func (r *TranslateOnReaction) RequireDev() bool   { return false }
+func (c *TranslateOnReaction) Group() string       { return "translate" }
+func (t *TranslateOnReaction) Category() string    { return "📢 Utilities" }
+func (r *TranslateOnReaction) RequireAdmin() bool  { return false }
+func (r *TranslateOnReaction) RequireDev() bool    { return false }
 
 var flags = map[string]string{
 	"🇷🇺": "ru",

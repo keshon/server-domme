@@ -40,12 +40,10 @@ type TaskCommand struct{}
 func (c *TaskCommand) Name() string        { return "task" }
 func (c *TaskCommand) Description() string { return "Assign or manage your personal task" }
 func (c *TaskCommand) Aliases() []string   { return []string{} }
-
-func (c *TaskCommand) Group() string    { return "task" }
-func (c *TaskCommand) Category() string { return "🎭 Roleplay" }
-
-func (c *TaskCommand) RequireAdmin() bool { return false }
-func (c *TaskCommand) RequireDev() bool   { return false }
+func (c *TaskCommand) Group() string       { return "task" }
+func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
+func (c *TaskCommand) RequireAdmin() bool  { return false }
+func (c *TaskCommand) RequireDev() bool    { return false }
 
 func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
