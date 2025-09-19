@@ -28,7 +28,7 @@ func (c *CommandsStatus) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *CommandsStatus) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("invalid context")
 	}

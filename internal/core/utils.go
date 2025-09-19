@@ -31,6 +31,11 @@ func RespondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, cont
 	return err
 }
 
+func MessageRespond(s *discordgo.Session, channelID string, content string) error {
+	_, err := s.ChannelMessageSend(channelID, content)
+	return err
+}
+
 func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channelID, userID, username, commandName string) error {
 	channel, err := s.State.Channel(channelID)
 	if err != nil {

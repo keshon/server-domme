@@ -25,8 +25,92 @@ func (c *ChatCommand) Category() string    { return "💬 Chat" }
 func (c *ChatCommand) RequireAdmin() bool  { return false }
 func (c *ChatCommand) RequireDev() bool    { return false }
 
+// Message handler
 func (c *ChatCommand) Run(ctx interface{}) error {
-	return nil
+	message, ok := ctx.(*core.MessageContext)
+	if !ok {
+		return fmt.Errorf("wrong context")
+	}
+
+	user := message.Event.Author.Username
+	displayName := message.Event.Author.DisplayName() // public name
+	userID := message.Event.Author.ID
+	channelID := message.Event.ChannelID
+	msg := strings.TrimSpace(message.Event.Content)
+
+	log.Printf("[CHAT] %s (%s) @ %s: %s", user, userID, channelID, msg)
+
+	if message.Event.GuildID == "" {
+		_, err := message.Session.ChannelMessageSend(channelID,
+			fmt.Sprintf("%s, I don't chat in DMs. Speak to me on a server channel.", displayName))
+		return err
+	}
+
+	if msg == "" {
+		_, err := message.Session.ChannelMessageSend(channelID,
+			fmt.Sprintf("%s, speak or be silent forever.", displayName))
+		return err
+	}
+
+	// Prepend "User <PublicName>: " for AI context
+	userContent := fmt.Sprintf("User %s: %s", displayName, msg)
+	convos.add(channelID, "user", userContent)
+
+	history := convos.get(channelID)
+
+	// Build system prompt
+	cfg := config.New()
+	file, err := os.Open(cfg.AIPromtPath)
+	if err != nil {
+		log.Printf("[ERROR] Failed to open system prompt: %v", err)
+		return err
+	}
+	defer file.Close()
+
+	promptBytes, _ := io.ReadAll(file)
+	systemPrompt := string(promptBytes)
+	log.Printf("[DEBUG] System prompt loaded (%d chars)", len(systemPrompt))
+
+	// Prepare AI messages
+	messages := []ai.Message{{Role: "system", Content: systemPrompt}}
+	for _, m := range history {
+		role := m.Role
+		if role != "user" && role != "assistant" {
+			role = "user"
+		}
+		messages = append(messages, ai.Message{Role: role, Content: m.Content})
+	}
+
+	// Call AI engine
+	client := ai.DefaultProvider()
+	reply, err := client.Generate(messages)
+	if err != nil {
+		log.Printf("[ERROR] AI request failed: %v", err)
+		_, sendErr := message.Session.ChannelMessageSend(channelID,
+			fmt.Sprintf("Something went wrong %s, I broke trying to think 🤯", displayName))
+		return sendErr
+	}
+
+	convos.add(channelID, "assistant", reply)
+	log.Printf("[CHAT] AI reply to %s (%s) @ %s: %s", user, userID, channelID, reply)
+
+	// Send reply (respect 2000 char limit)
+	if len(reply) > 2000 {
+		for _, chunk := range splitMessage(reply, 2000) {
+			_, sendErr := message.Session.ChannelMessageSend(channelID, chunk)
+			if sendErr != nil {
+				return sendErr
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		return nil
+	}
+
+	_, err = message.Session.ChannelMessageSend(channelID, reply)
+	if err != nil {
+		log.Printf("[ERROR] Failed to send reply: %v", err)
+	}
+	return err
 }
 
 // Conversation store
@@ -75,89 +159,6 @@ func (c *convoStore) get(channelID string) []convoMsg {
 	dst := make([]convoMsg, len(c.store[channelID]))
 	copy(dst, c.store[channelID])
 	return dst
-}
-
-// Message handler
-func (c *ChatCommand) Message(ctx *core.MessageContext) error {
-	user := ctx.Event.Author.Username
-	displayName := ctx.Event.Author.DisplayName() // public name
-	userID := ctx.Event.Author.ID
-	channelID := ctx.Event.ChannelID
-	msg := strings.TrimSpace(ctx.Event.Content)
-
-	log.Printf("[CHAT] %s (%s) @ %s: %s", user, userID, channelID, msg)
-
-	if ctx.Event.GuildID == "" {
-		_, err := ctx.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, I don't chat in DMs. Speak to me on a server channel.", displayName))
-		return err
-	}
-
-	if msg == "" {
-		_, err := ctx.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, speak or be silent forever.", displayName))
-		return err
-	}
-
-	// Prepend "User <PublicName>: " for AI context
-	userContent := fmt.Sprintf("User %s: %s", displayName, msg)
-	convos.add(channelID, "user", userContent)
-
-	history := convos.get(channelID)
-
-	// Build system prompt
-	cfg := config.New()
-	file, err := os.Open(cfg.AIPromtPath)
-	if err != nil {
-		log.Printf("[ERROR] Failed to open system prompt: %v", err)
-		return err
-	}
-	defer file.Close()
-
-	promptBytes, _ := io.ReadAll(file)
-	systemPrompt := string(promptBytes)
-	log.Printf("[DEBUG] System prompt loaded (%d chars)", len(systemPrompt))
-
-	// Prepare AI messages
-	messages := []ai.Message{{Role: "system", Content: systemPrompt}}
-	for _, m := range history {
-		role := m.Role
-		if role != "user" && role != "assistant" {
-			role = "user"
-		}
-		messages = append(messages, ai.Message{Role: role, Content: m.Content})
-	}
-
-	// Call AI engine
-	client := ai.DefaultProvider()
-	reply, err := client.Generate(messages)
-	if err != nil {
-		log.Printf("[ERROR] AI request failed: %v", err)
-		_, sendErr := ctx.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("Something went wrong %s, I broke trying to think 🤯", displayName))
-		return sendErr
-	}
-
-	convos.add(channelID, "assistant", reply)
-	log.Printf("[CHAT] AI reply to %s (%s) @ %s: %s", user, userID, channelID, reply)
-
-	// Send reply (respect 2000 char limit)
-	if len(reply) > 2000 {
-		for _, chunk := range splitMessage(reply, 2000) {
-			_, sendErr := ctx.Session.ChannelMessageSend(channelID, chunk)
-			if sendErr != nil {
-				return sendErr
-			}
-			time.Sleep(200 * time.Millisecond)
-		}
-		return nil
-	}
-
-	_, err = ctx.Session.ChannelMessageSend(channelID, reply)
-	if err != nil {
-		log.Printf("[ERROR] Failed to send reply: %v", err)
-	}
-	return err
 }
 
 // Helpers

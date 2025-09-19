@@ -29,7 +29,7 @@ func (c *PurgeJobsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PurgeJobsCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}

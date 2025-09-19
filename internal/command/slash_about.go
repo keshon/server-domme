@@ -33,7 +33,7 @@ func (c *AboutCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AboutCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}

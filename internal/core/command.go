@@ -26,49 +26,44 @@ type ContextMenuProvider interface {
 	ContextDefinition() *discordgo.ApplicationCommand
 }
 
-// Handlers - optional specialized hooks beyond Run
-type ComponentHandler interface {
-	Component(*ComponentContext) error
-}
-
-type MessageHandler interface {
-	Message(*MessageContext) error
-}
-
 // Contexts - what runtime hands you when executing a command
-type SlashContext struct {
+// Slash command
+type SlashInteractionContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate
 	Args    []string
 	Storage *storage.Storage
 }
 
-type ComponentContext struct {
+type ComponentInteractionContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate
 	Storage *storage.Storage
 }
 
-type ReactionContext struct {
+// Hook for component beyond Run
+type ComponentInteractionHandler interface {
+	Component(*ComponentInteractionContext) error
+}
+
+// Reaction to a message
+type MessageReactionContext struct {
 	Session  *discordgo.Session
 	Reaction *discordgo.MessageReactionAdd
 	Storage  *storage.Storage
 }
 
-type MessageApplicationContext struct {
+// Contexnt menu over a message
+type MessageApplicationCommandContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.InteractionCreate
 	Storage *storage.Storage
 	Target  *discordgo.Message
 }
 
+// Message
 type MessageContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.MessageCreate
-	Storage *storage.Storage
-}
-
-type CLIContext struct {
-	Args    []string
 	Storage *storage.Storage
 }

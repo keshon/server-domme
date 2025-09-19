@@ -28,7 +28,7 @@ func (c *DumpDBCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *DumpDBCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}

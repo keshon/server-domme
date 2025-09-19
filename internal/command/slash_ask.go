@@ -53,7 +53,7 @@ func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AskCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("wrong context")
 	}
@@ -122,7 +122,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	return nil
 }
 
-func (c *AskCommand) Component(ctx *core.ComponentContext) error {
+func (c *AskCommand) Component(ctx *core.ComponentInteractionContext) error {
 	session, event := ctx.Session, ctx.Event
 	customID := event.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")

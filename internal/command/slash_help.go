@@ -43,7 +43,7 @@ func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}

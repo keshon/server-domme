@@ -13,53 +13,63 @@ func WithGroupAccessCheck() Middleware {
 		return &wrappedCommand{
 			Command: cmd,
 			wrap: func(ctx interface{}) error {
-				var guildID string
-				var storage *storage.Storage
+				var (
+					guildID string
+					storage *storage.Storage
+					respond func(string)
+				)
 
 				switch v := ctx.(type) {
-				case *SlashContext:
-					guildID = v.Event.GuildID
-					storage = v.Storage
+				case *SlashInteractionContext:
+					guildID, storage = v.Event.GuildID, v.Storage
+					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
 
 				case *MessageContext:
-					guildID = v.Event.GuildID
-					storage = v.Storage
+					guildID, storage = v.Event.GuildID, v.Storage
+					// message commands - ignore respond for now due to spamming bug
+					respond = func(_ string) {}
 
-				case *ComponentContext:
-					guildID = v.Event.GuildID
-					storage = v.Storage
-				default:
-					return cmd.Run(ctx)
-				}
-
-				if cmd.Group() != "" {
-					disabled, err := storage.IsGroupDisabled(guildID, cmd.Group())
-					if err == nil && disabled {
+				case *ComponentInteractionContext:
+					guildID, storage = v.Event.GuildID, v.Storage
+					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+					if disabledGroup(cmd, guildID, storage, respond) {
 						return nil
 					}
-				}
-
-				switch v := ctx.(type) {
-				case *MessageContext:
-					if mh, ok := cmd.(MessageHandler); ok {
-						return mh.Message(v)
-					}
-				case *SlashContext:
-					return cmd.Run(v)
-				case *ComponentContext:
-					if ch, ok := cmd.(ComponentHandler); ok {
+					if ch, ok := cmd.(ComponentInteractionHandler); ok {
 						return ch.Component(v)
 					}
-				case *ReactionContext, *MessageApplicationContext:
-					return cmd.Run(ctx)
+					return nil
+
+				case *MessageApplicationCommandContext:
+					guildID, storage = v.Event.GuildID, v.Storage
+					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+
 				default:
-					return cmd.Run(ctx)
+					return nil
 				}
 
-				return nil
+				if disabledGroup(cmd, guildID, storage, respond) {
+					return nil
+				}
+				return cmd.Run(ctx)
 			},
 		}
 	}
+}
+
+func disabledGroup(cmd Command, guildID string, storage *storage.Storage, respond func(string)) bool {
+	if cmd.Group() == "" {
+		return false
+	}
+	disabled, err := storage.IsGroupDisabled(guildID, cmd.Group())
+	if err != nil {
+		return false
+	}
+	if disabled {
+		respond("This command is disabled on this server. Use `/commands-status` to check which commands are disabled.")
+		return true
+	}
+	return false
 }
 
 func WithGuildOnly() Middleware {
@@ -67,7 +77,7 @@ func WithGuildOnly() Middleware {
 		return &wrappedCommand{
 			Command: cmd,
 			wrap: func(ctx interface{}) error {
-				if v, ok := ctx.(*SlashContext); ok && v.Event.GuildID == "" {
+				if v, ok := ctx.(*SlashInteractionContext); ok && v.Event.GuildID == "" {
 					return nil
 				}
 				if v, ok := ctx.(*MessageContext); ok && v.Event.GuildID == "" {
@@ -91,21 +101,11 @@ func (w *wrappedCommand) Run(ctx interface{}) error {
 	return w.Command.Run(ctx)
 }
 
-func (w *wrappedCommand) Message(ctx *MessageContext) error {
+func (w *wrappedCommand) Component(ctx *ComponentInteractionContext) error {
 	if w.wrap != nil {
 		return w.wrap(ctx)
 	}
-	if mh, ok := w.Command.(MessageHandler); ok {
-		return mh.Message(ctx)
-	}
-	return nil
-}
-
-func (w *wrappedCommand) Component(ctx *ComponentContext) error {
-	if w.wrap != nil {
-		return w.wrap(ctx)
-	}
-	if ch, ok := w.Command.(ComponentHandler); ok {
+	if ch, ok := w.Command.(ComponentInteractionHandler); ok {
 		return ch.Component(ctx)
 	}
 	return nil

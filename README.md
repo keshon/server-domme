@@ -67,13 +67,13 @@ It’s designed to be practical for server management while providing light, int
 - **/commands-log** — Review recent commands and their punishments
 - **/commands-status** — Check which command is enabled or disabled
 - **/commands-toggle** — Enable or disable a group of commands
+- **/commands-update** — Re-register or update slash commands
 - **/set-channels** — Setup special-purpose channels
 - **/set-roles** — Setup special-purpose roles
 - **/set-tasks** — Upload a new task list for this server
 
 ### 🛠️ Maintenance
 
-- **/commands-update** — Re-register or update slash commands
 - **/dump-db** — Dumps server database as JSON
 - **/dump-tasks** — Dumps all tasks as JSON
 - **/ping** — Check bot latency

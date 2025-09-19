@@ -57,7 +57,7 @@ func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand 
 }
 
 func (c *CommandsToggleCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("invalid context")
 	}

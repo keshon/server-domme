@@ -36,7 +36,7 @@ var flags = map[string]string{
 }
 
 func (t *TranslateOnReaction) Run(ctx interface{}) error {
-	rc, ok := ctx.(*core.ReactionContext)
+	rc, ok := ctx.(*core.MessageReactionContext)
 	if !ok {
 		return fmt.Errorf("wrong context type")
 	}

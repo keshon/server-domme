@@ -39,7 +39,7 @@ func (c *SetTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *SetTasksCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("invalid context")
 	}

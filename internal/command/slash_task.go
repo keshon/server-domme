@@ -53,7 +53,7 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 func (c *TaskCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashContext)
+	slash, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return fmt.Errorf("wrong context")
 	}
@@ -182,7 +182,7 @@ func (c *TaskCommand) assignTask(session *discordgo.Session, event *discordgo.In
 
 }
 
-func (c *TaskCommand) Component(ctx *core.ComponentContext) error {
+func (c *TaskCommand) Component(ctx *core.ComponentInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	guildID := event.GuildID
@@ -228,7 +228,7 @@ func (c *TaskCommand) Component(ctx *core.ComponentContext) error {
 	return nil
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *core.ComponentContext, event *discordgo.InteractionCreate, task *st.Task) {
+func (c *TaskCommand) handleTaskCompletion(ctx *core.ComponentInteractionContext, event *discordgo.InteractionCreate, task *st.Task) {
 	session := ctx.Session
 	userID, guildID := event.Member.User.ID, event.GuildID
 	customID := event.MessageComponentData().CustomID

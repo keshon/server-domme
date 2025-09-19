@@ -34,7 +34,7 @@ func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AnnounceCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.MessageApplicationContext)
+	context, ok := ctx.(*core.MessageApplicationCommandContext)
 	if !ok {
 		return fmt.Errorf("wrong context type (expected MessageApplicationContext)")
 	}

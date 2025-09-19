@@ -86,16 +86,12 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 	}
 
 	for _, cmd := range core.AllCommands() {
-		if msgHandler, ok := cmd.(core.MessageHandler); ok {
-			ctx := &core.MessageContext{
-				Session: s,
-				Event:   m,
-				Storage: b.storage,
-			}
-			if err := msgHandler.Message(ctx); err != nil {
-				log.Printf("[ERR] Error running message command %s: %v", cmd.Name(), err)
-			}
+		ctx := &core.MessageContext{
+			Session: s,
+			Event:   m,
+			Storage: b.storage,
 		}
+		cmd.Run(ctx)
 	}
 }
 
@@ -132,7 +128,7 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	for _, cmd := range core.AllCommands() {
-		ctx := &core.ReactionContext{
+		ctx := &core.MessageReactionContext{
 			Session:  s,
 			Reaction: r,
 			Storage:  b.storage,
@@ -154,7 +150,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 		switch i.ApplicationCommandData().CommandType {
 		case discordgo.MessageApplicationCommand:
-			ctx := &core.MessageApplicationContext{
+			ctx := &core.MessageApplicationCommandContext{
 				Session: s,
 				Event:   i,
 				Storage: b.storage,
@@ -165,7 +161,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 				log.Println("[ERR] Error running context menu command:", err)
 			}
 		case discordgo.ChatApplicationCommand:
-			ctx := &core.SlashContext{
+			ctx := &core.SlashInteractionContext{
 				Session: s,
 				Event:   i,
 				Storage: b.storage,
@@ -190,10 +186,10 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 
 		if matched != nil {
-			compHandler, ok := matched.(core.ComponentHandler)
+			compHandler, ok := matched.(core.ComponentInteractionHandler)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
-				ctx := &core.ComponentContext{
+				ctx := &core.ComponentInteractionContext{
 					Session: s,
 					Event:   i,
 					Storage: b.storage,
