@@ -1,4 +1,3 @@
-// /internal/command/chat.go
 package command
 
 import (

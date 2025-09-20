@@ -83,28 +83,29 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 	}
 	taskCancelMutex.Unlock()
 
-	if existing, _ := storage.GetTask(guildID, userID); existing != nil && existing.Status == "pending" {
+	existing, _ := storage.GetTask(guildID, userID)
+	if existing != nil && existing.Status == "pending" {
 		core.RespondEphemeral(session, event, "One task at a time, sweetheart.")
 		return nil
 	}
 
 	taskerRoles, _ := storage.GetTaskRoles(guildID)
 	if len(taskerRoles) == 0 {
-		core.RespondEphemeral(session, event, "No tasker roles set. So sad.")
+		core.RespondEphemeral(session, event, "No tasker roles set. So sad.\n\nAsk an Admin to set them with `/set-roles`.")
 		return nil
 	}
 
 	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		core.RespondEphemeral(session, event, "Failed to load tasks.")
+		core.RespondEphemeral(session, event, "Failed to load tasks.\n\nAsk an Admin to upload a file with `/set-tasks` and try again.")
 		log.Println("loadTasksForGuild:", err)
 		return nil
 	}
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		core.RespondEphemeral(session, event, "No task suits your... profile.")
+		core.RespondEphemeral(session, event, "No task suits your... profile.\n\nAsk an Admin to upload tasks for your gender role and try again.")
 		return nil
 	}
 

@@ -71,8 +71,8 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	if msg.Author == nil || msg.Author.Bot {
-		editResponse(s, e, "I won't announce bot babble or ghost messages.")
+	if msg.Author == nil {
+		editResponse(s, e, "I won't announce ghost messages.")
 		return nil
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {

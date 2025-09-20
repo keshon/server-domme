@@ -133,7 +133,11 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 			Reaction: r,
 			Storage:  b.storage,
 		}
-		_ = cmd.Run(ctx)
+		err := cmd.Run(ctx)
+		if err != nil {
+			log.Println("[ERR] Error running reaction command:", err)
+		}
+
 	}
 }
 
