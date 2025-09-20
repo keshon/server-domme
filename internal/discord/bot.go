@@ -126,6 +126,14 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	log.Printf("[INFO] ✅ Discord bot %v is running.", botInfo.Username)
 }
 
+func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
+	log.Printf("[INFO] Bot added to guild: %s (%s)", g.Guild.ID, g.Guild.Name)
+
+	if err := b.registerCommands(g.Guild.ID); err != nil {
+		log.Printf("[ERR] Failed to register commands for new guild %s: %v", g.Guild.ID, err)
+	}
+}
+
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	for _, cmd := range core.AllCommands() {
 		if _, ok := cmd.(core.ReactionProvider); ok {
