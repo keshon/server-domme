@@ -28,12 +28,6 @@ It’s designed to be practical for server management while providing light, int
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
 
-### 🎵 Music
-
-- **/music-next** — Skip to the next track
-- **/music-play** — Play music track
-- **/music-stop** — Stop playback and clear queue
-
 ### 📢 Utilities
 
 - **Announce** — Send a message to the announcement channel (context command)
@@ -54,6 +48,12 @@ It’s designed to be practical for server management while providing light, int
 ### 💬 Chat
 
 - **mention bot** — Talk to the bot when it is mentioned
+
+### 🎵 Music
+
+- **/music-next** — Skip to the next track
+- **/music-play** — Play music track
+- **/music-stop** — Stop playback and clear queue
 
 ### 🧹 Cleanup
 
