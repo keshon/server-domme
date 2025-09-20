@@ -2,7 +2,7 @@ package discord
 
 import (
 	"fmt"
-	"server-domme/internal/command"
+	"server-domme/internal/commands/music"
 	"server-domme/internal/core"
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
@@ -12,7 +12,7 @@ func (b *Bot) registerMusicCommands() {
 
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&command.PlayCommand{Bot: b},
+			&music.PlayCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 		),
@@ -20,7 +20,7 @@ func (b *Bot) registerMusicCommands() {
 
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&command.StopCommand{Bot: b},
+			&music.StopCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 		),
@@ -28,7 +28,7 @@ func (b *Bot) registerMusicCommands() {
 
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&command.NextCommand{Bot: b},
+			&music.NextCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 		),

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "server-domme/internal/commands" // import all commands to register
 	"server-domme/internal/config"
 	"server-domme/internal/discord"
 	"server-domme/internal/storage"

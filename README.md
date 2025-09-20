@@ -64,18 +64,18 @@ It’s designed to be practical for server management while providing light, int
 
 ### ⚙️ Settings
 
-- **/commands-log** — Review recent commands and their punishments
-- **/commands-status** — Check which command is enabled or disabled
-- **/commands-toggle** — Enable or disable a group of commands
-- **/commands-update** — Re-register or update slash commands
+- **/cmd-log** — Review recent commands and their punishments
+- **/cmd-status** — Check which command is enabled or disabled
+- **/cmd-toggle** — Enable or disable a group of commands
+- **/cmd-update** — Re-register or update slash commands
+- **/get-tasks** — Dumps all tasks for this server as JSON file
 - **/set-channels** — Setup special-purpose channels
 - **/set-roles** — Setup special-purpose roles
 - **/set-tasks** — Upload a new task list for this server
 
 ### 🛠️ Maintenance
 
-- **/dump-db** — Dumps server database as JSON
-- **/dump-tasks** — Dumps all tasks as JSON
+- **/get-db** — Dumps server database as JSON file
 - **/ping** — Check bot latency
 
 

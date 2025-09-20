@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"server-domme/internal/command"
+	"server-domme/internal/commands/purge"
 	"server-domme/internal/storage"
 	st "server-domme/internal/storagetypes"
 	"time"
@@ -33,7 +33,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 
 				if dur <= 0 {
 					log.Printf("[INFO] DelayUntil is in the past — executing delayed purge immediately for channel %s", job.ChannelID)
-					command.DeleteMessages(session, job.ChannelID, nil, nil, nil)
+					purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
 					err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
 					if err != nil {
@@ -44,7 +44,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 					go func(job st.DeletionJob) {
 						time.Sleep(dur)
 						log.Printf("[INFO] Executing delayed purge for channel %s", job.ChannelID)
-						command.DeleteMessages(session, job.ChannelID, nil, nil, nil)
+						purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
 						err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
 						if err != nil {
@@ -63,9 +63,9 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 				}
 
 				stopChan := make(chan struct{})
-				command.ActiveDeletionsMu.Lock()
-				command.ActiveDeletions[job.ChannelID] = stopChan
-				command.ActiveDeletionsMu.Unlock()
+				purge.ActiveDeletionsMu.Lock()
+				purge.ActiveDeletions[job.ChannelID] = stopChan
+				purge.ActiveDeletionsMu.Unlock()
 
 				log.Printf("[INFO] Starting recurring purge for channel %s every 30s (older than %v)", job.ChannelID, dur)
 
@@ -82,7 +82,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 							start := time.Now().Add(-d)
 							now := time.Now()
 							log.Printf("[INFO] Recurring purge triggered for channel %s", job.ChannelID)
-							command.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
+							purge.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
 						}
 					}
 				}(job, dur)
