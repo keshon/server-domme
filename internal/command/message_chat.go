@@ -26,27 +26,27 @@ func (c *ChatCommand) RequireDev() bool    { return false }
 
 // Message handler
 func (c *ChatCommand) Run(ctx interface{}) error {
-	message, ok := ctx.(*core.MessageContext)
+	context, ok := ctx.(*core.MessageContext)
 	if !ok {
-		return fmt.Errorf("wrong context")
+		return nil
 	}
 
-	user := message.Event.Author.Username
-	displayName := message.Event.Author.DisplayName() // public name
-	userID := message.Event.Author.ID
-	channelID := message.Event.ChannelID
-	msg := strings.TrimSpace(message.Event.Content)
+	user := context.Event.Author.Username
+	displayName := context.Event.Author.DisplayName() // public name
+	userID := context.Event.Author.ID
+	channelID := context.Event.ChannelID
+	msg := strings.TrimSpace(context.Event.Content)
 
 	log.Printf("[CHAT] %s (%s) @ %s: %s", user, userID, channelID, msg)
 
-	if message.Event.GuildID == "" {
-		_, err := message.Session.ChannelMessageSend(channelID,
+	if context.Event.GuildID == "" {
+		_, err := context.Session.ChannelMessageSend(channelID,
 			fmt.Sprintf("%s, I don't chat in DMs. Speak to me on a server channel.", displayName))
 		return err
 	}
 
 	if msg == "" {
-		_, err := message.Session.ChannelMessageSend(channelID,
+		_, err := context.Session.ChannelMessageSend(channelID,
 			fmt.Sprintf("%s, speak or be silent forever.", displayName))
 		return err
 	}
@@ -85,7 +85,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	reply, err := client.Generate(messages)
 	if err != nil {
 		log.Printf("[ERROR] AI request failed: %v", err)
-		_, sendErr := message.Session.ChannelMessageSend(channelID,
+		_, sendErr := context.Session.ChannelMessageSend(channelID,
 			fmt.Sprintf("Something went wrong %s, I broke trying to think 🤯", displayName))
 		return sendErr
 	}
@@ -96,7 +96,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	// Send reply (respect 2000 char limit)
 	if len(reply) > 2000 {
 		for _, chunk := range splitMessage(reply, 2000) {
-			_, sendErr := message.Session.ChannelMessageSend(channelID, chunk)
+			_, sendErr := context.Session.ChannelMessageSend(channelID, chunk)
 			if sendErr != nil {
 				return sendErr
 			}
@@ -105,7 +105,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	_, err = message.Session.ChannelMessageSend(channelID, reply)
+	_, err = context.Session.ChannelMessageSend(channelID, reply)
 	if err != nil {
 		log.Printf("[ERROR] Failed to send reply: %v", err)
 	}

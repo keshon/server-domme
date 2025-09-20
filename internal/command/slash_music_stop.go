@@ -27,13 +27,13 @@ func (c *StopCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *StopCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("wrong context type")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
+	session := context.Session
+	event := context.Event
 	guildID := event.GuildID
 
 	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{

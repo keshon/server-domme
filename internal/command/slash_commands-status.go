@@ -28,19 +28,19 @@ func (c *CommandsStatus) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *CommandsStatus) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("invalid context")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member
 
-	disabledGroups, _ := slash.Storage.GetDisabledGroups(guildID)
+	disabledGroups, _ := context.Storage.GetDisabledGroups(guildID)
 	disabledMap := make(map[string]bool)
 	for _, g := range disabledGroups {
 		disabledMap[g] = true
@@ -78,7 +78,7 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		log.Println("Failed to log:", err)
 	}
 
-	return core.RespondEphemeral(slash.Session, slash.Event, sb.String())
+	return core.RespondEphemeral(context.Session, context.Event, sb.String())
 }
 
 func init() {

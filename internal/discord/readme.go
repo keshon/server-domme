@@ -9,7 +9,7 @@ import (
 	"sort"
 	"text/template"
 
-	"server-domme/internal/command"
+	"server-domme/internal/config"
 	"server-domme/internal/core"
 )
 
@@ -28,8 +28,8 @@ func updateReadme() error {
 	commands := core.AllCommands()
 
 	sort.Slice(commands, func(i, j int) bool {
-		wi := command.CategoryWeights[commands[i].Category()]
-		wj := command.CategoryWeights[commands[j].Category()]
+		wi := config.CategoryWeights[commands[i].Category()]
+		wj := config.CategoryWeights[commands[j].Category()]
 		if wi == wj {
 			return commands[i].Name() < commands[j].Name()
 		}

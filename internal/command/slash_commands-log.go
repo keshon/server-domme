@@ -35,14 +35,14 @@ func (c *LogCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *LogCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("wrong context type")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member

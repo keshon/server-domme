@@ -1,7 +1,6 @@
 package command
 
 import (
-	"fmt"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -33,20 +32,20 @@ func (c *CommandUpdate) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *CommandUpdate) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("invalid context for command-update")
+		return nil
 	}
 
-	target := slash.Event.ApplicationCommandData().Options[0].StringValue()
+	target := context.Event.ApplicationCommandData().Options[0].StringValue()
 
 	core.PublishSystemEvent(core.SystemEvent{
 		Type:    core.SystemEventRefreshCommands,
-		GuildID: slash.Event.GuildID,
+		GuildID: context.Event.GuildID,
 		Target:  target,
 	})
 
-	return core.RespondEphemeral(slash.Session, slash.Event, "Command update requested.")
+	return core.RespondEphemeral(context.Session, context.Event, "Command update requested.")
 }
 
 func init() {

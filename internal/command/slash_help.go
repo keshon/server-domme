@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"server-domme/internal/config"
 	"server-domme/internal/core"
 	"server-domme/internal/version"
 
@@ -43,14 +44,14 @@ func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("wrong context type")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member
@@ -97,17 +98,6 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	return nil
 }
 
-var CategoryWeights = map[string]int{
-	"🕯️ Information": 0,
-	"📢 Utilities":    10,
-	"🎲 Gameplay":     20,
-	"🎭 Roleplay":     30,
-	"💬 Chat":         35,
-	"🧹 Cleanup":      40,
-	"⚙️ Settings":    50,
-	"🛠️ Maintenance": 60,
-}
-
 func buildHelpByCategory(session *discordgo.Session, event *discordgo.InteractionCreate) string {
 	userID := event.Member.User.ID
 	all := core.AllCommands()
@@ -125,7 +115,7 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 		cat := cmd.Category()
 		categoryMap[cat] = append(categoryMap[cat], cmd)
 		if _, ok := categorySort[cat]; !ok {
-			categorySort[cat] = CategoryWeights[cat]
+			categorySort[cat] = config.CategoryWeights[cat]
 		}
 	}
 

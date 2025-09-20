@@ -1,4 +1,4 @@
-package command
+package announce
 
 import (
 	"bytes"
@@ -36,7 +36,7 @@ func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
 func (c *AnnounceCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.MessageApplicationCommandContext)
 	if !ok {
-		return fmt.Errorf("wrong context type (expected MessageApplicationContext)")
+		return nil
 	}
 
 	s := context.Session
@@ -167,12 +167,12 @@ func restoreMentions(s *discordgo.Session, guildID, content string) string {
 	})
 }
 
-func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
-			&AnnounceCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-		),
-	)
-}
+// func init() {
+// 	core.RegisterCommand(
+// 		core.ApplyMiddlewares(
+// 			&AnnounceCommand{},
+// 			core.WithGroupAccessCheck(),
+// 			core.WithGuildOnly(),
+// 		),
+// 	)
+// }

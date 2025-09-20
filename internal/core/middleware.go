@@ -26,12 +26,12 @@ func WithGroupAccessCheck() Middleware {
 
 				case *MessageContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					// message commands - ignore respond for now due to spamming bug
 					respond = func(_ string) {}
 
 				case *ComponentInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+
 					if disabledGroup(cmd, guildID, storage, respond) {
 						return nil
 					}
@@ -43,6 +43,10 @@ func WithGroupAccessCheck() Middleware {
 				case *MessageApplicationCommandContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+
+				case *MessageReactionContext:
+					guildID, storage = v.Event.GuildID, v.Storage
+					respond = func(_ string) {}
 
 				default:
 					return nil
@@ -123,6 +127,13 @@ func (w *wrappedCommand) ContextDefinition() *discordgo.ApplicationCommand {
 		return sp.ContextDefinition()
 	}
 	return nil
+}
+
+func (w *wrappedCommand) ReactionDefinition() string {
+	if sp, ok := w.Command.(ReactionProvider); ok {
+		return sp.ReactionDefinition()
+	}
+	return ""
 }
 
 func ApplyMiddlewares(cmd Command, mws ...Middleware) Command {

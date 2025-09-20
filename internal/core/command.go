@@ -26,6 +26,10 @@ type ContextMenuProvider interface {
 	ContextDefinition() *discordgo.ApplicationCommand
 }
 
+type ReactionProvider interface {
+	ReactionDefinition() string
+}
+
 // Contexts - what runtime hands you when executing a command
 // Slash command
 type SlashInteractionContext struct {
@@ -48,9 +52,9 @@ type ComponentInteractionHandler interface {
 
 // Reaction to a message
 type MessageReactionContext struct {
-	Session  *discordgo.Session
-	Reaction *discordgo.MessageReactionAdd
-	Storage  *storage.Storage
+	Session *discordgo.Session
+	Event   *discordgo.MessageReactionAdd
+	Storage *storage.Storage
 }
 
 // Contexnt menu over a message

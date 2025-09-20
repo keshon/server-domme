@@ -15,13 +15,14 @@ import (
 
 type TranslateOnReaction struct{}
 
-func (t *TranslateOnReaction) Name() string        { return "translate (reaction)" }
-func (t *TranslateOnReaction) Description() string { return "Translate message on flag emoji reaction" }
-func (t *TranslateOnReaction) Aliases() []string   { return []string{} }
-func (c *TranslateOnReaction) Group() string       { return "translate" }
-func (t *TranslateOnReaction) Category() string    { return "📢 Utilities" }
-func (r *TranslateOnReaction) RequireAdmin() bool  { return false }
-func (r *TranslateOnReaction) RequireDev() bool    { return false }
+func (t *TranslateOnReaction) Name() string               { return "translate (reaction)" }
+func (t *TranslateOnReaction) Description() string        { return "Translate message on flag emoji reaction" }
+func (t *TranslateOnReaction) Aliases() []string          { return []string{} }
+func (c *TranslateOnReaction) Group() string              { return "translate" }
+func (t *TranslateOnReaction) Category() string           { return "📢 Utilities" }
+func (r *TranslateOnReaction) RequireAdmin() bool         { return false }
+func (r *TranslateOnReaction) RequireDev() bool           { return false }
+func (t *TranslateOnReaction) ReactionDefinition() string { return "reaction" }
 
 var flags = map[string]string{
 	"🇷🇺": "ru",
@@ -36,20 +37,18 @@ var flags = map[string]string{
 }
 
 func (t *TranslateOnReaction) Run(ctx interface{}) error {
-	fmt.Println("translate on reaction")
-	rc, ok := ctx.(*core.MessageReactionContext)
-	if !ok {
-		return fmt.Errorf("wrong context type")
-	}
-	fmt.Println("translate on reaction 2")
-
-	toLangCode, ok := flags[rc.Reaction.Emoji.Name]
+	context, ok := ctx.(*core.MessageReactionContext)
 	if !ok {
 		return nil
 	}
 
-	msg, err := rc.Session.ChannelMessage(rc.Reaction.ChannelID, rc.Reaction.MessageID)
-	if err != nil || msg.Author.Bot || msg.Content == "" {
+	toLangCode, ok := flags[context.Event.Emoji.Name]
+	if !ok {
+		return nil
+	}
+
+	msg, err := context.Session.ChannelMessage(context.Event.ChannelID, context.Event.MessageID)
+	if err != nil || msg.Content == "" {
 		return nil
 	}
 
@@ -69,28 +68,28 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 			break
 		}
 	}
-	toFlag := rc.Reaction.Emoji.Name
+	toFlag := context.Event.Emoji.Name
 
-	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", rc.Reaction.GuildID, rc.Reaction.ChannelID, rc.Reaction.MessageID)
+	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", context.Event.GuildID, context.Event.ChannelID, context.Event.MessageID)
 
-	dm, err := rc.Session.UserChannelCreate(rc.Reaction.UserID)
+	dm, err := context.Session.UserChannelCreate(context.Event.UserID)
 	if err != nil {
 		return nil
 	}
 
 	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, toFlag, translated, link)
-	_, _ = rc.Session.ChannelMessageSend(dm.ID, content)
+	_, _ = context.Session.ChannelMessageSend(dm.ID, content)
 
-	perms, err := rc.Session.State.UserChannelPermissions(rc.Session.State.User.ID, rc.Reaction.ChannelID)
+	perms, err := context.Session.State.UserChannelPermissions(context.Session.State.User.ID, context.Event.ChannelID)
 	if err != nil {
 		return nil
 	}
 	if perms&discordgo.PermissionManageMessages == 0 {
-		log.Printf("[WARN] No permission to remove reaction in channel, skipping translation %s\n", rc.Reaction.ChannelID)
+		log.Printf("[WARN] No permission to remove reaction in channel, skipping translation %s\n", context.Event.ChannelID)
 		return nil
 	}
 
-	return rc.Session.MessageReactionRemove(rc.Reaction.ChannelID, rc.Reaction.MessageID, rc.Reaction.Emoji.Name, rc.Reaction.UserID)
+	return context.Session.MessageReactionRemove(context.Event.ChannelID, context.Event.MessageID, context.Event.Emoji.Name, context.Event.UserID)
 }
 
 func googleTranslate(text, targetLang string) (string, string, error) {
@@ -165,7 +164,6 @@ func init() {
 		core.ApplyMiddlewares(
 			&TranslateOnReaction{},
 			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
 		),
 	)
 }

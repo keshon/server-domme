@@ -128,14 +128,16 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	for _, cmd := range core.AllCommands() {
-		ctx := &core.MessageReactionContext{
-			Session:  s,
-			Reaction: r,
-			Storage:  b.storage,
-		}
-		err := cmd.Run(ctx)
-		if err != nil {
-			log.Println("[ERR] Error running reaction command:", err)
+		if _, ok := cmd.(core.ReactionProvider); ok {
+			ctx := &core.MessageReactionContext{
+				Session: s,
+				Event:   r,
+				Storage: b.storage,
+			}
+			err := cmd.Run(ctx)
+			if err != nil {
+				log.Println("[ERR] Error running reaction command:", err)
+			}
 		}
 
 	}

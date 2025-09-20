@@ -57,38 +57,38 @@ func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand 
 }
 
 func (c *CommandsToggleCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("invalid context")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member
 
-	data := slash.Event.ApplicationCommandData()
+	data := context.Event.ApplicationCommandData()
 	group := data.Options[0].StringValue()
 	state := data.Options[1].StringValue()
 
 	if group == "core" && state == "disable" {
-		return core.RespondEphemeral(slash.Session, slash.Event, "You can't disable the `core` group. That's the spine of this whole circus.")
+		return core.RespondEphemeral(context.Session, context.Event, "You can't disable the `core` group. That's the spine of this whole circus.")
 	}
 
 	var err error
 	if state == "disable" {
-		err = slash.Storage.DisableGroup(slash.Event.GuildID, group)
+		err = context.Storage.DisableGroup(context.Event.GuildID, group)
 		if err != nil {
-			return core.RespondEphemeral(slash.Session, slash.Event, "Failed to disable the command.")
+			return core.RespondEphemeral(context.Session, context.Event, "Failed to disable the command.")
 		}
-		return core.RespondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Command `%s` disabled.", group))
+		return core.RespondEphemeral(context.Session, context.Event, fmt.Sprintf("Command `%s` disabled.", group))
 	}
 
-	err = slash.Storage.EnableGroup(slash.Event.GuildID, group)
+	err = context.Storage.EnableGroup(context.Event.GuildID, group)
 	if err != nil {
-		return core.RespondEphemeral(slash.Session, slash.Event, "Failed to enable the command.")
+		return core.RespondEphemeral(context.Session, context.Event, "Failed to enable the command.")
 	}
 
 	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
@@ -96,7 +96,7 @@ func (c *CommandsToggleCommand) Run(ctx interface{}) error {
 		log.Println("Failed to log:", err)
 	}
 
-	return core.RespondEphemeral(slash.Session, slash.Event, fmt.Sprintf("Command `%s` enabled.", group))
+	return core.RespondEphemeral(context.Session, context.Event, fmt.Sprintf("Command `%s` enabled.", group))
 }
 
 func init() {

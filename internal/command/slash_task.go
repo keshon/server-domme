@@ -53,14 +53,14 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 func (c *TaskCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("wrong context")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member

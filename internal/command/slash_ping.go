@@ -27,14 +27,14 @@ func (c *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PingCommand) Run(ctx interface{}) error {
-	slash, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
-		return fmt.Errorf("wrong context type")
+		return nil
 	}
 
-	session := slash.Session
-	event := slash.Event
-	storage := slash.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member
@@ -46,12 +46,7 @@ func (c *PingCommand) Run(ctx interface{}) error {
 
 	latency := session.HeartbeatLatency().Milliseconds()
 
-	return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("🏓 Pong! %dms", latency),
-		},
-	})
+	return core.RespondEphemeral(session, event, fmt.Sprintf("🏓 Pong! Latency: %dms", latency))
 }
 
 func init() {
