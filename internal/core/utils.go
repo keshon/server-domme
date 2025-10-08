@@ -46,6 +46,30 @@ func RespondEmbedEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate,
 	return err
 }
 
+func RespondEmbedEphemeralWithFile(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed, fileReader interface {
+	Read(p []byte) (n int, err error)
+}, fileName string) error {
+	if embed.Color == 0 {
+		embed.Color = EmbedColor
+	}
+
+	resp := &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags:  discordgo.MessageFlagsEphemeral,
+			Embeds: []*discordgo.MessageEmbed{embed},
+			Files: []*discordgo.File{
+				{
+					Name:   fileName,
+					Reader: fileReader,
+				},
+			},
+		},
+	}
+
+	return s.InteractionRespond(i.Interaction, resp)
+}
+
 func MessageRespond(s *discordgo.Session, channelID string, content string) error {
 	_, err := s.ChannelMessageSend(channelID, content)
 	return err

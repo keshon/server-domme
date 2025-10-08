@@ -32,21 +32,24 @@ func (c *PingCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
+	session, event, storage := context.Session, context.Event, context.Storage
+	guildID, member := event.GuildID, event.Member
 
-	guildID := event.GuildID
-	member := event.Member
+	latency := session.HeartbeatLatency().Milliseconds()
 
+	// Send response
+	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		Title:       "Pong!",
+		Description: fmt.Sprintf("Latency: %dms", latency),
+	})
+
+	// Log usage
 	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
 	if err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	latency := session.HeartbeatLatency().Milliseconds()
-
-	return core.RespondEphemeral(session, event, fmt.Sprintf("🏓 Pong! Latency: %dms", latency))
+	return nil
 }
 
 func init() {

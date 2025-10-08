@@ -50,16 +50,12 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	options := event.ApplicationCommandData().Options
-	storage := context.Storage
+	session, event, storage := context.Session, context.Event, context.Storage
+	guildID, member := event.GuildID, event.Member
 
-	guildID := event.GuildID
-	member := event.Member
-
+	// Parse command options
 	var kind, channelID string
-	for _, opt := range options {
+	for _, opt := range event.ApplicationCommandData().Options {
 		switch opt.Name {
 		case "type":
 			kind = opt.StringValue()
@@ -68,38 +64,50 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		}
 	}
 
+	// Validate input
 	if kind == "" || channelID == "" {
-		return core.RespondEphemeral(session, event, "Missing required parameters. Don't make me repeat myself.")
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Missing parameters. Don’t make me repeat myself.",
+		})
 	}
 
-	err := storage.SetSpecialChannel(event.GuildID, kind, channelID)
-	if err != nil {
-		return core.RespondEphemeral(session, event, fmt.Sprintf("Couldn’t save it: `%s`", err.Error()))
+	// Save to storage
+	if err := storage.SetSpecialChannel(guildID, kind, channelID); err != nil {
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Failed to set channel: ```%v```", err),
+		})
 	}
 
-	var confirmation string
-	switch kind {
-	case "confession":
-		confirmation = "💬 Confession channel updated. May secrets drip in silence."
-	case "announce":
-		confirmation = "📢 Announcement channel set. Don’t disappoint me with boring news."
-	default:
-		confirmation = fmt.Sprintf("✅ Channel for `%s` set.", kind)
+	// Pick response text
+	msg := map[string]string{
+		"confession": "💬 Confession channel updated. Secrets will flow in silence.",
+		"announce":   "📢 Announcement channel set. Don’t disappoint me with boring news.",
+	}[kind]
+	if msg == "" {
+		msg = fmt.Sprintf("✅ Channel for `%s` set.", kind)
 	}
 
-	err = core.RespondEphemeral(session, event, confirmation)
-	if err != nil {
-		return err
-	}
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
+	// Log usage
+	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	return nil
+	// Send response
+	return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		Description: msg,
+	})
 }
 
+func init() {
+	core.RegisterCommand(
+		core.ApplyMiddlewares(
+			&SetChannelsCommand{},
+			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
+			core.WithAccessControl(),
+		),
+	)
+}
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(

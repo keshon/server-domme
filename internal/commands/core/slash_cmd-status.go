@@ -34,11 +34,8 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
-	guildID := event.GuildID
-	member := event.Member
+	session, event, storage := context.Session, context.Event, context.Storage
+	guildID, member := event.GuildID, event.Member
 
 	// Fetch disabled groups
 	disabledGroups, _ := storage.GetDisabledGroups(guildID)
@@ -67,8 +64,7 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 
 	// Create embed message
 	embed := &discordgo.MessageEmbed{
-		Title:       "Commands Status",
-		Description: "Commands are grouped (e.g., _purge_, _core_, _translate_). Use `/help` (group view) to view or `/cmd-toggle` to manage. _Core_ can’t be disabled.",
+		Title: "Commands Status",
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Disabled",
@@ -81,15 +77,20 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 				Inline: false,
 			},
 		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Commands are grouped (e.g., purge, core, translate). Use /help (group view) to view or /cmd-toggle to manage. Core group can’t be disabled.",
+		},
 	}
+
+	// Send response
+	core.RespondEmbedEphemeral(context.Session, context.Event, embed)
 
 	// Log usage
 	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	// Send response
-	return core.RespondEmbedEphemeral(context.Session, context.Event, embed)
+	return nil
 }
 
 func init() {

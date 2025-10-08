@@ -40,31 +40,33 @@ func (c *LogCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
+	session, event, storage := context.Session, context.Event, context.Storage
+	guildID, member := event.GuildID, event.Member
 
-	guildID := event.GuildID
-	member := event.Member
-
+	// Fetch command logs
 	records, err := storage.GetCommands(guildID)
 	if err != nil {
-		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to fetch command logs: %v", err))
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Failed to fetch command logs: %v", err),
+		})
 		return nil
 	}
-
 	if len(records) == 0 {
-		core.RespondEphemeral(session, event, "No command history found. Such a quiet guild, or lazy users.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "No command logs found.",
+		})
 		return nil
 	}
 
+	// Build table
 	var builder strings.Builder
-	header := fmt.Sprintf("%-19s\t%-15s\t%-12s\t%s\n", "# Datetime", "# Username", "# Channel", "# Command")
-	builder.WriteString(header)
+	builder.WriteString(fmt.Sprintf("%-19s\t%-15s\t%-12s\t%s\n", "# Datetime", "# Username", "# Channel", "# Command"))
 
-	for idx := len(records) - 1; idx >= 0; idx-- {
-		r := records[idx]
+	// Add logs in reverse order (latest first)
+	for i := len(records) - 1; i >= 0; i-- {
+		r := records[i]
 
+		// Hide usernames for 'confess' if not a developer
 		username := r.Username
 		if r.Command == "confess" && !core.IsDeveloper(member.User.ID) {
 			username = "###"
@@ -78,6 +80,7 @@ func (c *LogCommand) Run(ctx interface{}) error {
 			r.Command,
 		)
 
+		// Stop if message too long
 		if builder.Len()+len(line) > maxContentLength {
 			break
 		}
@@ -85,11 +88,12 @@ func (c *LogCommand) Run(ctx interface{}) error {
 		builder.WriteString(line)
 	}
 
-	out := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
-	core.RespondEphemeral(session, event, out)
+	// Wrap in code block
+	msg := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
+	core.RespondEphemeral(session, event, msg)
 
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
+	// Log command usage
+	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
 		log.Println("Failed to log:", err)
 	}
 

@@ -21,15 +21,10 @@ func (c *CommandsToggleCommand) RequireDev() bool    { return false }
 
 func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	groupChoices := []*discordgo.ApplicationCommandOptionChoice{}
-	for _, group := range getUniqueGroups() {
-		groupChoices = append(groupChoices, &discordgo.ApplicationCommandOptionChoice{
-			Name:  group,
-			Value: group,
-		})
+	for _, g := range getUniqueGroups() {
+		groupChoices = append(groupChoices, &discordgo.ApplicationCommandOptionChoice{Name: g, Value: g})
 	}
-	sort.Slice(groupChoices, func(i, j int) bool {
-		return groupChoices[i].Name < groupChoices[j].Name
-	})
+	sort.Slice(groupChoices, func(i, j int) bool { return groupChoices[i].Name < groupChoices[j].Name })
 
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
@@ -38,14 +33,14 @@ func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand 
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "group",
-				Description: "Choose command to toggle",
+				Description: "Choose command group to toggle",
 				Required:    true,
 				Choices:     groupChoices,
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "state",
-				Description: "Enable or disable the command",
+				Description: "Enable or disable",
 				Required:    true,
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{Name: "Enable", Value: "enable"},
@@ -62,41 +57,50 @@ func (c *CommandsToggleCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
+	session, event, storage := context.Session, context.Event, context.Storage
+	guildID, member := event.GuildID, event.Member
 
-	guildID := event.GuildID
-	member := event.Member
+	data := event.ApplicationCommandData()
+	group, state := data.Options[0].StringValue(), data.Options[1].StringValue()
 
-	data := context.Event.ApplicationCommandData()
-	group := data.Options[0].StringValue()
-	state := data.Options[1].StringValue()
-
+	// Prevent disabling core group
 	if group == "core" && state == "disable" {
-		return core.RespondEphemeral(context.Session, context.Event, "You can't disable the `core` group. That's the spine of this whole circus.")
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "You can't disable the `core` group. It's the backbone of the bot.",
+		})
 	}
 
+	// Enable or disable group
 	var err error
+	embed := &discordgo.MessageEmbed{
+		Footer: &discordgo.MessageEmbedFooter{Text: "Use /cmd-status to check which commands are disabled."},
+	}
+
 	if state == "disable" {
-		err = context.Storage.DisableGroup(context.Event.GuildID, group)
+		err = storage.DisableGroup(guildID, group)
 		if err != nil {
-			return core.RespondEphemeral(context.Session, context.Event, "Failed to disable the command.")
+			embed.Description = "Failed to disable the group."
+			return core.RespondEmbedEphemeral(session, event, embed)
 		}
-		return core.RespondEphemeral(context.Session, context.Event, fmt.Sprintf("Command `%s` disabled.", group))
+		embed.Description = fmt.Sprintf("Command/group `%s` disabled.", group)
+	} else {
+		err = storage.EnableGroup(guildID, group)
+		if err != nil {
+			embed.Description = "Failed to enable the group."
+			return core.RespondEmbedEphemeral(session, event, embed)
+		}
+		embed.Description = fmt.Sprintf("Command/group `%s` enabled.", group)
 	}
 
-	err = context.Storage.EnableGroup(context.Event.GuildID, group)
-	if err != nil {
-		return core.RespondEphemeral(context.Session, context.Event, "Failed to enable the command.")
-	}
+	// Send response
+	core.RespondEmbedEphemeral(session, event, embed)
 
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
+	// Log usage
+	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	return core.RespondEphemeral(context.Session, context.Event, fmt.Sprintf("Command `%s` enabled.", group))
+	return nil
 }
 
 func init() {

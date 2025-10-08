@@ -75,7 +75,7 @@ It’s designed to be practical for server management while providing light, int
 
 ### 🛠️ Maintenance
 
-- **/get-db** — Dumps server database as JSON file
+- **/get-db** — Dump the current server database as a JSON file
 - **/ping** — Check bot latency
 
 

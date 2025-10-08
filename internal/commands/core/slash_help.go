@@ -49,12 +49,8 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
-
-	guildID := event.GuildID
-	member := event.Member
+	session, event, storage := context.Session, context.Event, context.Storage
+	guildID, member := event.GuildID, event.Member
 
 	viewAs := "category"
 	opts := event.ApplicationCommandData().Options

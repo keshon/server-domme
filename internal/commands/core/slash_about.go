@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	embed "github.com/clinet/discordgo-embed"
 )
 
 type AboutCommand struct{}
@@ -37,41 +35,10 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
-
-	guildID := event.GuildID
+	session, event, storage := context.Session, context.Event, context.Storage
 	member := event.Member
 
-	embedMsg, file, err := buildAboutMessage()
-	if err != nil {
-		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to build about message: ```%v```", err))
-		return nil
-	}
-
-	resp := &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embedMsg},
-			Flags:  discordgo.MessageFlagsEphemeral,
-		},
-	}
-	if file != nil {
-		resp.Data.Files = []*discordgo.File{file}
-	}
-
-	session.InteractionRespond(event.Interaction, resp)
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
-
-	return nil
-}
-
-func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
+	// Format build date
 	buildDate := "unknown"
 	if version.BuildDate != "" {
 		if t, err := time.Parse(time.RFC3339, version.BuildDate); err == nil {
@@ -81,42 +48,56 @@ func buildAboutMessage() (*discordgo.MessageEmbed, *discordgo.File, error) {
 		}
 	}
 
-	goVer := "unknown"
-	if version.GoVersion != "" {
-		goVer = strings.TrimPrefix(version.GoVersion, "go")
+	// Get Go version
+	goVer := strings.TrimPrefix(version.GoVersion, "go")
+	if goVer == "" {
+		goVer = "unknown"
 	}
 
-	infoFields := map[string]string{
-		"Developed by Innokentiy Sokolov": "[LinkedIn](https://www.linkedin.com/in/keshon), [GitHub](https://github.com/keshon), [Homepage](https://keshon.ru)",
-		"Repository":                      "https://github.com/keshon/server-domme",
-		"Release":                         fmt.Sprintf("%s (Go %s)", buildDate, goVer),
+	// Info fields for embed
+	fields := []*discordgo.MessageEmbedField{
+		{
+			Name:  "Developed by Señor Mega",
+			Value: "[LinkedIn](https://www.linkedin.com/in/keshon), [GitHub](https://github.com/keshon), [Homepage](https://keshon.ru)",
+		},
+		{
+			Name:  "Repository",
+			Value: "https://github.com/keshon/server-domme",
+		},
+		{
+			Name:  "Release",
+			Value: buildDate + " (Go " + goVer + ")",
+		},
 	}
 
+	// Create embed
+	embed := &discordgo.MessageEmbed{
+		Title:       "ℹ️ About " + version.AppName,
+		Description: version.AppDescription,
+		Color:       core.EmbedColor,
+		Fields:      fields,
+	}
+
+	// Try attaching banner if exists
 	imagePath := "./assets/about-banner.webp"
-	imageName := filepath.Base(imagePath)
-	imageFile, err := os.Open(imagePath)
-	if err != nil {
-		embedMsg := embed.NewEmbed().
-			SetColor(core.EmbedColor).
-			SetDescription(fmt.Sprintf("ℹ️ About\n\n**%s** — %s", version.AppName, version.AppDescription))
-		for title, value := range infoFields {
-			embedMsg = embedMsg.AddField(title, value)
-		}
-		return embedMsg.MessageEmbed, nil, nil
+	if f, err := os.Open(imagePath); err == nil {
+		defer f.Close()
+		imageName := filepath.Base(imagePath)
+		embed.Image = &discordgo.MessageEmbedImage{URL: "attachment://" + imageName}
+		return core.RespondEmbedEphemeralWithFile(session, event, embed, f, imageName)
 	}
 
-	embedMsg := embed.NewEmbed().
-		SetColor(core.EmbedColor).
-		SetDescription(fmt.Sprintf("ℹ️ **About %s**\n\n%s", version.AppName, version.AppDescription))
-	for title, value := range infoFields {
-		embedMsg = embedMsg.AddField(title, value)
+	// Just embed if no banner
+	if err := core.RespondEmbedEphemeral(session, event, embed); err != nil {
+		return err
 	}
-	embedMsg = embedMsg.SetImage("attachment://" + imageName)
 
-	return embedMsg.MessageEmbed, &discordgo.File{
-		Name:   imageName,
-		Reader: imageFile,
-	}, nil
+	// Log usage
+	if err := core.LogCommand(session, storage, event.GuildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
+		log.Println("Failed to log:", err)
+	}
+
+	return nil
 }
 
 func init() {
