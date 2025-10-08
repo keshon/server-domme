@@ -75,6 +75,7 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 		editResponse(s, e, "I won't announce ghost messages.")
 		return nil
 	}
+
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
 		editResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
 		return nil

@@ -1,6 +1,7 @@
 package player
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"server-domme/internal/storage"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -184,8 +186,15 @@ func (p *Player) Stop(exitVc bool) error {
 		log.Printf("[Player] Exiting voice channel and clearing queue")
 		p.queue = nil
 		p.channelID = ""
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
 		if p.vc != nil {
-			p.vc.Disconnect()
+			err := p.vc.Disconnect(ctx)
+			if err != nil {
+				log.Printf("[Player] Error during VC disconnect: %v", err)
+			}
 			p.vc = nil
 		}
 	}
@@ -342,7 +351,7 @@ func (p *Player) runPlayback(rs io.ReadCloser) error {
 			log.Printf("[Player] Failed to get/create voice connection: %v", vErr)
 		} else {
 			p.vc = vc
-			log.Printf("[Player] Streaming to Discord VC: channel=%s guild=%s", p.vc.ChannelID, p.guildID)
+			log.Printf("[Player] Streaming to Discord VC: status=%v guild=%s", p.vc.Status, p.guildID)
 			if streamErr := stream.StreamToDiscord(rs, p.stopPlayback, vc); streamErr != nil {
 				err = streamErr
 				log.Printf("[Player] StreamToDiscord error: %v", streamErr)
@@ -380,14 +389,18 @@ func (p *Player) getOrCreateVoiceConnection() (*discordgo.VoiceConnection, error
 		return nil, errors.New("voice channel ID is not set")
 	}
 
-	if p.vc != nil && p.vc.ChannelID == p.channelID {
+	if p.vc != nil {
 		return p.vc, nil // reuse
 	}
 
-	vc, err := p.dg.ChannelVoiceJoin(p.guildID, p.channelID, false, true)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	vc, err := p.dg.ChannelVoiceJoin(ctx, p.guildID, p.channelID, false, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to join voice channel: %w", err)
 	}
+
 	log.Printf("[Player] Joined voice channel %s on guild %s", p.channelID, p.guildID)
 	return vc, nil
 }
