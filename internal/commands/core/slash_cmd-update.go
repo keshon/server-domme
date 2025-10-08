@@ -54,6 +54,7 @@ func init() {
 			&CommandUpdate{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

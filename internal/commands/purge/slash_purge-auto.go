@@ -156,6 +156,7 @@ func init() {
 			&PurgeAutoCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

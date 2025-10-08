@@ -40,11 +40,6 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !core.IsAdministrator(session, event.GuildID, event.Member) {
-		core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
-		return nil
-	}
-
 	record, err := storage.GetGuildRecord(event.GuildID)
 	if err != nil {
 		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to fetch record: ```%v```", err))
@@ -89,6 +84,7 @@ func init() {
 			&DumpDBCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

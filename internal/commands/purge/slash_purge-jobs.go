@@ -88,6 +88,7 @@ func init() {
 			&PurgeJobsCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

@@ -47,11 +47,6 @@ func (c *LogCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !core.IsAdministrator(session, guildID, member) {
-		core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
-		return nil
-	}
-
 	records, err := storage.GetCommands(guildID)
 	if err != nil {
 		core.RespondEphemeral(session, event, fmt.Sprintf("Failed to fetch command logs: %v", err))
@@ -107,6 +102,7 @@ func init() {
 			&LogCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

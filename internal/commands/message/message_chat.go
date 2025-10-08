@@ -31,6 +31,26 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
+	// ignore bot’s own messages
+	if context.Event.Author.ID == context.Session.State.User.ID {
+		return nil
+	}
+
+	// ignore messages from confession channel
+	confessChannelID, _ := context.Storage.GetSpecialChannel(context.Event.GuildID, "confession")
+	if confessChannelID != "" && context.Event.ChannelID == confessChannelID {
+		return nil
+	}
+
+	// ignore messages that *look like* confession embeds
+	if len(context.Event.Embeds) > 0 {
+		for _, e := range context.Event.Embeds {
+			if strings.Contains(e.Title, "📢 Anonymous Confession") {
+				return nil
+			}
+		}
+	}
+
 	user := context.Event.Author.Username
 	displayName := context.Event.Author.DisplayName() // public name
 	userID := context.Event.Author.ID
@@ -62,6 +82,8 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	file, err := os.Open(cfg.AIPromtPath)
 	if err != nil {
 		log.Printf("[ERROR] Failed to open system prompt: %v", err)
+		context.Session.ChannelMessageSend(channelID,
+			fmt.Sprintf("My system prompt is missing %s, I can't think properly", displayName))
 		return err
 	}
 	defer file.Close()
@@ -85,9 +107,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	reply, err := client.Generate(messages)
 	if err != nil {
 		log.Printf("[ERROR] AI request failed: %v", err)
-		_, sendErr := context.Session.ChannelMessageSend(channelID,
+		context.Session.ChannelMessageSend(channelID,
 			fmt.Sprintf("Something went wrong %s, I broke trying to think 🤯", displayName))
-		return sendErr
+		return err
 	}
 
 	convos.add(channelID, "assistant", reply)
@@ -127,8 +149,8 @@ type convoStore struct {
 
 var convos = &convoStore{
 	store:    map[string][]convoMsg{},
-	maxMsgs:  40,
-	maxChars: 14000,
+	maxMsgs:  60,
+	maxChars: 25000,
 }
 
 func (c *convoStore) add(channelID, role, content string) {

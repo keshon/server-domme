@@ -156,6 +156,7 @@ func init() {
 			&PurgeNowCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

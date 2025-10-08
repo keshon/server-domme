@@ -62,6 +62,7 @@ func init() {
 			&PurgeStopCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

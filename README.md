@@ -65,7 +65,7 @@ It’s designed to be practical for server management while providing light, int
 ### ⚙️ Settings
 
 - **/cmd-log** — Review recent commands and their punishments
-- **/cmd-status** — Check which command is enabled or disabled
+- **/cmd-status** — Check which command groups are enabled or disabled
 - **/cmd-toggle** — Enable or disable a group of commands
 - **/cmd-update** — Re-register or update slash commands
 - **/get-tasks** — Dumps all tasks for this server as JSON file

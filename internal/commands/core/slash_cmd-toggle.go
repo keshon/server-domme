@@ -105,6 +105,7 @@ func init() {
 			&CommandsToggleCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

@@ -11,19 +11,20 @@ import (
 
 type CommandsStatus struct{}
 
-func (c *CommandsStatus) Name() string        { return "cmd-status" }
-func (c *CommandsStatus) Description() string { return "Check which command is enabled or disabled" }
-func (c *CommandsStatus) Aliases() []string   { return []string{} }
-func (c *CommandsStatus) Group() string       { return "core" }
-func (c *CommandsStatus) Category() string    { return "⚙️ Settings" }
-func (c *CommandsStatus) RequireAdmin() bool  { return true }
-func (c *CommandsStatus) RequireDev() bool    { return false }
+func (c *CommandsStatus) Name() string { return "cmd-status" }
+func (c *CommandsStatus) Description() string {
+	return "Check which command groups are enabled or disabled"
+}
+func (c *CommandsStatus) Aliases() []string  { return []string{} }
+func (c *CommandsStatus) Group() string      { return "core" }
+func (c *CommandsStatus) Category() string   { return "⚙️ Settings" }
+func (c *CommandsStatus) RequireAdmin() bool { return false }
+func (c *CommandsStatus) RequireDev() bool   { return false }
 
 func (c *CommandsStatus) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options:     []*discordgo.ApplicationCommandOption{},
 	}
 }
 
@@ -36,19 +37,18 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 	session := context.Session
 	event := context.Event
 	storage := context.Storage
-
 	guildID := event.GuildID
 	member := event.Member
 
-	disabledGroups, _ := context.Storage.GetDisabledGroups(guildID)
+	// Fetch disabled groups
+	disabledGroups, _ := storage.GetDisabledGroups(guildID)
 	disabledMap := make(map[string]bool)
 	for _, g := range disabledGroups {
 		disabledMap[g] = true
 	}
 
-	var enabled []string
-	var disabled []string
-
+	// Sort groups into enabled/disabled
+	var enabled, disabled []string
 	for _, group := range getUniqueGroups() {
 		if disabledMap[group] {
 			disabled = append(disabled, fmt.Sprintf("`%s`", group))
@@ -57,28 +57,39 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		}
 	}
 
-	var sb strings.Builder
-
-	sb.WriteString("**Disabled**\n")
-	if len(disabled) > 0 {
-		sb.WriteString(strings.Join(disabled, ", "))
-	} else {
-		sb.WriteString("_none_")
+	// Prepare text for embed fields
+	if len(disabled) == 0 {
+		disabled = []string{"_none_"}
+	}
+	if len(enabled) == 0 {
+		enabled = []string{"_none_"}
 	}
 
-	sb.WriteString("\n\n**Enabled**\n")
-	if len(enabled) > 0 {
-		sb.WriteString(strings.Join(enabled, ", "))
-	} else {
-		sb.WriteString("_none_")
+	// Create embed message
+	embed := &discordgo.MessageEmbed{
+		Title:       "Commands Status",
+		Description: "Commands are grouped (e.g., _purge_, _core_, _translate_). Use `/help` (group view) to view or `/cmd-toggle` to manage. _Core_ can’t be disabled.",
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "Disabled",
+				Value:  strings.Join(disabled, ", "),
+				Inline: false,
+			},
+			{
+				Name:   "Enabled",
+				Value:  strings.Join(enabled, ", "),
+				Inline: false,
+			},
+		},
 	}
 
-	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
+	// Log usage
+	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
 		log.Println("Failed to log:", err)
 	}
 
-	return core.RespondEphemeral(context.Session, context.Event, sb.String())
+	// Send response
+	return core.RespondEmbedEphemeral(context.Session, context.Event, embed)
 }
 
 func init() {
@@ -87,6 +98,7 @@ func init() {
 			&CommandsStatus{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

@@ -31,6 +31,21 @@ func RespondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, cont
 	return err
 }
 
+func RespondEmbedEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+	if embed.Color == 0 {
+		embed.Color = EmbedColor
+	}
+
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags:  discordgo.MessageFlagsEphemeral,
+			Embeds: []*discordgo.MessageEmbed{embed},
+		},
+	})
+	return err
+}
+
 func MessageRespond(s *discordgo.Session, channelID string, content string) error {
 	_, err := s.ChannelMessageSend(channelID, content)
 	return err

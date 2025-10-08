@@ -174,6 +174,7 @@ func init() {
 			&AnnounceCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

@@ -58,10 +58,6 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 	guildID := event.GuildID
 	member := event.Member
 
-	if !core.IsAdministrator(session, event.GuildID, event.Member) {
-		return core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
-	}
-
 	var kind, channelID string
 	for _, opt := range options {
 		switch opt.Name {
@@ -110,6 +106,7 @@ func init() {
 			&SetChannelsCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }
