@@ -4,6 +4,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// WithAccessControl wraps a command to enforce admin-only access if required.
 func WithAccessControl() Middleware {
 	return func(cmd Command) Command {
 		return &wrappedCommand{
@@ -16,6 +17,7 @@ func WithAccessControl() Middleware {
 					guildID string
 				)
 
+				// Determine the context type and extract relevant info
 				switch v := ctx.(type) {
 
 				// Slash Command
@@ -32,36 +34,56 @@ func WithAccessControl() Middleware {
 
 				// Regular message command
 				case *MessageContext:
-					session, guildID = v.Session, v.Event.GuildID
-					if v.Event.Member != nil {
-						member = v.Event.Member
-					}
+					session, guildID, event = v.Session, v.Event.GuildID, v.Event
+					member = v.Event.Member // can be nil in DMs
 				default:
+					// Unknown context type, skip
 					return nil
 				}
 
+				// Check if this command requires admin privileges
 				if cmd.RequireAdmin() {
-					if member == nil {
-						sendAccessDenied(session, event, "Cannot determine your admin status in this context.")
+					// If member info or guildID is missing, we cannot check admin status
+					if guildID == "" || member == nil {
+						sendAccessDenied(ctx, session, event, "Cannot determine your admin status in this context.")
 						return nil
 					}
+
+					// Check if the user is an administrator
 					if !IsAdministrator(session, guildID, member) {
-						sendAccessDenied(session, event, "You must be an admin to use this command, darling.")
+						sendAccessDenied(ctx, session, event, "You must be an admin to use this command, darling.")
 						return nil
 					}
 				}
 
+				// Run the actual command
 				return cmd.Run(ctx)
 			},
 		}
 	}
 }
 
-func sendAccessDenied(session *discordgo.Session, event interface{}, msg string) {
-	switch e := event.(type) {
-	case *discordgo.InteractionCreate:
-		RespondEphemeral(session, e, msg)
-	case *discordgo.MessageCreate:
-		_, _ = session.ChannelMessageSend(e.ChannelID, msg)
+// sendAccessDenied sends an appropriate access denied message depending on the context
+func sendAccessDenied(ctx interface{}, session *discordgo.Session, event interface{}, msg string) {
+	switch e := ctx.(type) {
+
+	// Slash command
+	case *SlashInteractionContext:
+		RespondEphemeral(session, e.Event, msg)
+
+	// Component interaction (buttons, selects)
+	case *ComponentInteractionContext:
+		RespondEphemeral(session, e.Event, msg)
+
+	// Message application command (context menu)
+	case *MessageApplicationCommandContext:
+		RespondEphemeral(session, e.Event, msg)
+
+	// Regular message command
+	case *MessageContext:
+		if m, ok := event.(*discordgo.MessageCreate); ok {
+			// Send normal message in channel
+			_, _ = session.ChannelMessageSend(m.ChannelID, msg)
+		}
 	}
 }

@@ -149,15 +149,21 @@ func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 }
 
 func IsAdministrator(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
+	if member == nil || member.User == nil {
+		// No member info, cannot check
+		return false
+	}
+
 	cfg := config.New()
 	if member.User.ID == cfg.DeveloperID {
 		return true
 	}
 
+	// Try to get the guild from state first, fallback to API
 	guild, err := s.State.Guild(guildID)
 	if err != nil || guild == nil {
 		guild, err = s.Guild(guildID)
-		if err != nil {
+		if err != nil || guild == nil {
 			return false
 		}
 	}
@@ -166,6 +172,7 @@ func IsAdministrator(s *discordgo.Session, guildID string, member *discordgo.Mem
 		return true
 	}
 
+	// Check roles for admin permission
 	for _, r := range member.Roles {
 		role, _ := s.State.Role(guildID, r)
 		if role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
