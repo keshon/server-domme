@@ -41,6 +41,10 @@ func WithAccessControl() Middleware {
 				}
 
 				if cmd.RequireAdmin() {
+					if member == nil {
+						sendAccessDenied(session, event, "Cannot determine your admin status in this context.")
+						return nil
+					}
 					if !IsAdministrator(session, guildID, member) {
 						sendAccessDenied(session, event, "You must be an admin to use this command, darling.")
 						return nil
