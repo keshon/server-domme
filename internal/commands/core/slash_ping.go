@@ -15,7 +15,11 @@ func (c *PingCommand) Aliases() []string   { return []string{} }
 func (c *PingCommand) Group() string       { return "ping" }
 func (c *PingCommand) Category() string    { return "🛠️ Maintenance" }
 func (c *PingCommand) RequireAdmin() bool  { return false }
-func (c *PingCommand) RequireDev() bool    { return false }
+func (c *PingCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -50,6 +54,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

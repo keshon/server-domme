@@ -19,7 +19,11 @@ func (c *DumpDBCommand) Aliases() []string  { return []string{} }
 func (c *DumpDBCommand) Group() string      { return "core" }
 func (c *DumpDBCommand) Category() string   { return "🛠️ Maintenance" }
 func (c *DumpDBCommand) RequireAdmin() bool { return true }
-func (c *DumpDBCommand) RequireDev() bool   { return false }
+func (c *DumpDBCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *DumpDBCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

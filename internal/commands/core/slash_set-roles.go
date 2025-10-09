@@ -15,7 +15,11 @@ func (c *SetRolesCommand) Aliases() []string   { return []string{} }
 func (c *SetRolesCommand) Group() string       { return "core" }
 func (c *SetRolesCommand) Category() string    { return "⚙️ Settings" }
 func (c *SetRolesCommand) RequireAdmin() bool  { return true }
-func (c *SetRolesCommand) RequireDev() bool    { return false }
+func (c *SetRolesCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *SetRolesCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

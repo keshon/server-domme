@@ -16,7 +16,11 @@ func (c *AskCommand) Aliases() []string   { return []string{} }
 func (c *AskCommand) Group() string       { return "ask" }
 func (c *AskCommand) Category() string    { return "🎭 Roleplay" }
 func (c *AskCommand) RequireAdmin() bool  { return false }
-func (c *AskCommand) RequireDev() bool    { return false }
+func (c *AskCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

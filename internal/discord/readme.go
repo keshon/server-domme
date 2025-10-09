@@ -13,6 +13,7 @@ import (
 	"server-domme/internal/core"
 )
 
+// CommandDoc is a command documentation
 type CommandDoc struct {
 	Group    string
 	Category string
@@ -20,10 +21,12 @@ type CommandDoc struct {
 	Desc     string
 }
 
+// TemplateData is a template data
 type TemplateData struct {
 	CommandSections string
 }
 
+// updateReadme updates the README.md file
 func updateReadme() error {
 	commands := core.AllCommands()
 
@@ -82,6 +85,7 @@ func updateReadme() error {
 	return nil
 }
 
+// hasSpace returns true if the string contains a space
 func hasSpace(s string) bool {
 	for _, r := range s {
 		if r == ' ' {
@@ -91,6 +95,7 @@ func hasSpace(s string) bool {
 	return false
 }
 
+// startsWithUpper returns true if the string starts with an uppercase letter
 func startsWithUpper(s string) bool {
 	if s == "" {
 		return false

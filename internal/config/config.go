@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config is the configuration for the bot.
 type Config struct {
 	DiscordToken      string   `env:"DISCORD_TOKEN,required"`
 	StoragePath       string   `env:"STORAGE_PATH" envDefault:"./data/datastore.json"`
@@ -18,6 +19,7 @@ type Config struct {
 	AIPromtPath       string   `env:"AI_PROMPT_PATH"`
 }
 
+// New returns a new Config.
 func New() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, falling back to system environment variables")

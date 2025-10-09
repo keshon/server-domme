@@ -17,6 +17,11 @@ func WithAccessControl() Middleware {
 					guildID string
 				)
 
+				// 	// Skip admin check for normal messages entirely
+				// if _, ok := ctx.(*MessageContext); ok {
+				// 	return cmd.Run(ctx)
+				// }
+
 				// Determine the context type and extract relevant info
 				switch v := ctx.(type) {
 
@@ -67,23 +72,13 @@ func WithAccessControl() Middleware {
 func sendAccessDenied(ctx interface{}, session *discordgo.Session, event interface{}, msg string) {
 	switch e := ctx.(type) {
 
-	// Slash command
 	case *SlashInteractionContext:
 		RespondEphemeral(session, e.Event, msg)
 
-	// Component interaction (buttons, selects)
 	case *ComponentInteractionContext:
 		RespondEphemeral(session, e.Event, msg)
 
-	// Message application command (context menu)
 	case *MessageApplicationCommandContext:
 		RespondEphemeral(session, e.Event, msg)
-
-	// Regular message command
-	case *MessageContext:
-		if m, ok := event.(*discordgo.MessageCreate); ok {
-			// Send normal message in channel
-			_, _ = session.ChannelMessageSend(m.ChannelID, msg)
-		}
 	}
 }

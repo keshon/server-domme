@@ -4,6 +4,7 @@ import (
 	"log"
 )
 
+// WithCommandLogger wraps a command to log its execution
 func WithCommandLogger() Middleware {
 	return func(cmd Command) Command {
 		return &wrappedCommand{

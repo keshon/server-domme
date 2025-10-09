@@ -17,6 +17,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// Bot is a Discord bot
 type Bot struct {
 	dg        *discordgo.Session
 	storage   *storage.Storage
@@ -27,6 +28,7 @@ type Bot struct {
 	players        map[string]*player.Player
 }
 
+// StartBot starts the Discord bot
 func StartBot(ctx context.Context, token string, storage *storage.Storage) error {
 	b := &Bot{
 		storage:   storage,
@@ -39,6 +41,7 @@ func StartBot(ctx context.Context, token string, storage *storage.Storage) error
 	return nil
 }
 
+// run starts the Discord bot
 func (b *Bot) run(ctx context.Context, token string) error {
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
@@ -66,10 +69,12 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	return nil
 }
 
+// configureIntents configures the Discord intents
 func (b *Bot) configureIntents() {
 	b.dg.Identify.Intents = discordgo.IntentsAll
 }
 
+// onMessageCreate is called when a message is created
 func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
@@ -100,6 +105,7 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 	}
 }
 
+// onReady is called when the bot is ready
 func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	botInfo, err := s.User("@me")
 	if err != nil {
@@ -131,6 +137,7 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	log.Printf("[INFO] ✅ Discord bot %v is running.", botInfo.Username)
 }
 
+// onGuildCreate is called when a guild is created
 func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 	log.Printf("[INFO] Bot added to guild: %s (%s)", g.Guild.ID, g.Guild.Name)
 
@@ -139,6 +146,7 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 	}
 }
 
+// onMessageReactionAdd is called when a reaction is added
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	for _, cmd := range core.AllCommands() {
 		if _, ok := cmd.(core.ReactionProvider); ok {
@@ -157,6 +165,7 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 	}
 }
 
+// onInteractionCreate is called when an interaction is created
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
@@ -233,6 +242,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	}
 }
 
+// registerCommands registers slash commands
 func (b *Bot) registerCommands(guildID string) error {
 	appID := b.dg.State.User.ID
 	if appID == "" {
@@ -277,6 +287,7 @@ func (b *Bot) registerCommands(guildID string) error {
 	return nil
 }
 
+// normalizeDefinition normalizes a command definition
 func normalizeDefinition(cmd core.Command) *discordgo.ApplicationCommand {
 	if slash, ok := cmd.(core.SlashProvider); ok {
 		if def := slash.SlashDefinition(); def != nil {
@@ -297,6 +308,7 @@ func normalizeDefinition(cmd core.Command) *discordgo.ApplicationCommand {
 	return nil
 }
 
+// registerCommandsWithRateLimit registers commands with a rate limit
 func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.ApplicationCommand) {
 	rateLimit := time.Second / 40
 	ticker := time.NewTicker(rateLimit)
@@ -323,6 +335,7 @@ func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.App
 	wg.Wait()
 }
 
+// commandsToUpdate returns commands to update
 func commandsToUpdate(existing []*discordgo.ApplicationCommand, wanted []*discordgo.ApplicationCommand) []*discordgo.ApplicationCommand {
 	toCreate := make([]*discordgo.ApplicationCommand, 0)
 
@@ -347,6 +360,7 @@ func commandsToUpdate(existing []*discordgo.ApplicationCommand, wanted []*discor
 	return toCreate
 }
 
+// commandsEqual checks if two commands are equal
 func commandsEqual(a, b *discordgo.ApplicationCommand) bool {
 	if a == nil || b == nil {
 		return false
@@ -363,6 +377,7 @@ func commandsEqual(a, b *discordgo.ApplicationCommand) bool {
 	return true
 }
 
+// compareOptions checks if two command options are equal
 func compareOptions(a, b []*discordgo.ApplicationCommandOption) bool {
 	if len(a) != len(b) {
 		return false

@@ -1,5 +1,6 @@
 package core
 
+// WithGuildOnly wraps a command to enforce guild-only access
 func WithGuildOnly() Middleware {
 	return func(cmd Command) Command {
 		return &wrappedCommand{

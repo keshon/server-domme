@@ -21,7 +21,11 @@ func (c *SetTasksCommand) Aliases() []string   { return []string{} }
 func (c *SetTasksCommand) Group() string       { return "task" }
 func (c *SetTasksCommand) Category() string    { return "⚙️ Settings" }
 func (c *SetTasksCommand) RequireAdmin() bool  { return true }
-func (c *SetTasksCommand) RequireDev() bool    { return false }
+func (c *SetTasksCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *SetTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

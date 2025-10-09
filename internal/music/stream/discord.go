@@ -9,6 +9,7 @@ import (
 	"layeh.com/gopus"
 )
 
+// StreamToDiscord streams audio from a reader to a voice connection
 func StreamToDiscord(stream io.ReadCloser, stop <-chan struct{}, vc *discordgo.VoiceConnection) error {
 	defer stream.Close()
 

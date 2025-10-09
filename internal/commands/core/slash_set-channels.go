@@ -15,7 +15,11 @@ func (c *SetChannelsCommand) Aliases() []string   { return []string{} }
 func (c *SetChannelsCommand) Group() string       { return "core" }
 func (c *SetChannelsCommand) Category() string    { return "⚙️ Settings" }
 func (c *SetChannelsCommand) RequireAdmin() bool  { return true }
-func (c *SetChannelsCommand) RequireDev() bool    { return false }
+func (c *SetChannelsCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *SetChannelsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

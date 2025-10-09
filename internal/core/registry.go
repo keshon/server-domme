@@ -2,6 +2,7 @@ package core
 
 var registry = map[string]Command{}
 
+// RegisterCommand registers a command
 func RegisterCommand(cmd Command) {
 	registry[cmd.Name()] = cmd
 	for _, a := range cmd.Aliases() {
@@ -9,11 +10,13 @@ func RegisterCommand(cmd Command) {
 	}
 }
 
+// GetCommand returns the command with the given name
 func GetCommand(name string) (Command, bool) {
 	cmd, ok := registry[name]
 	return cmd, ok
 }
 
+// AllCommands returns all registered commands
 func AllCommands() []Command {
 	seen := map[string]bool{}
 	list := make([]Command, 0)

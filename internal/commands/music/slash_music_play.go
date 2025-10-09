@@ -18,7 +18,12 @@ func (c *PlayCommand) Aliases() []string   { return []string{} }
 func (c *PlayCommand) Group() string       { return "music" }
 func (c *PlayCommand) Category() string    { return "🎵 Music" }
 func (c *PlayCommand) RequireAdmin() bool  { return false }
-func (c *PlayCommand) RequireDev() bool    { return false }
+func (c *PlayCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+		discordgo.PermissionVoiceConnect,
+	}
+}
 
 func (c *PlayCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -87,11 +92,9 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 	}
 
 	if input == "" {
-		return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "🎵 Error: input is required",
-			},
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Error",
+			Description: "Input is required.",
 		})
 	}
 
@@ -103,8 +106,9 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
-		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
+		core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Error",
+			Description: fmt.Sprintf("🎵 Error: %s", err.Error()),
 		})
 		return nil
 	}
@@ -112,8 +116,9 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 	resolver := source_resolver.New()
 	tracks, err := resolver.Resolve(input, selectedSource, selectedParser)
 	if err != nil || len(tracks) == 0 {
-		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("🎵 Error: failed to resolve track: %v", err),
+		core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Error",
+			Description: fmt.Sprintf("Failed to resolve track: %v", err),
 		})
 		return nil
 	}
@@ -123,8 +128,9 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	err = player.Enqueue(currentTrack.URL, selectedSource, selectedParser)
 	if err != nil {
-		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
+		core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Error",
+			Description: fmt.Sprintf("🎵 Error: %s", err.Error()),
 		})
 		return nil
 	}

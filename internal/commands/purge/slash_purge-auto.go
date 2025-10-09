@@ -17,7 +17,11 @@ func (c *PurgeAutoCommand) Aliases() []string   { return []string{} }
 func (c *PurgeAutoCommand) Group() string       { return "purge" }
 func (c *PurgeAutoCommand) Category() string    { return "🧹 Cleanup" }
 func (c *PurgeAutoCommand) RequireAdmin() bool  { return true }
-func (c *PurgeAutoCommand) RequireDev() bool    { return false }
+func (c *PurgeAutoCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *PurgeAutoCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

@@ -22,7 +22,11 @@ func (c *DumpTasksCommand) Aliases() []string  { return []string{} }
 func (c *DumpTasksCommand) Group() string      { return "task" }
 func (c *DumpTasksCommand) Category() string   { return "⚙️ Settings" }
 func (c *DumpTasksCommand) RequireAdmin() bool { return true }
-func (c *DumpTasksCommand) RequireDev() bool   { return false }
+func (c *DumpTasksCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *DumpTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -43,11 +47,6 @@ func (c *DumpTasksCommand) Run(ctx interface{}) error {
 
 	guildID := event.GuildID
 	member := event.Member
-
-	if !core.IsAdministrator(session, event.GuildID, event.Member) {
-		core.RespondEphemeral(session, event, "You must be an Admin to use this command, darling.")
-		return nil
-	}
 
 	if len(tasks) == 0 {
 		core.RespondEphemeral(session, event, "No tasks found, darling. Either you're lazy or I'm losing my edge.")

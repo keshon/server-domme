@@ -13,7 +13,7 @@ type Command interface {
 	Group() string
 	Category() string
 	RequireAdmin() bool
-	RequireDev() bool
+	Permissions() []int64
 	Run(ctx interface{}) error
 }
 

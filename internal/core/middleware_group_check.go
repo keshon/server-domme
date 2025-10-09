@@ -4,6 +4,7 @@ import (
 	"server-domme/internal/storage"
 )
 
+// WithGroupAccessCheck wraps a command to enforce group access
 func WithGroupAccessCheck() Middleware {
 	return func(cmd Command) Command {
 		return &wrappedCommand{

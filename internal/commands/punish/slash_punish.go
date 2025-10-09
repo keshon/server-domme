@@ -18,7 +18,11 @@ func (c *PunishCommand) Aliases() []string   { return []string{} }
 func (c *PunishCommand) Group() string       { return "punish" }
 func (c *PunishCommand) Category() string    { return "🎭 Roleplay" }
 func (c *PunishCommand) RequireAdmin() bool  { return false }
-func (c *PunishCommand) RequireDev() bool    { return false }
+func (c *PunishCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *PunishCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -95,6 +99,8 @@ func init() {
 			&PunishCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

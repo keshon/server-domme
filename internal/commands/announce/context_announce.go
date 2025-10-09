@@ -24,7 +24,11 @@ func (c *AnnounceCommand) Aliases() []string  { return []string{} }
 func (c *AnnounceCommand) Group() string      { return "announce" }
 func (c *AnnounceCommand) Category() string   { return "📢 Utilities" }
 func (c *AnnounceCommand) RequireAdmin() bool { return true }
-func (c *AnnounceCommand) RequireDev() bool   { return false }
+func (c *AnnounceCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

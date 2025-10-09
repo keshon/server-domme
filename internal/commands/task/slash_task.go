@@ -43,7 +43,11 @@ func (c *TaskCommand) Aliases() []string   { return []string{} }
 func (c *TaskCommand) Group() string       { return "task" }
 func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
 func (c *TaskCommand) RequireAdmin() bool  { return false }
-func (c *TaskCommand) RequireDev() bool    { return false }
+func (c *TaskCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

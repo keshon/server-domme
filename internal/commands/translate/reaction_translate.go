@@ -21,8 +21,13 @@ func (t *TranslateOnReaction) Aliases() []string          { return []string{} }
 func (c *TranslateOnReaction) Group() string              { return "translate" }
 func (t *TranslateOnReaction) Category() string           { return "📢 Utilities" }
 func (r *TranslateOnReaction) RequireAdmin() bool         { return false }
-func (r *TranslateOnReaction) RequireDev() bool           { return false }
 func (t *TranslateOnReaction) ReactionDefinition() string { return "reaction" }
+func (t *TranslateOnReaction) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+		discordgo.PermissionManageMessages,
+	}
+}
 
 var flags = map[string]string{
 	"🇷🇺": "ru",

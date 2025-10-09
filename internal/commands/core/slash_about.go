@@ -19,7 +19,11 @@ func (c *AboutCommand) Aliases() []string   { return []string{} }
 func (c *AboutCommand) Group() string       { return "core" }
 func (c *AboutCommand) Category() string    { return "🕯️ Information" }
 func (c *AboutCommand) RequireAdmin() bool  { return false }
-func (c *AboutCommand) RequireDev() bool    { return false }
+func (c *AboutCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *AboutCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

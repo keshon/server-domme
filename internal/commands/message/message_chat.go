@@ -12,6 +12,8 @@ import (
 	"server-domme/internal/ai"
 	"server-domme/internal/config"
 	"server-domme/internal/core"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type ChatCommand struct{}
@@ -22,7 +24,11 @@ func (c *ChatCommand) Aliases() []string   { return []string{} }
 func (c *ChatCommand) Group() string       { return "chat" }
 func (c *ChatCommand) Category() string    { return "💬 Chat" }
 func (c *ChatCommand) RequireAdmin() bool  { return false }
-func (c *ChatCommand) RequireDev() bool    { return false }
+func (c *ChatCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 // Handle messages mentioning the bot
 func (c *ChatCommand) Run(ctx interface{}) error {

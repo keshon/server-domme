@@ -17,7 +17,11 @@ func (c *StopCommand) Aliases() []string   { return []string{} }
 func (c *StopCommand) Group() string       { return "music" }
 func (c *StopCommand) Category() string    { return "🎵 Music" }
 func (c *StopCommand) RequireAdmin() bool  { return false }
-func (c *StopCommand) RequireDev() bool    { return false }
+func (c *StopCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *StopCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -48,12 +52,12 @@ func (c *StopCommand) Run(ctx interface{}) error {
 		player.Stop(true)
 	}()
 
+	embed := &discordgo.MessageEmbed{
+		Description: "⏹️ Playback Stopped. Queue cleared.",
+	}
+
 	session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-		Embeds: []*discordgo.MessageEmbed{{
-			Title:       "⏹️ Playback Stopped",
-			Description: "Queue cleared.",
-			Color:       core.EmbedColor,
-		}},
+		Embeds: []*discordgo.MessageEmbed{embed},
 	})
 
 	return nil
@@ -65,6 +69,8 @@ func init() {
 			&StopCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

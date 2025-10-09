@@ -15,8 +15,9 @@ func listenPlayerStatusSlash(session *discordgo.Session, event *discordgo.Intera
 			case player.StatusPlaying:
 				track := p.CurrentTrack()
 				if track == nil {
-					session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
-						Content: "⚠️ Failed to get current track",
+					core.FollowupEmbed(session, event, &discordgo.MessageEmbed{
+						Title:       "⚠️ Error",
+						Description: "Failed to get current track",
 					})
 					return
 				}
@@ -32,22 +33,18 @@ func listenPlayerStatusSlash(session *discordgo.Session, event *discordgo.Intera
 					desc = "🎶 Unknown track"
 				}
 
-				session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
-					Embeds: []*discordgo.MessageEmbed{{
-						Title:       player.StatusPlaying.StringEmoji() + " Now Playing",
-						Description: desc,
-						Color:       core.EmbedColor,
-					}},
+				core.FollowupEmbed(session, event, &discordgo.MessageEmbed{
+					Title:       player.StatusPlaying.StringEmoji() + " Now Playing",
+					Description: desc,
+					Color:       core.EmbedColor,
 				})
 				return
 
 			case player.StatusAdded:
-				session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
-					Embeds: []*discordgo.MessageEmbed{{
-						Title:       player.StatusAdded.StringEmoji() + " Track(s) Added",
-						Description: "Added to queue",
-						Color:       core.EmbedColor,
-					}},
+				core.FollowupEmbed(session, event, &discordgo.MessageEmbed{
+					Title:       player.StatusAdded.StringEmoji() + " Track(s) Added",
+					Description: "Added to queue",
+					Color:       core.EmbedColor,
 				})
 				return
 

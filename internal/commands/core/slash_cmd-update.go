@@ -14,7 +14,11 @@ func (c *CommandUpdate) Aliases() []string   { return []string{} }
 func (c *CommandUpdate) Group() string       { return "core" }
 func (c *CommandUpdate) Category() string    { return "⚙️ Settings" }
 func (c *CommandUpdate) RequireAdmin() bool  { return true }
-func (c *CommandUpdate) RequireDev() bool    { return true }
+func (c *CommandUpdate) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *CommandUpdate) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

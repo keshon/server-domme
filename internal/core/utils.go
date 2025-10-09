@@ -33,10 +33,6 @@ func RespondEphemeral(session *discordgo.Session, interaction *discordgo.Interac
 
 // RespondEmbedEphemeral sends an ephemeral embed response to an interaction.
 func RespondEmbedEphemeral(session *discordgo.Session, interaction *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
-	if embed.Color == 0 {
-		embed.Color = EmbedColor
-	}
-
 	return session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -48,9 +44,6 @@ func RespondEmbedEphemeral(session *discordgo.Session, interaction *discordgo.In
 
 // RespondEmbed sends a public embed response to an interaction.
 func RespondEmbed(session *discordgo.Session, event *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
-	if embed.Color == 0 {
-		embed.Color = EmbedColor
-	}
 	return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -69,10 +62,6 @@ func RespondEmbedEphemeralWithFile(
 	},
 	fileName string,
 ) error {
-	if embed.Color == 0 {
-		embed.Color = EmbedColor
-	}
-
 	return session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -112,6 +101,39 @@ func MessageRespond(session *discordgo.Session, channelID string, content string
 	return err
 }
 
+// Followup sends a public followup message.
+func Followup(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) error {
+	_, err := session.FollowupMessageCreate(interaction.Interaction, false, &discordgo.WebhookParams{
+		Content: content,
+	})
+	return err
+}
+
+// FollowupEphemeral sends an ephemeral followup message.
+func FollowupEphemeral(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) error {
+	_, err := session.FollowupMessageCreate(interaction.Interaction, true, &discordgo.WebhookParams{
+		Content: content,
+	})
+	return err
+}
+
+// FollowupEmbed sends a public embed followup message.
+func FollowupEmbed(session *discordgo.Session, interaction *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+	_, err := session.FollowupMessageCreate(interaction.Interaction, false, &discordgo.WebhookParams{
+		Embeds: []*discordgo.MessageEmbed{embed},
+	})
+	return err
+}
+
+// FollowupEmbedEphemeral sends an ephemeral embed followup message.
+func FollowupEmbedEphemeral(session *discordgo.Session, interaction *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+	_, err := session.FollowupMessageCreate(interaction.Interaction, true, &discordgo.WebhookParams{
+		Embeds: []*discordgo.MessageEmbed{embed},
+	})
+	return err
+}
+
+// LogCommand logs a command to the database.
 func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channelID, userID, username, commandName string) error {
 	channel, err := s.State.Channel(channelID)
 	if err != nil {
@@ -148,6 +170,7 @@ func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 	)
 }
 
+// IsAdministrator checks if a member has admin permissions in a guild.
 func IsAdministrator(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
 	if member == nil || member.User == nil {
 		// No member info, cannot check
@@ -183,11 +206,13 @@ func IsAdministrator(s *discordgo.Session, guildID string, member *discordgo.Mem
 	return false
 }
 
+// IsDeveloper checks if a user is the developer.
 func IsDeveloper(userID string) bool {
 	cfg := config.New()
 	return userID == cfg.DeveloperID
 }
 
+// CheckBotPermissions checks if the bot has manage messages permissions in a channel.
 func CheckBotPermissions(s *discordgo.Session, channelID string) bool {
 	botID := s.State.User.ID
 	perms, err := s.UserChannelPermissions(botID, channelID)

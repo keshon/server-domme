@@ -16,7 +16,11 @@ func (c *CommandsToggleCommand) Aliases() []string   { return []string{} }
 func (c *CommandsToggleCommand) Group() string       { return "core" }
 func (c *CommandsToggleCommand) Category() string    { return "⚙️ Settings" }
 func (c *CommandsToggleCommand) RequireAdmin() bool  { return true }
-func (c *CommandsToggleCommand) RequireDev() bool    { return false }
+func (c *CommandsToggleCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	groupChoices := []*discordgo.ApplicationCommandOptionChoice{}

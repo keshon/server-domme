@@ -32,7 +32,11 @@ func (c *RollCommand) Aliases() []string   { return []string{} }
 func (c *RollCommand) Group() string       { return "roll" }
 func (c *RollCommand) Category() string    { return "🎲 Gameplay" }
 func (c *RollCommand) RequireAdmin() bool  { return false }
-func (c *RollCommand) RequireDev() bool    { return false }
+func (c *RollCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

@@ -98,6 +98,7 @@ func openWithParser(track *parsers.TrackParse, parser string, seekSec float64) (
 	return ts, cleanup, nil
 }
 
+// isPipeParser returns true if the parser is a pipe parser
 func isPipeParser(parser string) bool {
 	return parser == "ytdlp-pipe" || parser == "kkdai-pipe"
 }

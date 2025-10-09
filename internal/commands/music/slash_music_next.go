@@ -17,7 +17,11 @@ func (c *NextCommand) Aliases() []string   { return []string{} }
 func (c *NextCommand) Group() string       { return "music" }
 func (c *NextCommand) Category() string    { return "🎵 Music" }
 func (c *NextCommand) RequireAdmin() bool  { return false }
-func (c *NextCommand) RequireDev() bool    { return false }
+func (c *NextCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *NextCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -46,17 +50,20 @@ func (c *NextCommand) Run(ctx interface{}) error {
 
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
-		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
+		core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Voice Channel Error",
+			Description: fmt.Sprintf("You must be in a voice channel to skip tracks.\n\n**Error:** %v", err),
 		})
 		return nil
 	}
 
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	queue := player.Queue()
+
 	if len(queue) == 0 {
-		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-			Content: "🎵 No tracks in queue.",
+		core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Queue Empty",
+			Description: "There are no tracks left to skip to.",
 		})
 		return nil
 	}
@@ -65,8 +72,9 @@ func (c *NextCommand) Run(ctx interface{}) error {
 
 	err = player.PlayNext(voiceState.ChannelID)
 	if err != nil {
-		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
+		core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Title:       "🎵 Playback Error",
+			Description: fmt.Sprintf("Failed to play the next track.\n\n**Error:** %v", err),
 		})
 		return nil
 	}

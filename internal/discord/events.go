@@ -6,6 +6,7 @@ import (
 	"server-domme/internal/core"
 )
 
+// handleSystemEvents handles system events
 func (b *Bot) handleSystemEvents(ctx context.Context) {
 	for {
 		select {

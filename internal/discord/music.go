@@ -8,6 +8,7 @@ import (
 	"server-domme/internal/music/source_resolver"
 )
 
+// registerMusicCommands registers the music commands
 func (b *Bot) registerMusicCommands() {
 
 	core.RegisterCommand(
@@ -42,6 +43,7 @@ func (b *Bot) registerMusicCommands() {
 
 }
 
+// GetOrCreatePlayer gets or creates a player
 func (b *Bot) GetOrCreatePlayer(guildID string) *player.Player {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -60,6 +62,7 @@ func (b *Bot) GetOrCreatePlayer(guildID string) *player.Player {
 	return p
 }
 
+// FindUserVoiceState finds the voice state of a user
 func (b *Bot) FindUserVoiceState(guildID, userID string) (*core.VoiceState, error) {
 	guild, err := b.dg.State.Guild(guildID)
 	if err != nil {

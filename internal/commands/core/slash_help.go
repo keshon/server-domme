@@ -21,7 +21,11 @@ func (c *HelpUnifiedCommand) Aliases() []string   { return []string{} }
 func (c *HelpUnifiedCommand) Group() string       { return "core" }
 func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information" }
 func (c *HelpUnifiedCommand) RequireAdmin() bool  { return false }
-func (c *HelpUnifiedCommand) RequireDev() bool    { return false }
+func (c *HelpUnifiedCommand) Permissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -91,7 +95,6 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 }
 
 func buildHelpByCategory(session *discordgo.Session, event *discordgo.InteractionCreate) string {
-	userID := event.Member.User.ID
 	all := core.AllCommands()
 
 	categoryMap := make(map[string][]core.Command)
@@ -99,9 +102,6 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 
 	for _, cmd := range all {
 		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-			continue
-		}
-		if cmd.RequireDev() && !core.IsDeveloper(userID) {
 			continue
 		}
 		cat := cmd.Category()
@@ -140,16 +140,12 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 }
 
 func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCreate) string {
-	userID := event.Member.User.ID
 	all := core.AllCommands()
 
 	groupMap := make(map[string][]core.Command)
 
 	for _, cmd := range all {
 		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-			continue
-		}
-		if cmd.RequireDev() && !core.IsDeveloper(userID) {
 			continue
 		}
 		group := cmd.Group()
@@ -179,15 +175,11 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 }
 
 func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreate) string {
-	userID := event.Member.User.ID
 	all := core.AllCommands()
 
 	var cmds []core.Command
 	for _, cmd := range all {
 		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-			continue
-		}
-		if cmd.RequireDev() && !core.IsDeveloper(userID) {
 			continue
 		}
 		cmds = append(cmds, cmd)
