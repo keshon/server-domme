@@ -64,53 +64,142 @@ func WithPermissionCheck() Middleware {
 		return &wrappedCommand{
 			Command: cmd,
 			wrap: func(ctx interface{}) error {
-				var session *discordgo.Session
-				var member *discordgo.Member
+				var s *discordgo.Session
+				var m *discordgo.Member
 				var guildID, channelID string
-				var event interface{}
 
 				switch v := ctx.(type) {
 				case *SlashInteractionContext:
-					session, member, guildID, channelID, event = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID, v.Event
+					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
 				case *ComponentInteractionContext:
-					session, member, guildID, channelID, event = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID, v.Event
+					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
 				case *MessageApplicationCommandContext:
-					session, member, guildID, channelID, event = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID, v.Event
+					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
 				case *MessageContext:
-					session, member, guildID, channelID, event = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID, v.Event
+					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
 				default:
-					return nil
+					return cmd.Run(ctx) // если контекст неизвестен — просто выполняем
 				}
 
-				perms := cmd.Permissions()
-				if len(perms) == 0 {
+				if guildID == "" || m == nil {
 					return cmd.Run(ctx)
 				}
 
-				if guildID == "" || member == nil {
-					return nil
-				}
-
-				memberPerms, err := session.State.UserChannelPermissions(member.User.ID, channelID)
+				// получаем реальные права пользователя
+				memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
 				if err != nil {
-					return nil
+					return fmt.Errorf("failed to get user permissions: %w", err)
 				}
 
-				for _, p := range perms {
+				// если у пользователя есть администратор — всё можно
+				if memberPerms&discordgo.PermissionAdministrator != 0 {
+					return cmd.Run(ctx)
+				}
+
+				required := cmd.Permissions()
+				if len(required) == 0 {
+					return cmd.Run(ctx)
+				}
+
+				// проверяем, хватает ли всех нужных прав
+				for _, p := range required {
 					if memberPerms&p == 0 {
 						name := PermissionNames[p]
 						if name == "" {
-							name = fmt.Sprintf("%d", p)
+							name = fmt.Sprintf("0x%x", p)
 						}
 
-						switch e := event.(type) {
-						case *discordgo.InteractionCreate:
-							RespondEphemeral(session, e, fmt.Sprintf(
+						switch v := ctx.(type) {
+						case *SlashInteractionContext:
+							RespondEphemeral(s, v.Event, fmt.Sprintf(
 								"You lack required permission `%s` to execute this command.", name))
-						case *discordgo.MessageCreate:
-							_, _ = session.ChannelMessageSend(e.ChannelID, fmt.Sprintf(
+						case *ComponentInteractionContext:
+							RespondEphemeral(s, v.Event, fmt.Sprintf(
+								"You lack required permission `%s` to execute this action.", name))
+						case *MessageApplicationCommandContext:
+							RespondEphemeral(s, v.Event, fmt.Sprintf(
+								"You lack required permission `%s` to execute this action.", name))
+						case *MessageContext:
+							_, _ = s.ChannelMessageSend(channelID, fmt.Sprintf(
 								"You lack required permission `%s` to execute this command.", name))
 						}
+
+						return nil // не выполняем команду
+					}
+				}
+
+				// всё ок — запускаем команду
+				return cmd.Run(ctx)
+			},
+		}
+	}
+}
+
+var BotPermissionNames = PermissionNames
+
+func WithBotPermissionCheck() Middleware {
+	return func(cmd Command) Command {
+		return &wrappedCommand{
+			Command: cmd,
+			wrap: func(ctx interface{}) error {
+				var s *discordgo.Session
+				var guildID, channelID string
+
+				switch v := ctx.(type) {
+				case *SlashInteractionContext:
+					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
+				case *ComponentInteractionContext:
+					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
+				case *MessageApplicationCommandContext:
+					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
+				case *MessageContext:
+					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
+				default:
+					return cmd.Run(ctx)
+				}
+
+				if guildID == "" {
+					return cmd.Run(ctx)
+				}
+
+				required := cmd.BotPermissions()
+				if len(required) == 0 {
+					return cmd.Run(ctx)
+				}
+
+				botUser := s.State.User
+				if botUser == nil {
+					botUser, _ = s.User("@me")
+				}
+
+				if botUser == nil {
+					return cmd.Run(ctx)
+				}
+
+				botPerms, err := s.UserChannelPermissions(botUser.ID, channelID)
+				if err != nil {
+					return fmt.Errorf("failed to get bot permissions: %w", err)
+				}
+
+				for _, p := range required {
+					if botPerms&p == 0 {
+						name := BotPermissionNames[p]
+						if name == "" {
+							name = fmt.Sprintf("0x%x", p)
+						}
+
+						// Inform the user
+						switch v := ctx.(type) {
+						case *SlashInteractionContext:
+							RespondEphemeral(s, v.Event, fmt.Sprintf(
+								"I need the `%s` permission in this channel to run this command.",
+								name))
+						case *MessageContext:
+							_, _ = s.ChannelMessageSend(channelID, fmt.Sprintf(
+								"I need the `%s` permission in this channel to run this command.",
+								name))
+						}
+
 						return nil
 					}
 				}

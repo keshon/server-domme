@@ -14,6 +14,7 @@ type Command interface {
 	Category() string
 	RequireAdmin() bool
 	Permissions() []int64
+	BotPermissions() []int64
 	Run(ctx interface{}) error
 }
 

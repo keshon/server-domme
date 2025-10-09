@@ -23,6 +23,11 @@ func (c *CommandsStatus) Permissions() []int64 {
 		discordgo.PermissionAdministrator,
 	}
 }
+func (c *CommandsStatus) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *CommandsStatus) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -100,6 +105,8 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

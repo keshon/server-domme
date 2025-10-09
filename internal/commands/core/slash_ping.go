@@ -20,6 +20,11 @@ func (c *PingCommand) Permissions() []int64 {
 		discordgo.PermissionSendMessages,
 	}
 }
+func (c *PingCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *PingCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -55,6 +60,7 @@ func init() {
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
 			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

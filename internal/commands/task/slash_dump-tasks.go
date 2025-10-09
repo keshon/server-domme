@@ -27,6 +27,11 @@ func (c *DumpTasksCommand) Permissions() []int64 {
 		discordgo.PermissionAdministrator,
 	}
 }
+func (c *DumpTasksCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *DumpTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -125,6 +130,8 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

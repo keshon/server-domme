@@ -24,6 +24,12 @@ func (c *PlayCommand) Permissions() []int64 {
 		discordgo.PermissionVoiceConnect,
 	}
 }
+func (c *PlayCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+		discordgo.PermissionVoiceConnect,
+	}
+}
 
 func (c *PlayCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

@@ -21,6 +21,11 @@ func (c *CommandsToggleCommand) Permissions() []int64 {
 		discordgo.PermissionAdministrator,
 	}
 }
+func (c *CommandsToggleCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionAdministrator,
+	}
+}
 
 func (c *CommandsToggleCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	groupChoices := []*discordgo.ApplicationCommandOptionChoice{}
@@ -113,6 +118,8 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

@@ -26,6 +26,11 @@ func (c *HelpUnifiedCommand) Permissions() []int64 {
 		discordgo.PermissionSendMessages,
 	}
 }
+func (c *HelpUnifiedCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -202,6 +207,8 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

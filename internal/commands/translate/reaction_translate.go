@@ -28,6 +28,12 @@ func (t *TranslateOnReaction) Permissions() []int64 {
 		discordgo.PermissionManageMessages,
 	}
 }
+func (t *TranslateOnReaction) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+		discordgo.PermissionManageMessages,
+	}
+}
 
 var flags = map[string]string{
 	"🇷🇺": "ru",
@@ -173,6 +179,8 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

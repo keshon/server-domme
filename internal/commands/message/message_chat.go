@@ -29,6 +29,11 @@ func (c *ChatCommand) Permissions() []int64 {
 		discordgo.PermissionSendMessages,
 	}
 }
+func (c *ChatCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 // Handle messages mentioning the bot
 func (c *ChatCommand) Run(ctx interface{}) error {
@@ -199,6 +204,9 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithPermissionCheck(),
+			core.WithBotPermissionCheck(),
+			core.WithCommandLogger(),
 		),
 	)
 }

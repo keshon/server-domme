@@ -22,6 +22,11 @@ func (c *NextCommand) Permissions() []int64 {
 		discordgo.PermissionSendMessages,
 	}
 }
+func (c *NextCommand) BotPermissions() []int64 {
+	return []int64{
+		discordgo.PermissionSendMessages,
+	}
+}
 
 func (c *NextCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
