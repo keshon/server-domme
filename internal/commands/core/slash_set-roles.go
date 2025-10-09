@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -54,11 +53,9 @@ func (c *SetRolesCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
-	options := event.ApplicationCommandData().Options
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
+	options := event.ApplicationCommandData().Options
 
 	var roleType, roleID string
 	for _, opt := range options {
@@ -71,42 +68,42 @@ func (c *SetRolesCommand) Run(ctx interface{}) error {
 	}
 
 	if roleType == "" || roleID == "" {
-		return core.RespondEphemeral(session, event, "Missing parameters. Try again without wasting my time.")
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Missing parameters. Try again without wasting my time.",
+		})
 	}
 
 	switch roleType {
 	case "tasker":
 		err := storage.SetTaskRole(event.GuildID, roleID)
 		if err != nil {
-			return core.RespondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
+			return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()),
+			})
 		}
 	default:
 		err := storage.SetPunishRole(event.GuildID, roleType, roleID)
 		if err != nil {
-			return core.RespondEphemeral(session, event, fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()))
+			return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Something broke when saving. Error: `%s`", err.Error()),
+			})
 		}
 	}
 
-	var response string
+	var msg string
 	if roleType == "tasker" {
 		roleName, err := getRoleNameByID(session, event.GuildID, roleID)
 		if err != nil {
 			roleName = roleID
 		}
-		response = fmt.Sprintf("Added **%s** to the list of tasker roles. Update your tasks accordingly.", roleName)
+		msg = fmt.Sprintf("Added **%s** to the list of tasker roles. Update your tasks accordingly.", roleName)
 	} else {
-		response = fmt.Sprintf("The **%s** role has been updated.", roleType)
+		msg = fmt.Sprintf("The **%s** role has been updated.", roleType)
 	}
 
-	err := core.RespondEphemeral(session, event, response)
-	if err != nil {
-		return err
-	}
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
+	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		Description: msg,
+	})
 
 	return nil
 }
@@ -134,6 +131,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

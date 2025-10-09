@@ -34,6 +34,7 @@ func (c *NextCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
+
 	guildID := event.GuildID
 	member := event.Member
 
@@ -45,7 +46,7 @@ func (c *NextCommand) Run(ctx interface{}) error {
 
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
-		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
 		})
 		return nil
@@ -54,7 +55,7 @@ func (c *NextCommand) Run(ctx interface{}) error {
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	queue := player.Queue()
 	if len(queue) == 0 {
-		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 			Content: "🎵 No tracks in queue.",
 		})
 		return nil
@@ -62,8 +63,9 @@ func (c *NextCommand) Run(ctx interface{}) error {
 
 	player.Stop(false)
 
-	if err := player.PlayNext(voiceState.ChannelID); err != nil {
-		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+	err = player.PlayNext(voiceState.ChannelID)
+	if err != nil {
+		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
 		})
 		return nil
@@ -71,7 +73,7 @@ func (c *NextCommand) Run(ctx interface{}) error {
 
 	listenPlayerStatusSlash(session, event, player)
 
-	// _, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+	// session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 	// 	Content: "🎵 Skipped to next track.",
 	// })
 

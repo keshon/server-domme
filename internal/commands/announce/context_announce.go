@@ -39,54 +39,45 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	s := context.Session
-	e := context.Event
-	st := context.Storage
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
 
-	guildID := e.GuildID
-	channelID := e.ChannelID
-	userID := e.Member.User.ID
-	username := e.Member.User.Username
+	guildID := event.GuildID
+	channelID := event.ChannelID
 
-	if !core.IsAdministrator(s, guildID, e.Member) {
-		core.RespondEphemeral(s, e, "You're not the boss of me.")
-		return nil
-	}
-
-	err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Flags: discordgo.MessageFlagsEphemeral,
-		},
-	})
-	if err != nil {
+	// Deferred ephemeral reply
+	if err := core.RespondDeferredEphemeral(session, event); err != nil {
 		log.Println("Failed to send deferred response:", err)
 		return nil
 	}
 
-	targetMsgID := e.ApplicationCommandData().TargetID
-	msg, err := s.ChannelMessage(channelID, targetMsgID)
+	// Fetch the target message
+	targetID := event.ApplicationCommandData().TargetID
+	msg, err := session.ChannelMessage(channelID, targetID)
 	if err != nil {
-		editResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
+		core.EditResponse(session, event, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return nil
 	}
 
+	// Validation
 	if msg.Author == nil {
-		editResponse(s, e, "I won't announce ghost messages.")
+		core.EditResponse(session, event, "I won't announce ghost messages.")
 		return nil
 	}
-
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		editResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
+		core.EditResponse(session, event, "Empty? I'm not announcing tumbleweeds.")
 		return nil
 	}
 
-	announceChannelID, err := st.GetSpecialChannel(guildID, "announce")
+	// Fetch announcement channel
+	announceChannelID, err := storage.GetSpecialChannel(guildID, "announce")
 	if err != nil || announceChannelID == "" {
-		editResponse(s, e, "No announcement channel configured. Bother the admin.")
+		core.EditResponse(session, event, "No announcement channel configured. Bother the admin.")
 		return nil
 	}
 
+	// Download attachments
 	var files []*discordgo.File
 	for _, att := range msg.Attachments {
 		resp, err := http.Get(att.URL)
@@ -108,46 +99,31 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 		})
 	}
 
+	// Send announcement
 	message := &discordgo.MessageSend{
-		Content: restoreMentions(s, guildID, msg.Content),
+		Content: restoreMentions(session, guildID, msg.Content),
 		Embeds:  msg.Embeds,
 		Files:   files,
 	}
 
-	_, err = s.ChannelMessageSendComplex(announceChannelID, message)
-	if err != nil {
-		editResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
+	if _, err := session.ChannelMessageSendComplex(announceChannelID, message); err != nil {
+		core.EditResponse(session, event, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return nil
 	}
 
-	editResponse(s, e, "Announced. Everyone's watching now.")
-
-	err = core.LogCommand(s, st, guildID, channelID, userID, username, "announce")
-	if err != nil {
-		log.Println("Failed to log announce command:", err)
-	}
-
+	core.EditResponse(session, event, "Announced. Everyone’s watching now.")
 	return nil
-}
-
-func editResponse(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {
-	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
-	})
-	if err != nil {
-		log.Println("Failed to edit response:", err)
-	}
 }
 
 var mentionRegex = regexp.MustCompile(`@(\S+)`)
 
-func restoreMentions(s *discordgo.Session, guildID, content string) string {
-	members, err := s.GuildMembers(guildID, "", 1000)
+func restoreMentions(session *discordgo.Session, guildID, content string) string {
+	members, err := session.GuildMembers(guildID, "", 1000)
 	if err != nil {
 		return content
 	}
 
-	userMap := map[string]string{}
+	userMap := make(map[string]string)
 	for _, m := range members {
 		u := m.User
 		userMap[strings.ToLower(u.Username)] = u.ID
@@ -175,6 +151,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

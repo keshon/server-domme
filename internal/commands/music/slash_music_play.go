@@ -2,7 +2,6 @@ package music
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 	"server-domme/internal/music/source_resolver"
 
@@ -69,14 +68,9 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
-	storage := context.Storage
 
 	guildID := event.GuildID
 	member := event.Member
-
-	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
 
 	options := event.ApplicationCommandData().Options
 	var input, selectedParser, selectedSource string
@@ -109,7 +103,7 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
-		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
 		})
 		return nil
@@ -118,7 +112,7 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 	resolver := source_resolver.New()
 	tracks, err := resolver.Resolve(input, selectedSource, selectedParser)
 	if err != nil || len(tracks) == 0 {
-		_, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("🎵 Error: failed to resolve track: %v", err),
 		})
 		return nil
@@ -127,14 +121,21 @@ func (c *PlayCommand) Run(ctx interface{}) error {
 	currentTrack := tracks[0]
 
 	player := c.Bot.GetOrCreatePlayer(guildID)
-	player.Enqueue(currentTrack.URL, selectedSource, selectedParser)
+	err = player.Enqueue(currentTrack.URL, selectedSource, selectedParser)
+	if err != nil {
+		session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+			Content: fmt.Sprintf("🎵 Error: %s", err.Error()),
+		})
+		return nil
+	}
+
 	if !player.IsPlaying() {
 		player.PlayNext(voiceState.ChannelID)
 	}
 
 	listenPlayerStatusSlash(session, event, player)
 
-	// _, _ = session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
+	// session.FollowupMessageCreate(event.Interaction, true, &discordgo.WebhookParams{
 	// 	Content: fmt.Sprintf("🎵 Now playing: **%s**\n%s", currentTrack.Title, currentTrack.URL),
 	// })
 

@@ -52,6 +52,7 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	dg.AddHandler(b.onMessageCreate)
 	dg.AddHandler(b.onMessageReactionAdd)
 	dg.AddHandler(b.onInteractionCreate)
+	dg.AddHandler(b.onGuildCreate)
 
 	if err := dg.Open(); err != nil {
 		return fmt.Errorf("failed to open Discord session: %w", err)
@@ -91,7 +92,11 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 			Event:   m,
 			Storage: b.storage,
 		}
-		cmd.Run(ctx)
+		err := cmd.Run(ctx)
+		if err != nil {
+			log.Println("[ERR] Error running command:", err)
+			core.MessageRespond(s, m.ChannelID, fmt.Sprintf("Error running command: %v", err))
+		}
 	}
 }
 
@@ -145,6 +150,7 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running reaction command:", err)
+				core.MessageRespond(s, r.ChannelID, fmt.Sprintf("Error running reaction command: %v", err))
 			}
 		}
 
@@ -173,6 +179,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running context menu command:", err)
+				core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
 			}
 		case discordgo.ChatApplicationCommand:
 			ctx := &core.SlashInteractionContext{
@@ -183,6 +190,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running slash command:", err)
+				core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
 			}
 		}
 
@@ -210,6 +218,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 				}
 				if err := compHandler.Component(ctx); err != nil {
 					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
+					core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
 				}
 			} else {
 				log.Printf("[WARN] Command %s does not implement ComponentHandler interface\n", matched.Name())

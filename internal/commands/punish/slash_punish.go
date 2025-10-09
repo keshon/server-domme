@@ -2,7 +2,6 @@ package punish
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"server-domme/internal/config"
 	"server-domme/internal/core"
@@ -46,9 +45,6 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 	event := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
-
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, event.Member.User.ID) {
 		core.Respond(session, event, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
@@ -89,11 +85,6 @@ func (c *PunishCommand) Run(ctx interface{}) error {
 
 	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
 	core.Respond(session, event, fmt.Sprintf(phrase, targetID))
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
 
 	return nil
 }

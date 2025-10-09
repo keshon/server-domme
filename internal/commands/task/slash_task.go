@@ -112,11 +112,6 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 	task := filtered[rand.Intn(len(filtered))]
 	c.assignTask(session, event, task, storage)
 
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
-
 	return nil
 }
 
@@ -395,6 +390,8 @@ func init() {
 			&TaskCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

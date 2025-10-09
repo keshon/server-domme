@@ -2,7 +2,6 @@ package ask
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 	"strings"
 
@@ -59,11 +58,8 @@ func (c *AskCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
-	options := event.ApplicationCommandData().Options
-	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
+	options := event.ApplicationCommandData().Options
 
 	var consentType, reason string
 	var targetUser *discordgo.User
@@ -111,12 +107,8 @@ func (c *AskCommand) Run(ctx interface{}) error {
 		"<@%s> wants to **%s** with you.\nhttps://discord.com/channels/%s/%s/%s",
 		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
 	)
-	session.ChannelMessageSend(dmChannel(session, targetUser.ID), dm)
 
-	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
+	core.MessageRespond(session, dmChannel(session, targetUser.ID), dm)
 
 	return nil
 }
@@ -277,6 +269,8 @@ func init() {
 			&AskCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

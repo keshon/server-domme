@@ -1,9 +1,7 @@
 package punish
 
-
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 	"slices"
 
@@ -45,9 +43,6 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 	event := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
-
 	punisherRoleID, _ := storage.GetPunishRole(event.GuildID, "punisher")
 	assignedRoleID, _ := storage.GetPunishRole(event.GuildID, "assigned")
 
@@ -80,11 +75,6 @@ func (c *ReleaseCommand) Run(ctx interface{}) error {
 	}
 
 	core.Respond(session, event, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
 
 	return nil
 }

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"server-domme/internal/core"
@@ -35,8 +34,8 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	member := event.Member
+	session := context.Session
+	event := context.Event
 
 	// Format build date
 	buildDate := "unknown"
@@ -88,14 +87,7 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 	}
 
 	// Just embed if no banner
-	if err := core.RespondEmbedEphemeral(session, event, embed); err != nil {
-		return err
-	}
-
-	// Log usage
-	if err := core.LogCommand(session, storage, event.GuildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
+	core.RespondEmbedEphemeral(session, event, embed)
 
 	return nil
 }
@@ -106,6 +98,8 @@ func init() {
 			&AboutCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

@@ -44,12 +44,9 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
 	event := context.Event
-	storage := context.Storage
 
 	guildID := event.GuildID
-	member := event.Member
 
 	data := context.Event.ApplicationCommandData()
 	if len(data.Options) == 0 {
@@ -119,11 +116,6 @@ func (c *SetTasksCommand) Run(ctx interface{}) error {
 		return core.RespondEphemeral(context.Session, context.Event, "Failed to save the uploaded file.")
 	}
 
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
-
 	return core.RespondEphemeral(context.Session, context.Event, fmt.Sprintf("Successfully uploaded %d tasks for this guild.", len(parsed)))
 }
 
@@ -133,6 +125,8 @@ func init() {
 			&SetTasksCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

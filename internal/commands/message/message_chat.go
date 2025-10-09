@@ -24,75 +24,70 @@ func (c *ChatCommand) Category() string    { return "💬 Chat" }
 func (c *ChatCommand) RequireAdmin() bool  { return false }
 func (c *ChatCommand) RequireDev() bool    { return false }
 
-// Message handler
+// Handle messages mentioning the bot
 func (c *ChatCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.MessageContext)
 	if !ok {
 		return nil
 	}
 
-	// ignore bot’s own messages
+	// Ignore own messages
 	if context.Event.Author.ID == context.Session.State.User.ID {
 		return nil
 	}
 
-	// ignore messages from confession channel
-	confessChannelID, _ := context.Storage.GetSpecialChannel(context.Event.GuildID, "confession")
-	if confessChannelID != "" && context.Event.ChannelID == confessChannelID {
+	// Ignore confession channel/messages
+	confessID, _ := context.Storage.GetSpecialChannel(context.Event.GuildID, "confession")
+	if confessID != "" && context.Event.ChannelID == confessID {
 		return nil
 	}
-
-	// ignore messages that *look like* confession embeds
-	if len(context.Event.Embeds) > 0 {
-		for _, e := range context.Event.Embeds {
-			if strings.Contains(e.Title, "📢 Anonymous Confession") {
-				return nil
-			}
+	for _, e := range context.Event.Embeds {
+		if strings.Contains(e.Title, "📢 Anonymous Confession") {
+			return nil
 		}
 	}
 
+	// Collect basic info
 	user := context.Event.Author.Username
-	displayName := context.Event.Author.DisplayName() // public name
+	display := context.Event.Author.DisplayName()
 	userID := context.Event.Author.ID
 	channelID := context.Event.ChannelID
 	msg := strings.TrimSpace(context.Event.Content)
 
 	log.Printf("[CHAT] %s (%s) @ %s: %s", user, userID, channelID, msg)
 
+	// DM check
 	if context.Event.GuildID == "" {
 		_, err := context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, I don't chat in DMs. Speak to me on a server channel.", displayName))
+			fmt.Sprintf("%s, I don't chat in DMs. Speak on a server channel.", display))
 		return err
 	}
 
 	if msg == "" {
 		_, err := context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, speak or be silent forever.", displayName))
+			fmt.Sprintf("%s, speak or be silent forever.", display))
 		return err
 	}
 
-	// Prepend "User <PublicName>: " for AI context
-	userContent := fmt.Sprintf("User %s: %s", displayName, msg)
-	convos.add(channelID, "user", userContent)
-
+	// Add user message to conversation history
+	convos.add(channelID, "user", fmt.Sprintf("User %s: %s", display, msg))
 	history := convos.get(channelID)
 
-	// Build system prompt
+	// Load system prompt
 	cfg := config.New()
 	file, err := os.Open(cfg.AIPromtPath)
 	if err != nil {
-		log.Printf("[ERROR] Failed to open system prompt: %v", err)
+		log.Printf("[ERROR] Missing system prompt: %v", err)
 		context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("My system prompt is missing %s, I can't think properly", displayName))
+			fmt.Sprintf("%s, I can't think properly without my system prompt.", display))
 		return err
 	}
 	defer file.Close()
 
 	promptBytes, _ := io.ReadAll(file)
 	systemPrompt := string(promptBytes)
-	log.Printf("[DEBUG] System prompt loaded (%d chars)", len(systemPrompt))
 
-	// Prepare AI messages
+	// Build AI messages
 	messages := []ai.Message{{Role: "system", Content: systemPrompt}}
 	for _, m := range history {
 		role := m.Role
@@ -102,42 +97,34 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		messages = append(messages, ai.Message{Role: role, Content: m.Content})
 	}
 
-	// Call AI engine
+	// Generate AI reply
 	client := ai.DefaultProvider()
 	reply, err := client.Generate(messages)
 	if err != nil {
 		log.Printf("[ERROR] AI request failed: %v", err)
 		context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("Something went wrong %s, I broke trying to think 🤯", displayName))
+			fmt.Sprintf("%s, something broke 🤯", display))
 		return err
 	}
 
+	// Save AI reply
 	convos.add(channelID, "assistant", reply)
 	log.Printf("[CHAT] AI reply to %s (%s) @ %s: %s", user, userID, channelID, reply)
 
-	// Send reply (respect 2000 char limit)
-	if len(reply) > 2000 {
-		for _, chunk := range splitMessage(reply, 2000) {
-			_, sendErr := context.Session.ChannelMessageSend(channelID, chunk)
-			if sendErr != nil {
-				return sendErr
-			}
-			time.Sleep(200 * time.Millisecond)
+	// Send reply (split if too long)
+	for _, chunk := range splitMessage(reply, 2000) {
+		if _, err := context.Session.ChannelMessageSend(channelID, chunk); err != nil {
+			return err
 		}
-		return nil
+		time.Sleep(200 * time.Millisecond)
 	}
 
-	_, err = context.Session.ChannelMessageSend(channelID, reply)
-	if err != nil {
-		log.Printf("[ERROR] Failed to send reply: %v", err)
-	}
-	return err
+	return nil
 }
 
 // Conversation store
 type convoMsg struct {
-	Role    string
-	Content string
+	Role, Content string
 }
 
 type convoStore struct {
@@ -182,7 +169,7 @@ func (c *convoStore) get(channelID string) []convoMsg {
 	return dst
 }
 
-// Helpers
+// Split long messages into chunks
 func splitMessage(msg string, limit int) []string {
 	var result []string
 	for len(msg) > limit {
@@ -205,6 +192,7 @@ func init() {
 			&ChatCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
 		),
 	)
 }

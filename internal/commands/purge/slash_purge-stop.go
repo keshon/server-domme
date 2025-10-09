@@ -1,7 +1,6 @@
 package purge
 
 import (
-	"log"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -35,22 +34,14 @@ func (c *PurgeStopCommand) Run(ctx interface{}) error {
 	event := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
-
 	stopDeletion(event.ChannelID)
 
 	_, err := storage.GetDeletionJob(event.GuildID, event.ChannelID)
 	if err == nil {
 		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
-		core.RespondEphemeral(session, event, "Message purge job stopped.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: "Message purge job stopped."})
 	} else {
-		core.RespondEphemeral(session, event, "There was no purge job, but I stopped any running deletions anyway.")
-	}
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: "There is no active purge job in this channel."})
 	}
 
 	return nil
@@ -63,6 +54,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

@@ -60,11 +60,10 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 	event := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
-
 	if !core.CheckBotPermissions(session, event.ChannelID) {
-		core.RespondEphemeral(session, event, "Missing permissions to purge messages in this channel.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Missing permissions to purge messages in this channel.",
+		})
 		return nil
 	}
 
@@ -83,20 +82,26 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		core.RespondEphemeral(session, event, "Action not confirmed. Please type 'yes' to proceed.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Action not confirmed. Please type 'yes' to proceed.",
+		})
 		return nil
 	}
 
 	dur, err := parseDuration(olderThan)
 	if err != nil {
-		core.RespondEphemeral(session, event, "Invalid duration format. Use values like `10m`, `2h`, `1d`, `1w` etc.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Invalid duration format. Use values like `10m`, `2h`, `1d`, `1w` etc.",
+		})
 		return nil
 	}
 
 	ActiveDeletionsMu.Lock()
 	if _, exists := ActiveDeletions[event.ChannelID]; exists {
 		ActiveDeletionsMu.Unlock()
-		core.RespondEphemeral(session, event, "This channel is already undergoing recurring purge.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "A purge job is already running in this channel.",
+		})
 		return nil
 	}
 	stopChan := make(chan struct{})
@@ -106,11 +111,15 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 	err = storage.SetDeletionJob(event.GuildID, event.ChannelID, "recurring", time.Now(), notifyAll, olderThan)
 	if err != nil {
 		stopDeletion(event.ChannelID)
-		core.RespondEphemeral(session, event, "Failed to schedule recurring purge: "+err.Error())
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Failed to set deletion job: " + err.Error(),
+		})
 		return nil
 	}
 
-	core.RespondEphemeral(session, event, "Recurring message purge started.\nMessages older than **"+dur.String()+"** will be removed.")
+	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		Description: "Recurring message purge started.\nMessages older than **" + dur.String() + "** will be removed.",
+	})
 
 	if notifyAll {
 		imgURL := "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp"
@@ -122,7 +131,12 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 			Footer:      &discordgo.MessageEmbedFooter{Text: "History has a half-life."},
 			Timestamp:   time.Now().Format(time.RFC3339),
 		}
-		_, _ = session.ChannelMessageSendEmbed(event.ChannelID, embed)
+
+		// Use ChannelMessageSend for public messages instead of InteractionRespond (we used RespondEmbedEphemeral earlier once already)
+		_, err := session.ChannelMessageSendEmbed(event.ChannelID, embed)
+		if err != nil {
+			log.Println("Failed to send public notification:", err)
+		}
 	}
 
 	go func() {
@@ -142,11 +156,6 @@ func (c *PurgeAutoCommand) Run(ctx interface{}) error {
 		}
 	}()
 
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
-
 	return nil
 }
 
@@ -157,6 +166,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

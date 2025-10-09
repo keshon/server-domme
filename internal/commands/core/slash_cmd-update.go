@@ -1,7 +1,6 @@
 package core
 
 import (
-	"log"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -38,9 +37,6 @@ func (c *CommandUpdate) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
-
 	// Get target command or 'all'
 	target := context.Event.ApplicationCommandData().Options[0].StringValue()
 
@@ -51,15 +47,10 @@ func (c *CommandUpdate) Run(ctx interface{}) error {
 		Target:  target,
 	})
 
-	// Acknowledge request
+	// Send response
 	core.RespondEmbedEphemeral(context.Session, context.Event, &discordgo.MessageEmbed{
 		Description: "Command update requested — it may take some time to apply.",
 	})
-
-	// Log usage
-	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
 
 	return nil
 }
@@ -71,6 +62,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -35,23 +34,28 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
+
+	guildID := event.GuildID
 
 	// Fetch guild record
 	record, err := storage.GetGuildRecord(guildID)
 	if err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch record: ```%v```", err),
 		})
+		return nil
 	}
 
 	// Encode record as JSON
 	jsonBytes, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("JSON encode failed: ```%v```", err),
 		})
+		return nil
 	}
 
 	// Create response embed
@@ -63,14 +67,7 @@ func (c *DumpDBCommand) Run(ctx interface{}) error {
 
 	// Send embed + file
 	fileName := fmt.Sprintf("%s_database_dump.json", guildID)
-	if err := core.RespondEmbedEphemeralWithFile(session, event, embed, bytes.NewReader(jsonBytes), fileName); err != nil {
-		log.Println("Failed to send dump:", err)
-	}
-
-	// Log usage
-	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
+	core.RespondEmbedEphemeralWithFile(session, event, embed, bytes.NewReader(jsonBytes), fileName)
 
 	return nil
 }
@@ -82,6 +79,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

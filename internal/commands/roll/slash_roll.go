@@ -2,7 +2,6 @@ package roll
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"regexp"
 	"server-domme/internal/core"
@@ -59,11 +58,8 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
-	options := event.ApplicationCommandData().Options
-	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
+	options := event.ApplicationCommandData().Options
 
 	formula := ""
 	for _, opt := range options {
@@ -88,7 +84,8 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			return core.RespondEphemeral(session, event, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
+			core.RespondEphemeral(session, event, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
+			return nil
 		}
 
 		terms = append(terms, term{
@@ -104,7 +101,8 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				return core.RespondEphemeral(session, event, "Syntax error: operator without left operand")
+				core.RespondEphemeral(session, event, "Syntax error: operator without left operand")
+				return nil
 			}
 			prev := merged[len(merged)-1]
 			merged = merged[:len(merged)-1]
@@ -115,7 +113,8 @@ func (c *RollCommand) Run(ctx interface{}) error {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					return core.RespondEphemeral(session, event, "Division by zero is forbidden. Even in games.")
+					core.RespondEphemeral(session, event, "Division by zero is forbidden. Even in games.")
+					return nil
 				}
 				newVal = prev.value / t.value
 			}
@@ -146,7 +145,8 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		case "-":
 			total -= t.value
 		default:
-			return core.RespondEphemeral(session, event, "Unexpected operator during evaluation. Blame the dev.")
+			core.RespondEphemeral(session, event, "Unexpected operator during evaluation. Blame the dev.")
+			return nil
 		}
 	}
 
@@ -158,20 +158,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		Color:       0x00cc99,
 	}
 
-	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embed},
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
+	core.RespondEmbed(session, event, embed)
 
 	return nil
 }
@@ -223,6 +210,8 @@ func init() {
 			&RollCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

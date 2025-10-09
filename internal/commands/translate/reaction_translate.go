@@ -78,7 +78,7 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 	}
 
 	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, toFlag, translated, link)
-	_, _ = context.Session.ChannelMessageSend(dm.ID, content)
+	context.Session.ChannelMessageSend(dm.ID, content)
 
 	perms, err := context.Session.State.UserChannelPermissions(context.Session.State.User.ID, context.Event.ChannelID)
 	if err != nil {
@@ -89,7 +89,9 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 		return nil
 	}
 
-	return context.Session.MessageReactionRemove(context.Event.ChannelID, context.Event.MessageID, context.Event.Emoji.Name, context.Event.UserID)
+	context.Session.MessageReactionRemove(context.Event.ChannelID, context.Event.MessageID, context.Event.Emoji.Name, context.Event.UserID)
+
+	return nil
 }
 
 func googleTranslate(text, targetLang string) (string, string, error) {
@@ -165,6 +167,8 @@ func init() {
 			&TranslateOnReaction{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

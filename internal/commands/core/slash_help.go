@@ -49,10 +49,11 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
+	session := context.Session
+	event := context.Event
 
 	viewAs := "category"
+
 	opts := event.ApplicationCommandData().Options
 	if len(opts) > 0 {
 		viewAs = opts[0].StringValue()
@@ -84,11 +85,6 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	if err != nil {
 		log.Println("Failed to send help embed:", err)
 		return nil
-	}
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
 	}
 
 	return nil
@@ -213,6 +209,8 @@ func init() {
 			&HelpUnifiedCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

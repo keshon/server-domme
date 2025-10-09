@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 	"strings"
 
@@ -40,8 +39,12 @@ func (c *LogCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
+
+	guildID := event.GuildID
+	member := event.Member
 
 	// Fetch command logs
 	records, err := storage.GetCommands(guildID)
@@ -92,11 +95,6 @@ func (c *LogCommand) Run(ctx interface{}) error {
 	msg := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
 	core.RespondEphemeral(session, event, msg)
 
-	// Log command usage
-	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
-
 	return nil
 }
 
@@ -107,6 +105,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

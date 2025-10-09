@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -32,9 +31,7 @@ func (c *PingCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
-
+	session, event := context.Session, context.Event
 	latency := session.HeartbeatLatency().Milliseconds()
 
 	// Send response
@@ -42,12 +39,6 @@ func (c *PingCommand) Run(ctx interface{}) error {
 		Title:       "Pong!",
 		Description: fmt.Sprintf("Latency: %dms", latency),
 	})
-
-	// Log usage
-	err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
 
 	return nil
 }
@@ -58,6 +49,8 @@ func init() {
 			&PingCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

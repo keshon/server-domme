@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
@@ -50,8 +49,11 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
+	session := context.Session
+	event := context.Event
+	storage := context.Storage
+
+	guildID := event.GuildID
 
 	// Parse command options
 	var kind, channelID string
@@ -66,16 +68,18 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 
 	// Validate input
 	if kind == "" || channelID == "" {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Missing parameters. Don’t make me repeat myself.",
 		})
+		return nil
 	}
 
 	// Save to storage
 	if err := storage.SetSpecialChannel(guildID, kind, channelID); err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to set channel: ```%v```", err),
 		})
+		return nil
 	}
 
 	// Pick response text
@@ -87,15 +91,12 @@ func (c *SetChannelsCommand) Run(ctx interface{}) error {
 		msg = fmt.Sprintf("✅ Channel for `%s` set.", kind)
 	}
 
-	// Log usage
-	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
-
 	// Send response
-	return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 		Description: msg,
 	})
+
+	return nil
 }
 
 func init() {
@@ -105,16 +106,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
-		),
-	)
-}
-func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
-			&SetChannelsCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

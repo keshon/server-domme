@@ -68,11 +68,10 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 	event := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
-
 	if !core.CheckBotPermissions(session, event.ChannelID) {
-		core.RespondEphemeral(session, event, "Missing permissions to delete messages in this channel.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Missing permissions to purge messages in this channel.",
+		})
 		return nil
 	}
 
@@ -91,7 +90,9 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		core.RespondEphemeral(session, event, "Action not confirmed. Please type 'yes' to proceed.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Action not confirmed. Please type 'yes' to proceed.",
+		})
 		return nil
 	}
 
@@ -101,17 +102,23 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 
 	dur, err := parseDuration(delayStr)
 	if err != nil {
-		core.RespondEphemeral(session, event, "Invalid delay format. Use formats like `10m`, `1h`, `1d`.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Invalid delay format. Use formats like `10m`, `1h`, `1d`.",
+		})
 		return nil
 	}
 
 	delayUntil := time.Now().Add(dur)
 	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, "delayed", delayUntil, notifyAll); err != nil {
-		core.RespondEphemeral(session, event, "Failed to schedule purge: "+err.Error())
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Failed to schedule purge: " + err.Error(),
+		})
 		return nil
 	}
 
-	core.RespondEphemeral(session, event, "Message purge scheduled.\nThis channel will be purged in **"+dur.String()+"**.")
+	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		Description: "Message purge scheduled.\nThis channel will be purged in **" + dur.String() + "**.",
+	})
 
 	if notifyAll {
 		embed := &discordgo.MessageEmbed{
@@ -122,7 +129,12 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 			Footer:      &discordgo.MessageEmbedFooter{Text: "May your sins be incinerated."},
 			Timestamp:   time.Now().Format(time.RFC3339),
 		}
-		_, _ = session.ChannelMessageSendEmbed(event.ChannelID, embed)
+
+		// Use ChannelMessageSend for public messages instead of InteractionRespond (we used RespondEmbedEphemeral earlier once already)
+		_, err := session.ChannelMessageSendEmbed(event.ChannelID, embed)
+		if err != nil {
+			log.Println("Failed to send public notification:", err)
+		}
 	}
 
 	go func() {
@@ -139,13 +151,11 @@ func (c *PurgeNowCommand) Run(ctx interface{}) error {
 		delete(ActiveDeletions, event.ChannelID)
 		ActiveDeletionsMu.Unlock()
 
-		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
+		err = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
+		if err != nil {
+			log.Printf("[ERR] Failed to delete purge job for channel %s: %v", event.ChannelID, err)
+		}
 	}()
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
 
 	return nil
 }
@@ -157,6 +167,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

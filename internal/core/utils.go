@@ -10,50 +10,70 @@ import (
 
 const EmbedColor = 0xb01e66
 
-func Respond(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error {
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+// Respond sends a public message response to an interaction.
+func Respond(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) error {
+	return session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: content,
 		},
 	})
-	return err
 }
 
-func RespondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, content string) error {
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+// RespondEphemeral sends an ephemeral message response to an interaction.
+func RespondEphemeral(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) error {
+	return session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: content,
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})
-	return err
 }
 
-func RespondEmbedEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+// RespondEmbedEphemeral sends an ephemeral embed response to an interaction.
+func RespondEmbedEphemeral(session *discordgo.Session, interaction *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
 	if embed.Color == 0 {
 		embed.Color = EmbedColor
 	}
 
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	return session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags:  discordgo.MessageFlagsEphemeral,
 			Embeds: []*discordgo.MessageEmbed{embed},
 		},
 	})
-	return err
 }
 
-func RespondEmbedEphemeralWithFile(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed, fileReader interface {
-	Read(p []byte) (n int, err error)
-}, fileName string) error {
+// RespondEmbed sends a public embed response to an interaction.
+func RespondEmbed(session *discordgo.Session, event *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+	if embed.Color == 0 {
+		embed.Color = EmbedColor
+	}
+	return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embed},
+		},
+	})
+}
+
+// RespondEmbedEphemeralWithFile sends an ephemeral embed and an attached file.
+func RespondEmbedEphemeralWithFile(
+	session *discordgo.Session,
+	interaction *discordgo.InteractionCreate,
+	embed *discordgo.MessageEmbed,
+	fileReader interface {
+		Read(p []byte) (n int, err error)
+	},
+	fileName string,
+) error {
 	if embed.Color == 0 {
 		embed.Color = EmbedColor
 	}
 
-	resp := &discordgo.InteractionResponse{
+	return session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags:  discordgo.MessageFlagsEphemeral,
@@ -65,13 +85,30 @@ func RespondEmbedEphemeralWithFile(s *discordgo.Session, i *discordgo.Interactio
 				},
 			},
 		},
-	}
-
-	return s.InteractionRespond(i.Interaction, resp)
+	})
 }
 
-func MessageRespond(s *discordgo.Session, channelID string, content string) error {
-	_, err := s.ChannelMessageSend(channelID, content)
+// RespondDeferredEphemeral sends an ephemeral deferred response to an interaction. This is often used to send a "loading" message before sending the actual response.
+func RespondDeferredEphemeral(session *discordgo.Session, event *discordgo.InteractionCreate) error {
+	return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+// EditResponse edits an existing interaction response.
+func EditResponse(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) error {
+	_, err := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
+	})
+	return err
+}
+
+// MessageRespond sends a simple message to a channel (non-interaction).
+func MessageRespond(session *discordgo.Session, channelID string, content string) error {
+	_, err := session.ChannelMessageSend(channelID, content)
 	return err
 }
 
@@ -151,20 +188,4 @@ func CheckBotPermissions(s *discordgo.Session, channelID string) bool {
 		return false
 	}
 	return perms&discordgo.PermissionManageMessages != 0
-}
-
-func CheckGroupAccess(c Command, guildID string, s *storage.Storage, respond func(string)) bool {
-	group := c.Group()
-	if group == "" {
-		return true
-	}
-	disabled, err := s.IsGroupDisabled(guildID, group)
-	if err != nil {
-		return true
-	}
-	if disabled {
-		respond("Эта группа команд отключена на этом сервере.")
-		return false
-	}
-	return true
 }

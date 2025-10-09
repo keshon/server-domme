@@ -2,7 +2,6 @@ package confess
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 	"strings"
 
@@ -44,9 +43,6 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 	event := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	member := event.Member
-
 	var message string
 	for _, opt := range event.ApplicationCommandData().Options {
 		if opt.Name == "message" {
@@ -71,25 +67,19 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 		Color:       core.EmbedColor,
 	}
 
-	_, err = session.ChannelMessageSendEmbed(confessChannelID, embed)
+	err = core.RespondEmbedEphemeral(session, event, embed)
 	if err != nil {
-		core.RespondEphemeral(session, event, fmt.Sprintf("Couldn’t send your confession: ```%v```", err))
-		return nil
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: fmt.Sprintf("Failed to send confession: %v", err)})
 	}
 
 	if event.ChannelID != confessChannelID {
 		link := fmt.Sprintf("https://discord.com/channels/%s/%s", event.GuildID, confessChannelID)
-		core.RespondEphemeral(session, event, fmt.Sprintf("Your secret has been dropped into the void.\nSee it echo: %s", link))
+		core.RespondEphemeral(session, event, fmt.Sprintf("Delivered. Nobody saw a thing.\nSee it here: %s", link))
+		return nil
 	} else {
 		core.RespondEphemeral(session, event, "💌 Delivered. Nobody saw a thing.")
+		return nil
 	}
-
-	err = core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name())
-	if err != nil {
-		log.Println("Failed to log:", err)
-	}
-
-	return nil
 }
 
 func init() {
@@ -98,6 +88,8 @@ func init() {
 			&ConfessCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

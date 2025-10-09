@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"server-domme/internal/core"
 	"strings"
 
@@ -34,8 +33,10 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session, event, storage := context.Session, context.Event, context.Storage
-	guildID, member := event.GuildID, event.Member
+	event := context.Event
+	storage := context.Storage
+
+	guildID := event.GuildID
 
 	// Fetch disabled groups
 	disabledGroups, _ := storage.GetDisabledGroups(guildID)
@@ -85,11 +86,6 @@ func (c *CommandsStatus) Run(ctx interface{}) error {
 	// Send response
 	core.RespondEmbedEphemeral(context.Session, context.Event, embed)
 
-	// Log usage
-	if err := core.LogCommand(session, storage, guildID, event.ChannelID, member.User.ID, member.User.Username, c.Name()); err != nil {
-		log.Println("Failed to log:", err)
-	}
-
 	return nil
 }
 
@@ -100,6 +96,7 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithAccessControl(),
+			core.WithCommandLogger(),
 		),
 	)
 }

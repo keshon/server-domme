@@ -16,14 +16,13 @@ func WithGroupAccessCheck() Middleware {
 				)
 
 				switch v := ctx.(type) {
+
+				// Slash Command
 				case *SlashInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
 
-				case *MessageContext:
-					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(_ string) {}
-
+				// Component Interaction (button, menu, etc.)
 				case *ComponentInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
@@ -36,10 +35,17 @@ func WithGroupAccessCheck() Middleware {
 					}
 					return nil
 
+				// Message Context Menu Command
 				case *MessageApplicationCommandContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
 
+				// Regular message command
+				case *MessageContext:
+					guildID, storage = v.Event.GuildID, v.Storage
+					respond = func(_ string) {}
+
+				// Reaction command
 				case *MessageReactionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(_ string) {}
