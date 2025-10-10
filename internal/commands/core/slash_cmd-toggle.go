@@ -15,8 +15,7 @@ func (c *CommandsToggleCommand) Description() string { return "Enable or disable
 func (c *CommandsToggleCommand) Aliases() []string   { return []string{} }
 func (c *CommandsToggleCommand) Group() string       { return "core" }
 func (c *CommandsToggleCommand) Category() string    { return "⚙️ Settings" }
-func (c *CommandsToggleCommand) RequireAdmin() bool  { return true }
-func (c *CommandsToggleCommand) Permissions() []int64 {
+func (c *CommandsToggleCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -117,8 +116,7 @@ func init() {
 			&CommandsToggleCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

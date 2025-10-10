@@ -15,11 +15,8 @@ func (c *AskCommand) Description() string { return "Request permission to contac
 func (c *AskCommand) Aliases() []string   { return []string{} }
 func (c *AskCommand) Group() string       { return "ask" }
 func (c *AskCommand) Category() string    { return "🎭 Roleplay" }
-func (c *AskCommand) RequireAdmin() bool  { return false }
-func (c *AskCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *AskCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *AskCommand) BotPermissions() []int64 {
 	return []int64{
@@ -278,8 +275,7 @@ func init() {
 			&AskCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

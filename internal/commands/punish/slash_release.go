@@ -15,11 +15,8 @@ func (c *ReleaseCommand) Description() string { return "Remove the brat role" }
 func (c *ReleaseCommand) Aliases() []string   { return []string{} }
 func (c *ReleaseCommand) Group() string       { return "punish" }
 func (c *ReleaseCommand) Category() string    { return "🎭 Roleplay" }
-func (c *ReleaseCommand) RequireAdmin() bool  { return false }
-func (c *ReleaseCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *ReleaseCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *ReleaseCommand) BotPermissions() []int64 {
 	return []int64{
@@ -94,8 +91,7 @@ func init() {
 			&ReleaseCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

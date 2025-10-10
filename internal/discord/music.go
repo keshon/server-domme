@@ -16,7 +16,6 @@ func (b *Bot) registerMusicCommands() {
 			&music.PlayCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
 			core.WithCommandLogger(),
 		),
 	)
@@ -26,7 +25,6 @@ func (b *Bot) registerMusicCommands() {
 			&music.StopCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
 			core.WithCommandLogger(),
 		),
 	)
@@ -36,7 +34,6 @@ func (b *Bot) registerMusicCommands() {
 			&music.NextCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
 			core.WithCommandLogger(),
 		),
 	)

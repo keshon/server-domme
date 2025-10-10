@@ -15,11 +15,10 @@ func (c *DumpDBCommand) Name() string { return "get-db" }
 func (c *DumpDBCommand) Description() string {
 	return "Dump the current server database as a JSON file"
 }
-func (c *DumpDBCommand) Aliases() []string  { return []string{} }
-func (c *DumpDBCommand) Group() string      { return "core" }
-func (c *DumpDBCommand) Category() string   { return "🛠️ Maintenance" }
-func (c *DumpDBCommand) RequireAdmin() bool { return true }
-func (c *DumpDBCommand) Permissions() []int64 {
+func (c *DumpDBCommand) Aliases() []string { return []string{} }
+func (c *DumpDBCommand) Group() string     { return "core" }
+func (c *DumpDBCommand) Category() string  { return "🛠️ Maintenance" }
+func (c *DumpDBCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -87,8 +86,7 @@ func init() {
 			&DumpDBCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

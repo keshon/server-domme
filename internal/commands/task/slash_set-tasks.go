@@ -20,16 +20,13 @@ func (c *SetTasksCommand) Description() string { return "Upload a new task list 
 func (c *SetTasksCommand) Aliases() []string   { return []string{} }
 func (c *SetTasksCommand) Group() string       { return "task" }
 func (c *SetTasksCommand) Category() string    { return "⚙️ Settings" }
-func (c *SetTasksCommand) RequireAdmin() bool  { return true }
-func (c *SetTasksCommand) Permissions() []int64 {
+func (c *SetTasksCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *SetTasksCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *SetTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -134,8 +131,7 @@ func init() {
 			&SetTasksCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

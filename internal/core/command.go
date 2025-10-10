@@ -12,8 +12,7 @@ type Command interface {
 	Aliases() []string
 	Group() string
 	Category() string
-	RequireAdmin() bool
-	Permissions() []int64
+	UserPermissions() []int64
 	BotPermissions() []int64
 	Run(ctx interface{}) error
 }

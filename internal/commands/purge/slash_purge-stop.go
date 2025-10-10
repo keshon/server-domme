@@ -13,16 +13,13 @@ func (c *PurgeStopCommand) Description() string { return "Halt ongoing purge in 
 func (c *PurgeStopCommand) Aliases() []string   { return []string{} }
 func (c *PurgeStopCommand) Group() string       { return "purge" }
 func (c *PurgeStopCommand) Category() string    { return "🧹 Cleanup" }
-func (c *PurgeStopCommand) RequireAdmin() bool  { return true }
-func (c *PurgeStopCommand) Permissions() []int64 {
+func (c *PurgeStopCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *PurgeStopCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *PurgeStopCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -62,8 +59,7 @@ func init() {
 			&PurgeStopCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

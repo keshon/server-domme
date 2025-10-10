@@ -23,11 +23,8 @@ func (c *ChatCommand) Description() string { return "Talk to the bot when it is 
 func (c *ChatCommand) Aliases() []string   { return []string{} }
 func (c *ChatCommand) Group() string       { return "chat" }
 func (c *ChatCommand) Category() string    { return "💬 Chat" }
-func (c *ChatCommand) RequireAdmin() bool  { return false }
-func (c *ChatCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *ChatCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *ChatCommand) BotPermissions() []int64 {
 	return []int64{
@@ -203,8 +200,7 @@ func init() {
 			&ChatCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

@@ -20,11 +20,8 @@ func (c *HelpUnifiedCommand) Description() string { return "Get a list of availa
 func (c *HelpUnifiedCommand) Aliases() []string   { return []string{} }
 func (c *HelpUnifiedCommand) Group() string       { return "core" }
 func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information" }
-func (c *HelpUnifiedCommand) RequireAdmin() bool  { return false }
-func (c *HelpUnifiedCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *HelpUnifiedCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *HelpUnifiedCommand) BotPermissions() []int64 {
 	return []int64{
@@ -106,9 +103,9 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 	categorySort := make(map[string]int)
 
 	for _, cmd := range all {
-		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-			continue
-		}
+		// if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
+		// 	continue
+		// }
 		cat := cmd.Category()
 		categoryMap[cat] = append(categoryMap[cat], cmd)
 		if _, ok := categorySort[cat]; !ok {
@@ -150,9 +147,9 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 	groupMap := make(map[string][]core.Command)
 
 	for _, cmd := range all {
-		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-			continue
-		}
+		// if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
+		// 	continue
+		// }
 		group := cmd.Group()
 		groupMap[group] = append(groupMap[group], cmd)
 	}
@@ -184,9 +181,9 @@ func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreat
 
 	var cmds []core.Command
 	for _, cmd := range all {
-		if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-			continue
-		}
+		// if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
+		// 	continue
+		// }
 		cmds = append(cmds, cmd)
 	}
 	sort.Slice(cmds, func(i, j int) bool {
@@ -206,8 +203,7 @@ func init() {
 			&HelpUnifiedCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

@@ -14,11 +14,8 @@ func (c *PingCommand) Description() string { return "Check bot latency" }
 func (c *PingCommand) Aliases() []string   { return []string{} }
 func (c *PingCommand) Group() string       { return "ping" }
 func (c *PingCommand) Category() string    { return "🛠️ Maintenance" }
-func (c *PingCommand) RequireAdmin() bool  { return false }
-func (c *PingCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *PingCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *PingCommand) BotPermissions() []int64 {
 	return []int64{
@@ -58,8 +55,7 @@ func init() {
 			&PingCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

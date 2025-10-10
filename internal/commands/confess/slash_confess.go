@@ -15,11 +15,8 @@ func (c *ConfessCommand) Description() string { return "Send an anonymous confes
 func (c *ConfessCommand) Aliases() []string   { return []string{} }
 func (c *ConfessCommand) Group() string       { return "confess" }
 func (c *ConfessCommand) Category() string    { return "🎭 Roleplay" }
-func (c *ConfessCommand) RequireAdmin() bool  { return false }
-func (c *ConfessCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *ConfessCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *ConfessCommand) BotPermissions() []int64 {
 	return []int64{
@@ -97,8 +94,7 @@ func init() {
 			&ConfessCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

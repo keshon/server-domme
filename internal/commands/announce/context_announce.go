@@ -20,18 +20,17 @@ func (c *AnnounceCommand) Name() string { return "Announce" }
 func (c *AnnounceCommand) Description() string {
 	return "Send a message to the announcement channel (context command)"
 }
-func (c *AnnounceCommand) Aliases() []string  { return []string{} }
-func (c *AnnounceCommand) Group() string      { return "announce" }
-func (c *AnnounceCommand) Category() string   { return "📢 Utilities" }
-func (c *AnnounceCommand) RequireAdmin() bool { return true }
-func (c *AnnounceCommand) Permissions() []int64 {
+func (c *AnnounceCommand) Aliases() []string { return []string{} }
+func (c *AnnounceCommand) Group() string     { return "announce" }
+func (c *AnnounceCommand) Category() string  { return "📢 Utilities" }
+func (c *AnnounceCommand) UserPermissions() []int64 {
 	return []int64{
-		discordgo.PermissionSendMessages,
+		discordgo.PermissionAdministrator,
 	}
 }
 func (c *AnnounceCommand) BotPermissions() []int64 {
 	return []int64{
-		discordgo.PermissionSendMessages,
+		discordgo.PermissionUseApplicationCommands,
 	}
 }
 
@@ -159,9 +158,8 @@ func init() {
 			&AnnounceCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
 			core.WithBotPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

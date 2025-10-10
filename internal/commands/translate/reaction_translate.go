@@ -20,19 +20,12 @@ func (t *TranslateOnReaction) Description() string        { return "Translate me
 func (t *TranslateOnReaction) Aliases() []string          { return []string{} }
 func (c *TranslateOnReaction) Group() string              { return "translate" }
 func (t *TranslateOnReaction) Category() string           { return "📢 Utilities" }
-func (r *TranslateOnReaction) RequireAdmin() bool         { return false }
 func (t *TranslateOnReaction) ReactionDefinition() string { return "reaction" }
-func (t *TranslateOnReaction) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-		discordgo.PermissionManageMessages,
-	}
+func (t *TranslateOnReaction) UserPermissions() []int64 {
+	return []int64{}
 }
 func (t *TranslateOnReaction) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-		discordgo.PermissionManageMessages,
-	}
+	return []int64{}
 }
 
 var flags = map[string]string{
@@ -178,8 +171,7 @@ func init() {
 			&TranslateOnReaction{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

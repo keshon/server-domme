@@ -18,19 +18,16 @@ func (c *DumpTasksCommand) Name() string { return "get-tasks" }
 func (c *DumpTasksCommand) Description() string {
 	return "Dumps all tasks for this server as JSON file"
 }
-func (c *DumpTasksCommand) Aliases() []string  { return []string{} }
-func (c *DumpTasksCommand) Group() string      { return "task" }
-func (c *DumpTasksCommand) Category() string   { return "⚙️ Settings" }
-func (c *DumpTasksCommand) RequireAdmin() bool { return true }
-func (c *DumpTasksCommand) Permissions() []int64 {
+func (c *DumpTasksCommand) Aliases() []string { return []string{} }
+func (c *DumpTasksCommand) Group() string     { return "task" }
+func (c *DumpTasksCommand) Category() string  { return "⚙️ Settings" }
+func (c *DumpTasksCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *DumpTasksCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *DumpTasksCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -129,8 +126,7 @@ func init() {
 			&DumpTasksCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

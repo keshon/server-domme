@@ -17,10 +17,8 @@ func (c *StopCommand) Aliases() []string   { return []string{} }
 func (c *StopCommand) Group() string       { return "music" }
 func (c *StopCommand) Category() string    { return "🎵 Music" }
 func (c *StopCommand) RequireAdmin() bool  { return false }
-func (c *StopCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *StopCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *StopCommand) BotPermissions() []int64 {
 	return []int64{
@@ -74,8 +72,7 @@ func init() {
 			&StopCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

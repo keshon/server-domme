@@ -14,8 +14,7 @@ func (c *SetRolesCommand) Description() string { return "Setup special-purpose r
 func (c *SetRolesCommand) Aliases() []string   { return []string{} }
 func (c *SetRolesCommand) Group() string       { return "core" }
 func (c *SetRolesCommand) Category() string    { return "⚙️ Settings" }
-func (c *SetRolesCommand) RequireAdmin() bool  { return true }
-func (c *SetRolesCommand) Permissions() []int64 {
+func (c *SetRolesCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -139,8 +138,7 @@ func init() {
 			&SetRolesCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

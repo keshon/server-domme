@@ -14,11 +14,10 @@ func (c *CommandsStatus) Name() string { return "cmd-status" }
 func (c *CommandsStatus) Description() string {
 	return "Check which command groups are enabled or disabled"
 }
-func (c *CommandsStatus) Aliases() []string  { return []string{} }
-func (c *CommandsStatus) Group() string      { return "core" }
-func (c *CommandsStatus) Category() string   { return "⚙️ Settings" }
-func (c *CommandsStatus) RequireAdmin() bool { return false }
-func (c *CommandsStatus) Permissions() []int64 {
+func (c *CommandsStatus) Aliases() []string { return []string{} }
+func (c *CommandsStatus) Group() string     { return "core" }
+func (c *CommandsStatus) Category() string  { return "⚙️ Settings" }
+func (c *CommandsStatus) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -104,8 +103,7 @@ func init() {
 			&CommandsStatus{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

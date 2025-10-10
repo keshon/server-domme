@@ -42,16 +42,11 @@ func (c *TaskCommand) Description() string { return "Assign or manage your perso
 func (c *TaskCommand) Aliases() []string   { return []string{} }
 func (c *TaskCommand) Group() string       { return "task" }
 func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
-func (c *TaskCommand) RequireAdmin() bool  { return false }
-func (c *TaskCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+func (c *TaskCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *TaskCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -399,8 +394,7 @@ func init() {
 			&TaskCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

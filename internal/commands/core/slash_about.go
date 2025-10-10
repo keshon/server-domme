@@ -18,11 +18,8 @@ func (c *AboutCommand) Description() string { return "Discover the origin of thi
 func (c *AboutCommand) Aliases() []string   { return []string{} }
 func (c *AboutCommand) Group() string       { return "core" }
 func (c *AboutCommand) Category() string    { return "🕯️ Information" }
-func (c *AboutCommand) RequireAdmin() bool  { return false }
-func (c *AboutCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *AboutCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *AboutCommand) BotPermissions() []int64 {
 	return []int64{
@@ -107,8 +104,7 @@ func init() {
 			&AboutCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

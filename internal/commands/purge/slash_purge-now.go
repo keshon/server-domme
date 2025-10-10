@@ -16,16 +16,13 @@ func (c *PurgeNowCommand) Description() string { return "Purge messages in this 
 func (c *PurgeNowCommand) Aliases() []string   { return []string{} }
 func (c *PurgeNowCommand) Group() string       { return "purge" }
 func (c *PurgeNowCommand) Category() string    { return "🧹 Cleanup" }
-func (c *PurgeNowCommand) RequireAdmin() bool  { return true }
-func (c *PurgeNowCommand) Permissions() []int64 {
+func (c *PurgeNowCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *PurgeNowCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *PurgeNowCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -175,8 +172,7 @@ func init() {
 			&PurgeNowCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

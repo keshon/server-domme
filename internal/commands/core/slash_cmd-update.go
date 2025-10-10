@@ -13,8 +13,7 @@ func (c *CommandUpdate) Description() string { return "Re-register or update sla
 func (c *CommandUpdate) Aliases() []string   { return []string{} }
 func (c *CommandUpdate) Group() string       { return "core" }
 func (c *CommandUpdate) Category() string    { return "⚙️ Settings" }
-func (c *CommandUpdate) RequireAdmin() bool  { return true }
-func (c *CommandUpdate) Permissions() []int64 {
+func (c *CommandUpdate) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -70,8 +69,7 @@ func init() {
 			&CommandUpdate{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

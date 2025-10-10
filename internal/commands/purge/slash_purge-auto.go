@@ -16,16 +16,13 @@ func (c *PurgeAutoCommand) Description() string { return "Purge messages regular
 func (c *PurgeAutoCommand) Aliases() []string   { return []string{} }
 func (c *PurgeAutoCommand) Group() string       { return "purge" }
 func (c *PurgeAutoCommand) Category() string    { return "🧹 Cleanup" }
-func (c *PurgeAutoCommand) RequireAdmin() bool  { return true }
-func (c *PurgeAutoCommand) Permissions() []int64 {
+func (c *PurgeAutoCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *PurgeAutoCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *PurgeAutoCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -174,8 +171,7 @@ func init() {
 			&PurgeAutoCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

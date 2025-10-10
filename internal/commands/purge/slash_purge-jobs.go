@@ -15,16 +15,13 @@ func (c *PurgeJobsCommand) Description() string { return "List all active purge 
 func (c *PurgeJobsCommand) Aliases() []string   { return []string{} }
 func (c *PurgeJobsCommand) Group() string       { return "purge" }
 func (c *PurgeJobsCommand) Category() string    { return "🧹 Cleanup" }
-func (c *PurgeJobsCommand) RequireAdmin() bool  { return true }
-func (c *PurgeJobsCommand) Permissions() []int64 {
+func (c *PurgeJobsCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *PurgeJobsCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
+	return []int64{}
 }
 
 func (c *PurgeJobsCommand) SlashDefinition() *discordgo.ApplicationCommand {
@@ -85,8 +82,7 @@ func init() {
 			&PurgeJobsCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

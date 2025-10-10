@@ -17,11 +17,8 @@ func (c *PunishCommand) Description() string { return "Assign the brat role" }
 func (c *PunishCommand) Aliases() []string   { return []string{} }
 func (c *PunishCommand) Group() string       { return "punish" }
 func (c *PunishCommand) Category() string    { return "🎭 Roleplay" }
-func (c *PunishCommand) RequireAdmin() bool  { return false }
-func (c *PunishCommand) Permissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
+func (c *PunishCommand) UserPermissions() []int64 {
+	return []int64{}
 }
 func (c *PunishCommand) BotPermissions() []int64 {
 	return []int64{
@@ -104,8 +101,7 @@ func init() {
 			&PunishCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

@@ -14,8 +14,7 @@ func (c *SetChannelsCommand) Description() string { return "Setup special-purpos
 func (c *SetChannelsCommand) Aliases() []string   { return []string{} }
 func (c *SetChannelsCommand) Group() string       { return "core" }
 func (c *SetChannelsCommand) Category() string    { return "⚙️ Settings" }
-func (c *SetChannelsCommand) RequireAdmin() bool  { return true }
-func (c *SetChannelsCommand) Permissions() []int64 {
+func (c *SetChannelsCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -114,8 +113,7 @@ func init() {
 			&SetChannelsCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

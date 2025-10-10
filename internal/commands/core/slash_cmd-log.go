@@ -23,15 +23,14 @@ func (c *LogCommand) Description() string { return "Review recent commands and t
 func (c *LogCommand) Aliases() []string   { return []string{} }
 func (c *LogCommand) Group() string       { return "core" }
 func (c *LogCommand) Category() string    { return "⚙️ Settings" }
-func (c *LogCommand) RequireAdmin() bool  { return true }
-func (c *LogCommand) Permissions() []int64 {
+func (c *LogCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 func (c *LogCommand) BotPermissions() []int64 {
 	return []int64{
-		discordgo.PermissionAdministrator,
+		discordgo.PermissionSendMessages,
 	}
 }
 
@@ -113,8 +112,7 @@ func init() {
 			&LogCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithAccessControl(),
-			core.WithPermissionCheck(),
+			core.WithUserPermissionCheck(),
 			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),

@@ -2,11 +2,16 @@ package core
 
 import (
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-// PermissionNames maps permission bit flags to readable names.
+// ────────────────────────────────────────────────────────────────
+// PERMISSION NAME MAPS
+// ────────────────────────────────────────────────────────────────
+
 var PermissionNames = map[int64]string{
 	discordgo.PermissionCreateInstantInvite:              "Create Instant Invite",
 	discordgo.PermissionKickMembers:                      "Kick Members",
@@ -59,7 +64,14 @@ var PermissionNames = map[int64]string{
 	discordgo.PermissionModerateMembers:                  "Moderate Members",
 }
 
-func WithPermissionCheck() Middleware {
+// alias
+var BotPermissionNames = PermissionNames
+
+// ────────────────────────────────────────────────────────────────
+// USER PERMISSIONS CHECK (DEFAULT ALLOW; any-of semantics)
+// ────────────────────────────────────────────────────────────────
+
+func WithUserPermissionCheck() Middleware {
 	return func(cmd Command) Command {
 		return &wrappedCommand{
 			Command: cmd,
@@ -78,64 +90,75 @@ func WithPermissionCheck() Middleware {
 				case *MessageContext:
 					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
 				default:
-					return cmd.Run(ctx) // если контекст неизвестен — просто выполняем
+					return cmd.Run(ctx)
 				}
 
+				// Skip if no guild/member context
 				if guildID == "" || m == nil {
 					return cmd.Run(ctx)
 				}
 
-				// получаем реальные права пользователя
 				memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
 				if err != nil {
 					return fmt.Errorf("failed to get user permissions: %w", err)
 				}
 
-				// если у пользователя есть администратор — всё можно
+				// Admins always bypass
 				if memberPerms&discordgo.PermissionAdministrator != 0 {
 					return cmd.Run(ctx)
 				}
 
-				required := cmd.Permissions()
+				required := cmd.UserPermissions()
+
+				// DEFAULT ALLOW — no user permissions specified = open command
 				if len(required) == 0 {
 					return cmd.Run(ctx)
 				}
 
-				// проверяем, хватает ли всех нужных прав
+				// Allow if user has ANY of required perms
+				hasAny := false
 				for _, p := range required {
-					if memberPerms&p == 0 {
+					if memberPerms&p != 0 {
+						hasAny = true
+						break
+					}
+				}
+
+				if !hasAny {
+					var allowed []string
+					for _, p := range required {
 						name := PermissionNames[p]
 						if name == "" {
 							name = fmt.Sprintf("0x%x", p)
 						}
-
-						switch v := ctx.(type) {
-						case *SlashInteractionContext:
-							RespondEphemeral(s, v.Event, fmt.Sprintf(
-								"You lack required permission `%s` to execute this command.", name))
-						case *ComponentInteractionContext:
-							RespondEphemeral(s, v.Event, fmt.Sprintf(
-								"You lack required permission `%s` to execute this action.", name))
-						case *MessageApplicationCommandContext:
-							RespondEphemeral(s, v.Event, fmt.Sprintf(
-								"You lack required permission `%s` to execute this action.", name))
-						case *MessageContext:
-							_, _ = s.ChannelMessageSend(channelID, fmt.Sprintf(
-								"You lack required permission `%s` to execute this command.", name))
-						}
-
-						return nil // не выполняем команду
+						allowed = append(allowed, name)
 					}
+					msg := fmt.Sprintf(
+						"You need at least one of the following permissions to run this command:\n`%s`",
+						strings.Join(allowed, "`, `"),
+					)
+					switch v := ctx.(type) {
+					case *SlashInteractionContext:
+						RespondEphemeral(s, v.Event, msg)
+					case *ComponentInteractionContext:
+						RespondEphemeral(s, v.Event, msg)
+					case *MessageApplicationCommandContext:
+						RespondEphemeral(s, v.Event, msg)
+					case *MessageContext:
+						_, _ = s.ChannelMessageSend(channelID, msg)
+					}
+					return nil
 				}
 
-				// всё ок — запускаем команду
 				return cmd.Run(ctx)
 			},
 		}
 	}
 }
 
-var BotPermissionNames = PermissionNames
+// ────────────────────────────────────────────────────────────────
+// BOT PERMISSIONS CHECK (DEFAULT ALLOW; all-of semantics)
+// ────────────────────────────────────────────────────────────────
 
 func WithBotPermissionCheck() Middleware {
 	return func(cmd Command) Command {
@@ -163,15 +186,18 @@ func WithBotPermissionCheck() Middleware {
 				}
 
 				required := cmd.BotPermissions()
+
+				// DEFAULT ALLOW — if bot perms list empty, just warn once
 				if len(required) == 0 {
+					log.Printf("[WARN] Command %s has no bot permission requirements defined", cmd.Name())
 					return cmd.Run(ctx)
 				}
 
+				// get bot user
 				botUser := s.State.User
 				if botUser == nil {
 					botUser, _ = s.User("@me")
 				}
-
 				if botUser == nil {
 					return cmd.Run(ctx)
 				}
@@ -181,27 +207,33 @@ func WithBotPermissionCheck() Middleware {
 					return fmt.Errorf("failed to get bot permissions: %w", err)
 				}
 
+				var missing []string
 				for _, p := range required {
 					if botPerms&p == 0 {
 						name := BotPermissionNames[p]
 						if name == "" {
 							name = fmt.Sprintf("0x%x", p)
 						}
-
-						// Inform the user
-						switch v := ctx.(type) {
-						case *SlashInteractionContext:
-							RespondEphemeral(s, v.Event, fmt.Sprintf(
-								"I need the `%s` permission in this channel to run this command.",
-								name))
-						case *MessageContext:
-							_, _ = s.ChannelMessageSend(channelID, fmt.Sprintf(
-								"I need the `%s` permission in this channel to run this command.",
-								name))
-						}
-
-						return nil
+						missing = append(missing, name)
 					}
+				}
+
+				if len(missing) > 0 {
+					msg := fmt.Sprintf(
+						"I need the following permissions in this channel to run this command:\n`%s`",
+						strings.Join(missing, "`, `"),
+					)
+					switch v := ctx.(type) {
+					case *SlashInteractionContext:
+						RespondEphemeral(s, v.Event, msg)
+					case *ComponentInteractionContext:
+						RespondEphemeral(s, v.Event, msg)
+					case *MessageApplicationCommandContext:
+						RespondEphemeral(s, v.Event, msg)
+					case *MessageContext:
+						_, _ = s.ChannelMessageSend(channelID, msg)
+					}
+					return nil
 				}
 
 				return cmd.Run(ctx)
