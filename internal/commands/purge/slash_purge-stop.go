@@ -18,9 +18,6 @@ func (c *PurgeStopCommand) UserPermissions() []int64 {
 		discordgo.PermissionAdministrator,
 	}
 }
-func (c *PurgeStopCommand) BotPermissions() []int64 {
-	return []int64{}
-}
 
 func (c *PurgeStopCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -60,7 +57,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

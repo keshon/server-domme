@@ -15,18 +15,15 @@ import (
 
 type TranslateOnReaction struct{}
 
-func (t *TranslateOnReaction) Name() string               { return "translate (reaction)" }
-func (t *TranslateOnReaction) Description() string        { return "Translate message on flag emoji reaction" }
-func (t *TranslateOnReaction) Aliases() []string          { return []string{} }
-func (c *TranslateOnReaction) Group() string              { return "translate" }
-func (t *TranslateOnReaction) Category() string           { return "📢 Utilities" }
-func (t *TranslateOnReaction) ReactionDefinition() string { return "reaction" }
+func (t *TranslateOnReaction) Name() string        { return "translate (reaction)" }
+func (t *TranslateOnReaction) Description() string { return "Translate message on flag emoji reaction" }
+func (t *TranslateOnReaction) Aliases() []string   { return []string{} }
+func (c *TranslateOnReaction) Group() string       { return "translate" }
+func (t *TranslateOnReaction) Category() string    { return "📢 Utilities" }
 func (t *TranslateOnReaction) UserPermissions() []int64 {
 	return []int64{}
 }
-func (t *TranslateOnReaction) BotPermissions() []int64 {
-	return []int64{}
-}
+func (t *TranslateOnReaction) ReactionDefinition() string { return "reaction" }
 
 var flags = map[string]string{
 	"🇷🇺": "ru",
@@ -46,12 +43,15 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 		return nil
 	}
 
-	toLangCode, ok := flags[context.Event.Emoji.Name]
+	session := context.Session
+	event := context.Event
+
+	toLangCode, ok := flags[event.Emoji.Name]
 	if !ok {
 		return nil
 	}
 
-	msg, err := context.Session.ChannelMessage(context.Event.ChannelID, context.Event.MessageID)
+	msg, err := session.ChannelMessage(event.ChannelID, event.MessageID)
 	if err != nil || msg.Content == "" {
 		return nil
 	}
@@ -72,28 +72,28 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 			break
 		}
 	}
-	toFlag := context.Event.Emoji.Name
+	toFlag := event.Emoji.Name
 
-	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", context.Event.GuildID, context.Event.ChannelID, context.Event.MessageID)
+	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.MessageID)
 
-	dm, err := context.Session.UserChannelCreate(context.Event.UserID)
+	dm, err := session.UserChannelCreate(event.UserID)
 	if err != nil {
 		return nil
 	}
 
 	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, toFlag, translated, link)
-	context.Session.ChannelMessageSend(dm.ID, content)
+	session.ChannelMessageSend(dm.ID, content)
 
-	perms, err := context.Session.State.UserChannelPermissions(context.Session.State.User.ID, context.Event.ChannelID)
+	perms, err := session.State.UserChannelPermissions(session.State.User.ID, event.ChannelID)
 	if err != nil {
 		return nil
 	}
 	if perms&discordgo.PermissionManageMessages == 0 {
-		log.Printf("[WARN] No permission to remove reaction in channel, skipping translation %s\n", context.Event.ChannelID)
+		log.Printf("[WARN] No permission to remove reaction in channel, skipping translation %s\n", event.ChannelID)
 		return nil
 	}
 
-	context.Session.MessageReactionRemove(context.Event.ChannelID, context.Event.MessageID, context.Event.Emoji.Name, context.Event.UserID)
+	session.MessageReactionRemove(event.ChannelID, event.MessageID, event.Emoji.Name, event.UserID)
 
 	return nil
 }
@@ -172,7 +172,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

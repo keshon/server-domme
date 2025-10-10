@@ -1,10 +1,11 @@
-package message
+package chat
 
 import (
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -18,21 +19,13 @@ import (
 
 type ChatCommand struct{}
 
-func (c *ChatCommand) Name() string        { return "mention bot" }
-func (c *ChatCommand) Description() string { return "Talk to the bot when it is mentioned" }
-func (c *ChatCommand) Aliases() []string   { return []string{} }
-func (c *ChatCommand) Group() string       { return "chat" }
-func (c *ChatCommand) Category() string    { return "💬 Chat" }
-func (c *ChatCommand) UserPermissions() []int64 {
-	return []int64{}
-}
-func (c *ChatCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
+func (c *ChatCommand) Name() string             { return "mention bot" }
+func (c *ChatCommand) Description() string      { return "Talk to the bot when it is mentioned" }
+func (c *ChatCommand) Aliases() []string        { return []string{} }
+func (c *ChatCommand) Group() string            { return "chat" }
+func (c *ChatCommand) Category() string         { return "💬 Chat" }
+func (c *ChatCommand) UserPermissions() []int64 { return []int64{} }
 
-// Handle messages mentioning the bot
 func (c *ChatCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.MessageContext)
 	if !ok {
@@ -44,7 +37,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	// Ignore confession channel/messages
+	// Ignore confessions
 	confessID, _ := context.Storage.GetSpecialChannel(context.Event.GuildID, "confession")
 	if confessID != "" && context.Event.ChannelID == confessID {
 		return nil
@@ -55,7 +48,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		}
 	}
 
-	// Collect basic info
+	session := context.Session
 	user := context.Event.Author.Username
 	display := context.Event.Author.DisplayName()
 	userID := context.Event.Author.ID
@@ -64,7 +57,11 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	log.Printf("[CHAT] %s (%s) @ %s: %s", user, userID, channelID, msg)
 
-	// DM check
+	// Start typing indicator goroutine
+	done := make(chan struct{})
+	go keepTyping(session, channelID, done)
+
+	// DMs not supported
 	if context.Event.GuildID == "" {
 		_, err := context.Session.ChannelMessageSend(channelID,
 			fmt.Sprintf("%s, I don't chat in DMs. Speak on a server channel.", display))
@@ -77,17 +74,35 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	// Add user message to conversation history
+	// Add user message to memory
 	convos.add(channelID, "user", fmt.Sprintf("User %s: %s", display, msg))
 	history := convos.get(channelID)
 
-	// Load system prompt
+	// Load system prompt (guild-specific or fallback)
 	cfg := config.New()
-	file, err := os.Open(cfg.AIPromtPath)
+
+	localPromptPath := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", context.Event.GuildID))
+	globalPromptPath := cfg.AIPromtPath
+	if globalPromptPath == "" {
+		globalPromptPath = "data/chat.prompt.md"
+	}
+
+	var chosenPath string
+	if _, err := os.Stat(localPromptPath); err == nil {
+		chosenPath = localPromptPath
+	} else if _, err := os.Stat(globalPromptPath); err == nil {
+		chosenPath = globalPromptPath
+	} else {
+		_, _ = context.Session.ChannelMessageSend(channelID,
+			fmt.Sprintf("%s, I can’t think properly without my system prompt.", display))
+		return fmt.Errorf("no prompt found (local or global)")
+	}
+
+	file, err := os.Open(chosenPath)
 	if err != nil {
-		log.Printf("[ERROR] Missing system prompt: %v", err)
+		log.Printf("[ERROR] Failed to open system prompt: %v", err)
 		context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, I can't think properly without my system prompt.", display))
+			fmt.Sprintf("%s, I can’t think properly without my system prompt.", display))
 		return err
 	}
 	defer file.Close()
@@ -95,7 +110,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	promptBytes, _ := io.ReadAll(file)
 	systemPrompt := string(promptBytes)
 
-	// Build AI messages
+	// Build AI conversation
 	messages := []ai.Message{{Role: "system", Content: systemPrompt}}
 	for _, m := range history {
 		role := m.Role
@@ -105,7 +120,6 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		messages = append(messages, ai.Message{Role: role, Content: m.Content})
 	}
 
-	// Generate AI reply
 	client := ai.DefaultProvider()
 	reply, err := client.Generate(messages)
 	if err != nil {
@@ -115,11 +129,10 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	// Save AI reply
+	// Save and send reply
 	convos.add(channelID, "assistant", reply)
 	log.Printf("[CHAT] AI reply to %s (%s) @ %s: %s", user, userID, channelID, reply)
 
-	// Send reply (split if too long)
 	for _, chunk := range splitMessage(reply, 2000) {
 		if _, err := context.Session.ChannelMessageSend(channelID, chunk); err != nil {
 			return err
@@ -127,10 +140,13 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		time.Sleep(200 * time.Millisecond)
 	}
 
+	close(done)
+
 	return nil
 }
 
-// Conversation store
+// ---- Conversation store ----
+
 type convoMsg struct {
 	Role, Content string
 }
@@ -177,7 +193,6 @@ func (c *convoStore) get(channelID string) []convoMsg {
 	return dst
 }
 
-// Split long messages into chunks
 func splitMessage(msg string, limit int) []string {
 	var result []string
 	for len(msg) > limit {
@@ -194,6 +209,22 @@ func splitMessage(msg string, limit int) []string {
 	return result
 }
 
+func keepTyping(s *discordgo.Session, channelID string, done <-chan struct{}) {
+	_ = s.ChannelTyping(channelID)
+
+	ticker := time.NewTicker(8 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			_ = s.ChannelTyping(channelID)
+		}
+	}
+}
+
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
@@ -201,7 +232,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

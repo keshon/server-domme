@@ -28,11 +28,6 @@ func (c *AnnounceCommand) UserPermissions() []int64 {
 		discordgo.PermissionAdministrator,
 	}
 }
-func (c *AnnounceCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionUseApplicationCommands,
-	}
-}
 
 func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -158,7 +153,6 @@ func init() {
 			&AnnounceCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
-			core.WithBotPermissionCheck(),
 			core.WithUserPermissionCheck(),
 			core.WithCommandLogger(),
 		),

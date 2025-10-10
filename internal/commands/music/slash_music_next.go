@@ -19,11 +19,6 @@ func (c *NextCommand) Category() string    { return "🎵 Music" }
 func (c *NextCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *NextCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
 
 func (c *NextCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

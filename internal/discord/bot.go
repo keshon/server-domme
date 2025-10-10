@@ -100,7 +100,9 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		err := cmd.Run(ctx)
 		if err != nil {
 			log.Println("[ERR] Error running command:", err)
-			core.MessageRespond(s, m.ChannelID, fmt.Sprintf("Error running command: %v", err))
+			core.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Error running command: %v", err),
+			})
 		}
 	}
 }
@@ -158,7 +160,9 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running reaction command:", err)
-				core.MessageRespond(s, r.ChannelID, fmt.Sprintf("Error running reaction command: %v", err))
+				core.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
+					Description: fmt.Sprintf("Error running reaction command: %v", err),
+				})
 			}
 		}
 

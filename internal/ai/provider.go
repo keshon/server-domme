@@ -1,7 +1,10 @@
 package ai
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"server-domme/internal/config"
 	"sort"
 	"strings"
@@ -24,32 +27,38 @@ type engineStats struct {
 	LastUsed  time.Time
 	LastError string
 	Cooldown  time.Time
+	Score     float64
 }
 
 type MultiProvider struct {
 	engines []string // canonical order
 	stats   map[string]*engineStats
 	mu      sync.Mutex
+	path    string // path to persisted file
 }
 
 func NewMultiProvider(engines []string) *MultiProvider {
-	stats := make(map[string]*engineStats)
-	for _, e := range engines {
-		stats[e] = &engineStats{}
-	}
-	return &MultiProvider{
+	m := &MultiProvider{
 		engines: engines,
-		stats:   stats,
+		stats:   make(map[string]*engineStats),
+		path:    filepath.Join("data", "ai_stats.json"),
 	}
+	m.loadStats()
+	return m
 }
 
 func (m *MultiProvider) Generate(messages []Message) (string, error) {
 	var lastErr error
 
 	for _, engine := range m.orderedEngines() {
-		// cooldown check
 		m.mu.Lock()
 		es := m.stats[engine]
+		if es == nil {
+			es = &engineStats{}
+			m.stats[engine] = es
+		}
+
+		// skip if in cooldown
 		if es.Cooldown.After(time.Now()) {
 			m.mu.Unlock()
 			continue
@@ -57,63 +66,88 @@ func (m *MultiProvider) Generate(messages []Message) (string, error) {
 		m.mu.Unlock()
 
 		provider := newSingleProvider(engine)
-
-		// retry same model 2 times
 		for attempt := 1; attempt <= 2; attempt++ {
 			reply, err := provider.Generate(messages)
+
 			m.mu.Lock()
 			es.LastUsed = time.Now()
 			if err == nil {
 				es.Successes++
+				es.Score += 5.0           // strong reward
+				es.Cooldown = time.Time{} // clear cooldown
 				m.mu.Unlock()
 				fmt.Printf("[AI] success with %s (attempt %d)\n", engine, attempt)
+				m.saveStatsAsync()
 				return reply, nil
 			}
+
 			es.Failures++
 			es.LastError = err.Error()
-			// put into cooldown for a bit after repeated failures
+			es.Score -= 2.5 // moderate penalty
+
 			if attempt == 2 {
-				es.Cooldown = time.Now().Add(30 * time.Second)
+				es.Cooldown = time.Now().Add(45 * time.Second)
+				es.Score -= 5 // strong penalty after full failure
 			}
 			m.mu.Unlock()
 
 			lastErr = err
-			sleep := time.Duration(200*attempt) * time.Millisecond
 			fmt.Printf("[AI] %s attempt %d failed: %v\n", engine, attempt, err)
-			time.Sleep(sleep)
+			time.Sleep(time.Duration(200*attempt) * time.Millisecond)
 		}
 	}
+
+	m.saveStatsAsync()
 	return "", fmt.Errorf("all providers failed, last error: %w", lastErr)
 }
 
+// Sort engines by global score, decay old stats
 func (m *MultiProvider) orderedEngines() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	engines := append([]string(nil), m.engines...) // copy canonical list
+	now := time.Now()
+	for _, es := range m.stats {
+		// decay scores gradually: -0.1/day
+		days := now.Sub(es.LastUsed).Hours() / 24
+		es.Score -= days * 0.1
+		if es.Score < -50 {
+			es.Score = -50
+		}
+	}
 
+	engines := append([]string(nil), m.engines...)
 	sort.SliceStable(engines, func(i, j int) bool {
 		si := m.stats[engines[i]]
 		sj := m.stats[engines[j]]
-
-		scoreI := m.score(si)
-		scoreJ := m.score(sj)
-
-		// higher score first
-		return scoreI > scoreJ
+		if si == nil {
+			return false
+		}
+		if sj == nil {
+			return true
+		}
+		return si.Score > sj.Score
 	})
 
 	return engines
 }
 
-func (m *MultiProvider) score(es *engineStats) float64 {
-	total := es.Successes + es.Failures
-	successRate := 0.0
-	if total > 0 {
-		successRate = float64(es.Successes) / float64(total)
+// Persistence
+
+func (m *MultiProvider) loadStats() {
+	data, err := os.ReadFile(m.path)
+	if err != nil {
+		return
 	}
-	// weight: recent success counts, failures penalized
-	return successRate*10 + float64(es.Successes) - float64(es.Failures)*2
+	json.Unmarshal(data, &m.stats)
+}
+
+func (m *MultiProvider) saveStatsAsync() {
+	go func(stats map[string]*engineStats, path string) {
+		os.MkdirAll(filepath.Dir(path), 0755)
+		data, _ := json.MarshalIndent(stats, "", "  ")
+		_ = os.WriteFile(path, data, 0644)
+	}(m.stats, m.path)
 }
 
 func newSingleProvider(engine string) Provider {

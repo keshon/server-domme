@@ -95,9 +95,14 @@ func EditResponse(session *discordgo.Session, interaction *discordgo.Interaction
 	return err
 }
 
-// MessageRespond sends a simple message to a channel (non-interaction).
-func MessageRespond(session *discordgo.Session, channelID string, content string) error {
+// Message sends a simple message to a channel (non-interaction).
+func Message(session *discordgo.Session, channelID string, content string) error {
 	_, err := session.ChannelMessageSend(channelID, content)
+	return err
+}
+
+func MessageEmbed(session *discordgo.Session, channelID string, embed *discordgo.MessageEmbed) error {
+	_, err := session.ChannelMessageSendEmbed(channelID, embed)
 	return err
 }
 

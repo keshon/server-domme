@@ -23,27 +23,27 @@ func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information"
 func (c *HelpUnifiedCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *HelpUnifiedCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
 
+// SlashDefinition with subcommands: category, group, flat
 func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "view_as",
-				Description: "View commands as categories, groups, or a flat list",
-				Required:    false,
-				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{Name: "Categories", Value: "category"},
-					{Name: "Groups", Value: "group"},
-					{Name: "Flat list", Value: "flat"},
-				},
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "category",
+				Description: "View commands grouped by category",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "group",
+				Description: "View commands grouped by group",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "flat",
+				Description: "View all commands as a flat list",
 			},
 		},
 	}
@@ -58,15 +58,20 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	session := context.Session
 	event := context.Event
 
-	viewAs := "category"
+	if err := core.RespondDeferredEphemeral(session, event); err != nil {
+		log.Println("[ERROR] Failed to defer help interaction:", err)
+		return err
+	}
 
-	opts := event.ApplicationCommandData().Options
-	if len(opts) > 0 {
-		viewAs = opts[0].StringValue()
+	data := event.ApplicationCommandData()
+	if len(data.Options) == 0 {
+		return core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "No subcommand provided. Use `category`, `group`, or `flat`.",
+		})
 	}
 
 	var output string
-	switch viewAs {
+	switch data.Options[0].Name {
 	case "group":
 		output = buildHelpByGroup(session, event)
 	case "flat":
@@ -81,19 +86,7 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 		Color:       core.EmbedColor,
 	}
 
-	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embed},
-			Flags:  discordgo.MessageFlagsEphemeral,
-		},
-	})
-	if err != nil {
-		log.Println("Failed to send help embed:", err)
-		return nil
-	}
-
-	return nil
+	return core.FollowupEmbedEphemeral(session, event, embed)
 }
 
 func buildHelpByCategory(session *discordgo.Session, event *discordgo.InteractionCreate) string {
@@ -103,9 +96,6 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 	categorySort := make(map[string]int)
 
 	for _, cmd := range all {
-		// if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-		// 	continue
-		// }
 		cat := cmd.Category()
 		categoryMap[cat] = append(categoryMap[cat], cmd)
 		if _, ok := categorySort[cat]; !ok {
@@ -129,9 +119,7 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 	for _, cat := range sortedCats {
 		sb.WriteString(fmt.Sprintf("**%s**\n", cat.Name))
 		cmds := categoryMap[cat.Name]
-		sort.Slice(cmds, func(i, j int) bool {
-			return cmds[i].Name() < cmds[j].Name()
-		})
+		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
 		for _, cmd := range cmds {
 			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
 		}
@@ -145,11 +133,7 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 	all := core.AllCommands()
 
 	groupMap := make(map[string][]core.Command)
-
 	for _, cmd := range all {
-		// if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-		// 	continue
-		// }
 		group := cmd.Group()
 		groupMap[group] = append(groupMap[group], cmd)
 	}
@@ -164,9 +148,7 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 	for _, group := range sortedGroups {
 		sb.WriteString(fmt.Sprintf("**%s**\n", group))
 		cmds := groupMap[group]
-		sort.Slice(cmds, func(i, j int) bool {
-			return cmds[i].Name() < cmds[j].Name()
-		})
+		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
 		for _, cmd := range cmds {
 			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
 		}
@@ -178,20 +160,10 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 
 func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreate) string {
 	all := core.AllCommands()
-
-	var cmds []core.Command
-	for _, cmd := range all {
-		// if cmd.RequireAdmin() && !core.IsAdministrator(session, event.GuildID, event.Member) {
-		// 	continue
-		// }
-		cmds = append(cmds, cmd)
-	}
-	sort.Slice(cmds, func(i, j int) bool {
-		return cmds[i].Name() < cmds[j].Name()
-	})
+	sort.Slice(all, func(i, j int) bool { return all[i].Name() < all[j].Name() })
 
 	var sb strings.Builder
-	for _, cmd := range cmds {
+	for _, cmd := range all {
 		sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
 	}
 	return sb.String()
@@ -204,7 +176,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

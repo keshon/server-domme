@@ -34,9 +34,6 @@ func (c *RollCommand) Category() string    { return "🎲 Gameplay" }
 func (c *RollCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *RollCommand) BotPermissions() []int64 {
-	return []int64{}
-}
 
 func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -215,7 +212,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

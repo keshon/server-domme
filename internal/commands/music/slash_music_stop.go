@@ -20,11 +20,6 @@ func (c *StopCommand) RequireAdmin() bool  { return false }
 func (c *StopCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *StopCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
 
 func (c *StopCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -73,7 +68,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

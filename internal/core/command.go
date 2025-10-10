@@ -13,7 +13,6 @@ type Command interface {
 	Group() string
 	Category() string
 	UserPermissions() []int64
-	BotPermissions() []int64
 	Run(ctx interface{}) error
 }
 

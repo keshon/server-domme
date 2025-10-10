@@ -20,11 +20,6 @@ func (c *PunishCommand) Category() string    { return "🎭 Roleplay" }
 func (c *PunishCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *PunishCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
 
 func (c *PunishCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -102,7 +97,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

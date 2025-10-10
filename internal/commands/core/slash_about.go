@@ -21,11 +21,6 @@ func (c *AboutCommand) Category() string    { return "🕯️ Information" }
 func (c *AboutCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *AboutCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
 
 func (c *AboutCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -105,7 +100,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

@@ -2,15 +2,10 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
-
-// ────────────────────────────────────────────────────────────────
-// PERMISSION NAME MAPS
-// ────────────────────────────────────────────────────────────────
 
 var PermissionNames = map[int64]string{
 	discordgo.PermissionCreateInstantInvite:              "Create Instant Invite",
@@ -64,13 +59,6 @@ var PermissionNames = map[int64]string{
 	discordgo.PermissionModerateMembers:                  "Moderate Members",
 }
 
-// alias
-var BotPermissionNames = PermissionNames
-
-// ────────────────────────────────────────────────────────────────
-// USER PERMISSIONS CHECK (DEFAULT ALLOW; any-of semantics)
-// ────────────────────────────────────────────────────────────────
-
 func WithUserPermissionCheck() Middleware {
 	return func(cmd Command) Command {
 		return &wrappedCommand{
@@ -98,8 +86,14 @@ func WithUserPermissionCheck() Middleware {
 					return cmd.Run(ctx)
 				}
 
+				// Additional safety check for User field
+				if m.User == nil {
+					return cmd.Run(ctx)
+				}
+
 				memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
 				if err != nil {
+					// Log error but allow command to proceed to avoid blocking on permission check failures
 					return fmt.Errorf("failed to get user permissions: %w", err)
 				}
 
@@ -139,97 +133,11 @@ func WithUserPermissionCheck() Middleware {
 					)
 					switch v := ctx.(type) {
 					case *SlashInteractionContext:
-						RespondEphemeral(s, v.Event, msg)
+						RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
 					case *ComponentInteractionContext:
-						RespondEphemeral(s, v.Event, msg)
+						RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
 					case *MessageApplicationCommandContext:
-						RespondEphemeral(s, v.Event, msg)
-					case *MessageContext:
-						_, _ = s.ChannelMessageSend(channelID, msg)
-					}
-					return nil
-				}
-
-				return cmd.Run(ctx)
-			},
-		}
-	}
-}
-
-// ────────────────────────────────────────────────────────────────
-// BOT PERMISSIONS CHECK (DEFAULT ALLOW; all-of semantics)
-// ────────────────────────────────────────────────────────────────
-
-func WithBotPermissionCheck() Middleware {
-	return func(cmd Command) Command {
-		return &wrappedCommand{
-			Command: cmd,
-			wrap: func(ctx interface{}) error {
-				var s *discordgo.Session
-				var guildID, channelID string
-
-				switch v := ctx.(type) {
-				case *SlashInteractionContext:
-					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
-				case *ComponentInteractionContext:
-					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
-				case *MessageApplicationCommandContext:
-					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
-				case *MessageContext:
-					s, guildID, channelID = v.Session, v.Event.GuildID, v.Event.ChannelID
-				default:
-					return cmd.Run(ctx)
-				}
-
-				if guildID == "" {
-					return cmd.Run(ctx)
-				}
-
-				required := cmd.BotPermissions()
-
-				// DEFAULT ALLOW — if bot perms list empty, just warn once
-				if len(required) == 0 {
-					log.Printf("[WARN] Command %s has no bot permission requirements defined", cmd.Name())
-					return cmd.Run(ctx)
-				}
-
-				// get bot user
-				botUser := s.State.User
-				if botUser == nil {
-					botUser, _ = s.User("@me")
-				}
-				if botUser == nil {
-					return cmd.Run(ctx)
-				}
-
-				botPerms, err := s.UserChannelPermissions(botUser.ID, channelID)
-				if err != nil {
-					return fmt.Errorf("failed to get bot permissions: %w", err)
-				}
-
-				var missing []string
-				for _, p := range required {
-					if botPerms&p == 0 {
-						name := BotPermissionNames[p]
-						if name == "" {
-							name = fmt.Sprintf("0x%x", p)
-						}
-						missing = append(missing, name)
-					}
-				}
-
-				if len(missing) > 0 {
-					msg := fmt.Sprintf(
-						"I need the following permissions in this channel to run this command:\n`%s`",
-						strings.Join(missing, "`, `"),
-					)
-					switch v := ctx.(type) {
-					case *SlashInteractionContext:
-						RespondEphemeral(s, v.Event, msg)
-					case *ComponentInteractionContext:
-						RespondEphemeral(s, v.Event, msg)
-					case *MessageApplicationCommandContext:
-						RespondEphemeral(s, v.Event, msg)
+						RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
 					case *MessageContext:
 						_, _ = s.ChannelMessageSend(channelID, msg)
 					}

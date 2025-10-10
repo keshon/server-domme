@@ -45,9 +45,6 @@ func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
 func (c *TaskCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *TaskCommand) BotPermissions() []int64 {
-	return []int64{}
-}
 
 func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -56,6 +53,7 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Type:        discordgo.ChatApplicationCommand,
 	}
 }
+
 func (c *TaskCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
@@ -395,7 +393,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

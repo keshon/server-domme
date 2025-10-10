@@ -9,3 +9,4 @@ datastore.json*
 datastore_dump.json
 
 /data/*_tasks.json
+*.json

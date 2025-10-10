@@ -13,17 +13,12 @@ type DumpDBCommand struct{}
 
 func (c *DumpDBCommand) Name() string { return "get-db" }
 func (c *DumpDBCommand) Description() string {
-	return "Dump the current server database as a JSON file"
+	return "Download the current server database as a JSON file"
 }
 func (c *DumpDBCommand) Aliases() []string { return []string{} }
 func (c *DumpDBCommand) Group() string     { return "core" }
 func (c *DumpDBCommand) Category() string  { return "🛠️ Maintenance" }
 func (c *DumpDBCommand) UserPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
-}
-func (c *DumpDBCommand) BotPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
@@ -87,7 +82,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)

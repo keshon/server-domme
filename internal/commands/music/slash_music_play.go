@@ -20,12 +20,6 @@ func (c *PlayCommand) Category() string    { return "🎵 Music" }
 func (c *PlayCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *PlayCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-		discordgo.PermissionVoiceConnect,
-	}
-}
 
 func (c *PlayCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{

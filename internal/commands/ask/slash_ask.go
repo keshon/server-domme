@@ -18,11 +18,6 @@ func (c *AskCommand) Category() string    { return "🎭 Roleplay" }
 func (c *AskCommand) UserPermissions() []int64 {
 	return []int64{}
 }
-func (c *AskCommand) BotPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionSendMessages,
-	}
-}
 
 func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
@@ -114,7 +109,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
 	)
 
-	core.MessageRespond(session, dmChannel(session, targetUser.ID), dm)
+	core.Message(session, dmChannel(session, targetUser.ID), dm)
 
 	return nil
 }
@@ -276,7 +271,6 @@ func init() {
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
-			core.WithBotPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)
