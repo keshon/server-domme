@@ -10,15 +10,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// -----------------------------------------------------------------------------
-// /commands unified command with subcommands: log, status, toggle, update
-// -----------------------------------------------------------------------------
-
 type CommandsCommand struct{}
 
 func (c *CommandsCommand) Name() string        { return "commands" }
 func (c *CommandsCommand) Description() string { return "Manage or inspect commands" }
-func (c *CommandsCommand) Aliases() []string   { return []string{} }
 func (c *CommandsCommand) Group() string       { return "core" }
 func (c *CommandsCommand) Category() string    { return "⚙️ Settings" }
 func (c *CommandsCommand) UserPermissions() []int64 {
@@ -128,15 +123,11 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 	}
 }
 
-// -----------------------------------------------------------------------------
-// Subcommand implementations
-// -----------------------------------------------------------------------------
-
 func runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	guildID := e.GuildID
 	member := e.Member
 
-	records, err := storage.GetCommands(guildID)
+	records, err := storage.GetCommandsHistory(guildID)
 	if err != nil {
 		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch command logs: %v", err),
@@ -203,7 +194,7 @@ func runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage 
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "Commands Status",
-		Description: "Commands are grouped (e.g., purge, core, translate). Use `/help group` to view or `/commands toggle` to manage. Core group can’t be disabled.",
+		Description: "Commands are grouped (e.g., purge, core, translate). Use `/help group` to view or `/commands toggle` to manage. Core group can't be disabled.",
 		Fields: []*discordgo.MessageEmbedField{
 			{Name: "Disabled", Value: strings.Join(disabled, ", "), Inline: false},
 			{Name: "Enabled", Value: strings.Join(enabled, ", "), Inline: false},

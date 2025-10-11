@@ -14,29 +14,28 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-type AnnounceCommand struct{}
+type AnnounceContextCommand struct{}
 
-func (c *AnnounceCommand) Name() string { return "Announce" }
-func (c *AnnounceCommand) Description() string {
+func (c *AnnounceContextCommand) Name() string { return "Announce" }
+func (c *AnnounceContextCommand) Description() string {
 	return "Send a message to the announcement channel (context command)"
 }
-func (c *AnnounceCommand) Aliases() []string { return []string{} }
-func (c *AnnounceCommand) Group() string     { return "announce" }
-func (c *AnnounceCommand) Category() string  { return "📢 Utilities" }
-func (c *AnnounceCommand) UserPermissions() []int64 {
+func (c *AnnounceContextCommand) Group() string    { return "announce" }
+func (c *AnnounceContextCommand) Category() string { return "📢 Utilities" }
+func (c *AnnounceContextCommand) UserPermissions() []int64 {
 	return []int64{
 		discordgo.PermissionAdministrator,
 	}
 }
 
-func (c *AnnounceCommand) ContextDefinition() *discordgo.ApplicationCommand {
+func (c *AnnounceContextCommand) ContextDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name: c.Name(),
 		Type: discordgo.MessageApplicationCommand,
 	}
 }
 
-func (c *AnnounceCommand) Run(ctx interface{}) error {
+func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.MessageApplicationCommandContext)
 	if !ok {
 		return nil
@@ -74,7 +73,7 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 	}
 
 	// Fetch announcement channel
-	announceChannelID, err := storage.GetSpecialChannel(guildID, "announce")
+	announceChannelID, err := storage.GetAnnounceChannel(guildID)
 	if err != nil || announceChannelID == "" {
 		core.EditResponse(session, event, "No announcement channel configured. Bother the admin.")
 		return nil
@@ -150,7 +149,7 @@ func restoreMentions(session *discordgo.Session, guildID, content string) string
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&AnnounceCommand{},
+			&AnnounceContextCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),

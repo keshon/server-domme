@@ -9,7 +9,6 @@ import (
 type Command interface {
 	Name() string
 	Description() string
-	Aliases() []string
 	Group() string
 	Category() string
 	UserPermissions() []int64

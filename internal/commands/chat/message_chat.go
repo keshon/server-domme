@@ -17,16 +17,15 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-type ChatCommand struct{}
+type ChatMessageCommand struct{}
 
-func (c *ChatCommand) Name() string             { return "mention bot" }
-func (c *ChatCommand) Description() string      { return "Talk to the bot when it is mentioned" }
-func (c *ChatCommand) Aliases() []string        { return []string{} }
-func (c *ChatCommand) Group() string            { return "chat" }
-func (c *ChatCommand) Category() string         { return "💬 Chat" }
-func (c *ChatCommand) UserPermissions() []int64 { return []int64{} }
+func (c *ChatMessageCommand) Name() string             { return "mention bot" }
+func (c *ChatMessageCommand) Description() string      { return "Talk to the bot when it is mentioned" }
+func (c *ChatMessageCommand) Group() string            { return "chat" }
+func (c *ChatMessageCommand) Category() string         { return "💬 Chat" }
+func (c *ChatMessageCommand) UserPermissions() []int64 { return []int64{} }
 
-func (c *ChatCommand) Run(ctx interface{}) error {
+func (c *ChatMessageCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.MessageContext)
 	if !ok {
 		return nil
@@ -38,7 +37,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	}
 
 	// Ignore confessions
-	confessID, _ := context.Storage.GetSpecialChannel(context.Event.GuildID, "confession")
+	confessID, _ := context.Storage.GetConfessChannel(context.Event.GuildID)
 	if confessID != "" && context.Event.ChannelID == confessID {
 		return nil
 	}
@@ -228,7 +227,7 @@ func keepTyping(s *discordgo.Session, channelID string, done <-chan struct{}) {
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&ChatCommand{},
+			&ChatMessageCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),

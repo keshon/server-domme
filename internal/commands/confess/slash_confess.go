@@ -3,6 +3,7 @@ package confess
 import (
 	"fmt"
 	"server-domme/internal/core"
+	"server-domme/internal/storage"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -10,11 +11,12 @@ import (
 
 type ConfessCommand struct{}
 
-func (c *ConfessCommand) Name() string        { return "confess" }
-func (c *ConfessCommand) Description() string { return "Send an anonymous confession" }
-func (c *ConfessCommand) Aliases() []string   { return []string{} }
-func (c *ConfessCommand) Group() string       { return "confess" }
-func (c *ConfessCommand) Category() string    { return "🎭 Roleplay" }
+func (c *ConfessCommand) Name() string { return "confess" }
+func (c *ConfessCommand) Description() string {
+	return "Send an anonymous confession or manage the confession channel"
+}
+func (c *ConfessCommand) Group() string    { return "confess" }
+func (c *ConfessCommand) Category() string { return "🎭 Roleplay" }
 func (c *ConfessCommand) UserPermissions() []int64 {
 	return []int64{}
 }
@@ -25,10 +27,47 @@ func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "message",
-				Description: "What do you need to confess?",
-				Required:    true,
+				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+				Name:        "manage",
+				Description: "Manage confession channel",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "set",
+						Description: "Set the confession channel",
+						Options: []*discordgo.ApplicationCommandOption{
+							{
+								Type:        discordgo.ApplicationCommandOptionChannel,
+								Name:        "channel",
+								Description: "Pick a channel from this server",
+								Required:    true,
+							},
+						},
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "list",
+						Description: "Show the currently configured confession channel",
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "remove",
+						Description: "Remove the confession channel",
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "send",
+				Description: "Send an anonymous confession",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "message",
+						Description: "What do you need to confess?",
+						Required:    true,
+					},
+				},
 			},
 		},
 	}
@@ -40,26 +79,76 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
+	s := context.Session
+	e := context.Event
 	storage := context.Storage
 
-	var message string
-	for _, opt := range event.ApplicationCommandData().Options {
-		if opt.Name == "message" {
-			message = strings.TrimSpace(opt.StringValue())
+	options := e.ApplicationCommandData().Options
+	if len(options) == 0 {
+		return core.RespondEphemeral(s, e, "No subcommand provided.")
+	}
+
+	first := options[0]
+	switch first.Type {
+	case discordgo.ApplicationCommandOptionSubCommandGroup:
+		if first.Name == "manage" && len(first.Options) > 0 {
+			sub := first.Options[0] // this is now set/list/remove
+			return runManageConfessionChannel(s, e, *storage, sub)
+		}
+	case discordgo.ApplicationCommandOptionSubCommand:
+		if first.Name == "send" {
+			message := ""
+			if len(first.Options) > 0 && first.Options[0].Name == "message" {
+				message = strings.TrimSpace(first.Options[0].StringValue())
+			}
+			if message == "" {
+				return core.RespondEphemeral(s, e, "You can't confess silence. Try again.")
+			}
+			return runSendConfession(s, e, *storage, message)
 		}
 	}
 
-	if message == "" {
-		core.RespondEphemeral(session, event, "You can't confess silence. Try again.")
-		return nil
+	return core.RespondEphemeral(s, e, "Unknown subcommand or command structure.")
+}
+
+// ----- Manage confession channel -----
+func runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+	if !core.IsAdministrator(s, e.Member) {
+		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "You must be an admin to use this command."})
 	}
 
-	confessChannelID, err := storage.GetSpecialChannel(event.GuildID, "confession")
+	switch sub.Name {
+	case "set":
+		channelID := sub.Options[0].ChannelValue(s).ID
+		if err := storage.SetConfessChannel(e.GuildID, channelID); err != nil {
+			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to set confession channel: `%v`", err))
+		}
+		return core.RespondEphemeral(s, e, fmt.Sprintf("✅ Confession channel updated to <#%s>.", channelID))
+
+	case "list":
+		channelID, err := storage.GetConfessChannel(e.GuildID)
+		if err != nil {
+			return core.RespondEphemeral(s, e, "No confession channel is currently set.")
+		}
+		return core.RespondEphemeral(s, e, fmt.Sprintf("Current confession channel is <#%s>.", channelID))
+
+	case "remove":
+		if err := storage.RemoveConfessChannel(e.GuildID); err != nil {
+			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to remove confession channel: `%v`", err))
+		}
+		return core.RespondEphemeral(s, e, "✅ Confession channel has been removed.")
+
+	default:
+		return core.RespondEphemeral(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
+	}
+}
+
+// ----- Send anonymous confession -----
+func runSendConfession(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, message string) error {
+	confessChannelID, err := storage.GetConfessChannel(e.GuildID)
 	if err != nil || confessChannelID == "" {
-		core.RespondEphemeral(session, event, "No confession channel is configured. Ask a mod to set it up.")
-		return nil
+		// No confession channel set → fallback to current channel
+		confessChannelID = e.ChannelID
 	}
 
 	embed := &discordgo.MessageEmbed{
@@ -68,19 +157,21 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 		Color:       core.EmbedColor,
 	}
 
-	err = core.RespondEmbedEphemeral(session, event, embed)
+	// Post the confession message to the target channel (not ephemeral)
+	_, err = s.ChannelMessageSendEmbed(confessChannelID, embed)
 	if err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: fmt.Sprintf("Failed to send confession: %v", err)})
+		return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to send confession: %v", err))
 	}
 
-	if event.ChannelID != confessChannelID {
-		link := fmt.Sprintf("https://discord.com/channels/%s/%s", event.GuildID, confessChannelID)
-		core.RespondEphemeral(session, event, fmt.Sprintf("Delivered. Nobody saw a thing.\nSee it here: %s", link))
-		return nil
+	// Notify the user privately (ephemeral)
+	if confessChannelID != e.ChannelID {
+		link := fmt.Sprintf("https://discord.com/channels/%s/%s", e.GuildID, confessChannelID)
+		core.RespondEphemeral(s, e, fmt.Sprintf("Delivered. Nobody saw a thing.\nSee it here: %s", link))
 	} else {
-		core.RespondEphemeral(session, event, "💌 Delivered. Nobody saw a thing.")
-		return nil
+		core.RespondEphemeral(s, e, "💌 Delivered. Nobody saw a thing.")
 	}
+
+	return nil
 }
 
 func init() {

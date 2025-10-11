@@ -176,34 +176,33 @@ func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 }
 
 // IsAdministrator checks if a member has admin permissions in a guild.
-func IsAdministrator(s *discordgo.Session, guildID string, member *discordgo.Member) bool {
+func IsAdministrator(s *discordgo.Session, member *discordgo.Member) bool {
 	if member == nil || member.User == nil {
-		// No member info, cannot check
 		return false
 	}
 
-	cfg := config.New()
-	if member.User.ID == cfg.DeveloperID {
+	// Developer override
+	if member.User.ID == config.New().DeveloperID {
 		return true
 	}
 
-	// Try to get the guild from state first, fallback to API
-	guild, err := s.State.Guild(guildID)
+	// Fetch guild from state or API
+	guild, err := s.State.Guild(member.GuildID)
 	if err != nil || guild == nil {
-		guild, err = s.Guild(guildID)
+		guild, err = s.Guild(member.GuildID)
 		if err != nil || guild == nil {
 			return false
 		}
 	}
 
+	// Guild owner always has admin
 	if member.User.ID == guild.OwnerID {
 		return true
 	}
 
-	// Check roles for admin permission
-	for _, r := range member.Roles {
-		role, _ := s.State.Role(guildID, r)
-		if role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
+	// Check if any of the member's roles has admin permission
+	for _, roleID := range member.Roles {
+		if role, _ := s.State.Role(guild.ID, roleID); role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
 			return true
 		}
 	}

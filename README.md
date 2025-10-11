@@ -28,9 +28,14 @@ It’s designed to be practical for server management while providing light, int
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
 
+### 🌐 Utilities
+
+- **/translate** — Manage translation reaction channels
+
 ### 📢 Utilities
 
 - **Announce** — Send a message to the announcement channel (context command)
+- **/announce** — Send messages to the announcement channel or manage it
 - **translate (reaction)** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
@@ -40,39 +45,31 @@ It’s designed to be practical for server management while providing light, int
 ### 🎭 Roleplay
 
 - **/ask** — Request permission to contact another member
-- **/confess** — Send an anonymous confession
-- **/punish** — Assign the brat role
-- **/release** — Remove the brat role
+- **/confess** — Send an anonymous confession or manage the confession channel
+- **/discipline** — Punish or release a brat, or manage discipline roles
 - **/task** — Assign or manage your personal task
 
 ### 💬 Chat
 
+- **/chat** — Chat related management commands
 - **mention bot** — Talk to the bot when it is mentioned
 
 ### 🎵 Music
 
-- **/music-next** — Skip to the next track
-- **/music-play** — Play music track
-- **/music-stop** — Stop playback and clear queue
+- **/music** — Control music playback
 
 ### 🧹 Cleanup
 
-- **/purge-auto** — Purge messages regularly in this channel
-- **/purge-jobs** — List all active purge jobs
-- **/purge-now** — Purge messages in this channel
-- **/purge-stop** — Halt ongoing purge in this channel
+- **/purge** — Manage message purges
 
 ### ⚙️ Settings
 
 - **/commands** — Manage or inspect commands
-- **/manage-prompt** — Manage the bot system prompt for this server
-- **/manage-tasks** — Manage the tasks for this server
 - **/setup** — Setup server roles and channels
 
 ### 🛠️ Maintenance
 
-- **/get-db** — Download the current server database as a JSON file
-- **/ping** — Check bot latency
+- **/maintenance** — Bot maintenance commands
 
 
 ---
@@ -89,6 +86,18 @@ It’s designed to be practical for server management while providing light, int
 FFMPEG and YTDLP is required for music playback/streaming.
 
 ---
+
+## Bot Permissions
+- **Manage Roles**
+- **View Channels**
+- **Send Messages**
+- **Manage Messages**
+- **Embed Links**
+- **Attach Files**
+- **Read Message History**
+- **Use Application Commands**
+- **Connect**
+- **Speak**
 
 ## ⚠️ Disclaimer
 

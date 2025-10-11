@@ -10,34 +10,15 @@ import (
 
 // registerMusicCommands registers the music commands
 func (b *Bot) registerMusicCommands() {
-
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&music.PlayCommand{Bot: b},
+			&music.MusicCommand{Bot: b},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
+			core.WithUserPermissionCheck(),
 			core.WithCommandLogger(),
 		),
 	)
-
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
-			&music.StopCommand{Bot: b},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithCommandLogger(),
-		),
-	)
-
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
-			&music.NextCommand{Bot: b},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithCommandLogger(),
-		),
-	)
-
 }
 
 // GetOrCreatePlayer gets or creates a player

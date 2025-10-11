@@ -28,7 +28,6 @@ type RollCommand struct{}
 
 func (c *RollCommand) Name() string        { return "roll" }
 func (c *RollCommand) Description() string { return "Roll dices like `2d20+1d6-2`" }
-func (c *RollCommand) Aliases() []string   { return []string{} }
 func (c *RollCommand) Group() string       { return "roll" }
 func (c *RollCommand) Category() string    { return "🎲 Gameplay" }
 func (c *RollCommand) UserPermissions() []int64 {

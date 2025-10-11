@@ -25,7 +25,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 			continue
 		}
 
-		for _, job := range record.DeletionJobs {
+		for _, job := range record.PurgeJobs {
 			log.Printf("[INFO] Found purge job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
 
 			switch job.Mode {

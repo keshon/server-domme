@@ -33,11 +33,15 @@ type DeletionJob struct {
 }
 
 type Record struct {
-	CommandsHistory []CommandHistory       `json:"cmd_history"`
-	Channels        map[string]string      `json:"channels"`
-	Roles           map[string]string      `json:"roles"`
-	Tasks           map[string]Task        `json:"tasks"`
-	Cooldowns       map[string]time.Time   `json:"cooldowns"`
-	DeletionJobs    map[string]DeletionJob `json:"del_jobs"` // key = channelID
-	DisabledGroups  []string               `json:"disabled_groups"`
+	Channels          map[string]string      `json:"channels"`
+	DisciplineRoles   map[string]string      `json:"discipline_roles"`
+	TaskRoles         map[string]string      `json:"task_roles"`
+	TaskList          map[string]Task        `json:"task_list"`
+	TaskCooldowns     map[string]time.Time   `json:"task_cooldowns"`
+	PurgeJobs         map[string]DeletionJob `json:"purge_jobs"` // key = channelID
+	AnnounceChannel   string                 `json:"announce_channel"`
+	CommandsDisabled  []string               `json:"commands_disabled"`
+	CommandsHistory   []CommandHistory       `json:"commands_history"`
+	ConfessChannel    string                 `json:"confess_channel"`
+	TranslateChannels []string               `json:"translate_channels"`
 }

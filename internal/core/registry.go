@@ -5,9 +5,6 @@ var registry = map[string]Command{}
 // RegisterCommand registers a command
 func RegisterCommand(cmd Command) {
 	registry[cmd.Name()] = cmd
-	for _, a := range cmd.Aliases() {
-		registry[a] = cmd
-	}
 }
 
 // GetCommand returns the command with the given name

@@ -17,14 +17,12 @@ type HelpUnifiedCommand struct{}
 
 func (c *HelpUnifiedCommand) Name() string        { return "help" }
 func (c *HelpUnifiedCommand) Description() string { return "Get a list of available commands" }
-func (c *HelpUnifiedCommand) Aliases() []string   { return []string{} }
 func (c *HelpUnifiedCommand) Group() string       { return "core" }
 func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information" }
 func (c *HelpUnifiedCommand) UserPermissions() []int64 {
 	return []int64{}
 }
 
-// SlashDefinition with subcommands: category, group, flat
 func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
@@ -73,11 +71,11 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	var output string
 	switch data.Options[0].Name {
 	case "group":
-		output = buildHelpByGroup(session, event)
+		output = buildHelpByGroup()
 	case "flat":
-		output = buildHelpFlat(session, event)
+		output = buildHelpFlat()
 	default:
-		output = buildHelpByCategory(session, event)
+		output = buildHelpByCategory()
 	}
 
 	embed := &discordgo.MessageEmbed{
@@ -89,7 +87,7 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	return core.FollowupEmbedEphemeral(session, event, embed)
 }
 
-func buildHelpByCategory(session *discordgo.Session, event *discordgo.InteractionCreate) string {
+func buildHelpByCategory() string {
 	all := core.AllCommands()
 
 	categoryMap := make(map[string][]core.Command)
@@ -129,7 +127,7 @@ func buildHelpByCategory(session *discordgo.Session, event *discordgo.Interactio
 	return sb.String()
 }
 
-func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCreate) string {
+func buildHelpByGroup() string {
 	all := core.AllCommands()
 
 	groupMap := make(map[string][]core.Command)
@@ -158,7 +156,7 @@ func buildHelpByGroup(session *discordgo.Session, event *discordgo.InteractionCr
 	return sb.String()
 }
 
-func buildHelpFlat(session *discordgo.Session, event *discordgo.InteractionCreate) string {
+func buildHelpFlat() string {
 	all := core.AllCommands()
 	sort.Slice(all, func(i, j int) bool { return all[i].Name() < all[j].Name() })
 

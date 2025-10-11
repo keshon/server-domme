@@ -13,14 +13,12 @@ type SetupCommand struct{}
 
 func (c *SetupCommand) Name() string        { return "setup" }
 func (c *SetupCommand) Description() string { return "Setup server roles and channels" }
-func (c *SetupCommand) Aliases() []string   { return []string{} }
 func (c *SetupCommand) Group() string       { return "core" }
 func (c *SetupCommand) Category() string    { return "⚙️ Settings" }
 func (c *SetupCommand) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
 
-// SlashDefinition with subcommands: channels, roles
 func (c *SetupCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
@@ -130,7 +128,7 @@ func runSetupChannels(s *discordgo.Session, e *discordgo.InteractionCreate, stor
 		})
 	}
 
-	if err := storage.SetSpecialChannel(e.GuildID, kind, channelID); err != nil {
+	if err := storage.SetConfessChannel(e.GuildID, channelID); err != nil {
 		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to set channel: ```%v```", err),
 		})
