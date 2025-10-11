@@ -32,10 +32,7 @@ func (s *Storage) Close() error {
 func (s *Storage) getOrCreateGuildRecord(guildID string) (*st.Record, error) {
 	data, exists := s.ds.Get(guildID)
 	if !exists {
-		newRecord := &st.Record{
-			CommandsHistory: []st.CommandHistory{},
-			TaskRoles:       map[string]string{},
-		}
+		newRecord := &st.Record{}
 		s.ds.Add(guildID, newRecord)
 		return newRecord, nil
 	}

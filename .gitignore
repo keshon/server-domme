@@ -8,5 +8,5 @@ datastore.json*
 *private*
 datastore_dump.json
 
-/data/*_tasks.json
+/data/*_task.list.json
 *.json

@@ -51,13 +51,13 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset",
-						Description: "Reset the system prompt to default",
+						Name:        "get",
+						Description: "Download the current system prompt",
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "get",
-						Description: "Download the current system prompt",
+						Name:        "reset",
+						Description: "Reset the system prompt to default",
 					},
 				},
 			},
@@ -109,10 +109,10 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	switch sub.Name {
 	case "set":
 		return runSetPrompt(s, e, guildID, sub, &data)
-	case "reset":
-		return runResetPrompt(s, e, guildID)
 	case "get":
 		return runGetPrompt(s, e, guildID)
+	case "reset":
+		return runResetPrompt(s, e, guildID)
 	default:
 		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),

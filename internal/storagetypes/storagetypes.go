@@ -35,7 +35,7 @@ type DeletionJob struct {
 type Record struct {
 	Channels          map[string]string      `json:"channels"`
 	DisciplineRoles   map[string]string      `json:"discipline_roles"`
-	TaskRoles         map[string]string      `json:"task_roles"`
+	TaskRole          string                 `json:"task_role"`
 	TaskList          map[string]Task        `json:"task_list"`
 	TaskCooldowns     map[string]time.Time   `json:"task_cooldowns"`
 	PurgeJobs         map[string]DeletionJob `json:"purge_jobs"` // key = channelID

@@ -7,7 +7,7 @@ All in one bot, ready to whip your server into shape.”*
 
 ---
 
-## ✨ Why Server Domme?
+## Why Server Domme?
 
 **Server Domme combines several key features in one place**:
 
@@ -21,21 +21,18 @@ It’s designed to be practical for server management while providing light, int
 
 ---
 
-## 📜 Available Commands
+## Available Commands
 
 ### 🕯️ Information
 
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
 
-### 🌐 Utilities
-
-- **/translate** — Manage translation reaction channels
-
 ### 📢 Utilities
 
 - **Announce** — Send a message to the announcement channel (context command)
 - **/announce** — Send messages to the announcement channel or manage it
+- **/translate** — Manage translation reaction channels
 - **translate (reaction)** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
@@ -99,6 +96,6 @@ FFMPEG and YTDLP is required for music playback/streaming.
 - **Connect**
 - **Speak**
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This bot contains **suggestive language**, **power dynamics**, and **dominant sass** not suitable for the faint-hearted or humorless. Use responsibly, and only with **consenting adults**.

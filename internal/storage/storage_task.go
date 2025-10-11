@@ -12,35 +12,22 @@ func (s *Storage) SetTaskRole(guildID, roleID string) error {
 	if err != nil {
 		return err
 	}
-	if record.TaskRoles == nil {
-		record.TaskRoles = map[string]string{}
-	}
 
-	record.TaskRoles[roleID] = "tasker"
-
+	record.TaskRole = roleID
 	s.ds.Add(guildID, record)
 	return nil
 }
 
-func (s *Storage) GetTaskRoles(guildID string) (map[string]string, error) {
+func (s *Storage) GetTaskRole(guildID string) (string, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
-		return nil, err
-	}
-	if record.TaskRoles == nil {
-		return nil, fmt.Errorf("no roles set")
+		return "", err
 	}
 
-	taskerRoles := make(map[string]string)
-	for roleID, roleType := range record.TaskRoles {
-		if roleType == "tasker" {
-			taskerRoles[roleID] = roleType
-		}
+	if record.TaskRole == "" {
+		return "", fmt.Errorf("no tasker role set")
 	}
-	if len(taskerRoles) == 0 {
-		return nil, fmt.Errorf("no tasker roles set")
-	}
-	return taskerRoles, nil
+	return record.TaskRole, nil
 }
 
 func (s *Storage) SetTask(guildID string, userID string, task st.Task) error {

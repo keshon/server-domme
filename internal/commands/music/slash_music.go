@@ -134,6 +134,7 @@ func (c *MusicCommand) runPlay(s *discordgo.Session, e *discordgo.InteractionCre
 
 	member := e.Member
 	guildID := e.GuildID
+
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
 		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{

@@ -15,7 +15,7 @@ type TranslateCommand struct{}
 func (c *TranslateCommand) Name() string        { return "translate" }
 func (c *TranslateCommand) Description() string { return "Manage translation reaction channels" }
 func (c *TranslateCommand) Group() string       { return "translate" }
-func (c *TranslateCommand) Category() string    { return "🌐 Utilities" }
+func (c *TranslateCommand) Category() string    { return "📢 Utilities" }
 func (c *TranslateCommand) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
@@ -105,8 +105,6 @@ func (c *TranslateCommand) Run(ctx interface{}) error {
 	}
 }
 
-// --------------------- Subcommand Handlers ---------------------
-
 func runAddChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	channelID := sub.Options[0].ChannelValue(s).ID
 	if err := storage.AddTranslateChannel(e.GuildID, channelID); err != nil {
@@ -152,7 +150,6 @@ func runResetChannels(s *discordgo.Session, e *discordgo.InteractionCreate, stor
 	return core.RespondEphemeral(s, e, "✅ All translate reaction channels have been reset.")
 }
 
-// --------------------- Init ---------------------
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
