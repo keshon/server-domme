@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"server-domme/internal/config"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -101,14 +103,15 @@ func (m *MultiProvider) Generate(messages []Message) (string, error) {
 	return "", fmt.Errorf("all providers failed, last error: %w", lastErr)
 }
 
-// Sort engines by global score, decay old stats
+var paramRegexp = regexp.MustCompile(`(\d+)b`)
+
 func (m *MultiProvider) orderedEngines() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	now := time.Now()
 	for _, es := range m.stats {
-		// decay scores gradually: -0.1/day
+		// decay scores gradually
 		days := now.Sub(es.LastUsed).Hours() / 24
 		es.Score -= days * 0.1
 		if es.Score < -50 {
@@ -120,16 +123,46 @@ func (m *MultiProvider) orderedEngines() []string {
 	sort.SliceStable(engines, func(i, j int) bool {
 		si := m.stats[engines[i]]
 		sj := m.stats[engines[j]]
-		if si == nil {
-			return false
+
+		sizeI := extractBillionParams(engines[i])
+		sizeJ := extractBillionParams(engines[j])
+
+		// Step 1: push biggest models first
+		if sizeI != sizeJ {
+			return sizeI > sizeJ
 		}
-		if sj == nil {
-			return true
+
+		// Step 2: among same size, use reliability score (and cooldown)
+		scoreI := 0.0
+		scoreJ := 0.0
+		if si != nil {
+			if si.Cooldown.After(now) {
+				scoreI = -1000 // temporarily push down
+			} else {
+				scoreI = si.Score
+			}
 		}
-		return si.Score > sj.Score
+		if sj != nil {
+			if sj.Cooldown.After(now) {
+				scoreJ = -1000
+			} else {
+				scoreJ = sj.Score
+			}
+		}
+
+		return scoreI > scoreJ
 	})
 
 	return engines
+}
+
+func extractBillionParams(name string) int {
+	match := paramRegexp.FindStringSubmatch(name)
+	if len(match) < 2 {
+		return 0
+	}
+	val, _ := strconv.Atoi(match[1])
+	return val
 }
 
 // Persistence
@@ -180,7 +213,7 @@ func DefaultProvider() Provider {
 		"g4f:groq/llama-3.3-70b-versatile",
 		"g4f:groq/moonshotai/kimi-k2-instruct",
 		"g4f:groq/groq/compound",
-		"g4f:ollama/deepseek-v3.1:671b",
+		// "g4f:ollama/deepseek-v3.1:671b",
 		"g4f:ollama/gpt-oss:120b",
 		"g4f:ollama/gpt-oss:20b",
 		"pollinations",

@@ -59,13 +59,10 @@ func (p *G4FProvider) Generate(messages []Message) (string, error) {
 	}
 	bodyBytes, _ := json.Marshal(payload)
 
-	req, err := http.NewRequest(http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", err
-	}
+	req, _ := http.NewRequest(http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	req = req.WithContext(ctx)
 
@@ -75,11 +72,17 @@ func (p *G4FProvider) Generate(messages []Message) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
 	}
 
+	text := strings.TrimSpace(string(respBody))
+	if len(text) == 0 {
+		return "", fmt.Errorf("empty response")
+	}
+
+	// Case 1: Try normal non-streaming JSON (standard OpenAI-like response)
 	var parsed struct {
 		Choices []struct {
 			Message struct {
@@ -87,21 +90,84 @@ func (p *G4FProvider) Generate(messages []Message) (string, error) {
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", fmt.Errorf("unmarshal: %w body=%s", err, string(respBody))
+	if json.Unmarshal(respBody, &parsed) == nil && len(parsed.Choices) > 0 {
+		return cleanReply(parsed.Choices[0].Message.Content), nil
 	}
-	if len(parsed.Choices) == 0 {
-		return "No answer 🤐", nil
-	}
-	reply := strings.TrimSpace(parsed.Choices[0].Message.Content)
 
-	// strip any <think>...</think> blocks
+	// Case 2: Fallback → streaming JSON (line-delimited)
+	if strings.Contains(text, "\n{") || strings.Count(text, "}{") > 0 {
+		var replyBuilder strings.Builder
+		decoder := json.NewDecoder(strings.NewReader(text))
+
+		for {
+			var chunk struct {
+				Done    bool `json:"done"`
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			}
+			if err := decoder.Decode(&chunk); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return "", fmt.Errorf("decode chunk: %w", err)
+			}
+			replyBuilder.WriteString(chunk.Message.Content)
+			if chunk.Done {
+				break
+			}
+		}
+
+		reply := strings.TrimSpace(replyBuilder.String())
+		if reply != "" {
+			return cleanReply(reply), nil
+		}
+	}
+
+	// Case 3: Not JSON at all (plain text fallback)
+	if strings.HasPrefix(text, "{") {
+		return "", fmt.Errorf("unrecognized JSON structure: %s", text[:min(200, len(text))])
+	}
+
+	return cleanReply(text), nil
+}
+
+func cleanReply(reply string) string {
+	reply = strings.TrimSpace(reply)
+
+	// Remove <think>...</think> blocks
 	re := regexp.MustCompile(`(?s)<think>.*?</think>`)
 	reply = re.ReplaceAllString(reply, "")
 	reply = strings.TrimSpace(reply)
 
-	if len(reply) > 1800 {
-		reply = reply[:1800] + "\n\n[truncated]"
+	// Strip surrounding quotes if both ends match
+	if len(reply) >= 2 {
+		quotes := []struct{ open, close string }{
+			{`"`, `"`},
+			{`'`, `'`},
+			{"“", "”"},
+			{"‘", "’"},
+		}
+		for _, q := range quotes {
+			if strings.HasPrefix(reply, q.open) && strings.HasSuffix(reply, q.close) {
+				reply = strings.TrimSuffix(strings.TrimPrefix(reply, q.open), q.close)
+				reply = strings.TrimSpace(reply)
+				break
+			}
+		}
 	}
-	return reply, nil
+
+	// Truncate if absurdly long
+	if len(reply) > 2800 {
+		reply = reply[:2800] + "\n\n[truncated]"
+	}
+
+	return reply
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
