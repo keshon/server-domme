@@ -33,7 +33,7 @@ func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "set",
+						Name:        "set-channel",
 						Description: "Set the confession channel",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
@@ -46,12 +46,12 @@ func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "list",
+						Name:        "list-channel",
 						Description: "Show the currently configured confession channel",
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "remove",
+						Name:        "reset-channel",
 						Description: "Remove the confession channel",
 					},
 				},
@@ -118,21 +118,21 @@ func runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCr
 	}
 
 	switch sub.Name {
-	case "set":
+	case "set-channel":
 		channelID := sub.Options[0].ChannelValue(s).ID
 		if err := storage.SetConfessChannel(e.GuildID, channelID); err != nil {
 			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to set confession channel: `%v`", err))
 		}
 		return core.RespondEphemeral(s, e, fmt.Sprintf("✅ Confession channel updated to <#%s>.", channelID))
 
-	case "list":
+	case "list-channel":
 		channelID, err := storage.GetConfessChannel(e.GuildID)
 		if err != nil {
 			return core.RespondEphemeral(s, e, "No confession channel is currently set.")
 		}
 		return core.RespondEphemeral(s, e, fmt.Sprintf("Current confession channel is <#%s>.", channelID))
 
-	case "remove":
+	case "reset-channel":
 		if err := storage.RemoveConfessChannel(e.GuildID); err != nil {
 			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to remove confession channel: `%v`", err))
 		}
@@ -143,7 +143,6 @@ func runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCr
 	}
 }
 
-// ----- Send anonymous confession -----
 func runSendConfession(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, message string) error {
 	confessChannelID, err := storage.GetConfessChannel(e.GuildID)
 	if err != nil || confessChannelID == "" {

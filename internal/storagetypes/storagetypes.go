@@ -22,7 +22,7 @@ type Task struct {
 	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
 }
 
-type DeletionJob struct {
+type PurgeJob struct {
 	ChannelID  string    `json:"channel_id"`
 	GuildID    string    `json:"guild_id"`
 	Mode       string    `json:"mode"`        // "delayed" or "recurring"
@@ -33,15 +33,14 @@ type DeletionJob struct {
 }
 
 type Record struct {
-	Channels          map[string]string      `json:"channels"`
-	DisciplineRoles   map[string]string      `json:"discipline_roles"`
-	TaskRole          string                 `json:"task_role"`
-	TaskList          map[string]Task        `json:"task_list"`
-	TaskCooldowns     map[string]time.Time   `json:"task_cooldowns"`
-	PurgeJobs         map[string]DeletionJob `json:"purge_jobs"` // key = channelID
-	AnnounceChannel   string                 `json:"announce_channel"`
-	CommandsDisabled  []string               `json:"commands_disabled"`
-	CommandsHistory   []CommandHistory       `json:"commands_history"`
-	ConfessChannel    string                 `json:"confess_channel"`
-	TranslateChannels []string               `json:"translate_channels"`
+	AnnounceChannel   string               `json:"announce_channel"`
+	ConfessChannel    string               `json:"confess_channel"`
+	CommandsDisabled  []string             `json:"commands_disabled"`
+	CommandsHistory   []CommandHistory     `json:"commands_history"`
+	DisciplineRoles   map[string]string    `json:"discipline_roles"`
+	PurgeJobs         map[string]PurgeJob  `json:"purge_jobs"` // key = channelID
+	TaskCooldowns     map[string]time.Time `json:"task_cooldowns"`
+	TaskList          map[string]Task      `json:"task_list"`
+	TaskRole          string               `json:"task_role"`
+	TranslateChannels []string             `json:"translate_channels"`
 }

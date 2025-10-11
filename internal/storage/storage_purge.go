@@ -11,7 +11,7 @@ func (s *Storage) SetDeletionJob(guildID, channelID, mode string, delayUntil tim
 		return err
 	}
 
-	job := st.DeletionJob{
+	job := st.PurgeJob{
 		ChannelID:  channelID,
 		GuildID:    guildID,
 		Mode:       mode,
@@ -39,7 +39,7 @@ func (s *Storage) ClearDeletionJob(guildID, channelID string) error {
 	return nil
 }
 
-func (s *Storage) GetDeletionJobsList(guildID string) (map[string]st.DeletionJob, error) {
+func (s *Storage) GetDeletionJobsList(guildID string) (map[string]st.PurgeJob, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
 		return nil, err
@@ -47,10 +47,10 @@ func (s *Storage) GetDeletionJobsList(guildID string) (map[string]st.DeletionJob
 	return record.PurgeJobs, nil
 }
 
-func (s *Storage) GetDeletionJob(guildID, channelID string) (st.DeletionJob, error) {
+func (s *Storage) GetDeletionJob(guildID, channelID string) (st.PurgeJob, error) {
 	record, err := s.getOrCreateGuildRecord(guildID)
 	if err != nil {
-		return st.DeletionJob{}, err
+		return st.PurgeJob{}, err
 	}
 	return record.PurgeJobs[channelID], nil
 }

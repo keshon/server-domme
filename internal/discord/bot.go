@@ -10,6 +10,7 @@ import (
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
 	"server-domme/internal/storage"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,23 +20,24 @@ import (
 
 // Bot is a Discord bot
 type Bot struct {
-	dg        *discordgo.Session
-	storage   *storage.Storage
-	slashCmds map[string][]*discordgo.ApplicationCommand
-
+	dg             *discordgo.Session
+	storage        *storage.Storage
+	slashCmds      map[string][]*discordgo.ApplicationCommand
+	cfg            *config.Config
 	mu             sync.RWMutex
 	sourceResolver *source_resolver.SourceResolver
 	players        map[string]*player.Player
 }
 
 // StartBot starts the Discord bot
-func StartBot(ctx context.Context, token string, storage *storage.Storage) error {
+func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
 	b := &Bot{
+		cfg:       cfg,
 		storage:   storage,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
 		players:   make(map[string]*player.Player),
 	}
-	if err := b.run(ctx, token); err != nil {
+	if err := b.run(ctx, cfg.DiscordToken); err != nil {
 		return fmt.Errorf("bot run error: %w", err)
 	}
 	return nil
@@ -62,7 +64,14 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	}
 	defer dg.Close()
 
-	go b.handleSystemEvents(ctx)
+	go func() {
+		for evt := range core.SystemEvents() {
+			switch evt.Type {
+			case core.SystemEventRefreshCommands:
+				go b.handleRefreshCommands(evt)
+			}
+		}
+	}()
 
 	<-ctx.Done()
 	log.Println("[INFO] ❎ Shutdown signal received. Cleaning up...")
@@ -115,18 +124,25 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		return
 	}
 
-	b.registerMusicCommands()
+	// Leave any blacklisted guilds on startup
+	for _, g := range r.Guilds {
+		if b.isGuildBlacklisted(g.ID) {
+			log.Printf("[INFO] Leaving blacklisted guild: %s (%s)", g.ID, g.Name)
+			if err := s.GuildLeave(g.ID); err != nil {
+				log.Printf("[ERR] Failed to leave guild %s: %v", g.ID, err)
+			}
+			continue
+		}
 
-	cfg := config.New()
-	if cfg.InitSlashCommands {
-		log.Println("[INFO] Registering slash commands...")
-		for _, g := range r.Guilds {
+		b.registerMusicCommands()
+
+		if b.cfg.InitSlashCommands {
 			if err := b.registerCommands(g.ID); err != nil {
 				log.Println("[ERR] Error registering slash commands for guild", g.ID, ":", err)
 			}
+		} else {
+			log.Println("[INFO] Registering slash commands skipped")
 		}
-	} else {
-		log.Println("[INFO] Registering slash commands skipped")
 	}
 
 	log.Println("[INFO] Starting scheduled purge jobs...")
@@ -142,6 +158,16 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 // onGuildCreate is called when a guild is created
 func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 	log.Printf("[INFO] Bot added to guild: %s (%s)", g.Guild.ID, g.Guild.Name)
+
+	if b.isGuildBlacklisted(g.Guild.ID) {
+		log.Printf("[INFO] Leaving blacklisted guild: %s (%s)", g.Guild.ID, g.Guild.Name)
+		if err := s.GuildLeave(g.Guild.ID); err != nil {
+			log.Printf("[ERR] Failed to leave guild %s: %v", g.Guild.ID, err)
+		}
+		return
+	}
+
+	b.registerMusicCommands()
 
 	if err := b.registerCommands(g.Guild.ID); err != nil {
 		log.Printf("[ERR] Failed to register commands for new guild %s: %v", g.Guild.ID, err)
@@ -258,37 +284,51 @@ func (b *Bot) registerCommands(guildID string) error {
 	}
 
 	existing, _ := b.dg.ApplicationCommands(appID, guildID)
+	localHashes := loadGuildCommandHashes(guildID)
 
 	var wanted []*discordgo.ApplicationCommand
-	wantedNames := make(map[string]bool)
-
+	wantedHashes := make(map[string]string)
 	for _, cmd := range core.AllCommands() {
 		if def := normalizeDefinition(cmd); def != nil {
 			wanted = append(wanted, def)
-			wantedNames[def.Name] = true
+			wantedHashes[def.Name] = hashCommand(def)
 		}
 	}
 
+	// Delete obsolete
 	for _, old := range existing {
-		if !wantedNames[old.Name] {
-			log.Printf("[INFO] Deleting obsolete command: %s\n", old.Name)
-			err := b.dg.ApplicationCommandDelete(appID, guildID, old.ID)
-			if err != nil {
-				log.Printf("[ERR] Failed to delete command %s: %v", old.Name, err)
+		if _, ok := wantedHashes[old.Name]; !ok {
+			log.Printf("[INFO][%s] Deleting obsolete command: %s", guildID, old.Name)
+			if err := b.dg.ApplicationCommandDelete(appID, guildID, old.ID); err != nil {
+				log.Printf("[ERR][%s] Failed to delete %s: %v", guildID, old.Name, err)
 			}
+			delete(localHashes, old.Name)
 		}
 	}
 
-	toCreate := commandsToUpdate(existing, wanted)
-	log.Printf("[INFO] %d commands to register (out of %d)\n", len(toCreate), len(wanted))
-
-	if len(toCreate) == 0 {
-		return nil
+	// Create or update changed commands
+	var changed []*discordgo.ApplicationCommand
+	for _, cmd := range wanted {
+		newHash := wantedHashes[cmd.Name]
+		if localHashes[cmd.Name] != newHash {
+			changed = append(changed, cmd)
+		}
 	}
 
-	registerCommandsWithRateLimit(b, guildID, toCreate)
+	if len(changed) > 0 {
+		log.Printf("[INFO] [%s] %d commands changed — updating with rate limit...", guildID, len(changed))
+		registerCommandsWithRateLimit(b, guildID, changed)
+		for _, c := range changed {
+			localHashes[c.Name] = wantedHashes[c.Name]
+		}
+	}
 
+	saveGuildCommandHashes(guildID, localHashes)
 	return nil
+}
+
+func (b *Bot) isGuildBlacklisted(guildID string) bool {
+	return slices.Contains(b.cfg.DiscordGuildBlacklist, guildID)
 }
 
 // normalizeDefinition normalizes a command definition
@@ -339,62 +379,47 @@ func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.App
 	wg.Wait()
 }
 
-// commandsToUpdate returns commands to update
-func commandsToUpdate(existing []*discordgo.ApplicationCommand, wanted []*discordgo.ApplicationCommand) []*discordgo.ApplicationCommand {
-	toCreate := make([]*discordgo.ApplicationCommand, 0)
-
-	existingMap := make(map[string]*discordgo.ApplicationCommand)
-	for _, e := range existing {
-		existingMap[e.Name] = e
+func (b *Bot) handleRefreshCommands(evt core.SystemEvent) {
+	if b.isGuildBlacklisted(evt.GuildID) {
+		log.Printf("[SKIP][%s] Guild is blacklisted, skipping refresh.", evt.GuildID)
+		return
 	}
 
-	for _, newCmd := range wanted {
-		oldCmd, exists := existingMap[newCmd.Name]
-		if !exists || !commandsEqual(oldCmd, newCmd) {
-			toCreate = append(toCreate, newCmd)
-			/*
-				fmt.Printf("Command '%s' differs:\n", newCmd.Name)
-				spew.Dump(oldCmd)
-				fmt.Println("VS:")
-				spew.Dump(newCmd)
-			*/
+	log.Printf("[REFRESH][%s] Re-registering slash commands (target=%s)...", evt.GuildID, evt.Target)
+
+	appID := b.dg.State.User.ID
+	if appID == "" {
+		user, err := b.dg.User("@me")
+		if err != nil {
+			log.Printf("[ERR][%s] Failed to fetch self: %v", evt.GuildID, err)
+			return
+		}
+		appID = user.ID
+	}
+
+	if strings.ToLower(evt.Target) == "all" || evt.Target == "" {
+		err := b.registerCommands(evt.GuildID)
+		if err != nil {
+			log.Printf("[ERR][%s] Refresh failed: %v", evt.GuildID, err)
+			return
+		}
+		log.Printf("[DONE][%s] All commands refreshed.", evt.GuildID)
+		return
+	}
+
+	for _, cmd := range core.AllCommands() {
+		if strings.EqualFold(cmd.Name(), evt.Target) {
+			if def := normalizeDefinition(cmd); def != nil {
+				_, err := b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
+				if err != nil {
+					log.Printf("[ERR][%s] Failed to refresh command '%s': %v", evt.GuildID, def.Name, err)
+					return
+				}
+				log.Printf("[DONE][%s] Command '%s' refreshed.", evt.GuildID, def.Name)
+				return
+			}
 		}
 	}
 
-	return toCreate
-}
-
-// commandsEqual checks if two commands are equal
-func commandsEqual(a, b *discordgo.ApplicationCommand) bool {
-	if a == nil || b == nil {
-		return false
-	}
-
-	if a.Name != b.Name || a.Description != b.Description || a.Type != b.Type {
-		return false
-	}
-
-	if !compareOptions(a.Options, b.Options) {
-		return false
-	}
-
-	return true
-}
-
-// compareOptions checks if two command options are equal
-func compareOptions(a, b []*discordgo.ApplicationCommandOption) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i].Name != b[i].Name ||
-			a[i].Description != b[i].Description ||
-			a[i].Type != b[i].Type ||
-			a[i].Required != b[i].Required {
-			return false
-		}
-	}
-
-	return true
+	log.Printf("[WARN][%s] No command named '%s' found.", evt.GuildID, evt.Target)
 }

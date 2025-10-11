@@ -37,7 +37,7 @@ func main() {
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := discord.StartBot(ctx, cfg.DiscordToken, storage); err != nil {
+		if err := discord.StartBot(ctx, cfg, storage); err != nil {
 			errCh <- err
 		}
 		close(errCh)

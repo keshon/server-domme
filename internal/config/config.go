@@ -9,14 +9,15 @@ import (
 
 // Config is the configuration for the bot.
 type Config struct {
-	DiscordToken      string   `env:"DISCORD_TOKEN,required"`
-	StoragePath       string   `env:"STORAGE_PATH" envDefault:"./data/datastore.json"`
-	TasksPath         string   `env:"TASKS_PATH,required"`
-	ProtectedUsers    []string `env:"PROTECTED_USERS" envSeparator:","`
-	DeveloperID       string   `env:"DEVELOPER_ID"`
-	InitSlashCommands bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
-	AIProvider        string   `env:"AI_PROVIDER"`
-	AIPromtPath       string   `env:"AI_PROMPT_PATH"`
+	DiscordToken          string   `env:"DISCORD_TOKEN,required"`
+	DiscordGuildBlacklist []string `env:"DISCORD_GUILD_BLACKLIST" envSeparator:","`
+	StoragePath           string   `env:"STORAGE_PATH" envDefault:"./data/datastore.json"`
+	TasksPath             string   `env:"TASKS_PATH,required"`
+	ProtectedUsers        []string `env:"PROTECTED_USERS" envSeparator:","`
+	DeveloperID           string   `env:"DEVELOPER_ID"`
+	InitSlashCommands     bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
+	AIProvider            string   `env:"AI_PROVIDER"`
+	AIPromtPath           string   `env:"AI_PROMPT_PATH"`
 }
 
 // New returns a new Config.

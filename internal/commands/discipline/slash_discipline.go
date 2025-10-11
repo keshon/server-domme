@@ -63,8 +63,8 @@ func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "set",
-						Description: "Set or update a discipline role",
+						Name:        "set-roles",
+						Description: "Set or update discipline roles",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
 								Type:        discordgo.ApplicationCommandOptionString,
@@ -87,12 +87,12 @@ func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "list",
+						Name:        "list-roles",
 						Description: "List all currently configured discipline roles",
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset",
+						Name:        "reset-roles",
 						Description: "Reset all discipline role configurations",
 					},
 				},
@@ -101,7 +101,6 @@ func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-// ----- Run Logic -----
 func (c *DisciplineCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
@@ -142,7 +141,6 @@ func (c *DisciplineCommand) Run(ctx interface{}) error {
 	return nil
 }
 
-// ----- Punish Logic -----
 func runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, e.Member.User.ID) {
@@ -175,7 +173,6 @@ func runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	return nil
 }
 
-// ----- Release Logic -----
 func runRelease(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
 	punisherRoleID, _ := storage.GetPunishRole(e.GuildID, "punisher")
 	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
@@ -200,14 +197,13 @@ func runRelease(s *discordgo.Session, e *discordgo.InteractionCreate, storage st
 	return nil
 }
 
-// ----- Manage Roles Logic -----
 func runManageRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	if !core.IsAdministrator(s, e.Member) {
 		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "You must be an admin to use this command."})
 	}
 
 	switch sub.Name {
-	case "set":
+	case "set-roles":
 		var roleType, roleID string
 		for _, opt := range sub.Options {
 			switch opt.Name {
@@ -234,7 +230,7 @@ func runManageRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storag
 		core.RespondEphemeral(s, e, fmt.Sprintf("The **%s** role has been updated to **%s**.", roleType, roleName))
 		return nil
 
-	case "list":
+	case "list-roles":
 		roles := []string{"punisher", "victim", "assigned"}
 		var lines []string
 		for _, t := range roles {
@@ -252,7 +248,7 @@ func runManageRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storag
 		core.RespondEphemeral(s, e, strings.Join(lines, "\n"))
 		return nil
 
-	case "reset":
+	case "reset-roles":
 		if err := storage.SetPunishRole(e.GuildID, "punisher", ""); err != nil {
 			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed resetting punisher role: %v", err))
 		}
@@ -286,7 +282,6 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 	return "", fmt.Errorf("role ID %s not found in guild %s", roleID, guildID)
 }
 
-// ----- Punish phrases -----
 var punishPhrases = []string{
 	"🔒 <@%s> has been sent to the Brat Corner. Someone finally found the line and crossed it.",
 	"🚷 <@%s> has been escorted to the Brat Corner—with attitude still intact, unfortunately.",

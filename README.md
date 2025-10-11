@@ -41,7 +41,7 @@ It’s designed to be practical for server management while providing light, int
 
 ### 🎭 Roleplay
 
-- **/ask** — Request permission to contact another member
+- **/ask** — Ask for permission to contact another member
 - **/confess** — Send an anonymous confession or manage the confession channel
 - **/discipline** — Punish or release a brat, or manage discipline roles
 - **/task** — Assign or manage your personal task
@@ -62,7 +62,6 @@ It’s designed to be practical for server management while providing light, int
 ### ⚙️ Settings
 
 - **/commands** — Manage or inspect commands
-- **/setup** — Setup server roles and channels
 
 ### 🛠️ Maintenance
 
@@ -71,7 +70,7 @@ It’s designed to be practical for server management while providing light, int
 
 ---
 
-## 🛠 Setup (Self-Hosting)
+## Setup (Self-Hosting)
 
 1. Clone this repository.
 2. Add your bot token to the configuration file.

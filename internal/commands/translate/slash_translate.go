@@ -32,7 +32,7 @@ func (c *TranslateCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "add",
+						Name:        "set-channel",
 						Description: "Add a channel to the translate list",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
@@ -45,7 +45,7 @@ func (c *TranslateCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "remove",
+						Name:        "reset-channel",
 						Description: "Remove a channel from the translate list",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
@@ -58,12 +58,12 @@ func (c *TranslateCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "list",
+						Name:        "list-channels",
 						Description: "List all channels enabled for translation reactions",
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset",
+						Name:        "reset-all-channels",
 						Description: "Reset all channels for translation reactions",
 					},
 				},
@@ -92,13 +92,13 @@ func (c *TranslateCommand) Run(ctx interface{}) error {
 
 	sub := first.Options[0]
 	switch sub.Name {
-	case "add":
+	case "set-channel":
 		return runAddChannel(s, e, *storage, sub)
-	case "remove":
+	case "remove-channel":
 		return runRemoveChannel(s, e, *storage, sub)
-	case "list":
+	case "list-channels":
 		return runListChannels(s, e, *storage)
-	case "reset":
+	case "reset-all-channels":
 		return runResetChannels(s, e, *storage)
 	default:
 		return core.RespondEphemeral(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))

@@ -54,16 +54,16 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "self-assign",
-				Description: "Assign a new task to yourself",
+				Description: "Assign yourself a new random task",
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
 				Name:        "manage",
-				Description: "Manage task-related roles",
+				Description: "Manage task-related settings",
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "set",
+						Name:        "set-role",
 						Description: "Set or update a Tasker role",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
@@ -76,13 +76,36 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "list",
+						Name:        "list-role",
 						Description: "List all task-related roles",
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset",
+						Name:        "reset-role",
 						Description: "Reset the Tasker role configuration",
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "upload-tasks",
+						Description: "Upload a new task list for this server",
+						Options: []*discordgo.ApplicationCommandOption{
+							{
+								Type:        discordgo.ApplicationCommandOptionAttachment,
+								Name:        "file",
+								Description: "JSON file (.json) containing the task list",
+								Required:    true,
+							},
+						},
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "download-tasks",
+						Description: "Download the current task list for this server",
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "reset-tasks",
+						Description: "Reset the task list to default for this server",
 					},
 				},
 			},
@@ -132,7 +155,7 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 				})
 			}
 			sub := opt.Options[0]
-			return c.runManageRoles(s, e, storage, sub)
+			return c.runManage(s, e, storage, sub)
 		default:
 			return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Unknown subcommand group.",

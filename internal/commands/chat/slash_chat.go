@@ -38,8 +38,8 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "set",
-						Description: "Upload a new system prompt",
+						Name:        "upload-prompt",
+						Description: "Upload a new system prompt for this server",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
 								Type:        discordgo.ApplicationCommandOptionAttachment,
@@ -51,13 +51,13 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "get",
-						Description: "Download the current system prompt",
+						Name:        "download-prompt",
+						Description: "Download the current system prompt for this server",
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset",
-						Description: "Reset the system prompt to default",
+						Name:        "reset-prompt",
+						Description: "Reset the system prompt to default for this server",
 					},
 				},
 			},
@@ -107,11 +107,11 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	sub := group.Options[0]
 	switch sub.Name {
-	case "set":
+	case "upload-prompt":
 		return runSetPrompt(s, e, guildID, sub, &data)
-	case "get":
+	case "download-prompt":
 		return runGetPrompt(s, e, guildID)
-	case "reset":
+	case "reset-prompt":
 		return runResetPrompt(s, e, guildID)
 	default:
 		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{

@@ -11,7 +11,7 @@ import (
 type AskCommand struct{}
 
 func (c *AskCommand) Name() string        { return "ask" }
-func (c *AskCommand) Description() string { return "Request permission to contact another member" }
+func (c *AskCommand) Description() string { return "Ask for permission to contact another member" }
 func (c *AskCommand) Group() string       { return "ask" }
 func (c *AskCommand) Category() string    { return "🎭 Roleplay" }
 func (c *AskCommand) UserPermissions() []int64 {

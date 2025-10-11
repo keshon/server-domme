@@ -32,7 +32,7 @@ func (c *AnnounceCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "channel",
+						Name:        "set-channel",
 						Description: "Set or update announcement channel",
 						Options: []*discordgo.ApplicationCommandOption{
 							{
@@ -109,7 +109,7 @@ func runManageAnnounceChannel(s *discordgo.Session, e *discordgo.InteractionCrea
 
 	var channelID string
 	for _, opt := range sub.Options {
-		if opt.Name == "channel" {
+		if opt.Name == "set-channel" {
 			channelID = opt.ChannelValue(s).ID
 		}
 	}

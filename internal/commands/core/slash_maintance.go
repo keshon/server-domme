@@ -32,7 +32,7 @@ func (c *MaintenanceCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "get-db",
+				Name:        "download-db",
 				Description: "Download the current server database as a JSON file",
 			},
 			{
@@ -66,7 +66,7 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 			Description: fmt.Sprintf("Latency: %dms", latency),
 			Color:       core.EmbedColor,
 		})
-	case "get-db":
+	case "download-db":
 		return runGetDB(s, e, *storage)
 	case "status":
 		return runStatus(s, e, *storage)
@@ -75,7 +75,6 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	}
 }
 
-// -------------------- Subcommand handlers --------------------
 func runGetDB(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	guildID := e.GuildID
 	record, err := storage.GetGuildRecord(guildID)

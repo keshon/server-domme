@@ -42,7 +42,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 					}
 				} else {
 					log.Printf("[INFO] Scheduling delayed purge in %v for channel %s", dur, job.ChannelID)
-					go func(job st.DeletionJob) {
+					go func(job st.PurgeJob) {
 						time.Sleep(dur)
 						log.Printf("[INFO] Executing delayed purge for channel %s", job.ChannelID)
 						purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
@@ -70,7 +70,7 @@ func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Sessio
 
 				log.Printf("[INFO] Starting recurring purge for channel %s every 30s (older than %v)", job.ChannelID, dur)
 
-				go func(job st.DeletionJob, d time.Duration) {
+				go func(job st.PurgeJob, d time.Duration) {
 					ticker := time.NewTicker(30 * time.Second)
 					defer ticker.Stop()
 
