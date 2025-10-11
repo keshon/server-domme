@@ -111,7 +111,6 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 	return core.RespondEphemeral(s, e, "Unknown subcommand or command structure.")
 }
 
-// ----- Manage confession channel -----
 func runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	if !core.IsAdministrator(s, e.Member) {
 		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "You must be an admin to use this command."})
@@ -123,7 +122,7 @@ func runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCr
 		if err := storage.SetConfessChannel(e.GuildID, channelID); err != nil {
 			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to set confession channel: `%v`", err))
 		}
-		return core.RespondEphemeral(s, e, fmt.Sprintf("✅ Confession channel updated to <#%s>.", channelID))
+		return core.RespondEphemeral(s, e, fmt.Sprintf("Confession channel updated to <#%s>.", channelID))
 
 	case "list-channel":
 		channelID, err := storage.GetConfessChannel(e.GuildID)
@@ -136,7 +135,7 @@ func runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCr
 		if err := storage.RemoveConfessChannel(e.GuildID); err != nil {
 			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed to remove confession channel: `%v`", err))
 		}
-		return core.RespondEphemeral(s, e, "✅ Confession channel has been removed.")
+		return core.RespondEphemeral(s, e, "Confession channel has been removed.")
 
 	default:
 		return core.RespondEphemeral(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))

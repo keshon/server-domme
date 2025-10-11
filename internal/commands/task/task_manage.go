@@ -46,7 +46,7 @@ func (c *TaskCommand) runManage(s *discordgo.Session, e *discordgo.InteractionCr
 			roleName = rName
 		}
 
-		core.RespondEphemeral(s, e, fmt.Sprintf("✅ Tasker role set to **%s**.", roleName))
+		core.RespondEphemeral(s, e, fmt.Sprintf("Tasker role set to **%s**.", roleName))
 		return nil
 
 	case "list-role":

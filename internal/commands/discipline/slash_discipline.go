@@ -259,7 +259,7 @@ func runManageRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storag
 			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed resetting assigned role: %v", err))
 		}
 
-		core.RespondEphemeral(s, e, "✅ All discipline roles have been reset.")
+		core.RespondEphemeral(s, e, "All discipline roles have been reset.")
 		return nil
 	}
 
