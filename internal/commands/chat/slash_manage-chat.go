@@ -15,57 +15,49 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-type ChatCommand struct{}
+type ManageChatCommand struct{}
 
-func (c *ChatCommand) Name() string        { return "chat" }
-func (c *ChatCommand) Description() string { return "Chat related management commands" }
-func (c *ChatCommand) Group() string       { return "chat" }
-func (c *ChatCommand) Category() string    { return "💬 Chat" }
-func (c *ChatCommand) UserPermissions() []int64 {
+func (c *ManageChatCommand) Name() string        { return "chat" }
+func (c *ManageChatCommand) Description() string { return "Chat related management commands" }
+func (c *ManageChatCommand) Group() string       { return "chat" }
+func (c *ManageChatCommand) Category() string    { return "⚙️ Settings" }
+func (c *ManageChatCommand) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
 
-// SlashDefinition with subcommand group "manage" for consistency
-func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
+func (c *ManageChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
-				Name:        "manage",
-				Description: "Manage the bot system prompt for this server",
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "upload-prompt",
+				Description: "Upload a new system prompt for this server",
 				Options: []*discordgo.ApplicationCommandOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "upload-prompt",
-						Description: "Upload a new system prompt for this server",
-						Options: []*discordgo.ApplicationCommandOption{
-							{
-								Type:        discordgo.ApplicationCommandOptionAttachment,
-								Name:        "file",
-								Description: "Markdown file (.md) containing the prompt",
-								Required:    true,
-							},
-						},
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "download-prompt",
-						Description: "Download the current system prompt for this server",
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset-prompt",
-						Description: "Reset the system prompt to default for this server",
+						Type:        discordgo.ApplicationCommandOptionAttachment,
+						Name:        "file",
+						Description: "Markdown file (.md) containing the prompt",
+						Required:    true,
 					},
 				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "download-prompt",
+				Description: "Download the current system prompt for this server",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "reset-prompt",
+				Description: "Reset the system prompt to default for this server",
 			},
 		},
 	}
 }
 
-func (c *ChatCommand) Run(ctx interface{}) error {
+func (c *ManageChatCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*core.SlashInteractionContext)
 	if !ok {
 		return nil
@@ -74,10 +66,6 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	s := context.Session
 	e := context.Event
 	guildID := e.GuildID
-
-	if !core.IsAdministrator(s, e.Member) {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "You must be an admin to use this command."})
-	}
 
 	if err := core.RespondDeferredEphemeral(s, e); err != nil {
 		log.Printf("[ERROR] Failed to defer interaction: %v", err)
@@ -91,28 +79,14 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		})
 	}
 
-	// Subcommand group
-	group := data.Options[0]
-	if group.Type != discordgo.ApplicationCommandOptionSubCommandGroup || group.Name != "manage" {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Unknown command structure.",
-		})
-	}
-
-	if len(group.Options) == 0 {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided under manage.",
-		})
-	}
-
-	sub := group.Options[0]
+	sub := data.Options[0]
 	switch sub.Name {
 	case "upload-prompt":
-		return runSetPrompt(s, e, guildID, sub, &data)
+		return c.runSetPrompt(s, e, guildID, sub, &data)
 	case "download-prompt":
-		return runGetPrompt(s, e, guildID)
+		return c.runGetPrompt(s, e, guildID)
 	case "reset-prompt":
-		return runResetPrompt(s, e, guildID)
+		return c.runResetPrompt(s, e, guildID)
 	default:
 		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
@@ -137,7 +111,7 @@ func validateMDFile(attachment *discordgo.MessageAttachment, body []byte) error 
 	return nil
 }
 
-func runSetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption, topLevelData *discordgo.ApplicationCommandInteractionData) error {
+func (c *ManageChatCommand) runSetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption, topLevelData *discordgo.ApplicationCommandInteractionData) error {
 	if len(sub.Options) == 0 {
 		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No file uploaded.",
@@ -198,7 +172,7 @@ func runSetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID 
 	})
 }
 
-func runResetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string) error {
+func (c *ManageChatCommand) runResetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string) error {
 	path := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", guildID))
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -217,7 +191,7 @@ func runResetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildI
 	})
 }
 
-func runGetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string) error {
+func (c *ManageChatCommand) runGetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string) error {
 	localPath := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", guildID))
 	cfg := config.New()
 	globalPath := cfg.AIPromtPath
@@ -264,7 +238,7 @@ func runGetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID 
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
-			&ChatCommand{},
+			&ManageChatCommand{},
 			core.WithGroupAccessCheck(),
 			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),

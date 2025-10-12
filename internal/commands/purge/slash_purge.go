@@ -141,8 +141,6 @@ func (c *PurgeCommand) Run(ctx interface{}) error {
 	}
 }
 
-/* ---------------- SUBCOMMAND HANDLERS ---------------- */
-
 func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	session := ctx.Session
 	event := ctx.Event

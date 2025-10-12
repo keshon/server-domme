@@ -15,7 +15,7 @@ type MaintenanceCommand struct{}
 func (c *MaintenanceCommand) Name() string        { return "maintenance" }
 func (c *MaintenanceCommand) Description() string { return "Bot maintenance commands" }
 func (c *MaintenanceCommand) Group() string       { return "core" }
-func (c *MaintenanceCommand) Category() string    { return "🛠️ Maintenance" }
+func (c *MaintenanceCommand) Category() string    { return "⚙️ Settings" }
 func (c *MaintenanceCommand) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
@@ -54,7 +54,9 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	options := e.ApplicationCommandData().Options
 
 	if len(options) == 0 {
-		return core.RespondEphemeral(s, e, "No subcommand provided.")
+		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "No subcommand provided.",
+		})
 	}
 
 	sub := options[0]
@@ -71,7 +73,9 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	case "status":
 		return runStatus(s, e, *storage)
 	default:
-		return core.RespondEphemeral(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
+		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+		})
 	}
 }
 

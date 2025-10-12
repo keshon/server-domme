@@ -2,6 +2,8 @@ package core
 
 import (
 	"server-domme/internal/storage"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 // WithGroupAccessCheck wraps a command to enforce group access
@@ -21,12 +23,12 @@ func WithGroupAccessCheck() Middleware {
 				// Slash Command
 				case *SlashInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+					respond = func(msg string) { RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg}) }
 
 				// Component Interaction (button, menu, etc.)
 				case *ComponentInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+					respond = func(msg string) { RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg}) }
 
 					if disabledGroup(cmd, guildID, storage, respond) {
 						return nil
@@ -39,7 +41,7 @@ func WithGroupAccessCheck() Middleware {
 				// Message Context Menu Command
 				case *MessageApplicationCommandContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(msg string) { RespondEphemeral(v.Session, v.Event, msg) }
+					respond = func(msg string) { RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg}) }
 
 				// Regular message command
 				case *MessageContext:
@@ -73,7 +75,7 @@ func disabledGroup(cmd Command, guildID string, storage *storage.Storage, respon
 		return false
 	}
 	if disabled {
-		respond("This command is disabled on this server. Use `/cmd-status` to check which commands are disabled.")
+		respond("This command is disabled on this server.\nUse `/commands status` to check which commands are disabled.")
 		return true
 	}
 	return false

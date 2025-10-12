@@ -38,8 +38,7 @@ type Task struct {
 type TaskCommand struct{}
 
 func (c *TaskCommand) Name() string        { return "task" }
-func (c *TaskCommand) Description() string { return "Assign or manage your personal task" }
-func (c *TaskCommand) Aliases() []string   { return []string{} }
+func (c *TaskCommand) Description() string { return "Assign yourself a new random task" }
 func (c *TaskCommand) Group() string       { return "task" }
 func (c *TaskCommand) Category() string    { return "🎭 Roleplay" }
 func (c *TaskCommand) UserPermissions() []int64 {
@@ -50,66 +49,6 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "self-assign",
-				Description: "Assign yourself a new random task",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
-				Name:        "manage",
-				Description: "Manage task-related settings",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "set-role",
-						Description: "Set or update a Tasker role",
-						Options: []*discordgo.ApplicationCommandOption{
-							{
-								Type:        discordgo.ApplicationCommandOptionRole,
-								Name:        "role",
-								Description: "Select the role allowed to get tasks",
-								Required:    true,
-							},
-						},
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "list-role",
-						Description: "List all task-related roles",
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset-role",
-						Description: "Reset the Tasker role configuration",
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "upload-tasks",
-						Description: "Upload a new task list for this server",
-						Options: []*discordgo.ApplicationCommandOption{
-							{
-								Type:        discordgo.ApplicationCommandOptionAttachment,
-								Name:        "file",
-								Description: "JSON file (.json) containing the task list",
-								Required:    true,
-							},
-						},
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "download-tasks",
-						Description: "Download the current task list for this server",
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset-tasks",
-						Description: "Reset the task list to default for this server",
-					},
-				},
-			},
-		},
 	}
 }
 
@@ -118,55 +57,7 @@ func (c *TaskCommand) Run(ctx interface{}) error {
 	if !ok {
 		return nil
 	}
-
-	s := context.Session
-	e := context.Event
-	storage := context.Storage
-
-	data := e.ApplicationCommandData()
-
-	if len(data.Options) == 0 {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	opt := data.Options[0]
-
-	switch opt.Type {
-	case discordgo.ApplicationCommandOptionSubCommand:
-		// top-level subcommand
-		switch opt.Name {
-		case "self-assign":
-			return c.runSelfAssign(context)
-		default:
-			return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-				Description: "Unknown subcommand.",
-			})
-		}
-
-	case discordgo.ApplicationCommandOptionSubCommandGroup:
-		// subcommand group
-		switch opt.Name {
-		case "manage":
-			if len(opt.Options) == 0 {
-				return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-					Description: "No subcommand provided under manage.",
-				})
-			}
-			sub := opt.Options[0]
-			return c.runManage(s, e, storage, sub)
-		default:
-			return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-				Description: "Unknown subcommand group.",
-			})
-		}
-
-	default:
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Invalid or missing subcommand.",
-		})
-	}
+	return c.runSelfAssign(context)
 }
 
 func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error {
@@ -180,12 +71,16 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 	userID := member.User.ID
 
 	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		core.RespondEphemeral(session, event, fmt.Sprintf("Not so fast, darling. Wait **%s**.", humanDuration(time.Until(cooldownUntil))))
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(cooldownUntil.Sub(time.Now()))),
+		})
 		return nil
 	}
 
 	if slices.Contains(config.New().ProtectedUsers, userID) {
-		core.Respond(session, event, "You're above this. No tasks for you.")
+		core.RespondEmbed(session, event, &discordgo.MessageEmbed{
+			Description: "You're above this. No tasks for you.",
+		})
 		return nil
 	}
 
@@ -198,27 +93,35 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 
 	existing, _ := storage.GetTask(guildID, userID)
 	if existing != nil && existing.Status == "pending" {
-		core.RespondEphemeral(session, event, "One task at a time, sweetheart.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "You already have a task pending.",
+		})
 		return nil
 	}
 
 	taskerRoles, _ := storage.GetTaskRole(guildID)
 	if len(taskerRoles) == 0 {
-		core.RespondEphemeral(session, event, "No tasker roles set. So sad.\n\nAsk an Admin to set them.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "No tasker roles set. Ask an Admin to set them.",
+		})
 		return nil
 	}
 
 	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		core.RespondEphemeral(session, event, "Failed to load tasks.\n\nAsk an Admin to set them.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Failed to load tasks.\nAsk an Admin to set them.",
+		})
 		log.Println("loadTasksForGuild:", err)
 		return nil
 	}
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		core.RespondEphemeral(session, event, "No task suits your... profile.\n\nAsk an Admin to upload tasks for your gender role and try again.")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "No task suits your... profile.\nAsk an Admin to upload tasks for your gender role and try again.",
+		})
 		return nil
 	}
 
@@ -299,12 +202,16 @@ func (c *TaskCommand) Component(ctx *core.ComponentInteractionContext) error {
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		core.RespondEphemeral(session, event, "No active task found. Trying to cheat, hmm?")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "No active task found. Trying to cheat, hmm?",
+		})
 		return nil
 	}
 
 	if task.UserID != userID {
-		core.RespondEphemeral(session, event, "That task doesn’t belong to you. Greedy little fingers, aren't you?")
+		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "That task doesn’t belong to you. Greedy little fingers, aren't you?",
+		})
 		return nil
 	}
 

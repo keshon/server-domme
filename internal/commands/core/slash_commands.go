@@ -29,7 +29,6 @@ const (
 var maxContentLength = discordMaxMessageLength - len(codeLeftBlockWrapper) - len(codeRightBlockWrapper)
 
 func (c *CommandsCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	// Build group choices dynamically for toggle
 	groupChoices := []*discordgo.ApplicationCommandOptionChoice{}
 	for _, g := range getUniqueGroups() {
 		groupChoices = append(groupChoices, &discordgo.ApplicationCommandOptionChoice{Name: g, Value: g})
@@ -164,7 +163,9 @@ func runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	}
 
 	msg := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
-	return core.RespondEphemeral(s, e, msg)
+	return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Description: msg,
+	})
 }
 
 func runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {

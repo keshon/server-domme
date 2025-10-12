@@ -7,7 +7,6 @@ import (
 	"server-domme/internal/core"
 	"server-domme/internal/storage"
 	"slices"
-	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -24,11 +23,10 @@ func (c *DisciplineCommand) UserPermissions() []int64 {
 	return []int64{}
 }
 
-// ----- Slash Definition -----
 func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
-		Description: c.Description(),
+		Description: "Punish or release a brat.",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -56,47 +54,6 @@ func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 				},
 			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
-				Name:        "manage",
-				Description: "Manage discipline roles",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "set-roles",
-						Description: "Set or update discipline roles",
-						Options: []*discordgo.ApplicationCommandOption{
-							{
-								Type:        discordgo.ApplicationCommandOptionString,
-								Name:        "type",
-								Description: "Which role are you setting?",
-								Required:    true,
-								Choices: []*discordgo.ApplicationCommandOptionChoice{
-									{Name: "Punisher — can punish/release", Value: "punisher"},
-									{Name: "Victim — can be punished", Value: "victim"},
-									{Name: "Brat — punishment role", Value: "assigned"},
-								},
-							},
-							{
-								Type:        discordgo.ApplicationCommandOptionRole,
-								Name:        "role",
-								Description: "Select a role from the server",
-								Required:    true,
-							},
-						},
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "list-roles",
-						Description: "List all currently configured discipline roles",
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionSubCommand,
-						Name:        "reset-roles",
-						Description: "Reset all discipline role configurations",
-					},
-				},
-			},
 		},
 	}
 }
@@ -107,41 +64,30 @@ func (c *DisciplineCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
-
-	if len(event.ApplicationCommandData().Options) == 0 {
-		core.RespondEphemeral(session, event, "No subcommand provided.")
-		return nil
+	s, e, storage := context.Session, context.Event, context.Storage
+	data := e.ApplicationCommandData()
+	if len(data.Options) == 0 {
+		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "No subcommand provided.",
+		})
 	}
 
-	first := event.ApplicationCommandData().Options[0]
+	sub := data.Options[0]
+	targetID := sub.Options[0].UserValue(nil).ID
 
-	switch first.Type {
-	case discordgo.ApplicationCommandOptionSubCommand:
-		targetID := first.Options[0].UserValue(nil).ID
-		switch first.Name {
-		case "punish":
-			return runPunish(session, event, *storage, targetID)
-		case "release":
-			return runRelease(session, event, *storage, targetID)
-		default:
-			core.RespondEphemeral(session, event, "Unknown action.")
-		}
-	case discordgo.ApplicationCommandOptionSubCommandGroup:
-		if first.Name == "manage" && len(first.Options) > 0 {
-			sub := first.Options[0]
-			return runManageRoles(session, event, *storage, sub)
-		}
+	switch sub.Name {
+	case "punish":
+		return c.runPunish(s, e, *storage, targetID)
+	case "release":
+		return c.runRelease(s, e, *storage, targetID)
 	default:
-		core.RespondEphemeral(session, event, "Unknown command structure.")
+		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "Unknown subcommand.",
+		})
 	}
-
-	return nil
 }
 
-func runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
+func (c *DisciplineCommand) runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
 	cfg := config.New()
 	if slices.Contains(cfg.ProtectedUsers, e.Member.User.ID) {
 		core.Respond(s, e, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
@@ -153,18 +99,24 @@ func runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
 
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
-		core.RespondEphemeral(s, e, "Role setup incomplete. Punisher, victim, and assigned roles must be configured.")
+		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "Roles not configured properly. Set them first via `/manage-discipline roles`.",
+		})
 		return nil
 	}
 
 	if !slices.Contains(e.Member.Roles, punisherRoleID) {
-		core.RespondEphemeral(s, e, "Nice try, sugar. You don’t wear the right collar to give punishments.")
+		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "Nice try, sugar. You don’t wear the right collar to give punishments.",
+		})
 		return nil
 	}
 
 	err := s.GuildMemberRoleAdd(e.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		core.RespondEphemeral(s, e, fmt.Sprintf("Tried to punish them, but they squirmed away: ```%v```", err))
+		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Failed to assign role: %v", err),
+		})
 		return nil
 	}
 
@@ -173,97 +125,36 @@ func runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	return nil
 }
 
-func runRelease(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
+func (c *DisciplineCommand) runRelease(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
 	punisherRoleID, _ := storage.GetPunishRole(e.GuildID, "punisher")
 	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
 
 	if punisherRoleID == "" || assignedRoleID == "" {
-		core.RespondEphemeral(s, e, "Roles not configured properly. Set them first via `/discipline manage roles`.")
+		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "Roles not configured properly. Set them first via `/manage-discipline roles`.",
+		})
 		return nil
 	}
 
 	if !slices.Contains(e.Member.Roles, punisherRoleID) {
-		core.RespondEphemeral(s, e, "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.")
+		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.",
+		})
 		return nil
 	}
 
 	err := s.GuildMemberRoleRemove(e.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		core.RespondEphemeral(s, e, fmt.Sprintf("Tried to undo their sentence, but the chains are tight: ```%v```", err))
+		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Failed to remove role: %v", err),
+		})
 		return nil
 	}
 
-	core.Respond(s, e, fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave. Doubt it.", targetID))
+	core.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		Description: fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave.", targetID),
+	})
 	return nil
-}
-
-func runManageRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-	if !core.IsAdministrator(s, e.Member) {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "You must be an admin to use this command."})
-	}
-
-	switch sub.Name {
-	case "set-roles":
-		var roleType, roleID string
-		for _, opt := range sub.Options {
-			switch opt.Name {
-			case "type":
-				roleType = opt.StringValue()
-			case "role":
-				roleID = opt.RoleValue(s, e.GuildID).ID
-			}
-		}
-
-		if roleType == "" || roleID == "" {
-			return core.RespondEphemeral(s, e, "Missing parameters.")
-		}
-
-		if err := storage.SetPunishRole(e.GuildID, roleType, roleID); err != nil {
-			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed saving role: `%s`", err))
-		}
-
-		roleName := roleID
-		if rName, err := getRoleNameByID(s, e.GuildID, roleID); err == nil {
-			roleName = rName
-		}
-
-		core.RespondEphemeral(s, e, fmt.Sprintf("The **%s** role has been updated to **%s**.", roleType, roleName))
-		return nil
-
-	case "list-roles":
-		roles := []string{"punisher", "victim", "assigned"}
-		var lines []string
-		for _, t := range roles {
-			rID, _ := storage.GetPunishRole(e.GuildID, t)
-			if rID != "" {
-				if rName, err := getRoleNameByID(s, e.GuildID, rID); err == nil {
-					lines = append(lines, fmt.Sprintf("**%s** → %s", t, rName))
-				} else {
-					lines = append(lines, fmt.Sprintf("**%s** → <@&%s>", t, rID))
-				}
-			} else {
-				lines = append(lines, fmt.Sprintf("**%s** → not set", t))
-			}
-		}
-		core.RespondEphemeral(s, e, strings.Join(lines, "\n"))
-		return nil
-
-	case "reset-roles":
-		if err := storage.SetPunishRole(e.GuildID, "punisher", ""); err != nil {
-			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed resetting punisher role: %v", err))
-		}
-		if err := storage.SetPunishRole(e.GuildID, "victim", ""); err != nil {
-			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed resetting victim role: %v", err))
-		}
-		if err := storage.SetPunishRole(e.GuildID, "assigned", ""); err != nil {
-			return core.RespondEphemeral(s, e, fmt.Sprintf("Failed resetting assigned role: %v", err))
-		}
-
-		core.RespondEphemeral(s, e, "All discipline roles have been reset.")
-		return nil
-	}
-
-	return core.RespondEphemeral(s, e, fmt.Sprintf("Unknown manage subcommand: %s", sub.Name))
 }
 
 func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, error) {

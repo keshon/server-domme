@@ -70,7 +70,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
-		return core.RespondEphemeral(session, event, "Can't parse your formula. Try something like `2d6+1d4*2-3`")
+		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "Can't parse your formula. Try something like `2d6+1d4*2-3`",
+		})
 	}
 
 	var terms []term
@@ -84,7 +86,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			core.RespondEphemeral(session, event, fmt.Sprintf("Failed to evaluate `%s`: %v", token, err))
+			core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Failed to evaluate `%s`: %v", token, err),
+			})
 			return nil
 		}
 
@@ -101,7 +105,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				core.RespondEphemeral(session, event, "Syntax error: operator without left operand")
+				core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+					Description: "Can't multiply or divide by nothing.",
+				})
 				return nil
 			}
 			prev := merged[len(merged)-1]
@@ -113,7 +119,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					core.RespondEphemeral(session, event, "Division by zero is forbidden. Even in games.")
+					core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+						Description: "Can't divide by zero.",
+					})
 					return nil
 				}
 				newVal = prev.value / t.value
@@ -145,7 +153,9 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		case "-":
 			total -= t.value
 		default:
-			core.RespondEphemeral(session, event, "Unexpected operator during evaluation. Blame the dev.")
+			core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Unknown operator: %s", t.op),
+			})
 			return nil
 		}
 	}
@@ -155,7 +165,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       "🎲 Dice Roll",
 		Description: fmt.Sprintf("**User Input**:\t`%s`\n**Calculation**:\t%s\n**Result**:\t**%d**", formula, pretty, total),
-		Color:       0x00cc99,
+		Color:       core.EmbedColor,
 	}
 
 	core.RespondEmbed(session, event, embed)
