@@ -19,8 +19,8 @@ import (
 
 type ChatMessageCommand struct{}
 
-func (c *ChatMessageCommand) Name() string             { return "mention bot" }
-func (c *ChatMessageCommand) Description() string      { return "Talk to the bot when it is mentioned" }
+func (c *ChatMessageCommand) Name() string             { return "chat" }
+func (c *ChatMessageCommand) Description() string      { return "Mention the bot to chat" }
 func (c *ChatMessageCommand) Group() string            { return "chat" }
 func (c *ChatMessageCommand) Category() string         { return "💬 Chat" }
 func (c *ChatMessageCommand) UserPermissions() []int64 { return []int64{} }

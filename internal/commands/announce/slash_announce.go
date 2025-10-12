@@ -11,7 +11,7 @@ import (
 type AnnounceCommand struct{}
 
 func (c *AnnounceCommand) Name() string        { return "announce" }
-func (c *AnnounceCommand) Description() string { return "Publish messages to the announcement channel" }
+func (c *AnnounceCommand) Description() string { return "Send a message on bot's behalf" }
 func (c *AnnounceCommand) Group() string       { return "announce" }
 func (c *AnnounceCommand) Category() string    { return "📢 Utilities" }
 func (c *AnnounceCommand) UserPermissions() []int64 {

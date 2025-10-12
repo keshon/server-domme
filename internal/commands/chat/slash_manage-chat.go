@@ -17,8 +17,8 @@ import (
 
 type ManageChatCommand struct{}
 
-func (c *ManageChatCommand) Name() string        { return "chat" }
-func (c *ManageChatCommand) Description() string { return "Chat related management commands" }
+func (c *ManageChatCommand) Name() string        { return "manage-chat" }
+func (c *ManageChatCommand) Description() string { return "Chat settings" }
 func (c *ManageChatCommand) Group() string       { return "chat" }
 func (c *ManageChatCommand) Category() string    { return "⚙️ Settings" }
 func (c *ManageChatCommand) UserPermissions() []int64 {

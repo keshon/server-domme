@@ -11,7 +11,7 @@ type ManageAnnounceCommand struct{}
 
 func (c *ManageAnnounceCommand) Name() string { return "manage-announce" }
 func (c *ManageAnnounceCommand) Description() string {
-	return "Manage the announcement channel for this server"
+	return "Announcement settings"
 }
 func (c *ManageAnnounceCommand) Group() string    { return "announce" }
 func (c *ManageAnnounceCommand) Category() string { return "⚙️ Settings" }

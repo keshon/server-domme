@@ -16,7 +16,7 @@ import (
 type ManageTaskCommand struct{}
 
 func (c *ManageTaskCommand) Name() string        { return "manage-task" }
-func (c *ManageTaskCommand) Description() string { return "Manage task-related settings" }
+func (c *ManageTaskCommand) Description() string { return "Task settings" }
 func (c *ManageTaskCommand) Group() string       { return "task" }
 func (c *ManageTaskCommand) Category() string    { return "⚙️ Settings" }
 func (c *ManageTaskCommand) UserPermissions() []int64 {

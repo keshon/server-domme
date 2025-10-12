@@ -11,12 +11,10 @@ import (
 
 type ConfessCommand struct{}
 
-func (c *ConfessCommand) Name() string { return "confess" }
-func (c *ConfessCommand) Description() string {
-	return "Send an anonymous confession or manage the confession channel"
-}
-func (c *ConfessCommand) Group() string    { return "confess" }
-func (c *ConfessCommand) Category() string { return "🎭 Roleplay" }
+func (c *ConfessCommand) Name() string        { return "confess" }
+func (c *ConfessCommand) Description() string { return "Send an anonymous confession" }
+func (c *ConfessCommand) Group() string       { return "confess" }
+func (c *ConfessCommand) Category() string    { return "🎭 Roleplay" }
 func (c *ConfessCommand) UserPermissions() []int64 {
 	return []int64{}
 }

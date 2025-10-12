@@ -298,9 +298,9 @@ func (b *Bot) registerCommands(guildID string) error {
 	// Delete obsolete
 	for _, old := range existing {
 		if _, ok := wantedHashes[old.Name]; !ok {
-			log.Printf("[INFO][%s] Deleting obsolete command: %s", guildID, old.Name)
+			log.Printf("[INFO] [%s] Deleting obsolete command: %s", guildID, old.Name)
 			if err := b.dg.ApplicationCommandDelete(appID, guildID, old.ID); err != nil {
-				log.Printf("[ERR][%s] Failed to delete %s: %v", guildID, old.Name, err)
+				log.Printf("[ERR] [%s] Failed to delete %s: %v", guildID, old.Name, err)
 			}
 			delete(localHashes, old.Name)
 		}

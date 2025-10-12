@@ -28,14 +28,10 @@ It’s designed to be practical for server management while providing light, int
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
 
-### ⚙️ Admin Tools
-
-- **/manage-confess** — Manage the confession channel
-
 ### 📢 Utilities
 
-- **Announce** — Send a message to the announcement channel (context command)
-- **/announce** — Publish messages to the announcement channel
+- **Announce (context command)** — Send a message on bot's behalf
+- **/announce** — Send a message on bot's behalf
 - **translate (reaction)** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
@@ -45,13 +41,13 @@ It’s designed to be practical for server management while providing light, int
 ### 🎭 Roleplay
 
 - **/ask** — Ask for permission to contact another member
-- **/confess** — Send an anonymous confession or manage the confession channel
-- **/discipline** — Punish or release a brat, or manage discipline roles
+- **/confess** — Send an anonymous confession
+- **/discipline** — Punish or release a brat
 - **/task** — Assign yourself a new random task
 
 ### 💬 Chat
 
-- **mention bot** — Talk to the bot when it is mentioned
+- **/chat** — Mention the bot to chat
 
 ### 🎵 Music
 
@@ -63,13 +59,14 @@ It’s designed to be practical for server management while providing light, int
 
 ### ⚙️ Settings
 
-- **/chat** — Chat related management commands
 - **/commands** — Manage or inspect commands
 - **/maintenance** — Bot maintenance commands
-- **/manage-announce** — Manage the announcement channel for this server
-- **/manage-discipline** — Manage discipline role configuration
-- **/manage-task** — Manage task-related settings
-- **/manage-translate** — Manage translation reaction channels
+- **/manage-announce** — Announcement settings
+- **/manage-chat** — Chat settings
+- **/manage-confess** — Confession settings
+- **/manage-discipline** — Discipline settings
+- **/manage-task** — Task settings
+- **/manage-translate** — Translate settings
 
 
 ---

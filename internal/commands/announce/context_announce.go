@@ -16,9 +16,9 @@ import (
 
 type AnnounceContextCommand struct{}
 
-func (c *AnnounceContextCommand) Name() string { return "Announce" }
+func (c *AnnounceContextCommand) Name() string { return "Announce (context command)" }
 func (c *AnnounceContextCommand) Description() string {
-	return "Send a message to the announcement channel (context command)"
+	return "Send a message on bot's behalf"
 }
 func (c *AnnounceContextCommand) Group() string    { return "announce" }
 func (c *AnnounceContextCommand) Category() string { return "📢 Utilities" }

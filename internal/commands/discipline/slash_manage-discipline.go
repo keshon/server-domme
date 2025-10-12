@@ -12,7 +12,7 @@ import (
 type ManageDisciplineCommand struct{}
 
 func (c *ManageDisciplineCommand) Name() string        { return "manage-discipline" }
-func (c *ManageDisciplineCommand) Description() string { return "Manage discipline role configuration" }
+func (c *ManageDisciplineCommand) Description() string { return "Discipline settings" }
 func (c *ManageDisciplineCommand) Group() string       { return "discipline" }
 func (c *ManageDisciplineCommand) Category() string    { return "⚙️ Settings" }
 func (c *ManageDisciplineCommand) UserPermissions() []int64 {

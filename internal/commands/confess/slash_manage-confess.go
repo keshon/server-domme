@@ -11,9 +11,9 @@ import (
 type ManageConfessCommand struct{}
 
 func (c *ManageConfessCommand) Name() string        { return "manage-confess" }
-func (c *ManageConfessCommand) Description() string { return "Manage the confession channel" }
+func (c *ManageConfessCommand) Description() string { return "Confession settings" }
 func (c *ManageConfessCommand) Group() string       { return "confess" }
-func (c *ManageConfessCommand) Category() string    { return "⚙️ Admin Tools" }
+func (c *ManageConfessCommand) Category() string    { return "⚙️ Settings" }
 func (c *ManageConfessCommand) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }

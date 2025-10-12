@@ -13,7 +13,7 @@ import (
 type ManageTranslateCommand struct{}
 
 func (c *ManageTranslateCommand) Name() string        { return "manage-translate" }
-func (c *ManageTranslateCommand) Description() string { return "Manage translation reaction channels" }
+func (c *ManageTranslateCommand) Description() string { return "Translate settings" }
 func (c *ManageTranslateCommand) Group() string       { return "translate" }
 func (c *ManageTranslateCommand) Category() string    { return "⚙️ Settings" }
 func (c *ManageTranslateCommand) UserPermissions() []int64 {

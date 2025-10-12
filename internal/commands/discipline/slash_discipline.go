@@ -13,12 +13,10 @@ import (
 
 type DisciplineCommand struct{}
 
-func (c *DisciplineCommand) Name() string { return "discipline" }
-func (c *DisciplineCommand) Description() string {
-	return "Punish or release a brat, or manage discipline roles"
-}
-func (c *DisciplineCommand) Group() string    { return "discipline" }
-func (c *DisciplineCommand) Category() string { return "🎭 Roleplay" }
+func (c *DisciplineCommand) Name() string        { return "discipline" }
+func (c *DisciplineCommand) Description() string { return "Punish or release a brat" }
+func (c *DisciplineCommand) Group() string       { return "discipline" }
+func (c *DisciplineCommand) Category() string    { return "🎭 Roleplay" }
 func (c *DisciplineCommand) UserPermissions() []int64 {
 	return []int64{}
 }
