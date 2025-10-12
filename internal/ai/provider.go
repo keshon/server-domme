@@ -213,7 +213,7 @@ func DefaultProvider() Provider {
 		"g4f:groq/llama-3.3-70b-versatile",
 		"g4f:groq/moonshotai/kimi-k2-instruct",
 		"g4f:groq/groq/compound",
-		// "g4f:ollama/deepseek-v3.1:671b",
+		"g4f:ollama/deepseek-v3.1:671b",
 		"g4f:ollama/gpt-oss:120b",
 		"g4f:ollama/gpt-oss:20b",
 		"pollinations",
