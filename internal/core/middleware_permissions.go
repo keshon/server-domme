@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"server-domme/internal/config"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -99,6 +100,11 @@ func WithUserPermissionCheck() Middleware {
 
 				// Admins always bypass
 				if memberPerms&discordgo.PermissionAdministrator != 0 {
+					return cmd.Run(ctx)
+				}
+
+				// Developer always bypass
+				if m.User.ID == config.New().DeveloperID {
 					return cmd.Run(ctx)
 				}
 
