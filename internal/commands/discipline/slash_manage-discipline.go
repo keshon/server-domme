@@ -123,16 +123,16 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 			rID, _ := storage.GetPunishRole(e.GuildID, t)
 			if rID != "" {
 				if rName, err := getRoleNameByID(s, e.GuildID, rID); err == nil {
-					lines = append(lines, fmt.Sprintf("**%s** → %s", t, rName))
+					lines = append(lines, fmt.Sprintf("**%s** role set to  %s", t, rName))
 				} else {
-					lines = append(lines, fmt.Sprintf("**%s** → <@&%s>", t, rID))
+					lines = append(lines, fmt.Sprintf("**%s**  role set to <@&%s>", t, rID))
 				}
 			} else {
-				lines = append(lines, fmt.Sprintf("**%s** → not set", t))
+				lines = append(lines, fmt.Sprintf("**%s** role not set", t))
 			}
 		}
 		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: strings.Join(lines, strings.Join(lines, "\n")),
+			Description: strings.Join(lines, "\n") + "\n\nUse `/manage-discipline set-roles` to set or update roles.\n\n Punish is the role that can punish and release people.\nVictim is the role that can be punished.\nAssigned is the punishment role (that is assigned by the punisher).",
 		})
 		return nil
 

@@ -25,17 +25,10 @@ func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "send",
-				Description: "Send an anonymous confession",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "message",
-						Description: "What do you need to confess?",
-						Required:    true,
-					},
-				},
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "message",
+				Description: "What do you need to confess?",
+				Required:    true,
 			},
 		},
 	}
@@ -49,20 +42,12 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 
 	s, e, storage := context.Session, context.Event, context.Storage
 	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No confession provided.",
-		})
+
+	var message string
+	if len(data.Options) > 0 {
+		message = strings.TrimSpace(data.Options[0].StringValue())
 	}
 
-	sub := data.Options[0]
-	if sub.Name != "send" {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Unknown subcommand.",
-		})
-	}
-
-	message := strings.TrimSpace(sub.Options[0].StringValue())
 	if message == "" {
 		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No confession provided.",
@@ -75,7 +60,7 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, message string) error {
 	confessChannelID, err := storage.GetConfessChannel(e.GuildID)
 	if err != nil || confessChannelID == "" {
-		// No confession channel set → fallback to current channel
+		// No confession channel set - fallback to current channel
 		confessChannelID = e.ChannelID
 	}
 
