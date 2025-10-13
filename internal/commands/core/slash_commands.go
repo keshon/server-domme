@@ -163,9 +163,7 @@ func runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	}
 
 	msg := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
-	return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Description: msg,
-	})
+	return core.RespondEphemeral(s, e, msg)
 }
 
 func runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
