@@ -246,20 +246,23 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 
 		if matched != nil {
+			log.Printf("[DEBUG] Matched command type: %T", matched)
 			compHandler, ok := matched.(core.ComponentInteractionHandler)
+			log.Printf("[DEBUG] ComponentInteractionHandler? %v", ok)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
-				log.Printf("[DEBUG] About to call Component() method...\n") // ADD THIS
+				log.Printf("[DEBUG] About to call Component() method...\n")
 				ctx := &core.ComponentInteractionContext{
 					Session: s,
 					Event:   i,
 					Storage: b.storage,
 				}
-				if err := compHandler.Component(ctx); err != nil {
+				err := compHandler.Component(ctx)
+				if err != nil {
 					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
 					core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
 				}
-				log.Printf("[DEBUG] Component() method completed\n") // ADD THIS
+				log.Printf("[DEBUG] Component() method completed: %s\n", matched.Name())
 			} else {
 				log.Printf("[WARN] Command %s does not implement ComponentHandler interface\n", matched.Name())
 				log.Printf("[DEBUG] Command type: %T\n", matched)

@@ -1,10 +1,8 @@
 package media
 
 import (
-	"bytes"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"path/filepath"
 
@@ -27,13 +25,8 @@ func (c *RandomMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "random",
-				Description: "Send a random NSFW media file",
-			},
-		},
+		Type:        discordgo.ChatApplicationCommand,
+		Options:     []*discordgo.ApplicationCommandOption{},
 	}
 }
 
@@ -43,16 +36,13 @@ func (c *RandomMediaCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	s, e := context.Session, context.Event
-	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 || data.Options[0].Name != "random" {
-		return core.RespondEphemeral(s, e, "Unknown or missing subcommand.")
-	}
+	s := context.Session
+	e := context.Event
 
-	return c.sendRandomMedia(s, e)
+	return c.sendMedia(s, e, "")
 }
 
-func (c *RandomMediaCommand) sendRandomMedia(s *discordgo.Session, e *discordgo.InteractionCreate) error {
+func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.InteractionCreate, requestedBy string) error {
 	file, err := pickRandomFile("./assets/media")
 	if err != nil {
 		return core.RespondEmbed(s, e, &discordgo.MessageEmbed{
@@ -68,11 +58,16 @@ func (c *RandomMediaCommand) sendRandomMedia(s *discordgo.Session, e *discordgo.
 	}
 	defer f.Close()
 
-	// Send media + button
+	username := e.Member.User.Username
+	if e.Member.User.GlobalName != "" {
+		username = e.Member.User.GlobalName
+	}
+
 	err = s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "",
+			Content: fmt.Sprintf("-# Requested by **%s**", username),
+
 			Files: []*discordgo.File{{
 				Name:   filepath.Base(file),
 				Reader: f,
@@ -93,83 +88,59 @@ func (c *RandomMediaCommand) sendRandomMedia(s *discordgo.Session, e *discordgo.
 	return err
 }
 
-// Handle button click for "Next"
 func (c *RandomMediaCommand) Component(ctx *core.ComponentInteractionContext) error {
-	s := ctx.Session
 	e := ctx.Event
+	s := ctx.Session
 
-	log.Printf("[DEBUG] Component handler called for: %s\n", e.MessageComponentData().CustomID)
+	customID := e.MessageComponentData().CustomID
+	log.Printf("[DEBUG] Component handler called for: %s\n", customID)
 
-	if e.MessageComponentData().CustomID != "media_next_trigger" {
-		log.Println("[DEBUG] CustomID doesn't match, returning")
+	if customID != "media_next_trigger" {
 		return nil
 	}
 
-	log.Println("[DEBUG] CustomID matches! Proceeding...")
-
-	log.Println("[DEBUG] Acknowledging interaction...")
 	err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Flags: discordgo.MessageFlagsEphemeral,
-		},
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
 	})
 	if err != nil {
-		log.Printf("[ERR] Failed to acknowledge interaction: %v\n", err)
+		log.Println("[ERR] Failed to ACK interaction:", err)
 		return err
 	}
 
-	log.Println("[DEBUG] Picking random file...")
+	username := e.Member.User.Username
+	if e.Member.User.GlobalName != "" {
+		username = e.Member.User.GlobalName
+	}
+
 	file, err := pickRandomFile("./assets/media")
 	if err != nil {
-		log.Printf("[ERR] Failed to pick file: %v\n", err)
-		s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("❌ No media found: %v", err),
+		_, _ = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
+			Content: fmt.Sprintf("No media found: %v", err),
 		})
-		return err
+		return nil
 	}
 
-	log.Printf("[DEBUG] Reading file: %s\n", file)
-	fileData, err := os.ReadFile(file)
+	f, err := os.Open(file)
 	if err != nil {
-		log.Printf("[ERR] Failed to read file: %v\n", err)
-		s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
-			Content: fmt.Sprintf("❌ Failed to read media: %v", err),
+		_, _ = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
+			Content: fmt.Sprintf("Failed to open media: %v", err),
 		})
-		return err
+		return nil
 	}
+	defer f.Close()
 
-	log.Printf("[DEBUG] File size: %d bytes\n", len(fileData))
-
-	log.Println("[DEBUG] Deleting ephemeral response...")
-	s.InteractionResponseDelete(e.Interaction)
-
-	log.Println("[DEBUG] Disabling button on original message...")
-	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		ID:         e.Message.ID,
-		Channel:    e.ChannelID,
-		Components: &[]discordgo.MessageComponent{},
-	})
-	if err != nil {
-		log.Printf("[ERR] Failed to edit original message: %v\n", err)
-	}
-
-	// Send new message with new media
-	log.Println("[DEBUG] Sending new message with media...")
-	_, err = s.ChannelMessageSendComplex(e.ChannelID, &discordgo.MessageSend{
-		Content: fmt.Sprintf("🎞 %s", filepath.Base(file)),
-		Files: []*discordgo.File{
-			{
-				Name:   filepath.Base(file),
-				Reader: bytes.NewReader(fileData),
-			},
-		},
+	_, err = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
+		Content: fmt.Sprintf("-# Requested by **%s**", username),
+		Files: []*discordgo.File{{
+			Name:   filepath.Base(file),
+			Reader: f,
+		}},
 		Components: []discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{
 					discordgo.Button{
-						Label:    "Next 🔁",
-						Style:    discordgo.PrimaryButton,
+						Label:    "Next",
+						Style:    discordgo.SecondaryButton,
 						CustomID: "media_next_trigger",
 					},
 				},
@@ -177,12 +148,9 @@ func (c *RandomMediaCommand) Component(ctx *core.ComponentInteractionContext) er
 		},
 	})
 	if err != nil {
-		log.Printf("[ERR] Failed to send new message: %v\n", err)
-	} else {
-		log.Println("[DEBUG] Successfully sent new message")
+		log.Println("[ERR] Failed to send follow-up media:", err)
 	}
-
-	return err
+	return nil
 }
 
 func pickRandomFile(folder string) (string, error) {
@@ -204,15 +172,16 @@ func pickRandomFile(folder string) (string, error) {
 		return "", fmt.Errorf("no media files found")
 	}
 
-	return files[rand.Intn(len(files))], nil
+	// return files[rand.Intn(len(files))], nil
+	return pickWeightedRandomFile(files), nil
 }
 
 func init() {
 	core.RegisterCommand(
 		core.ApplyMiddlewares(
 			&RandomMediaCommand{},
-			core.WithGuildOnly(),
 			core.WithGroupAccessCheck(),
+			core.WithGuildOnly(),
 			core.WithUserPermissionCheck(),
 			core.WithCommandLogger(),
 		),
