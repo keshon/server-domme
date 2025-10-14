@@ -50,7 +50,10 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	s, e, storage := context.Session, context.Event, context.Storage
+	s := context.Session
+	e := context.Event
+	storage := context.Storage
+
 	options := e.ApplicationCommandData().Options
 
 	if len(options) == 0 {
@@ -126,10 +129,14 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 
 	// Build message
 	desc := fmt.Sprintf(
-		"**Guild statistics:**\n"+
+		"**Guild name: %s**\n"+
+			"**Guild ID: %s**\n"+
+			"**Guild statistics:**\n"+
 			"- Members: %d\n"+
 			"- Roles: %d\n"+
 			"- Channels: %d\n",
+		guild.Name,
+		guild.ID,
 		memberCount,
 		roleCount,
 		channelCount,

@@ -56,8 +56,12 @@ func (c *ManageConfessCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	s, e, storage := context.Session, context.Event, context.Storage
+	s := context.Session
+	e := context.Event
+	storage := context.Storage
+
 	data := e.ApplicationCommandData()
+
 	if len(data.Options) == 0 {
 		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",

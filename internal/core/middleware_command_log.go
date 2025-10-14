@@ -2,6 +2,8 @@ package core
 
 import (
 	"log"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 // WithCommandLogger wraps a command to log its execution
@@ -10,61 +12,58 @@ func WithCommandLogger() Middleware {
 		return &wrappedCommand{
 			Command: cmd,
 			wrap: func(ctx interface{}) error {
-				// Run the actual command first
 				err := cmd.Run(ctx)
 
-				// Then try to log its execution
 				switch v := ctx.(type) {
 
-				//  Slash Command
+				// Slash Command
 				case *SlashInteractionContext:
-					member := v.Event.Member
-					user := member.User
-					guildID := v.Event.GuildID
-					channelID := v.Event.ChannelID
-					if e := LogCommand(v.Session, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
+					s := v.Session
+					e := v.Event
+					guildID := e.GuildID
+					channelID := e.ChannelID
+
+					user := resolveUser(s, e)
+					if e := LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
 						log.Printf("[WARN] Failed to log command /%s: %v", cmd.Name(), e)
 					}
 
-				// Component Interaction (button, menu, etc.)
+				// Component Interaction
 				case *ComponentInteractionContext:
-					member := v.Event.Member
-					user := member.User
-					guildID := v.Event.GuildID
-					channelID := v.Event.ChannelID
-					if e := LogCommand(v.Session, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
-						log.Printf("[WARN] Failed to log component command /%s: %v", cmd.Name(), e)
+					s := v.Session
+					e := v.Event
+					guildID := e.GuildID
+					channelID := e.ChannelID
+
+					user := resolveUser(s, e)
+					if e := LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
+						log.Printf("[WARN] Failed to log component /%s: %v", cmd.Name(), e)
 					}
 
-				// Message Context Menu Command
+				// Context Menu Command
 				case *MessageApplicationCommandContext:
-					member := v.Event.Member
-					user := member.User
-					guildID := v.Event.GuildID
-					channelID := v.Event.ChannelID
-					if e := LogCommand(v.Session, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
-						log.Printf("[WARN] Failed to log message context /%s: %v", cmd.Name(), e)
+					s := v.Session
+					e := v.Event
+					guildID := e.GuildID
+					channelID := e.ChannelID
+
+					user := resolveUser(s, e)
+					if e := LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
+						log.Printf("[WARN] Failed to log context /%s: %v", cmd.Name(), e)
 					}
 
-				// Regular message command
+				// Skip message commands
 				case *MessageContext:
-					user := v.Event.Author
-					guildID := v.Event.GuildID
-					channelID := v.Event.ChannelID
-					if v.Storage != nil {
-						if e := LogCommand(v.Session, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
-							log.Printf("[WARN] Failed to log message command /%s: %v", cmd.Name(), e)
-						}
-					}
+					return err
 
-				// Reaction command
+				// Reaction Command
 				case *MessageReactionContext:
 					user := v.Event.UserID
 					guildID := v.Event.GuildID
 					channelID := v.Event.ChannelID
 					if v.Storage != nil {
 						if e := LogCommand(v.Session, v.Storage, guildID, channelID, user, user, cmd.Name()); e != nil {
-							log.Printf("[WARN] Failed to log reaction command /%s: %v", cmd.Name(), e)
+							log.Printf("[WARN] Failed to log reaction /%s: %v", cmd.Name(), e)
 						}
 					}
 				}
@@ -73,4 +72,28 @@ func WithCommandLogger() Middleware {
 			},
 		}
 	}
+}
+
+// resolveUser safely retrieves the user object from an InteractionCreate event
+func resolveUser(s *discordgo.Session, e *discordgo.InteractionCreate) *discordgo.User {
+	if e.Member != nil && e.Member.User != nil {
+		return e.Member.User
+	}
+	if e.User != nil {
+		return e.User
+	}
+
+	// As last resort, try fetching from Discord API
+	if e.Member != nil && e.Member.User != nil {
+		return e.Member.User
+	}
+
+	// If we know the user ID but not username — fetch it
+	if e.User != nil {
+		if u, err := s.User(e.User.ID); err == nil {
+			return u
+		}
+	}
+	// Safe fallback
+	return &discordgo.User{ID: "unknown", Username: "Unknown"}
 }

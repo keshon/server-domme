@@ -41,41 +41,41 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	session := context.Session
-	event := context.Event
+	s := context.Session
+	e := context.Event
 	storage := context.Storage
 
-	guildID := event.GuildID
-	channelID := event.ChannelID
+	guildID := e.GuildID
+	channelID := e.ChannelID
 
 	// Deferred ephemeral reply
-	if err := core.RespondDeferredEphemeral(session, event); err != nil {
+	if err := core.RespondDeferredEphemeral(s, e); err != nil {
 		log.Println("Failed to send deferred response:", err)
 		return nil
 	}
 
 	// Fetch the target message
-	targetID := event.ApplicationCommandData().TargetID
-	msg, err := session.ChannelMessage(channelID, targetID)
+	targetID := e.ApplicationCommandData().TargetID
+	msg, err := s.ChannelMessage(channelID, targetID)
 	if err != nil {
-		core.EditResponse(session, event, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
+		core.EditResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return nil
 	}
 
 	// Validation
 	if msg.Author == nil {
-		core.EditResponse(session, event, "I won't announce ghost messages.")
+		core.EditResponse(s, e, "I won't announce ghost messages.")
 		return nil
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		core.EditResponse(session, event, "Empty? I'm not announcing tumbleweeds.")
+		core.EditResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
 		return nil
 	}
 
 	// Fetch announcement channel
 	announceChannelID, err := storage.GetAnnounceChannel(guildID)
 	if err != nil || announceChannelID == "" {
-		core.EditResponse(session, event, "No announcement channel configured. Bother the admin.")
+		core.EditResponse(s, e, "No announcement channel configured. Bother the admin.")
 		return nil
 	}
 
@@ -103,24 +103,24 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 
 	// Send announcement
 	message := &discordgo.MessageSend{
-		Content: restoreMentions(session, guildID, msg.Content),
+		Content: restoreMentions(s, guildID, msg.Content),
 		Embeds:  msg.Embeds,
 		Files:   files,
 	}
 
-	if _, err := session.ChannelMessageSendComplex(announceChannelID, message); err != nil {
-		core.EditResponse(session, event, fmt.Sprintf("Couldn't announce it: `%v`", err))
+	if _, err := s.ChannelMessageSendComplex(announceChannelID, message); err != nil {
+		core.EditResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return nil
 	}
 
-	core.EditResponse(session, event, "Announced. Everyone’s watching now.")
+	core.EditResponse(s, e, "Announced. Everyone’s watching now.")
 	return nil
 }
 
 var mentionRegex = regexp.MustCompile(`@(\S+)`)
 
-func restoreMentions(session *discordgo.Session, guildID, content string) string {
-	members, err := session.GuildMembers(guildID, "", 1000)
+func restoreMentions(s *discordgo.Session, guildID, content string) string {
+	members, err := s.GuildMembers(guildID, "", 1000)
 	if err != nil {
 		return content
 	}

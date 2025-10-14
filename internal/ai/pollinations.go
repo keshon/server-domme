@@ -50,7 +50,6 @@ func (p *PollinationsProvider) Generate(messages []Message) (string, error) {
 		return "", fmt.Errorf("pollinations status=%d body=%s", resp.StatusCode, string(body))
 	}
 
-	// Proper schema for Pollinations (OpenAI-like)
 	var parsed struct {
 		Choices []struct {
 			Message struct {

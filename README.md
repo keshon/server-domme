@@ -28,6 +28,10 @@ It’s designed to be practical for server management while providing light, int
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
 
+### 🎞 Media
+
+- **/media** — Post a random NSFW media file
+
 ### 📢 Utilities
 
 - **Announce (context command)** — Send a message on bot's behalf

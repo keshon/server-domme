@@ -108,13 +108,13 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 
 	switch sub.Name {
 	case "log":
-		return runCmdLog(session, event, *storage)
+		return c.runCmdLog(session, event, *storage)
 	case "status":
-		return runCmdStatus(session, event, *storage)
+		return c.runCmdStatus(session, event, *storage)
 	case "toggle":
-		return runCmdToggle(session, event, *storage)
+		return c.runCmdToggle(session, event, *storage)
 	case "update":
-		return runCmdUpdate(session, event)
+		return c.runCmdUpdate(session, event)
 	default:
 		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
@@ -122,7 +122,7 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 	}
 }
 
-func runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
+func (c *CommandsCommand) runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	guildID := e.GuildID
 	member := e.Member
 
@@ -166,7 +166,7 @@ func runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	return core.RespondEphemeral(s, e, msg)
 }
 
-func runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
+func (c *CommandsCommand) runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	guildID := e.GuildID
 
 	disabledGroups, _ := storage.GetDisabledGroups(guildID)
@@ -202,7 +202,7 @@ func runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage 
 	return core.RespondEmbedEphemeral(s, e, embed)
 }
 
-func runCmdToggle(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
+func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	data := e.ApplicationCommandData()
 
 	subOptions := data.Options[0].Options
@@ -247,7 +247,7 @@ func runCmdToggle(s *discordgo.Session, e *discordgo.InteractionCreate, storage 
 	return core.RespondEmbedEphemeral(s, e, embed)
 }
 
-func runCmdUpdate(s *discordgo.Session, e *discordgo.InteractionCreate) error {
+func (c *CommandsCommand) runCmdUpdate(s *discordgo.Session, e *discordgo.InteractionCreate) error {
 	subOptions := e.ApplicationCommandData().Options[0].Options
 
 	var target string

@@ -7,6 +7,7 @@ import (
 	_ "server-domme/internal/commands/confess"
 	_ "server-domme/internal/commands/core"
 	_ "server-domme/internal/commands/discipline"
+	_ "server-domme/internal/commands/media"
 	_ "server-domme/internal/commands/music"
 	_ "server-domme/internal/commands/purge"
 	_ "server-domme/internal/commands/roll"

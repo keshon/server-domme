@@ -10,3 +10,4 @@ datastore_dump.json
 
 /data/*_task.list.json
 *.json
+/assets/media

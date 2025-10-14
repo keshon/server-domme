@@ -1,4 +1,3 @@
-// /internal/discord/bot.go
 package discord
 
 import (
@@ -250,6 +249,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			compHandler, ok := matched.(core.ComponentInteractionHandler)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
+				log.Printf("[DEBUG] About to call Component() method...\n") // ADD THIS
 				ctx := &core.ComponentInteractionContext{
 					Session: s,
 					Event:   i,
@@ -259,6 +259,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
 					core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
 				}
+				log.Printf("[DEBUG] Component() method completed\n") // ADD THIS
 			} else {
 				log.Printf("[WARN] Command %s does not implement ComponentHandler interface\n", matched.Name())
 				log.Printf("[DEBUG] Command type: %T\n", matched)

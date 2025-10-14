@@ -40,7 +40,10 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	s, e, storage := context.Session, context.Event, context.Storage
+	s := context.Session
+	e := context.Event
+	storage := context.Storage
+
 	data := e.ApplicationCommandData()
 
 	var message string
