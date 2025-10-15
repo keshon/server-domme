@@ -14,8 +14,8 @@ import (
 type RandomMediaCommand struct{}
 
 func (c *RandomMediaCommand) Name() string        { return "media" }
-func (c *RandomMediaCommand) Description() string { return "Post a random NSFW media file" }
-func (c *RandomMediaCommand) Group() string       { return "fun" }
+func (c *RandomMediaCommand) Description() string { return "Post a random media file" }
+func (c *RandomMediaCommand) Group() string       { return "media" }
 func (c *RandomMediaCommand) Category() string    { return "🎞 Media" }
 func (c *RandomMediaCommand) UserPermissions() []int64 {
 	return []int64{}
