@@ -39,10 +39,16 @@ func (c *RandomMediaCommand) Run(ctx interface{}) error {
 	s := context.Session
 	e := context.Event
 
-	return c.sendMedia(s, e, "")
+	if err := core.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		Description: "This command is currently in development, please try again later.",
+	}); err != nil {
+		return err
+	}
+
+	return c.sendMedia(s, e)
 }
 
-func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.InteractionCreate, requestedBy string) error {
+func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.InteractionCreate) error {
 	file, err := pickRandomFile("./assets/media")
 	if err != nil {
 		return core.RespondEmbed(s, e, &discordgo.MessageEmbed{
@@ -151,29 +157,6 @@ func (c *RandomMediaCommand) Component(ctx *core.ComponentInteractionContext) er
 		log.Println("[ERR] Failed to send follow-up media:", err)
 	}
 	return nil
-}
-
-func pickRandomFile(folder string) (string, error) {
-	files := []string{}
-	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			ext := filepath.Ext(info.Name())
-			switch ext {
-			case ".mp4", ".webm", ".mov", ".gif", ".jpg", ".png":
-				files = append(files, path)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if len(files) == 0 {
-		return "", fmt.Errorf("no media files found")
-	}
-
-	// return files[rand.Intn(len(files))], nil
-	return pickWeightedRandomFile(files), nil
 }
 
 func init() {

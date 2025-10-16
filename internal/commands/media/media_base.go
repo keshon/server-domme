@@ -1,8 +1,11 @@
 package media
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -12,6 +15,39 @@ var (
 	recencyDecay    = 0.5      // higher = stronger penalty for recent items
 	recentHistoryMu sync.Mutex // thread safety for concurrent commands
 )
+
+// pickRandomFile returns a random media file
+func pickRandomFile(folder string) (string, error) {
+
+	if folder == "" {
+		folder = "./assets/media"
+	}
+
+	if _, err := os.Stat(folder); os.IsNotExist(err) {
+		return "", fmt.Errorf("media folder does not exist")
+	}
+
+	files := []string{}
+	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			ext := filepath.Ext(info.Name())
+			switch ext {
+			case ".mp4", ".webm", ".mov", ".gif", ".jpg", ".png":
+				files = append(files, path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(files) == 0 {
+		return "", fmt.Errorf("no media files found")
+	}
+
+	// return files[rand.Intn(len(files))], nil
+	return pickWeightedRandomFile(files), nil
+}
 
 // pickWeightedRandomFile returns a random file from list with bias against recent ones
 func pickWeightedRandomFile(files []string) string {
