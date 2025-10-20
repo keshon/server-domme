@@ -53,9 +53,10 @@ It’s designed to be practical for server management while providing light, int
 
 - **/music** — Control music playback
 
-### 🎞 Media
+### 🎞️ Media
 
 - **/media** — Post a random media file
+- **/upload-media** — Upload one or multiple media files
 
 ### 🧹 Cleanup
 
@@ -69,6 +70,7 @@ It’s designed to be practical for server management while providing light, int
 - **/manage-chat** — Chat settings
 - **/manage-confess** — Confession settings
 - **/manage-discipline** — Discipline settings
+- **/manage-media** — Manage media categories
 - **/manage-task** — Task settings
 - **/manage-translate** — Translate settings
 

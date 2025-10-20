@@ -38,6 +38,8 @@ type Record struct {
 	CommandsDisabled  []string             `json:"commands_disabled"`
 	CommandsHistory   []CommandHistory     `json:"commands_history"`
 	DisciplineRoles   map[string]string    `json:"discipline_roles"`
+	MediaCategories   []string             `json:"media_categories"`
+	MediaDefault      string               `json:"media_default"`
 	PurgeJobs         map[string]PurgeJob  `json:"purge_jobs"` // key = channelID
 	TaskCooldowns     map[string]time.Time `json:"task_cooldowns"`
 	TaskList          map[string]Task      `json:"task_list"`
