@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"server-domme/internal/core"
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"strconv"
 	"strings"
 	"sync"
@@ -109,7 +112,7 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PurgeCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -119,7 +122,7 @@ func (c *PurgeCommand) Run(ctx interface{}) error {
 
 	data := event.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Please select a subcommand: `auto`, `now`, `jobs`, or `stop`.",
 		})
 	}
@@ -135,13 +138,13 @@ func (c *PurgeCommand) Run(ctx interface{}) error {
 	case "stop":
 		return runPurgeStop(context)
 	default:
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
 }
 
-func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+func runPurgeAuto(ctx *registry.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
@@ -161,20 +164,20 @@ func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationC
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
 		})
 	}
 
 	dur, err := parseDuration(olderThan)
 	if err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Invalid duration format. Use `10m`, `2h`, `1d`, etc.",
 		})
 	}
 
-	if !core.CheckBotPermissions(session, event.ChannelID) {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	if !bot.CheckBotPermissions(session, event.ChannelID) {
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Missing permissions to purge messages.",
 		})
 	}
@@ -182,7 +185,7 @@ func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationC
 	ActiveDeletionsMu.Lock()
 	if _, exists := ActiveDeletions[event.ChannelID]; exists {
 		ActiveDeletionsMu.Unlock()
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "A purge job is already running in this channel.",
 		})
 	}
@@ -193,12 +196,12 @@ func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationC
 	err = storage.SetDeletionJob(event.GuildID, event.ChannelID, "recurring", time.Now(), notifyAll, olderThan)
 	if err != nil {
 		stopDeletion(event.ChannelID)
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Failed to set deletion job: " + err.Error(),
 		})
 	}
 
-	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 		Description: "Recurring purge started. Messages older than **" + dur.String() + "** will be erased.",
 	})
 
@@ -206,7 +209,7 @@ func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationC
 		session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
 			Title:       "☢️ Recurring Nuke Detonation",
 			Description: fmt.Sprintf("All messages older than `%s` will be **systematically erased**.", dur.String()),
-			Color:       core.EmbedColor,
+			Color:       bot.EmbedColor,
 			Image:       &discordgo.MessageEmbedImage{URL: "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp"},
 			Footer:      &discordgo.MessageEmbedFooter{Text: "History has a half-life."},
 		})
@@ -231,7 +234,7 @@ func runPurgeAuto(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationC
 	return nil
 }
 
-func runPurgeNow(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+func runPurgeNow(ctx *registry.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
@@ -250,7 +253,7 @@ func runPurgeNow(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCo
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
 		})
 	}
@@ -261,19 +264,19 @@ func runPurgeNow(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCo
 
 	dur, err := parseDuration(delayStr)
 	if err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Invalid delay format. Use formats like `10m`, `1h`, `1d`.",
 		})
 	}
 
 	delayUntil := time.Now().Add(dur)
 	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, "delayed", delayUntil, notifyAll); err != nil {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Failed to schedule purge: " + err.Error(),
 		})
 	}
 
-	core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 		Description: "Purge scheduled — will start in **" + dur.String() + "**.",
 	})
 
@@ -281,7 +284,7 @@ func runPurgeNow(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCo
 		session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
 			Title:       "☢️ Upcoming Nuke Detonation",
 			Description: "Countdown initiated — all messages will be purged in `" + dur.String() + "`.",
-			Color:       core.EmbedColor,
+			Color:       bot.EmbedColor,
 			Image:       &discordgo.MessageEmbedImage{URL: "https://c.tenor.com/qDvLEFO5bAkAAAAd/tenor.gif"},
 			Footer:      &discordgo.MessageEmbedFooter{Text: "May your sins be incinerated."},
 		})
@@ -304,14 +307,14 @@ func runPurgeNow(ctx *core.SlashInteractionContext, sub *discordgo.ApplicationCo
 	return nil
 }
 
-func runPurgeJobs(ctx *core.SlashInteractionContext) error {
+func runPurgeJobs(ctx *registry.SlashInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
 
 	jobs, err := storage.GetDeletionJobsList(event.GuildID)
 	if err != nil || len(jobs) == 0 {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No active purge jobs found.",
 		})
 	}
@@ -336,10 +339,10 @@ func runPurgeJobs(ctx *core.SlashInteractionContext) error {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("Use `/purge stop` to cancel any listed job.")
-	return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: sb.String()})
+	return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: sb.String()})
 }
 
-func runPurgeStop(ctx *core.SlashInteractionContext) error {
+func runPurgeStop(ctx *registry.SlashInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
@@ -347,11 +350,11 @@ func runPurgeStop(ctx *core.SlashInteractionContext) error {
 	stopDeletion(event.ChannelID)
 	if _, err := storage.GetDeletionJob(event.GuildID, event.ChannelID); err == nil {
 		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Message purge job stopped.",
 		})
 	} else {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No active purge job in this channel.",
 		})
 	}
@@ -445,13 +448,13 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&PurgeCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

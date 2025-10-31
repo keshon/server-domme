@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"server-domme/internal/bot"
 	"server-domme/internal/config"
-	"server-domme/internal/core"
+	"server-domme/internal/registry"
+
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
 	"server-domme/internal/storage"
@@ -64,9 +66,9 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	defer dg.Close()
 
 	go func() {
-		for evt := range core.SystemEvents() {
+		for evt := range bot.SystemEvents() {
 			switch evt.Type {
-			case core.SystemEventRefreshCommands:
+			case bot.SystemEventRefreshCommands:
 				go b.handleRefreshCommands(evt)
 			}
 		}
@@ -99,8 +101,8 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
-	for _, cmd := range core.AllCommands() {
-		ctx := &core.MessageContext{
+	for _, cmd := range registry.AllCommands() {
+		ctx := &registry.MessageContext{
 			Session: s,
 			Event:   m,
 			Storage: b.storage,
@@ -108,7 +110,7 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		err := cmd.Run(ctx)
 		if err != nil {
 			log.Println("[ERR] Error running command:", err)
-			core.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
+			bot.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Error running command: %v", err),
 			})
 		}
@@ -175,9 +177,9 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 
 // onMessageReactionAdd is called when a reaction is added
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	for _, cmd := range core.AllCommands() {
-		if _, ok := cmd.(core.ReactionProvider); ok {
-			ctx := &core.MessageReactionContext{
+	for _, cmd := range registry.AllCommands() {
+		if _, ok := cmd.(registry.ReactionProvider); ok {
+			ctx := &registry.MessageReactionContext{
 				Session: s,
 				Event:   r,
 				Storage: b.storage,
@@ -185,7 +187,7 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running reaction command:", err)
-				core.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
+				bot.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
 					Description: fmt.Sprintf("Error running reaction command: %v", err),
 				})
 			}
@@ -200,7 +202,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	case discordgo.InteractionApplicationCommand:
 		cmdName := i.ApplicationCommandData().Name
 
-		cmd, ok := core.GetCommand(cmdName)
+		cmd, ok := registry.GetCommand(cmdName)
 		if !ok {
 			log.Printf("[WARN] Unknown command: %s\n", cmdName)
 			return
@@ -208,7 +210,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 		switch i.ApplicationCommandData().CommandType {
 		case discordgo.MessageApplicationCommand:
-			ctx := &core.MessageApplicationCommandContext{
+			ctx := &registry.MessageApplicationCommandContext{
 				Session: s,
 				Event:   i,
 				Storage: b.storage,
@@ -217,10 +219,10 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running context menu command:", err)
-				core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
+				bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
 			}
 		case discordgo.ChatApplicationCommand:
-			ctx := &core.SlashInteractionContext{
+			ctx := &registry.SlashInteractionContext{
 				Session: s,
 				Event:   i,
 				Storage: b.storage,
@@ -228,7 +230,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			err := cmd.Run(ctx)
 			if err != nil {
 				log.Println("[ERR] Error running slash command:", err)
-				core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
+				bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
 			}
 		}
 
@@ -236,8 +238,8 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		customID := i.MessageComponentData().CustomID
 		log.Printf("[DEBUG] Processing component interaction: %s\n", customID)
 
-		var matched core.Command
-		for _, cmd := range core.AllCommands() {
+		var matched registry.Command
+		for _, cmd := range registry.AllCommands() {
 			if strings.HasPrefix(customID, cmd.Name()) || strings.HasPrefix(customID, cmd.Name()+":") || strings.HasPrefix(customID, cmd.Name()+"_") {
 				matched = cmd
 				log.Printf("[DEBUG] Found matching command: %s\n", cmd.Name())
@@ -247,12 +249,12 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 		if matched != nil {
 			log.Printf("[DEBUG] Matched command type: %T", matched)
-			compHandler, ok := matched.(core.ComponentInteractionHandler)
+			compHandler, ok := matched.(registry.ComponentInteractionHandler)
 			log.Printf("[DEBUG] ComponentInteractionHandler? %v", ok)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
 				log.Printf("[DEBUG] About to call Component() method...\n")
-				ctx := &core.ComponentInteractionContext{
+				ctx := &registry.ComponentInteractionContext{
 					Session: s,
 					Event:   i,
 					Storage: b.storage,
@@ -260,7 +262,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 				err := compHandler.Component(ctx)
 				if err != nil {
 					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
-					core.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
+					bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
 				}
 				log.Printf("[DEBUG] Component() method completed: %s\n", matched.Name())
 			} else {
@@ -292,7 +294,7 @@ func (b *Bot) registerCommands(guildID string) error {
 
 	var wanted []*discordgo.ApplicationCommand
 	wantedHashes := make(map[string]string)
-	for _, cmd := range core.AllCommands() {
+	for _, cmd := range registry.AllCommands() {
 		if def := normalizeDefinition(cmd); def != nil {
 			wanted = append(wanted, def)
 			wantedHashes[def.Name] = hashCommand(def)
@@ -336,8 +338,8 @@ func (b *Bot) isGuildBlacklisted(guildID string) bool {
 }
 
 // normalizeDefinition normalizes a command definition
-func normalizeDefinition(cmd core.Command) *discordgo.ApplicationCommand {
-	if slash, ok := cmd.(core.SlashProvider); ok {
+func normalizeDefinition(cmd registry.Command) *discordgo.ApplicationCommand {
+	if slash, ok := cmd.(registry.SlashProvider); ok {
 		if def := slash.SlashDefinition(); def != nil {
 			if def.Type == 0 {
 				def.Type = discordgo.ChatApplicationCommand
@@ -345,7 +347,7 @@ func normalizeDefinition(cmd core.Command) *discordgo.ApplicationCommand {
 			return def
 		}
 	}
-	if menu, ok := cmd.(core.ContextMenuProvider); ok {
+	if menu, ok := cmd.(registry.ContextMenuProvider); ok {
 		if def := menu.ContextDefinition(); def != nil {
 			if def.Type == 0 {
 				def.Type = discordgo.MessageApplicationCommand
@@ -383,7 +385,7 @@ func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.App
 	wg.Wait()
 }
 
-func (b *Bot) handleRefreshCommands(evt core.SystemEvent) {
+func (b *Bot) handleRefreshCommands(evt bot.SystemEvent) {
 	if b.isGuildBlacklisted(evt.GuildID) {
 		log.Printf("[SKIP][%s] Guild is blacklisted, skipping refresh.", evt.GuildID)
 		return
@@ -411,7 +413,7 @@ func (b *Bot) handleRefreshCommands(evt core.SystemEvent) {
 		return
 	}
 
-	for _, cmd := range core.AllCommands() {
+	for _, cmd := range registry.AllCommands() {
 		if strings.EqualFold(cmd.Name(), evt.Target) {
 			if def := normalizeDefinition(cmd); def != nil {
 				_, err := b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)

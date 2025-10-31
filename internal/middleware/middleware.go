@@ -1,11 +1,15 @@
-package core
+package middleware
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"server-domme/internal/registry"
 
-type Middleware func(Command) Command
+	"github.com/bwmarrin/discordgo"
+)
+
+type Middleware func(registry.Command) registry.Command
 
 type wrappedCommand struct {
-	Command
+	registry.Command
 	wrap func(ctx interface{}) error
 }
 
@@ -16,38 +20,38 @@ func (w *wrappedCommand) Run(ctx interface{}) error {
 	return w.Command.Run(ctx)
 }
 
-func (w *wrappedCommand) Component(ctx *ComponentInteractionContext) error {
+func (w *wrappedCommand) Component(ctx *registry.ComponentInteractionContext) error {
 	if w.wrap != nil {
 		return w.wrap(ctx)
 	}
-	if ch, ok := w.Command.(ComponentInteractionHandler); ok {
+	if ch, ok := w.Command.(registry.ComponentInteractionHandler); ok {
 		return ch.Component(ctx)
 	}
 	return nil
 }
 
 func (w *wrappedCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	if sp, ok := w.Command.(SlashProvider); ok {
+	if sp, ok := w.Command.(registry.SlashProvider); ok {
 		return sp.SlashDefinition()
 	}
 	return nil
 }
 
 func (w *wrappedCommand) ContextDefinition() *discordgo.ApplicationCommand {
-	if sp, ok := w.Command.(ContextMenuProvider); ok {
+	if sp, ok := w.Command.(registry.ContextMenuProvider); ok {
 		return sp.ContextDefinition()
 	}
 	return nil
 }
 
 func (w *wrappedCommand) ReactionDefinition() string {
-	if sp, ok := w.Command.(ReactionProvider); ok {
+	if sp, ok := w.Command.(registry.ReactionProvider); ok {
 		return sp.ReactionDefinition()
 	}
 	return ""
 }
 
-func ApplyMiddlewares(cmd Command, mws ...Middleware) Command {
+func ApplyMiddlewares(cmd registry.Command, mws ...Middleware) registry.Command {
 	for _, mw := range mws {
 		cmd = mw(cmd)
 	}

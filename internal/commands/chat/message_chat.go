@@ -12,7 +12,8 @@ import (
 
 	"server-domme/internal/ai"
 	"server-domme/internal/config"
-	"server-domme/internal/core"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -26,7 +27,7 @@ func (c *ChatMessageCommand) Category() string         { return "💬 Chat" }
 func (c *ChatMessageCommand) UserPermissions() []int64 { return []int64{} }
 
 func (c *ChatMessageCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.MessageContext)
+	context, ok := ctx.(*registry.MessageContext)
 	if !ok {
 		return nil
 	}
@@ -225,13 +226,13 @@ func keepTyping(s *discordgo.Session, channelID string, done <-chan struct{}) {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&ChatMessageCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

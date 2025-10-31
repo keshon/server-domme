@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"server-domme/internal/core"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -36,7 +38,7 @@ var flags = map[string]string{
 }
 
 func (t *TranslateOnReaction) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.MessageReactionContext)
+	context, ok := ctx.(*registry.MessageReactionContext)
 	if !ok {
 		return nil
 	}
@@ -177,13 +179,13 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&TranslateOnReaction{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

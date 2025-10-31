@@ -1,14 +1,16 @@
-package core
+package middleware
 
 import (
 	"log"
+	"server-domme/internal/bot"
+	"server-domme/internal/registry"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 // WithCommandLogger wraps a command to log its execution
 func WithCommandLogger() Middleware {
-	return func(cmd Command) Command {
+	return func(cmd registry.Command) registry.Command {
 		return &wrappedCommand{
 			Command: cmd,
 			wrap: func(ctx interface{}) error {
@@ -17,52 +19,52 @@ func WithCommandLogger() Middleware {
 				switch v := ctx.(type) {
 
 				// Slash Command
-				case *SlashInteractionContext:
+				case *registry.SlashInteractionContext:
 					s := v.Session
 					e := v.Event
 					guildID := e.GuildID
 					channelID := e.ChannelID
 
 					user := resolveUser(s, e)
-					if e := LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
+					if e := bot.LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
 						log.Printf("[WARN] Failed to log command /%s: %v", cmd.Name(), e)
 					}
 
 				// Component Interaction
-				case *ComponentInteractionContext:
+				case *registry.ComponentInteractionContext:
 					s := v.Session
 					e := v.Event
 					guildID := e.GuildID
 					channelID := e.ChannelID
 
 					user := resolveUser(s, e)
-					if e := LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
+					if e := bot.LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
 						log.Printf("[WARN] Failed to log component /%s: %v", cmd.Name(), e)
 					}
 
 				// Context Menu Command
-				case *MessageApplicationCommandContext:
+				case *registry.MessageApplicationCommandContext:
 					s := v.Session
 					e := v.Event
 					guildID := e.GuildID
 					channelID := e.ChannelID
 
 					user := resolveUser(s, e)
-					if e := LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
+					if e := bot.LogCommand(s, v.Storage, guildID, channelID, user.ID, user.Username, cmd.Name()); e != nil {
 						log.Printf("[WARN] Failed to log context /%s: %v", cmd.Name(), e)
 					}
 
 				// Skip message commands
-				case *MessageContext:
+				case *registry.MessageContext:
 					return err
 
 				// Reaction Command
-				case *MessageReactionContext:
+				case *registry.MessageReactionContext:
 					user := v.Event.UserID
 					guildID := v.Event.GuildID
 					channelID := v.Event.ChannelID
 					if v.Storage != nil {
-						if e := LogCommand(v.Session, v.Storage, guildID, channelID, user, user, cmd.Name()); e != nil {
+						if e := bot.LogCommand(v.Session, v.Storage, guildID, channelID, user, user, cmd.Name()); e != nil {
 							log.Printf("[WARN] Failed to log reaction /%s: %v", cmd.Name(), e)
 						}
 					}

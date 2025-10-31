@@ -7,10 +7,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 	"strings"
 	"sync"
-
-	"server-domme/internal/core"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -42,7 +43,7 @@ func (c *RandomMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *RandomMediaCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -79,14 +80,14 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 
 	file, err := pickRandomFile(searchPath)
 	if err != nil {
-		return core.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
 		})
 	}
 
 	f, err := os.Open(file)
 	if err != nil {
-		return core.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to open media: %v", err),
 		})
 	}
@@ -121,7 +122,7 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 	return err
 }
 
-func (c *RandomMediaCommand) Component(ctx *core.ComponentInteractionContext) error {
+func (c *RandomMediaCommand) Component(ctx *registry.ComponentInteractionContext) error {
 	e := ctx.Event
 	s := ctx.Session
 	st := ctx.Storage
@@ -293,13 +294,13 @@ func updateHistory(file string) {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&RandomMediaCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

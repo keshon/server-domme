@@ -1,5 +1,5 @@
 // /internal/core/botvoice.go
-package core
+package bot
 
 import "server-domme/internal/music/player"
 

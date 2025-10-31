@@ -6,8 +6,11 @@ import (
 	"sort"
 	"strings"
 
+	"server-domme/internal/bot"
 	"server-domme/internal/config"
-	"server-domme/internal/core"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"server-domme/internal/version"
 
 	"github.com/bwmarrin/discordgo"
@@ -48,7 +51,7 @@ func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -56,14 +59,14 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	session := context.Session
 	event := context.Event
 
-	if err := core.RespondDeferredEphemeral(session, event); err != nil {
+	if err := bot.RespondDeferredEphemeral(session, event); err != nil {
 		log.Println("[ERROR] Failed to defer help interaction:", err)
 		return err
 	}
 
 	data := event.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return core.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No subcommand provided. Use `category`, `group`, or `flat`.",
 		})
 	}
@@ -81,16 +84,16 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       version.AppName + " Help",
 		Description: output,
-		Color:       core.EmbedColor,
+		Color:       bot.EmbedColor,
 	}
 
-	return core.FollowupEmbedEphemeral(session, event, embed)
+	return bot.FollowupEmbedEphemeral(session, event, embed)
 }
 
 func buildHelpByCategory() string {
-	all := core.AllCommands()
+	all := registry.AllCommands()
 
-	categoryMap := make(map[string][]core.Command)
+	categoryMap := make(map[string][]registry.Command)
 	categorySort := make(map[string]int)
 
 	for _, cmd := range all {
@@ -128,9 +131,9 @@ func buildHelpByCategory() string {
 }
 
 func buildHelpByGroup() string {
-	all := core.AllCommands()
+	all := registry.AllCommands()
 
-	groupMap := make(map[string][]core.Command)
+	groupMap := make(map[string][]registry.Command)
 	for _, cmd := range all {
 		group := cmd.Group()
 		groupMap[group] = append(groupMap[group], cmd)
@@ -157,7 +160,7 @@ func buildHelpByGroup() string {
 }
 
 func buildHelpFlat() string {
-	all := core.AllCommands()
+	all := registry.AllCommands()
 	sort.Slice(all, func(i, j int) bool { return all[i].Name() < all[j].Name() })
 
 	var sb strings.Builder
@@ -168,13 +171,13 @@ func buildHelpFlat() string {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&HelpUnifiedCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

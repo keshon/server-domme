@@ -7,9 +7,11 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strings"
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
 
-	"server-domme/internal/core"
+	"server-domme/internal/registry"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -36,7 +38,7 @@ func (c *AnnounceContextCommand) ContextDefinition() *discordgo.ApplicationComma
 }
 
 func (c *AnnounceContextCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.MessageApplicationCommandContext)
+	context, ok := ctx.(*registry.MessageApplicationCommandContext)
 	if !ok {
 		return nil
 	}
@@ -49,7 +51,7 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	channelID := e.ChannelID
 
 	// Deferred ephemeral reply
-	if err := core.RespondDeferredEphemeral(s, e); err != nil {
+	if err := bot.RespondDeferredEphemeral(s, e); err != nil {
 		log.Println("Failed to send deferred response:", err)
 		return nil
 	}
@@ -58,24 +60,24 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	targetID := e.ApplicationCommandData().TargetID
 	msg, err := s.ChannelMessage(channelID, targetID)
 	if err != nil {
-		core.EditResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
+		bot.EditResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return nil
 	}
 
 	// Validation
 	if msg.Author == nil {
-		core.EditResponse(s, e, "I won't announce ghost messages.")
+		bot.EditResponse(s, e, "I won't announce ghost messages.")
 		return nil
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		core.EditResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
+		bot.EditResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
 		return nil
 	}
 
 	// Fetch announcement channel
 	announceChannelID, err := storage.GetAnnounceChannel(guildID)
 	if err != nil || announceChannelID == "" {
-		core.EditResponse(s, e, "No announcement channel configured. Bother the admin.")
+		bot.EditResponse(s, e, "No announcement channel configured. Bother the admin.")
 		return nil
 	}
 
@@ -109,11 +111,11 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	}
 
 	if _, err := s.ChannelMessageSendComplex(announceChannelID, message); err != nil {
-		core.EditResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
+		bot.EditResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return nil
 	}
 
-	core.EditResponse(s, e, "Announced. Everyone’s watching now.")
+	bot.EditResponse(s, e, "Announced. Everyone’s watching now.")
 	return nil
 }
 
@@ -147,13 +149,13 @@ func restoreMentions(s *discordgo.Session, guildID, content string) string {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&AnnounceContextCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

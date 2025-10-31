@@ -3,7 +3,10 @@ package core
 import (
 	"os"
 	"path/filepath"
-	"server-domme/internal/core"
+
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 	"server-domme/internal/version"
 	"strings"
 	"time"
@@ -29,7 +32,7 @@ func (c *AboutCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AboutCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -73,7 +76,7 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       "ℹ️ About " + version.AppName,
 		Description: version.AppDescription,
-		Color:       core.EmbedColor,
+		Color:       bot.EmbedColor,
 		Fields:      fields,
 	}
 
@@ -83,23 +86,23 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 		defer f.Close()
 		imageName := filepath.Base(imagePath)
 		embed.Image = &discordgo.MessageEmbedImage{URL: "attachment://" + imageName}
-		return core.RespondEmbedEphemeralWithFile(session, event, embed, f, imageName)
+		return bot.RespondEmbedEphemeralWithFile(session, event, embed, f, imageName)
 	}
 
 	// Just embed if no banner
-	core.RespondEmbedEphemeral(session, event, embed)
+	bot.RespondEmbedEphemeral(session, event, embed)
 
 	return nil
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&AboutCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

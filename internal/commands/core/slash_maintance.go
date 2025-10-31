@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"server-domme/internal/core"
+
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -45,7 +48,7 @@ func (c *MaintenanceCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *MaintenanceCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -57,7 +60,7 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	options := e.ApplicationCommandData().Options
 
 	if len(options) == 0 {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -66,17 +69,17 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	switch sub.Name {
 	case "ping":
 		latency := s.HeartbeatLatency().Milliseconds()
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "Pong! 🏓",
 			Description: fmt.Sprintf("Latency: %dms", latency),
-			Color:       core.EmbedColor,
+			Color:       bot.EmbedColor,
 		})
 	case "download-db":
 		return runGetDB(s, e, *storage)
 	case "status":
 		return runStatus(s, e, *storage)
 	default:
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
@@ -86,28 +89,28 @@ func runGetDB(s *discordgo.Session, e *discordgo.InteractionCreate, storage stor
 	guildID := e.GuildID
 	record, err := storage.GetGuildRecord(guildID)
 	if err != nil {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch record: ```%v```", err),
-			Color:       core.EmbedColor,
+			Color:       bot.EmbedColor,
 		})
 	}
 
 	jsonBytes, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("JSON encode failed: ```%v```", err),
-			Color:       core.EmbedColor,
+			Color:       bot.EmbedColor,
 		})
 	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "🧠 Database Dump",
 		Description: "Here’s your current in-memory datastore snapshot.",
-		Color:       core.EmbedColor,
+		Color:       bot.EmbedColor,
 	}
 
 	fileName := fmt.Sprintf("%s_database_dump.json", guildID)
-	return core.RespondEmbedEphemeralWithFile(s, e, embed, bytes.NewReader(jsonBytes), fileName)
+	return bot.RespondEmbedEphemeralWithFile(s, e, embed, bytes.NewReader(jsonBytes), fileName)
 }
 
 func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
@@ -115,9 +118,9 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	if err != nil || guild == nil {
 		guild, err = s.Guild(e.GuildID)
 		if err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to fetch guild: %v", err),
-				Color:       core.EmbedColor,
+				Color:       bot.EmbedColor,
 			})
 		}
 	}
@@ -142,21 +145,21 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 		channelCount,
 	)
 
-	return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Title:       "📊 Guild Status",
 		Description: desc,
-		Color:       core.EmbedColor,
+		Color:       bot.EmbedColor,
 	})
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&MaintenanceCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

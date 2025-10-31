@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
-	"server-domme/internal/core"
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"strconv"
 	"strings"
 
@@ -51,7 +54,7 @@ func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *RollCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -70,7 +73,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
-		return core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Can't parse your formula. Try something like `2d6+1d4*2-3`",
 		})
 	}
@@ -86,7 +89,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to evaluate `%s`: %v", token, err),
 			})
 			return nil
@@ -105,7 +108,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "Can't multiply or divide by nothing.",
 				})
 				return nil
@@ -119,7 +122,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+					bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 						Description: "Can't divide by zero.",
 					})
 					return nil
@@ -153,7 +156,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		case "-":
 			total -= t.value
 		default:
-			core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Unknown operator: %s", t.op),
 			})
 			return nil
@@ -165,10 +168,10 @@ func (c *RollCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       "🎲 Dice Roll",
 		Description: fmt.Sprintf("**User Input**:\t`%s`\n**Calculation**:\t%s\n**Result**:\t**%d**", formula, pretty, total),
-		Color:       core.EmbedColor,
+		Color:       bot.EmbedColor,
 	}
 
-	core.RespondEmbed(session, event, embed)
+	bot.RespondEmbed(session, event, embed)
 
 	return nil
 }
@@ -215,13 +218,13 @@ func evaluateToken(token string) (int, string, error) {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&RollCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

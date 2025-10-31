@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"server-domme/internal/bot"
 	"server-domme/internal/config"
-	"server-domme/internal/core"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"strings"
 	"unicode/utf8"
 
@@ -58,7 +61,7 @@ func (c *ManageChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *ManageChatCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -67,14 +70,14 @@ func (c *ManageChatCommand) Run(ctx interface{}) error {
 	e := context.Event
 	guildID := e.GuildID
 
-	if err := core.RespondDeferredEphemeral(s, e); err != nil {
+	if err := bot.RespondDeferredEphemeral(s, e); err != nil {
 		log.Printf("[ERROR] Failed to defer interaction: %v", err)
 		return err
 	}
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -88,7 +91,7 @@ func (c *ManageChatCommand) Run(ctx interface{}) error {
 	case "reset-prompt":
 		return c.runResetPrompt(s, e, guildID)
 	default:
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
@@ -113,7 +116,7 @@ func validateMDFile(attachment *discordgo.MessageAttachment, body []byte) error 
 
 func (c *ManageChatCommand) runSetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption, topLevelData *discordgo.ApplicationCommandInteractionData) error {
 	if len(sub.Options) == 0 {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No file uploaded.",
 		})
 	}
@@ -121,21 +124,21 @@ func (c *ManageChatCommand) runSetPrompt(s *discordgo.Session, e *discordgo.Inte
 	attachmentOption := sub.Options[0]
 	attachmentID, ok := attachmentOption.Value.(string)
 	if !ok {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to retrieve attachment ID.",
 		})
 	}
 
 	attachment, exists := topLevelData.Resolved.Attachments[attachmentID]
 	if !exists {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to get the uploaded file.",
 		})
 	}
 
 	resp, err := http.Get(attachment.URL)
 	if err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to download the file.",
 		})
 	}
@@ -143,31 +146,31 @@ func (c *ManageChatCommand) runSetPrompt(s *discordgo.Session, e *discordgo.Inte
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || len(body) == 0 {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to read the uploaded file or file is empty.",
 		})
 	}
 
 	if err := validateMDFile(attachment, body); err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Invalid file: %v", err),
 		})
 	}
 
 	if err := os.MkdirAll("data", 0755); err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to create data directory.",
 		})
 	}
 
 	path := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", guildID))
 	if err := os.WriteFile(path, body, 0644); err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to save the uploaded prompt file.",
 		})
 	}
 
-	return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("Successfully uploaded a new system prompt.\nSaved as `%s`", filepath.Base(path)),
 	})
 }
@@ -175,18 +178,18 @@ func (c *ManageChatCommand) runSetPrompt(s *discordgo.Session, e *discordgo.Inte
 func (c *ManageChatCommand) runResetPrompt(s *discordgo.Session, e *discordgo.InteractionCreate, guildID string) error {
 	path := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", guildID))
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No custom prompt file found — already using the default.",
 		})
 	}
 
 	if err := os.Remove(path); err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to remove custom prompt: `%v`", err),
 		})
 	}
 
-	return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Custom system prompt removed. Now using the default prompt.",
 	})
 }
@@ -205,14 +208,14 @@ func (c *ManageChatCommand) runGetPrompt(s *discordgo.Session, e *discordgo.Inte
 	} else if _, err := os.Stat(globalPath); err == nil {
 		chosenPath = globalPath
 	} else {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No system prompt file found (neither guild-specific nor global).",
 		})
 	}
 
 	file, err := os.Open(chosenPath)
 	if err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to open system prompt file.",
 		})
 	}
@@ -228,7 +231,7 @@ func (c *ManageChatCommand) runGetPrompt(s *discordgo.Session, e *discordgo.Inte
 		},
 	})
 	if err != nil {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Failed to send the system prompt file.",
 		})
 	}
@@ -236,13 +239,13 @@ func (c *ManageChatCommand) runGetPrompt(s *discordgo.Session, e *discordgo.Inte
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&ManageChatCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

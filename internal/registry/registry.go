@@ -1,4 +1,4 @@
-package core
+package registry
 
 var registry = map[string]Command{}
 

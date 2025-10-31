@@ -1,6 +1,8 @@
-package core
+package middleware
 
 import (
+	"server-domme/internal/bot"
+	"server-domme/internal/registry"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -8,7 +10,7 @@ import (
 
 // WithGroupAccessCheck wraps a command to enforce group access
 func WithGroupAccessCheck() Middleware {
-	return func(cmd Command) Command {
+	return func(cmd registry.Command) registry.Command {
 		return &wrappedCommand{
 			Command: cmd,
 			wrap: func(ctx interface{}) error {
@@ -21,35 +23,41 @@ func WithGroupAccessCheck() Middleware {
 				switch v := ctx.(type) {
 
 				// Slash Command
-				case *SlashInteractionContext:
+				case *registry.SlashInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(msg string) { RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg}) }
+					respond = func(msg string) {
+						bot.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
 
 				// Component Interaction (button, menu, etc.)
-				case *ComponentInteractionContext:
+				case *registry.ComponentInteractionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(msg string) { RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg}) }
+					respond = func(msg string) {
+						bot.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
 
 					if disabledGroup(cmd, guildID, storage, respond) {
 						return nil
 					}
-					if ch, ok := cmd.(ComponentInteractionHandler); ok {
+					if ch, ok := cmd.(registry.ComponentInteractionHandler); ok {
 						return ch.Component(v)
 					}
 					return nil
 
 				// Message Context Menu Command
-				case *MessageApplicationCommandContext:
+				case *registry.MessageApplicationCommandContext:
 					guildID, storage = v.Event.GuildID, v.Storage
-					respond = func(msg string) { RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg}) }
+					respond = func(msg string) {
+						bot.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
 
 				// Regular message command
-				case *MessageContext:
+				case *registry.MessageContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(_ string) {}
 
 				// Reaction command
-				case *MessageReactionContext:
+				case *registry.MessageReactionContext:
 					guildID, storage = v.Event.GuildID, v.Storage
 					respond = func(_ string) {}
 
@@ -66,7 +74,7 @@ func WithGroupAccessCheck() Middleware {
 	}
 }
 
-func disabledGroup(cmd Command, guildID string, storage *storage.Storage, respond func(string)) bool {
+func disabledGroup(cmd registry.Command, guildID string, storage *storage.Storage, respond func(string)) bool {
 	if cmd.Group() == "" {
 		return false
 	}

@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"server-domme/internal/core"
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -81,7 +84,7 @@ func (c *ManageTaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *ManageTaskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -92,7 +95,7 @@ func (c *ManageTaskCommand) Run(ctx interface{}) error {
 	data := e.ApplicationCommandData()
 
 	if len(data.Options) == 0 {
-		return core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -117,13 +120,13 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		}
 
 		if roleID == "" {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Missing required options.",
 			})
 		}
 
 		if err := storage.SetTaskRole(e.GuildID, roleID); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set Tasker role: %v", err),
 			})
 		}
@@ -133,7 +136,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 			roleName = rName
 		}
 
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Tasker role set to **%s**.", roleName),
 		})
 		return nil
@@ -141,7 +144,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 	case "list-role":
 		roleID, err := storage.GetTaskRole(e.GuildID)
 		if err != nil || roleID == "" {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No Tasker role set.",
 			})
 		}
@@ -151,19 +154,19 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 			roleName = rName
 		}
 
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Tasker role set to **%s**.", roleName),
 		})
 		return nil
 
 	case "reset-role":
 		if err := storage.SetTaskRole(e.GuildID, ""); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to reset Tasker role: %v", err),
 			})
 		}
 
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Tasker role reset.",
 		})
 		return nil
@@ -171,18 +174,18 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 	case "download-tasks":
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No tasks file found for this server.",
 			})
 		}
 
-		if err := core.RespondDeferredEphemeral(s, e); err != nil {
+		if err := bot.RespondDeferredEphemeral(s, e); err != nil {
 			return fmt.Errorf("failed to defer interaction: %w", err)
 		}
 
 		file, err := os.Open(path)
 		if err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to open tasks file: %v", err),
 			})
 		}
@@ -198,7 +201,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 			},
 		})
 		if err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to send tasks file: %v", err),
 			})
 		}
@@ -206,7 +209,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 
 	case "upload-tasks":
 		if len(sub.Options) == 0 {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No file uploaded.",
 			})
 		}
@@ -214,21 +217,21 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		attachmentOption := sub.Options[0]
 		attachmentID, ok := attachmentOption.Value.(string)
 		if !ok {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to retrieve attachment ID.",
 			})
 		}
 
 		attachment, exists := e.ApplicationCommandData().Resolved.Attachments[attachmentID]
 		if !exists {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to get the uploaded file.",
 			})
 		}
 
 		resp, err := http.Get(attachment.URL)
 		if err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to download the uploaded file.",
 			})
 		}
@@ -236,55 +239,55 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil || len(body) == 0 {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to read the uploaded file or file is empty.",
 			})
 		}
 
 		var tasks []map[string]interface{}
 		if err := json.Unmarshal(body, &tasks); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Invalid JSON file.",
 			})
 		}
 
 		if err := os.MkdirAll("data", 0755); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to create data directory: %v", err),
 			})
 		}
 
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if err := os.WriteFile(path, body, 0644); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to write tasks file: %v", err),
 			})
 		}
 
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Tasks have been uploaded.\nSaved as `%s`", filepath.Base(path)),
 		})
 
 	case "reset-tasks":
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No tasks file found for this server.",
 			})
 		}
 
 		if err := os.Remove(path); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to remove tasks file: %v", err),
 			})
 		}
 
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Tasks have been reset. Use `/manage-task upload-tasks` to upload new tasks.",
 		})
 
 	default:
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Invalid subcommand.",
 		})
 	}
@@ -307,13 +310,13 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&ManageTaskCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

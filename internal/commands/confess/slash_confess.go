@@ -2,7 +2,10 @@ package confess
 
 import (
 	"fmt"
-	"server-domme/internal/core"
+
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 	"server-domme/internal/storage"
 	"strings"
 
@@ -35,7 +38,7 @@ func (c *ConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *ConfessCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -52,7 +55,7 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 	}
 
 	if message == "" {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No confession provided.",
 		})
 	}
@@ -70,13 +73,13 @@ func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.In
 	embed := &discordgo.MessageEmbed{
 		Title:       "📢 Anonymous Confession",
 		Description: fmt.Sprintf("> %s", message),
-		Color:       core.EmbedColor,
+		Color:       bot.EmbedColor,
 	}
 
 	// Post the confession message to the target channel (not ephemeral)
 	_, err = s.ChannelMessageSendEmbed(confessChannelID, embed)
 	if err != nil {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to send confession: %v", err),
 		})
 	}
@@ -84,11 +87,11 @@ func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.In
 	// Notify the user privately (ephemeral)
 	if confessChannelID != e.ChannelID {
 		link := fmt.Sprintf("https://discord.com/channels/%s/%s", e.GuildID, confessChannelID)
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Delivered. Nobody saw a thing.\nSee it here: %s", link),
 		})
 	} else {
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Delivered. Nobody saw a thing.",
 		})
 	}
@@ -97,13 +100,13 @@ func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.In
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&ConfessCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

@@ -2,21 +2,24 @@ package discord
 
 import (
 	"fmt"
+	"server-domme/internal/bot"
 	"server-domme/internal/commands/music"
-	"server-domme/internal/core"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
 )
 
 // registerMusicCommands registers the music commands
 func (b *Bot) registerMusicCommands() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&music.MusicCommand{Bot: b},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }
@@ -41,7 +44,7 @@ func (b *Bot) GetOrCreatePlayer(guildID string) *player.Player {
 }
 
 // FindUserVoiceState finds the voice state of a user
-func (b *Bot) FindUserVoiceState(guildID, userID string) (*core.VoiceState, error) {
+func (b *Bot) FindUserVoiceState(guildID, userID string) (*bot.VoiceState, error) {
 	guild, err := b.dg.State.Guild(guildID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving guild: %w", err)
@@ -49,7 +52,7 @@ func (b *Bot) FindUserVoiceState(guildID, userID string) (*core.VoiceState, erro
 
 	for _, vs := range guild.VoiceStates {
 		if vs.UserID == userID {
-			return &core.VoiceState{
+			return &bot.VoiceState{
 				ChannelID: vs.ChannelID,
 				UserID:    vs.UserID,
 			}, nil

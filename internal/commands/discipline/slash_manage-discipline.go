@@ -2,7 +2,10 @@ package discipline
 
 import (
 	"fmt"
-	"server-domme/internal/core"
+
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 	"server-domme/internal/storage"
 	"strings"
 
@@ -63,7 +66,7 @@ func (c *ManageDisciplineCommand) SlashDefinition() *discordgo.ApplicationComman
 }
 
 func (c *ManageDisciplineCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -74,7 +77,7 @@ func (c *ManageDisciplineCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -98,13 +101,13 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 		}
 
 		if roleType == "" || roleID == "" {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Missing required options.",
 			})
 		}
 
 		if err := storage.SetPunishRole(e.GuildID, roleType, roleID); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set %s role: %v", roleType, err),
 			})
 		}
@@ -114,7 +117,7 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 			roleName = rName
 		}
 
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Set %s role to **%s**.", roleType, roleName),
 		})
 		return nil
@@ -134,47 +137,47 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 				lines = append(lines, fmt.Sprintf("**%s** role not set", t))
 			}
 		}
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: strings.Join(lines, "\n") + "\n\nUse `/manage-discipline set-roles` to set or update roles.\n\n Punish is the role that can punish and release people.\nVictim is the role that can be punished.\nAssigned is the punishment role (that is assigned by the punisher).",
 		})
 		return nil
 
 	case "reset-roles":
 		if err := storage.SetPunishRole(e.GuildID, "punisher", ""); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting punisher role: %v", err),
 			})
 		}
 		if err := storage.SetPunishRole(e.GuildID, "victim", ""); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting victim role: %v", err),
 			})
 		}
 		if err := storage.SetPunishRole(e.GuildID, "assigned", ""); err != nil {
-			return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting assigned role: %v", err),
 			})
 		}
 
-		core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "All roles have been reset.",
 		})
 		return nil
 	}
 
-	return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Unknown subcommand.",
 	})
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&ManageDisciplineCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

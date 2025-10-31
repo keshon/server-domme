@@ -2,7 +2,10 @@ package announce
 
 import (
 	"fmt"
-	"server-domme/internal/core"
+
+	"server-domme/internal/bot"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -34,7 +37,7 @@ func (c *AnnounceCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AnnounceCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -45,7 +48,7 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return core.RespondEphemeral(s, e, "Please provide a message ID to announce.")
+		return bot.RespondEphemeral(s, e, "Please provide a message ID to announce.")
 	}
 
 	messageID := data.Options[0].StringValue()
@@ -55,38 +58,38 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 func (c *AnnounceCommand) runPublishMessage(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, messageID string) error {
 	announceChannelID, _ := st.GetAnnounceChannel(e.GuildID)
 	if announceChannelID == "" {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Announcement channel is not set. Use `/manage-announce set-channel` first.",
 		})
 	}
 
 	msg, err := s.ChannelMessage(e.ChannelID, messageID)
 	if err != nil {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch message: %v", err),
 		})
 	}
 
 	_, err = s.ChannelMessageSend(announceChannelID, msg.Content)
 	if err != nil {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to publish message: %v", err),
 		})
 	}
 
-	return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("Message successfully published to <#%s>.", announceChannelID),
 	})
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&AnnounceCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }

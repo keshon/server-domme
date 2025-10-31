@@ -2,15 +2,17 @@ package music
 
 import (
 	"fmt"
-	"server-domme/internal/core"
+
+	"server-domme/internal/bot"
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
+	"server-domme/internal/registry"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 type MusicCommand struct {
-	Bot core.BotVoice
+	Bot bot.BotVoice
 }
 
 func (c *MusicCommand) Name() string             { return "music" }
@@ -74,7 +76,7 @@ func (c *MusicCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *MusicCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -83,7 +85,7 @@ func (c *MusicCommand) Run(ctx interface{}) error {
 	e := context.Event
 
 	if len(e.ApplicationCommandData().Options) == 0 {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Missing subcommand.",
 		})
 	}
@@ -112,7 +114,7 @@ func (c *MusicCommand) Run(ctx interface{}) error {
 		return c.runStop(s, e)
 
 	default:
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
@@ -120,7 +122,7 @@ func (c *MusicCommand) Run(ctx interface{}) error {
 
 func (c *MusicCommand) runPlay(s *discordgo.Session, e *discordgo.InteractionCreate, input, src, parser string) error {
 	if input == "" {
-		return core.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Error",
 			Description: "Input is required.",
 		})
@@ -137,7 +139,7 @@ func (c *MusicCommand) runPlay(s *discordgo.Session, e *discordgo.InteractionCre
 
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
-		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Voice Error",
 			Description: fmt.Sprintf("%v", err),
 		})
@@ -147,7 +149,7 @@ func (c *MusicCommand) runPlay(s *discordgo.Session, e *discordgo.InteractionCre
 	resolver := source_resolver.New()
 	tracks, err := resolver.Resolve(input, src, parser)
 	if err != nil || len(tracks) == 0 {
-		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Error",
 			Description: fmt.Sprintf("Failed to resolve track: %v", err),
 		})
@@ -157,7 +159,7 @@ func (c *MusicCommand) runPlay(s *discordgo.Session, e *discordgo.InteractionCre
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	err = player.Enqueue(tracks[0].URL, src, parser)
 	if err != nil {
-		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Queue Error",
 			Description: fmt.Sprintf("%v", err),
 		})
@@ -184,7 +186,7 @@ func (c *MusicCommand) runNext(s *discordgo.Session, e *discordgo.InteractionCre
 
 	voiceState, err := c.Bot.FindUserVoiceState(guildID, member.User.ID)
 	if err != nil {
-		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Voice Channel Error",
 			Description: fmt.Sprintf("Join a voice channel first.\n\n**Error:** %v", err),
 		})
@@ -194,7 +196,7 @@ func (c *MusicCommand) runNext(s *discordgo.Session, e *discordgo.InteractionCre
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	queue := player.Queue()
 	if len(queue) == 0 {
-		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Queue Empty",
 			Description: "No tracks left to skip.",
 		})
@@ -203,7 +205,7 @@ func (c *MusicCommand) runNext(s *discordgo.Session, e *discordgo.InteractionCre
 
 	player.Stop(false)
 	if err = player.PlayNext(voiceState.ChannelID); err != nil {
-		core.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Playback Error",
 			Description: fmt.Sprintf("Failed to play next track.\n\n**Error:** %v", err),
 		})
@@ -226,7 +228,7 @@ func (c *MusicCommand) runStop(s *discordgo.Session, e *discordgo.InteractionCre
 	player := c.Bot.GetOrCreatePlayer(guildID)
 	go func() { player.Stop(true) }()
 
-	core.FollowupEmbed(s, e, &discordgo.MessageEmbed{
+	bot.FollowupEmbed(s, e, &discordgo.MessageEmbed{
 		Description: "⏹️ Playback stopped. Queue cleared.",
 	})
 	return nil
@@ -239,7 +241,7 @@ func listenPlayerStatusSlash(session *discordgo.Session, event *discordgo.Intera
 			case player.StatusPlaying:
 				track := p.CurrentTrack()
 				if track == nil {
-					core.FollowupEmbed(session, event, &discordgo.MessageEmbed{
+					bot.FollowupEmbed(session, event, &discordgo.MessageEmbed{
 						Title:       "⚠️ Error",
 						Description: "Failed to get current track",
 					})
@@ -257,18 +259,18 @@ func listenPlayerStatusSlash(session *discordgo.Session, event *discordgo.Intera
 					desc = "🎶 Unknown track"
 				}
 
-				core.FollowupEmbed(session, event, &discordgo.MessageEmbed{
+				bot.FollowupEmbed(session, event, &discordgo.MessageEmbed{
 					Title:       player.StatusPlaying.StringEmoji() + " Now Playing",
 					Description: desc,
-					Color:       core.EmbedColor,
+					Color:       bot.EmbedColor,
 				})
 				return
 
 			case player.StatusAdded:
-				core.FollowupEmbed(session, event, &discordgo.MessageEmbed{
+				bot.FollowupEmbed(session, event, &discordgo.MessageEmbed{
 					Title:       player.StatusAdded.StringEmoji() + " Track(s) Added",
 					Description: "Added to queue",
-					Color:       core.EmbedColor,
+					Color:       bot.EmbedColor,
 				})
 				return
 

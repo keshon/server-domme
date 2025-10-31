@@ -8,8 +8,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"server-domme/internal/bot"
 	"server-domme/internal/config"
-	"server-domme/internal/core"
+	"server-domme/internal/middleware"
+	"server-domme/internal/registry"
+
 	"server-domme/internal/storage"
 	"slices"
 	"sync"
@@ -53,14 +56,14 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *TaskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*core.SlashInteractionContext)
+	context, ok := ctx.(*registry.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
 	return c.runSelfAssign(context)
 }
 
-func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error {
+func (c *TaskCommand) runSelfAssign(context *registry.SlashInteractionContext) error {
 
 	session := context.Session
 	event := context.Event
@@ -71,14 +74,14 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 	userID := member.User.ID
 
 	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(cooldownUntil.Sub(time.Now()))),
 		})
 		return nil
 	}
 
 	if slices.Contains(config.New().ProtectedUsers, userID) {
-		core.RespondEmbed(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbed(session, event, &discordgo.MessageEmbed{
 			Description: "You're above this. No tasks for you.",
 		})
 		return nil
@@ -93,7 +96,7 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 
 	existing, _ := storage.GetTask(guildID, userID)
 	if existing != nil && existing.Status == "pending" {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You already have a task pending.",
 		})
 		return nil
@@ -101,7 +104,7 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 
 	taskerRoles, _ := storage.GetTaskRole(guildID)
 	if len(taskerRoles) == 0 {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No tasker roles set. Ask an Admin to set them.",
 		})
 		return nil
@@ -110,7 +113,7 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Failed to load tasks.\nAsk an Admin to set them.",
 		})
 		log.Println("loadTasksForGuild:", err)
@@ -119,7 +122,7 @@ func (c *TaskCommand) runSelfAssign(context *core.SlashInteractionContext) error
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No task suits your... profile.\nAsk an Admin to upload tasks for your gender role and try again.",
 		})
 		return nil
@@ -194,7 +197,7 @@ func (c *TaskCommand) assignTask(session *discordgo.Session, event *discordgo.In
 
 }
 
-func (c *TaskCommand) Component(ctx *core.ComponentInteractionContext) error {
+func (c *TaskCommand) Component(ctx *registry.ComponentInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	guildID := event.GuildID
@@ -202,14 +205,14 @@ func (c *TaskCommand) Component(ctx *core.ComponentInteractionContext) error {
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No active task found. Trying to cheat, hmm?",
 		})
 		return nil
 	}
 
 	if task.UserID != userID {
-		core.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "That task doesn’t belong to you. Greedy little fingers, aren't you?",
 		})
 		return nil
@@ -244,7 +247,7 @@ func (c *TaskCommand) Component(ctx *core.ComponentInteractionContext) error {
 	return nil
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *core.ComponentInteractionContext, event *discordgo.InteractionCreate, task *st.Task) {
+func (c *TaskCommand) handleTaskCompletion(ctx *registry.ComponentInteractionContext, event *discordgo.InteractionCreate, task *st.Task) {
 	session := ctx.Session
 	userID, guildID := event.Member.User.ID, event.GuildID
 	customID := event.MessageComponentData().CustomID
@@ -405,13 +408,13 @@ func randomLine(list []string) string {
 }
 
 func init() {
-	core.RegisterCommand(
-		core.ApplyMiddlewares(
+	registry.RegisterCommand(
+		middleware.ApplyMiddlewares(
 			&TaskCommand{},
-			core.WithGroupAccessCheck(),
-			core.WithGuildOnly(),
-			core.WithUserPermissionCheck(),
-			core.WithCommandLogger(),
+			middleware.WithGroupAccessCheck(),
+			middleware.WithGuildOnly(),
+			middleware.WithUserPermissionCheck(),
+			middleware.WithCommandLogger(),
 		),
 	)
 }
