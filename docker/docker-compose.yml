@@ -14,4 +14,5 @@ services:
       - INIT_SLASH_COMMANDS=${INIT_SLASH_COMMANDS}
       - AI_PROVIDER=${AI_PROVIDER}
       - AI_PROMPT_PATH=${AI_PROMPT_PATH}
+      - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
     entrypoint: /usr/project/app

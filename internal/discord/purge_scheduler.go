@@ -12,8 +12,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// startScheduledPurgeJobs starts scheduled purge jobs
-func startScheduledPurgeJobs(storage *storage.Storage, session *discordgo.Session) {
+// purgeScheduler starts scheduled purge jobs
+func purgeScheduler(storage *storage.Storage, session *discordgo.Session) {
+	log.Printf("[INFO] Starting purge scheduler...")
 	records := storage.GetRecordsList()
 
 	for _, data := range records {

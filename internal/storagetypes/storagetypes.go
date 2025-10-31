@@ -14,14 +14,6 @@ type CommandHistory struct {
 	Datetime    time.Time `json:"datetime"`
 }
 
-type Task struct {
-	UserID     string    `json:"user_id"`
-	MessageID  string    `json:"task_message_id"`
-	AssignedAt time.Time `json:"assigned_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
-}
-
 type PurgeJob struct {
 	ChannelID  string    `json:"channel_id"`
 	GuildID    string    `json:"guild_id"`
@@ -30,6 +22,21 @@ type PurgeJob struct {
 	OlderThan  string    `json:"older_than"`  // relevant only for "recurring"
 	StartedAt  time.Time `json:"started_at"`
 	Silent     bool      `json:"silent"`
+}
+
+type ShortLink struct {
+	ShortID  string    `json:"short_id"`
+	Original string    `json:"original"`
+	UserID   string    `json:"user_id"`
+	Created  time.Time `json:"created"`
+}
+
+type Task struct {
+	UserID     string    `json:"user_id"`
+	MessageID  string    `json:"task_message_id"`
+	AssignedAt time.Time `json:"assigned_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
 }
 
 type Record struct {
@@ -41,6 +48,7 @@ type Record struct {
 	MediaCategories   []string             `json:"media_categories"`
 	MediaDefault      string               `json:"media_default"`
 	PurgeJobs         map[string]PurgeJob  `json:"purge_jobs"` // key = channelID
+	ShortLinks        []ShortLink          `json:"short_links"`
 	TaskCooldowns     map[string]time.Time `json:"task_cooldowns"`
 	TaskList          map[string]Task      `json:"task_list"`
 	TaskRole          string               `json:"task_role"`

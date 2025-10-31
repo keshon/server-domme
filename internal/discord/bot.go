@@ -146,8 +146,9 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		}
 	}
 
-	log.Println("[INFO] Starting scheduled purge jobs...")
-	startScheduledPurgeJobs(b.storage, s)
+	log.Println("[INFO] Starting commands services...")
+	purgeScheduler(b.storage, s)
+	go shortenServer(b.storage)
 
 	if err := updateReadme(); err != nil {
 		log.Println("[ERR] Failed to update README:", err)

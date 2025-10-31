@@ -32,6 +32,7 @@ It’s designed to be practical for server management while providing light, int
 
 - **Announce (context command)** — Send a message on bot's behalf
 - **/announce** — Send a message on bot's behalf
+- **/shorten** — Shorten URLs and manage your links
 - **translate (reaction)** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
@@ -70,7 +71,7 @@ It’s designed to be practical for server management while providing light, int
 - **/manage-chat** — Chat settings
 - **/manage-confess** — Confession settings
 - **/manage-discipline** — Discipline settings
-- **/manage-media** — Manage media categories
+- **/manage-media** — Media settings
 - **/manage-task** — Task settings
 - **/manage-translate** — Translate settings
 

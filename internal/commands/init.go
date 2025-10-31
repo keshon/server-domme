@@ -11,6 +11,7 @@ import (
 	_ "server-domme/internal/commands/music"
 	_ "server-domme/internal/commands/purge"
 	_ "server-domme/internal/commands/roll"
+	_ "server-domme/internal/commands/shorten"
 	_ "server-domme/internal/commands/task"
 	_ "server-domme/internal/commands/translate"
 )

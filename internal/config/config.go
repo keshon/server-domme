@@ -18,6 +18,7 @@ type Config struct {
 	InitSlashCommands     bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
 	AIProvider            string   `env:"AI_PROVIDER"`
 	AIPromtPath           string   `env:"AI_PROMPT_PATH"`
+	ShortLinkBaseURL      string   `env:"SHORTLINK_BASE_URL"`
 }
 
 // New returns a new Config.
