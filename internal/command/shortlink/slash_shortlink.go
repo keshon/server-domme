@@ -132,7 +132,7 @@ func (c *ShortlinkCommand) runCreate(
 	if len(links) >= 50 {
 		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Color:       0xFF0000,
-			Description: "You have reached the maximum number of short links (50). Use `/shorten clear` to clear them or `/shorten delete` to delete some.",
+			Description: "You have reached the maximum number of short links (50). Use `/shortlink clear` to clear them or `/shortlink delete` to delete some.",
 		})
 	}
 
@@ -150,7 +150,7 @@ func (c *ShortlinkCommand) runCreate(
 		Color: bot.EmbedColor,
 		Title: "Short Link Created",
 		Description: fmt.Sprintf(
-			"**Original:** %s\n**Shortened:** %s\n\n💡 You can delete this later with `/shorten delete id:%s`",
+			"**Original:** %s\n**Shortened:** %s\n\n💡 You can delete this later with `/shortlink delete id:%s`",
 			raw, shortURL, shortID,
 		),
 	})
