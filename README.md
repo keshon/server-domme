@@ -32,7 +32,7 @@ It’s designed to be practical for server management while providing light, int
 
 - **Announce (context command)** — Send a message on bot's behalf
 - **/announce** — Send a message on bot's behalf
-- **/shorten** — Shorten URLs and manage your links
+- **/shortlink** — Shorten URLs and manage your links
 - **translate (reaction)** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
