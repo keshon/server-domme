@@ -19,7 +19,7 @@ import (
 	_ "server-domme/internal/command/music"
 	_ "server-domme/internal/command/purge"
 	_ "server-domme/internal/command/roll"
-	_ "server-domme/internal/command/shorten"
+	_ "server-domme/internal/command/shortlink"
 	_ "server-domme/internal/command/task"
 	_ "server-domme/internal/command/translate"
 
