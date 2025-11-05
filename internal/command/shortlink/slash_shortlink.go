@@ -120,7 +120,7 @@ func (c *ShortlinkCommand) runCreate(
 
 	if !isValidURL(raw) {
 		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       0xFF0000,
+			Color:       bot.EmbedColor,
 			Description: fmt.Sprintf("`%s` doesn’t look like a valid link.\nTry something like `https://example.com`.", raw),
 		})
 	}
@@ -131,7 +131,7 @@ func (c *ShortlinkCommand) runCreate(
 	links, _ := st.GetUserShortLinks(guildID, userID)
 	if len(links) >= 50 {
 		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       0xFF0000,
+			Color:       bot.EmbedColor,
 			Description: "You have reached the maximum number of short links (50). Use `/shortlink clear` to clear them or `/shortlink delete` to delete some.",
 		})
 	}
@@ -141,7 +141,7 @@ func (c *ShortlinkCommand) runCreate(
 
 	if err := st.AddShortLink(guildID, userID, raw, shortID); err != nil {
 		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       0xFF0000,
+			Color:       bot.EmbedColor,
 			Description: fmt.Sprintf("Failed to save short link: %v", err),
 		})
 	}
