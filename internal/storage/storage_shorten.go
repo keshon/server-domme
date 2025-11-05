@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"server-domme/internal/storagetypes"
 	st "server-domme/internal/storagetypes"
 )
 
@@ -17,6 +18,7 @@ func (s *Storage) AddShortLink(guildID, userID, original, shortID string) error 
 		ShortID:  shortID,
 		Original: original,
 		UserID:   userID,
+		Clicks:   0,
 		Created:  time.Now(),
 	}
 
@@ -83,4 +85,38 @@ func (s *Storage) DeleteShortLink(guildID, userID, shortID string) error {
 	record.ShortLinks = filtered
 	s.ds.Add(guildID, record)
 	return nil
+}
+
+// IncrementClicks increments the click count for a specific short link.
+func (s *Storage) IncrementClicks(guildID, shortID string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return fmt.Errorf("failed to load guild record: %w", err)
+	}
+
+	for i, link := range record.ShortLinks {
+		if link.ShortID == shortID {
+			record.ShortLinks[i].Clicks++
+			s.ds.Add(guildID, record)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("short link with ID '%s' not found", shortID)
+}
+
+// FindLinkByID searches all guild records for a link with the given shortID.
+// Returns (guildID, *ShortLink, error)
+func (s *Storage) FindLinkByID(shortID string) (string, *storagetypes.ShortLink, error) {
+	records := s.GetRecordsList()
+
+	for guildID, record := range records {
+		for _, link := range record.ShortLinks {
+			if link.ShortID == shortID {
+				return guildID, &link, nil
+			}
+		}
+	}
+
+	return "", nil, fmt.Errorf("short link with ID '%s' not found", shortID)
 }

@@ -10,25 +10,26 @@ import (
 // shortenServer starts a lightweight HTTP server that resolves short links to their original URLs.
 func shortenServer(storage *storage.Storage) {
 	log.Printf("[INFO] Starting shortlink redirect server...")
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Path[1:] // remove leading "/"
 		if id == "" {
-			w.WriteHeader(http.StatusNotFound)
+			http.NotFound(w, r)
 			return
 		}
 
-		records := storage.GetRecordsList()
-		for _, record := range records {
-			for _, link := range record.ShortLinks {
-				if link.ShortID == id {
-					http.Redirect(w, r, link.Original, http.StatusSeeOther)
-					log.Printf("Redirected short link %s → %s", id, link.Original)
-					return
-				}
-			}
+		guildID, link, err := storage.FindLinkByID(id)
+		if err != nil {
+			http.NotFound(w, r)
+			return
 		}
 
-		http.NotFound(w, r)
+		if err := storage.IncrementClicks(guildID, id); err != nil {
+			log.Printf("[WARN] Failed to increment clicks for %s: %v", id, err)
+		}
+
+		log.Printf("[INFO] Redirected short link %s → %s (guild=%s)", id, link.Original, guildID)
+		http.Redirect(w, r, link.Original, http.StatusSeeOther)
 	})
 
 	addr := ":8787"

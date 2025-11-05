@@ -29,6 +29,7 @@ type ShortLink struct {
 	Original string    `json:"original"`
 	UserID   string    `json:"user_id"`
 	Created  time.Time `json:"created"`
+	Clicks   int       `json:"clicks"`
 }
 
 type Task struct {

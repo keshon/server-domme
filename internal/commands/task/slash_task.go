@@ -75,7 +75,7 @@ func (c *TaskCommand) runSelfAssign(context *registry.SlashInteractionContext) e
 
 	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
 		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(cooldownUntil.Sub(time.Now()))),
+			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(time.Until(cooldownUntil))),
 		})
 		return nil
 	}
