@@ -1,17 +1,17 @@
 package middleware
 
-import "server-domme/internal/registry"
+import "server-domme/internal/command"
 
 // WithGuildOnly wraps a command to enforce guild-only access
-func WithGuildOnly() Middleware {
-	return func(cmd registry.Command) registry.Command {
-		return &wrappedCommand{
+func WithGuildOnly() command.Middleware {
+	return func(cmd command.Command) command.Command {
+		return &command.WrappedCommand{
 			Command: cmd,
-			wrap: func(ctx interface{}) error {
-				if v, ok := ctx.(*registry.SlashInteractionContext); ok && v.Event.GuildID == "" {
+			Wrap: func(ctx interface{}) error {
+				if v, ok := ctx.(*command.SlashInteractionContext); ok && v.Event.GuildID == "" {
 					return nil
 				}
-				if v, ok := ctx.(*registry.MessageContext); ok && v.Event.GuildID == "" {
+				if v, ok := ctx.(*command.MessageContext); ok && v.Event.GuildID == "" {
 					return nil
 				}
 				return cmd.Run(ctx)

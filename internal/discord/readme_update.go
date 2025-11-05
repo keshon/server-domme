@@ -6,11 +6,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"server-domme/internal/command"
+	"server-domme/internal/config"
 	"sort"
 	"text/template"
-
-	"server-domme/internal/config"
-	"server-domme/internal/registry"
 )
 
 // CommandDoc is a command documentation
@@ -28,7 +27,7 @@ type TemplateData struct {
 
 // updateReadme updates the README.md file
 func updateReadme() error {
-	commands := registry.AllCommands()
+	commands := command.AllCommands()
 
 	sort.Slice(commands, func(i, j int) bool {
 		wi := config.CategoryWeights[commands[i].Category()]

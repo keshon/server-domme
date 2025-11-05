@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"server-domme/internal/commands/purge"
+	"server-domme/internal/command/purge"
 	"server-domme/internal/storage"
 	st "server-domme/internal/storagetypes"
 	"time"

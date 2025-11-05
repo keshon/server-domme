@@ -3,23 +3,23 @@ package middleware
 import (
 	"log"
 	"server-domme/internal/bot"
-	"server-domme/internal/registry"
+	"server-domme/internal/command"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 // WithCommandLogger wraps a command to log its execution
-func WithCommandLogger() Middleware {
-	return func(cmd registry.Command) registry.Command {
-		return &wrappedCommand{
+func WithCommandLogger() command.Middleware {
+	return func(cmd command.Command) command.Command {
+		return &command.WrappedCommand{
 			Command: cmd,
-			wrap: func(ctx interface{}) error {
+			Wrap: func(ctx interface{}) error {
 				err := cmd.Run(ctx)
 
 				switch v := ctx.(type) {
 
 				// Slash Command
-				case *registry.SlashInteractionContext:
+				case *command.SlashInteractionContext:
 					s := v.Session
 					e := v.Event
 					guildID := e.GuildID
@@ -31,7 +31,7 @@ func WithCommandLogger() Middleware {
 					}
 
 				// Component Interaction
-				case *registry.ComponentInteractionContext:
+				case *command.ComponentInteractionContext:
 					s := v.Session
 					e := v.Event
 					guildID := e.GuildID
@@ -43,7 +43,7 @@ func WithCommandLogger() Middleware {
 					}
 
 				// Context Menu Command
-				case *registry.MessageApplicationCommandContext:
+				case *command.MessageApplicationCommandContext:
 					s := v.Session
 					e := v.Event
 					guildID := e.GuildID
@@ -55,11 +55,11 @@ func WithCommandLogger() Middleware {
 					}
 
 				// Skip message commands
-				case *registry.MessageContext:
+				case *command.MessageContext:
 					return err
 
 				// Reaction Command
-				case *registry.MessageReactionContext:
+				case *command.MessageReactionContext:
 					user := v.Event.UserID
 					guildID := v.Event.GuildID
 					channelID := v.Event.ChannelID

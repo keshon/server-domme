@@ -9,7 +9,20 @@ import (
 	"syscall"
 	"time"
 
-	_ "server-domme/internal/commands" // import all commands to register
+	_ "server-domme/internal/command/announce"
+	_ "server-domme/internal/command/ask"
+	_ "server-domme/internal/command/chat"
+	_ "server-domme/internal/command/confess"
+	_ "server-domme/internal/command/core"
+	_ "server-domme/internal/command/discipline"
+	_ "server-domme/internal/command/media"
+	_ "server-domme/internal/command/music"
+	_ "server-domme/internal/command/purge"
+	_ "server-domme/internal/command/roll"
+	_ "server-domme/internal/command/shorten"
+	_ "server-domme/internal/command/task"
+	_ "server-domme/internal/command/translate"
+
 	"server-domme/internal/config"
 	"server-domme/internal/discord"
 	"server-domme/internal/storage"

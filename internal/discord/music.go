@@ -3,9 +3,9 @@ package discord
 import (
 	"fmt"
 	"server-domme/internal/bot"
-	"server-domme/internal/commands/music"
+	"server-domme/internal/command"
+	"server-domme/internal/command/music"
 	"server-domme/internal/middleware"
-	"server-domme/internal/registry"
 
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
@@ -13,8 +13,8 @@ import (
 
 // registerMusicCommands registers the music commands
 func (b *Bot) registerMusicCommands() {
-	registry.RegisterCommand(
-		middleware.ApplyMiddlewares(
+	command.RegisterCommand(
+		command.ApplyMiddlewares(
 			&music.MusicCommand{Bot: b},
 			middleware.WithGroupAccessCheck(),
 			middleware.WithGuildOnly(),

@@ -3,8 +3,8 @@ package middleware
 import (
 	"fmt"
 	"server-domme/internal/bot"
+	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/registry"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -62,23 +62,23 @@ var PermissionNames = map[int64]string{
 	discordgo.PermissionModerateMembers:                  "Moderate Members",
 }
 
-func WithUserPermissionCheck() Middleware {
-	return func(cmd registry.Command) registry.Command {
-		return &wrappedCommand{
+func WithUserPermissionCheck() command.Middleware {
+	return func(cmd command.Command) command.Command {
+		return &command.WrappedCommand{
 			Command: cmd,
-			wrap: func(ctx interface{}) error {
+			Wrap: func(ctx interface{}) error {
 				var s *discordgo.Session
 				var m *discordgo.Member
 				var guildID, channelID string
 
 				switch v := ctx.(type) {
-				case *registry.SlashInteractionContext:
+				case *command.SlashInteractionContext:
 					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				case *registry.ComponentInteractionContext:
+				case *command.ComponentInteractionContext:
 					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				case *registry.MessageApplicationCommandContext:
+				case *command.MessageApplicationCommandContext:
 					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				case *registry.MessageContext:
+				case *command.MessageContext:
 					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
 				default:
 					return cmd.Run(ctx)
@@ -140,13 +140,13 @@ func WithUserPermissionCheck() Middleware {
 						strings.Join(allowed, "`, `"),
 					)
 					switch v := ctx.(type) {
-					case *registry.SlashInteractionContext:
+					case *command.SlashInteractionContext:
 						bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
-					case *registry.ComponentInteractionContext:
+					case *command.ComponentInteractionContext:
 						bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
-					case *registry.MessageApplicationCommandContext:
+					case *command.MessageApplicationCommandContext:
 						bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
-					case *registry.MessageContext:
+					case *command.MessageContext:
 						_, _ = s.ChannelMessageSend(channelID, msg)
 					}
 					return nil
