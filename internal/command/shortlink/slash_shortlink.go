@@ -1,4 +1,4 @@
-package link
+package shortlink
 
 import (
 	"fmt"
@@ -17,15 +17,15 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-type ShortenCommand struct{}
+type ShortlinkCommand struct{}
 
-func (c *ShortenCommand) Name() string             { return "shorten" }
-func (c *ShortenCommand) Description() string      { return "Shorten URLs and manage your links" }
-func (c *ShortenCommand) Group() string            { return "shorten" }
-func (c *ShortenCommand) Category() string         { return "📢 Utilities" }
-func (c *ShortenCommand) UserPermissions() []int64 { return []int64{} }
+func (c *ShortlinkCommand) Name() string             { return "shortlink" }
+func (c *ShortlinkCommand) Description() string      { return "Shorten URLs and manage your links" }
+func (c *ShortlinkCommand) Group() string            { return "shortlink" }
+func (c *ShortlinkCommand) Category() string         { return "📢 Utilities" }
+func (c *ShortlinkCommand) UserPermissions() []int64 { return []int64{} }
 
-func (c *ShortenCommand) SlashDefinition() *discordgo.ApplicationCommand {
+func (c *ShortlinkCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
@@ -70,7 +70,7 @@ func (c *ShortenCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *ShortenCommand) Run(ctx interface{}) error {
+func (c *ShortlinkCommand) Run(ctx interface{}) error {
 	context, ok := ctx.(*command.SlashInteractionContext)
 	if !ok {
 		return nil
@@ -103,7 +103,7 @@ func (c *ShortenCommand) Run(ctx interface{}) error {
 	}
 }
 
-func (c *ShortenCommand) runCreate(
+func (c *ShortlinkCommand) runCreate(
 	s *discordgo.Session,
 	e *discordgo.InteractionCreate,
 	st *storage.Storage,
@@ -156,7 +156,7 @@ func (c *ShortenCommand) runCreate(
 	})
 }
 
-func (c *ShortenCommand) runList(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage) error {
+func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage) error {
 	cfg := config.New()
 	userID := e.Member.User.ID
 	guildID := e.GuildID
@@ -214,7 +214,7 @@ func (c *ShortenCommand) runList(s *discordgo.Session, e *discordgo.InteractionC
 	return nil
 }
 
-func (c *ShortenCommand) runDelete(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage, opt *discordgo.ApplicationCommandInteractionDataOption) error {
+func (c *ShortlinkCommand) runDelete(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage, opt *discordgo.ApplicationCommandInteractionDataOption) error {
 	shortID := opt.Options[0].StringValue()
 	userID := e.Member.User.ID
 	guildID := e.GuildID
@@ -233,7 +233,7 @@ func (c *ShortenCommand) runDelete(s *discordgo.Session, e *discordgo.Interactio
 	})
 }
 
-func (c *ShortenCommand) runClear(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage) error {
+func (c *ShortlinkCommand) runClear(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage) error {
 	userID := e.Member.User.ID
 	guildID := e.GuildID
 
@@ -293,7 +293,7 @@ func shortenLongURL(s string, max int) string {
 func init() {
 	command.RegisterCommand(
 		command.ApplyMiddlewares(
-			&ShortenCommand{},
+			&ShortlinkCommand{},
 			middleware.WithGroupAccessCheck(),
 			middleware.WithGuildOnly(),
 			middleware.WithUserPermissionCheck(),

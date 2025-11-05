@@ -7,8 +7,8 @@ import (
 	"server-domme/internal/storage"
 )
 
-// shortenServer starts a lightweight HTTP server that resolves short links to their original URLs.
-func shortenServer(storage *storage.Storage) {
+// shortlinkServer starts a lightweight HTTP server that resolves short links to their original URLs.
+func shortlinkServer(storage *storage.Storage) {
 	log.Printf("[INFO] Starting shortlink redirect server...")
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
