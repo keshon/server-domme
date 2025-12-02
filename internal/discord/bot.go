@@ -387,13 +387,6 @@ func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.App
 }
 
 func (b *Bot) handleRefreshCommands(evt bot.SystemEvent) {
-	if b.isGuildBlacklisted(evt.GuildID) {
-		log.Printf("[SKIP][%s] Guild is blacklisted, skipping refresh.", evt.GuildID)
-		return
-	}
-
-	log.Printf("[REFRESH][%s] Re-registering slash commands (target=%s)...", evt.GuildID, evt.Target)
-
 	appID := b.dg.State.User.ID
 	if appID == "" {
 		user, err := b.dg.User("@me")
@@ -404,29 +397,73 @@ func (b *Bot) handleRefreshCommands(evt bot.SystemEvent) {
 		appID = user.ID
 	}
 
-	if strings.ToLower(evt.Target) == "all" || evt.Target == "" {
-		err := b.registerCommands(evt.GuildID)
-		if err != nil {
-			log.Printf("[ERR][%s] Refresh failed: %v", evt.GuildID, err)
-			return
+	// Fetch existing commands for the guild
+	existing, _ := b.dg.ApplicationCommands(appID, evt.GuildID)
+
+	// If guild is blacklisted, forcibly delete all commands
+	if b.isGuildBlacklisted(evt.GuildID) {
+		log.Printf("[BLACKLIST][%s] Guild is blacklisted — removing all commands", evt.GuildID)
+		for _, cmd := range existing {
+			if err := b.dg.ApplicationCommandDelete(appID, evt.GuildID, cmd.ID); err != nil {
+				log.Printf("[ERR][%s] Failed to delete command %s: %v", evt.GuildID, cmd.Name, err)
+			} else {
+				log.Printf("[DONE][%s] Deleted command %s", evt.GuildID, cmd.Name)
+			}
 		}
-		log.Printf("[DONE][%s] All commands refreshed.", evt.GuildID)
 		return
 	}
 
+	// Handle group-specific enable/disable
+	if strings.HasPrefix(evt.Target, "group:") {
+		group := strings.TrimPrefix(evt.Target, "group:")
+		disabledGroups, _ := b.storage.GetDisabledGroups(evt.GuildID)
+		disabledMap := make(map[string]bool)
+		for _, g := range disabledGroups {
+			disabledMap[g] = true
+		}
+
+		for _, cmd := range command.AllCommands() {
+			if cmd.Group() != group {
+				continue
+			}
+
+			found := false
+			for _, ex := range existing {
+				if ex.Name == cmd.Name() {
+					found = true
+					// Remove if group is disabled
+					if disabledMap[group] {
+						log.Printf("[INFO][%s] Deleting disabled command %s", evt.GuildID, cmd.Name())
+						_ = b.dg.ApplicationCommandDelete(appID, evt.GuildID, ex.ID)
+					}
+					break
+				}
+			}
+
+			// If enabled and not present, create it
+			if !found && !disabledMap[group] {
+				if def := normalizeDefinition(cmd); def != nil {
+					log.Printf("[INFO][%s] Registering enabled command %s", evt.GuildID, cmd.Name())
+					_, _ = b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
+				}
+			}
+		}
+		return
+	}
+
+	// Refresh all commands
+	if strings.ToLower(evt.Target) == "all" || evt.Target == "" {
+		_ = b.registerCommands(evt.GuildID)
+		return
+	}
+
+	// Refresh single command by name
 	for _, cmd := range command.AllCommands() {
 		if strings.EqualFold(cmd.Name(), evt.Target) {
 			if def := normalizeDefinition(cmd); def != nil {
-				_, err := b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
-				if err != nil {
-					log.Printf("[ERR][%s] Failed to refresh command '%s': %v", evt.GuildID, def.Name, err)
-					return
-				}
-				log.Printf("[DONE][%s] Command '%s' refreshed.", evt.GuildID, def.Name)
-				return
+				_, _ = b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
 			}
+			return
 		}
 	}
-
-	log.Printf("[WARN][%s] No command named '%s' found.", evt.GuildID, evt.Target)
 }

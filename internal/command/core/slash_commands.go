@@ -247,6 +247,13 @@ func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.Intera
 		embed.Description = fmt.Sprintf("Command/group `%s` enabled.", group)
 	}
 
+	// Publish event to refresh commands
+	bot.PublishSystemEvent(bot.SystemEvent{
+		Type:    bot.SystemEventRefreshCommands,
+		GuildID: e.GuildID,
+		Target:  "group:" + group, // We'll interpret "group:" in the handler
+	})
+
 	return bot.RespondEmbedEphemeral(s, e, embed)
 }
 
