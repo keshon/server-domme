@@ -6,10 +6,12 @@ import (
 	"path/filepath"
 )
 
+// guildCachePath returns the path to the guild command cache
 func guildCachePath(guildID string) string {
 	return filepath.Join("data", "commands", guildID+".json")
 }
 
+// loadGuildCommandHashes loads the guild command cache
 func loadGuildCommandHashes(guildID string) map[string]string {
 	data := make(map[string]string)
 	path := guildCachePath(guildID)
@@ -21,6 +23,7 @@ func loadGuildCommandHashes(guildID string) map[string]string {
 	return data
 }
 
+// saveGuildCommandHashes saves the guild command cache
 func saveGuildCommandHashes(guildID string, hashes map[string]string) {
 	path := guildCachePath(guildID)
 	os.MkdirAll(filepath.Dir(path), 0755)

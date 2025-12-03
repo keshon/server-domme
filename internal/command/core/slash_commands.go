@@ -251,7 +251,7 @@ func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.Intera
 	bot.PublishSystemEvent(bot.SystemEvent{
 		Type:    bot.SystemEventRefreshCommands,
 		GuildID: e.GuildID,
-		Target:  "group:" + group, // We'll interpret "group:" in the handler
+		Target:  "group:" + group,
 	})
 
 	return bot.RespondEmbedEphemeral(s, e, embed)

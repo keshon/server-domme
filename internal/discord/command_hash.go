@@ -31,6 +31,7 @@ func normalizeForHash(cmd *discordgo.ApplicationCommand) map[string]interface{} 
 	return obj
 }
 
+// normalizeOptions sorts options
 func normalizeOptions(opts []*discordgo.ApplicationCommandOption) []map[string]interface{} {
 	normalized := make([]map[string]interface{}, len(opts))
 
