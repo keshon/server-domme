@@ -32,7 +32,9 @@ func (s *KKDAIStreamer) GetPipeStream(track *parsers.TrackParse, seekSec float64
 func (s *KKDAIStreamer) SupportsPipe() bool {
 	return true
 }
-func newKkdaiClient(proxyStr string) (*youtube.Client, string) {
+
+// not used
+func NewKkdaiClient(proxyStr string) (*youtube.Client, string) {
 	if proxyStr == "" {
 		fmt.Println("[kkdai] no proxy selected, going raw")
 		return &youtube.Client{

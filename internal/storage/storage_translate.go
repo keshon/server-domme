@@ -32,7 +32,7 @@ func (s *Storage) RemoveTranslateChannel(guildID string, channelID string) error
 		return err
 	}
 
-	if record.TranslateChannels == nil || len(record.TranslateChannels) == 0 {
+	if len(record.TranslateChannels) == 0 {
 		return fmt.Errorf("no translate channels configured")
 	}
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"server-domme/internal/storagetypes"
 	st "server-domme/internal/storagetypes"
 )
 
@@ -107,7 +106,7 @@ func (s *Storage) IncrementClicks(guildID, shortID string) error {
 
 // FindLinkByID searches all guild records for a link with the given shortID.
 // Returns (guildID, *ShortLink, error)
-func (s *Storage) FindLinkByID(shortID string) (string, *storagetypes.ShortLink, error) {
+func (s *Storage) FindLinkByID(shortID string) (string, *st.ShortLink, error) {
 	records := s.GetRecordsList()
 
 	for guildID, record := range records {

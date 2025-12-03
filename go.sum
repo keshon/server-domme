@@ -37,6 +37,8 @@ github.com/ianlancetaylor/demangle v0.0.0-20250417193237-f615e6bd150b h1:ogbOPx8
 github.com/ianlancetaylor/demangle v0.0.0-20250417193237-f615e6bd150b/go.mod h1:gx7rwoVhcfuVKG5uya9Hs3Sxj7EIvldVofAWIUtGouw=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
+github.com/keshon/datastore v0.1.0 h1:WTrHzqoQVrLzl5Rxc6uIz22/AbufXTtGT4J5l8mrF+A=
+github.com/keshon/datastore v0.1.0/go.mod h1:KfrdMH53xHP+XuLD2zpVpTeO8KL3FbfBC8wk6R6tTk0=
 github.com/keshon/discordgo v0.29.0 h1:+B+0T/wvjjuazQan9teXKysA8wINqWRuf1n2tO1o0X4=
 github.com/keshon/discordgo v0.29.0/go.mod h1:NJZpH+1AfhIcyQsPeuBKsUtYrRnjkyu0kIVMCHkZtRY=
 github.com/kkdai/youtube/v2 v2.10.4 h1:T3VAQ65EB4eHptwcQIigpFvUJlV9EcKRGJJdSVUy3aU=

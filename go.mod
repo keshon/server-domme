@@ -7,6 +7,7 @@ require github.com/clinet/discordgo-embed v0.0.0-20220113222025-bafe0c917646
 require (
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/ianlancetaylor/demangle v0.0.0-20250417193237-f615e6bd150b // indirect
+	github.com/keshon/datastore v0.1.0 // indirect
 )
 
 require (

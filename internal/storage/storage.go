@@ -7,8 +7,9 @@ import (
 	"log"
 	"time"
 
-	"server-domme/datastore"
 	st "server-domme/internal/storagetypes"
+
+	"github.com/keshon/datastore"
 )
 
 const commandHistoryLimit int = 50
