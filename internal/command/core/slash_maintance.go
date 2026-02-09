@@ -154,12 +154,10 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&MaintenanceCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&MaintenanceCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

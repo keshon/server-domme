@@ -101,12 +101,10 @@ func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.In
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ConfessCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ConfessCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

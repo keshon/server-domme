@@ -295,12 +295,10 @@ func updateHistory(file string) {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&RandomMediaCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&RandomMediaCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

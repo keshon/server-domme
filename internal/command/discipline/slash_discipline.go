@@ -216,12 +216,10 @@ var punishPhrases = []string{
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&DisciplineCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&DisciplineCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

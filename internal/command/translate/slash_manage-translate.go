@@ -163,12 +163,10 @@ func runResetChannels(s *discordgo.Session, e *discordgo.InteractionCreate, stor
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageTranslateCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageTranslateCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

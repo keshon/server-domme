@@ -10,8 +10,8 @@ import (
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/middleware"
-
 	"server-domme/internal/version"
+	"server-domme/pkg/cmd"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -91,14 +91,18 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 }
 
 func buildHelpByCategory() string {
-	all := command.AllCommands()
+	all := cmd.DefaultRegistry.GetAll()
 
-	categoryMap := make(map[string][]command.Command)
+	categoryMap := make(map[string][]cmd.Command)
 	categorySort := make(map[string]int)
 
-	for _, cmd := range all {
-		cat := cmd.Category()
-		categoryMap[cat] = append(categoryMap[cat], cmd)
+	for _, c := range all {
+		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		cat := ""
+		if meta != nil {
+			cat = meta.Category()
+		}
+		categoryMap[cat] = append(categoryMap[cat], c)
 		if _, ok := categorySort[cat]; !ok {
 			categorySort[cat] = config.CategoryWeights[cat]
 		}
@@ -121,8 +125,8 @@ func buildHelpByCategory() string {
 		sb.WriteString(fmt.Sprintf("**%s**\n", cat.Name))
 		cmds := categoryMap[cat.Name]
 		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
-		for _, cmd := range cmds {
-			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
+		for _, c := range cmds {
+			sb.WriteString(fmt.Sprintf("`%s` - %s\n", c.Name(), c.Description()))
 		}
 		sb.WriteString("\n")
 	}
@@ -131,12 +135,16 @@ func buildHelpByCategory() string {
 }
 
 func buildHelpByGroup() string {
-	all := command.AllCommands()
+	all := cmd.DefaultRegistry.GetAll()
 
-	groupMap := make(map[string][]command.Command)
-	for _, cmd := range all {
-		group := cmd.Group()
-		groupMap[group] = append(groupMap[group], cmd)
+	groupMap := make(map[string][]cmd.Command)
+	for _, c := range all {
+		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		group := ""
+		if meta != nil {
+			group = meta.Group()
+		}
+		groupMap[group] = append(groupMap[group], c)
 	}
 
 	var sortedGroups []string
@@ -150,8 +158,8 @@ func buildHelpByGroup() string {
 		sb.WriteString(fmt.Sprintf("**%s**\n", group))
 		cmds := groupMap[group]
 		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
-		for _, cmd := range cmds {
-			sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
+		for _, c := range cmds {
+			sb.WriteString(fmt.Sprintf("`%s` - %s\n", c.Name(), c.Description()))
 		}
 		sb.WriteString("\n")
 	}
@@ -160,24 +168,22 @@ func buildHelpByGroup() string {
 }
 
 func buildHelpFlat() string {
-	all := command.AllCommands()
+	all := cmd.DefaultRegistry.GetAll()
 	sort.Slice(all, func(i, j int) bool { return all[i].Name() < all[j].Name() })
 
 	var sb strings.Builder
-	for _, cmd := range all {
-		sb.WriteString(fmt.Sprintf("`%s` - %s\n", cmd.Name(), cmd.Description()))
+	for _, c := range all {
+		sb.WriteString(fmt.Sprintf("`%s` - %s\n", c.Name(), c.Description()))
 	}
 	return sb.String()
 }
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&HelpUnifiedCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&HelpUnifiedCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

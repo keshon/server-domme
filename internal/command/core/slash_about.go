@@ -97,12 +97,10 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&AboutCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&AboutCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

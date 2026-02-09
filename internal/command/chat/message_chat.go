@@ -227,12 +227,10 @@ func keepTyping(s *discordgo.Session, channelID string, done <-chan struct{}) {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ChatMessageCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ChatMessageCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

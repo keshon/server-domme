@@ -292,12 +292,10 @@ func shortenLongURL(s string, max int) string {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ShortlinkCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ShortlinkCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

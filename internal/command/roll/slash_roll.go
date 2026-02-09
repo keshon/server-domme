@@ -219,12 +219,10 @@ func evaluateToken(token string) (int, string, error) {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&RollCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&RollCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

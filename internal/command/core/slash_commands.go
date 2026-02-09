@@ -2,13 +2,14 @@ package core
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"server-domme/internal/bot"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
-	"sort"
-	"strings"
+	"server-domme/pkg/cmd"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -278,8 +279,12 @@ func (c *CommandsCommand) runCmdUpdate(s *discordgo.Session, e *discordgo.Intera
 
 func getUniqueGroups() []string {
 	set := map[string]struct{}{}
-	for _, cmd := range command.AllCommands() {
-		group := cmd.Group()
+	for _, c := range cmd.DefaultRegistry.GetAll() {
+		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		group := ""
+		if meta != nil {
+			group = meta.Group()
+		}
 		if group != "" {
 			set[group] = struct{}{}
 		}
@@ -294,12 +299,10 @@ func getUniqueGroups() []string {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&CommandsCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&CommandsCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

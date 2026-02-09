@@ -449,12 +449,10 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&PurgeCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&PurgeCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

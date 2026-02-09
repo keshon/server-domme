@@ -119,12 +119,10 @@ func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, 
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageConfessCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageConfessCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

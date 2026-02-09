@@ -7,10 +7,10 @@ import (
 	"server-domme/internal/bot"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
 	"server-domme/internal/storage"
+	"server-domme/pkg/cmd"
 	"slices"
 	"strings"
 	"sync"
@@ -101,14 +101,10 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
-	for _, cmd := range command.AllCommands() {
-		ctx := &command.MessageContext{
-			Session: s,
-			Event:   m,
-			Storage: b.storage,
-		}
-		err := cmd.Run(ctx)
-		if err != nil {
+	msgCtx := &command.MessageContext{Session: s, Event: m, Storage: b.storage}
+	inv := &cmd.Invocation{Data: msgCtx}
+	for _, c := range cmd.DefaultRegistry.GetAll() {
+		if err := c.Run(context.Background(), inv); err != nil {
 			log.Println("[ERR] Error running command:", err)
 			bot.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Error running command: %v", err),
@@ -178,22 +174,17 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 
 // onMessageReactionAdd is called when a reaction is added
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	for _, cmd := range command.AllCommands() {
-		if _, ok := cmd.(command.ReactionProvider); ok {
-			ctx := &command.MessageReactionContext{
-				Session: s,
-				Event:   r,
-				Storage: b.storage,
-			}
-			err := cmd.Run(ctx)
-			if err != nil {
+	reactionCtx := &command.MessageReactionContext{Session: s, Event: r, Storage: b.storage}
+	inv := &cmd.Invocation{Data: reactionCtx}
+	for _, c := range cmd.DefaultRegistry.GetAll() {
+		if _, ok := cmd.Root(c).(command.ReactionProvider); ok {
+			if err := c.Run(context.Background(), inv); err != nil {
 				log.Println("[ERR] Error running reaction command:", err)
 				bot.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
 					Description: fmt.Sprintf("Error running reaction command: %v", err),
 				})
 			}
 		}
-
 	}
 }
 
@@ -202,34 +193,28 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		cmdName := i.ApplicationCommandData().Name
-
-		cmd, ok := command.GetCommand(cmdName)
-		if !ok {
+		c := cmd.DefaultRegistry.Get(cmdName)
+		if c == nil {
 			log.Printf("[WARN] Unknown command: %s\n", cmdName)
 			return
 		}
 
 		switch i.ApplicationCommandData().CommandType {
 		case discordgo.MessageApplicationCommand:
-			ctx := &command.MessageApplicationCommandContext{
-				Session: s,
-				Event:   i,
-				Storage: b.storage,
-				Target:  i.Message,
+			appCtx := &command.MessageApplicationCommandContext{
+				Session: s, Event: i, Storage: b.storage, Target: i.Message,
 			}
-			err := cmd.Run(ctx)
-			if err != nil {
+			inv := &cmd.Invocation{Data: appCtx}
+			if err := c.Run(context.Background(), inv); err != nil {
 				log.Println("[ERR] Error running context menu command:", err)
 				bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
 			}
 		case discordgo.ChatApplicationCommand:
-			ctx := &command.SlashInteractionContext{
-				Session: s,
-				Event:   i,
-				Storage: b.storage,
+			slashCtx := &command.SlashInteractionContext{
+				Session: s, Event: i, Storage: b.storage,
 			}
-			err := cmd.Run(ctx)
-			if err != nil {
+			inv := &cmd.Invocation{Data: slashCtx}
+			if err := c.Run(context.Background(), inv); err != nil {
 				log.Println("[ERR] Error running slash command:", err)
 				bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
 			}
@@ -239,28 +224,27 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		customID := i.MessageComponentData().CustomID
 		log.Printf("[DEBUG] Processing component interaction: %s\n", customID)
 
-		var matched command.Command
-		for _, cmd := range command.AllCommands() {
-			if strings.HasPrefix(customID, cmd.Name()) || strings.HasPrefix(customID, cmd.Name()+":") || strings.HasPrefix(customID, cmd.Name()+"_") {
-				matched = cmd
-				log.Printf("[DEBUG] Found matching command: %s\n", cmd.Name())
+		var matched cmd.Command
+		for _, c := range cmd.DefaultRegistry.GetAll() {
+			if strings.HasPrefix(customID, c.Name()) || strings.HasPrefix(customID, c.Name()+":") || strings.HasPrefix(customID, c.Name()+"_") {
+				matched = c
+				log.Printf("[DEBUG] Found matching command: %s\n", c.Name())
 				break
 			}
 		}
 
 		if matched != nil {
 			log.Printf("[DEBUG] Matched command type: %T", matched)
-			compHandler, ok := matched.(command.ComponentInteractionHandler)
+			root := cmd.Root(matched)
+			compHandler, ok := root.(command.ComponentInteractionHandler)
 			log.Printf("[DEBUG] ComponentInteractionHandler? %v", ok)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
 				log.Printf("[DEBUG] About to call Component() method...\n")
-				ctx := &command.ComponentInteractionContext{
-					Session: s,
-					Event:   i,
-					Storage: b.storage,
+				compCtx := &command.ComponentInteractionContext{
+					Session: s, Event: i, Storage: b.storage,
 				}
-				err := compHandler.Component(ctx)
+				err := compHandler.Component(compCtx)
 				if err != nil {
 					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
 					bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
@@ -295,8 +279,8 @@ func (b *Bot) registerCommands(guildID string) error {
 
 	var wanted []*discordgo.ApplicationCommand
 	wantedHashes := make(map[string]string)
-	for _, cmd := range command.AllCommands() {
-		if def := normalizeDefinition(cmd); def != nil {
+	for _, c := range cmd.DefaultRegistry.GetAll() {
+		if def := normalizeDefinition(c); def != nil {
 			wanted = append(wanted, def)
 			wantedHashes[def.Name] = hashCommand(def)
 		}
@@ -338,9 +322,10 @@ func (b *Bot) isGuildBlacklisted(guildID string) bool {
 	return slices.Contains(b.cfg.DiscordGuildBlacklist, guildID)
 }
 
-// normalizeDefinition normalizes a command definition
-func normalizeDefinition(cmd command.Command) *discordgo.ApplicationCommand {
-	if slash, ok := cmd.(command.SlashProvider); ok {
+// normalizeDefinition normalizes a command definition (uses root so wrapped commands still expose providers)
+func normalizeDefinition(c cmd.Command) *discordgo.ApplicationCommand {
+	root := cmd.Root(c)
+	if slash, ok := root.(command.SlashProvider); ok {
 		if def := slash.SlashDefinition(); def != nil {
 			if def.Type == 0 {
 				def.Type = discordgo.ChatApplicationCommand
@@ -348,7 +333,7 @@ func normalizeDefinition(cmd command.Command) *discordgo.ApplicationCommand {
 			return def
 		}
 	}
-	if menu, ok := cmd.(command.ContextMenuProvider); ok {
+	if menu, ok := root.(command.ContextMenuProvider); ok {
 		if def := menu.ContextDefinition(); def != nil {
 			if def.Type == 0 {
 				def.Type = discordgo.MessageApplicationCommand
@@ -422,28 +407,25 @@ func (b *Bot) handleRefreshCommands(evt bot.SystemEvent) {
 			disabledMap[g] = true
 		}
 
-		for _, cmd := range command.AllCommands() {
-			if cmd.Group() != group {
+		for _, c := range cmd.DefaultRegistry.GetAll() {
+			meta, ok := cmd.Root(c).(command.DiscordMeta)
+			if !ok || meta.Group() != group {
 				continue
 			}
-
 			found := false
 			for _, ex := range existing {
-				if ex.Name == cmd.Name() {
+				if ex.Name == c.Name() {
 					found = true
-					// Remove if group is disabled
 					if disabledMap[group] {
-						log.Printf("[INFO][%s] Deleting disabled command %s", evt.GuildID, cmd.Name())
+						log.Printf("[INFO][%s] Deleting disabled command %s", evt.GuildID, c.Name())
 						_ = b.dg.ApplicationCommandDelete(appID, evt.GuildID, ex.ID)
 					}
 					break
 				}
 			}
-
-			// If enabled and not present, create it
 			if !found && !disabledMap[group] {
-				if def := normalizeDefinition(cmd); def != nil {
-					log.Printf("[INFO][%s] Registering enabled command %s", evt.GuildID, cmd.Name())
+				if def := normalizeDefinition(c); def != nil {
+					log.Printf("[INFO][%s] Registering enabled command %s", evt.GuildID, c.Name())
 					_, _ = b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
 				}
 			}
@@ -458,9 +440,9 @@ func (b *Bot) handleRefreshCommands(evt bot.SystemEvent) {
 	}
 
 	// Refresh single command by name
-	for _, cmd := range command.AllCommands() {
-		if strings.EqualFold(cmd.Name(), evt.Target) {
-			if def := normalizeDefinition(cmd); def != nil {
+	for _, c := range cmd.DefaultRegistry.GetAll() {
+		if strings.EqualFold(c.Name(), evt.Target) {
+			if def := normalizeDefinition(c); def != nil {
 				_, _ = b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
 			}
 			return

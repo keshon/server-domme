@@ -180,12 +180,10 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&TranslateOnReaction{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&TranslateOnReaction{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

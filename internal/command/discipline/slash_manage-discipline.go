@@ -172,12 +172,10 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageDisciplineCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageDisciplineCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"server-domme/internal/bot"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
+	"server-domme/pkg/cmd"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -62,98 +64,86 @@ var PermissionNames = map[int64]string{
 	discordgo.PermissionModerateMembers:                  "Moderate Members",
 }
 
-func WithUserPermissionCheck() command.Middleware {
-	return func(cmd command.Command) command.Command {
-		return &command.WrappedCommand{
-			Command: cmd,
-			Wrap: func(ctx interface{}) error {
-				var s *discordgo.Session
-				var m *discordgo.Member
-				var guildID, channelID string
+func WithUserPermissionCheck() cmd.Middleware {
+	return func(c cmd.Command) cmd.Command {
+		return cmd.Wrap(c, func(ctx context.Context, inv *cmd.Invocation) error {
+			var s *discordgo.Session
+			var m *discordgo.Member
+			var guildID, channelID string
 
-				switch v := ctx.(type) {
-				case *command.SlashInteractionContext:
-					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				case *command.ComponentInteractionContext:
-					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				case *command.MessageApplicationCommandContext:
-					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				case *command.MessageContext:
-					s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
-				default:
-					return cmd.Run(ctx)
+			switch v := inv.Data.(type) {
+			case *command.SlashInteractionContext:
+				s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
+			case *command.ComponentInteractionContext:
+				s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
+			case *command.MessageApplicationCommandContext:
+				s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
+			case *command.MessageContext:
+				s, m, guildID, channelID = v.Session, v.Event.Member, v.Event.GuildID, v.Event.ChannelID
+			default:
+				return c.Run(ctx, inv)
+			}
+
+			if guildID == "" || m == nil {
+				return c.Run(ctx, inv)
+			}
+			if m.User == nil {
+				return c.Run(ctx, inv)
+			}
+
+			memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
+			if err != nil {
+				return fmt.Errorf("failed to get user permissions: %w", err)
+			}
+			if memberPerms&discordgo.PermissionAdministrator != 0 {
+				return c.Run(ctx, inv)
+			}
+			if m.User.ID == config.New().DeveloperID {
+				return c.Run(ctx, inv)
+			}
+
+			meta, ok := cmd.Root(c).(command.DiscordMeta)
+			if !ok {
+				return c.Run(ctx, inv)
+			}
+			required := meta.UserPermissions()
+			if len(required) == 0 {
+				return c.Run(ctx, inv)
+			}
+
+			hasAny := false
+			for _, p := range required {
+				if memberPerms&p != 0 {
+					hasAny = true
+					break
 				}
-
-				// Skip if no guild/member context
-				if guildID == "" || m == nil {
-					return cmd.Run(ctx)
-				}
-
-				// Additional safety check for User field
-				if m.User == nil {
-					return cmd.Run(ctx)
-				}
-
-				memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
-				if err != nil {
-					// Log error but allow command to proceed to avoid blocking on permission check failures
-					return fmt.Errorf("failed to get user permissions: %w", err)
-				}
-
-				// Admins always bypass
-				if memberPerms&discordgo.PermissionAdministrator != 0 {
-					return cmd.Run(ctx)
-				}
-
-				// Developer always bypass
-				if m.User.ID == config.New().DeveloperID {
-					return cmd.Run(ctx)
-				}
-
-				required := cmd.UserPermissions()
-
-				// DEFAULT ALLOW — no user permissions specified = open command
-				if len(required) == 0 {
-					return cmd.Run(ctx)
-				}
-
-				// Allow if user has ANY of required perms
-				hasAny := false
+			}
+			if !hasAny {
+				var allowed []string
 				for _, p := range required {
-					if memberPerms&p != 0 {
-						hasAny = true
-						break
+					name := PermissionNames[p]
+					if name == "" {
+						name = fmt.Sprintf("0x%x", p)
 					}
+					allowed = append(allowed, name)
 				}
-
-				if !hasAny {
-					var allowed []string
-					for _, p := range required {
-						name := PermissionNames[p]
-						if name == "" {
-							name = fmt.Sprintf("0x%x", p)
-						}
-						allowed = append(allowed, name)
-					}
-					msg := fmt.Sprintf(
-						"You need at least one of the following permissions to run this command:\n`%s`",
-						strings.Join(allowed, "`, `"),
-					)
-					switch v := ctx.(type) {
-					case *command.SlashInteractionContext:
-						bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
-					case *command.ComponentInteractionContext:
-						bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
-					case *command.MessageApplicationCommandContext:
-						bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
-					case *command.MessageContext:
-						_, _ = s.ChannelMessageSend(channelID, msg)
-					}
-					return nil
+				msg := fmt.Sprintf(
+					"You need at least one of the following permissions to run this command:\n`%s`",
+					strings.Join(allowed, "`, `"),
+				)
+				switch v := inv.Data.(type) {
+				case *command.SlashInteractionContext:
+					bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+				case *command.ComponentInteractionContext:
+					bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+				case *command.MessageApplicationCommandContext:
+					bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+				case *command.MessageContext:
+					_, _ = s.ChannelMessageSend(channelID, msg)
 				}
-
-				return cmd.Run(ctx)
-			},
-		}
+				return nil
+			}
+			return c.Run(ctx, inv)
+		})
 	}
 }

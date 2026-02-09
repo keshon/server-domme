@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
+	"server-domme/pkg/cmd"
 	"sort"
 	"text/template"
 )
@@ -27,11 +28,19 @@ type TemplateData struct {
 
 // updateReadme updates the README.md file
 func updateReadme() error {
-	commands := command.AllCommands()
-
+	commands := cmd.DefaultRegistry.GetAll()
 	sort.Slice(commands, func(i, j int) bool {
-		wi := config.CategoryWeights[commands[i].Category()]
-		wj := config.CategoryWeights[commands[j].Category()]
+		metaI, _ := cmd.Root(commands[i]).(command.DiscordMeta)
+		metaJ, _ := cmd.Root(commands[j]).(command.DiscordMeta)
+		catI, catJ := "", ""
+		if metaI != nil {
+			catI = metaI.Category()
+		}
+		if metaJ != nil {
+			catJ = metaJ.Category()
+		}
+		wi := config.CategoryWeights[catI]
+		wj := config.CategoryWeights[catJ]
 		if wi == wj {
 			return commands[i].Name() < commands[j].Name()
 		}
@@ -40,22 +49,26 @@ func updateReadme() error {
 
 	var buf bytes.Buffer
 	currentCategory := ""
-	for _, cmd := range commands {
-		if cmd.Category() != currentCategory {
+	for _, c := range commands {
+		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		cat := ""
+		if meta != nil {
+			cat = meta.Category()
+		}
+		if cat != currentCategory {
 			if currentCategory != "" {
 				buf.WriteString("\n")
 			}
-			currentCategory = cmd.Category()
+			currentCategory = cat
 			buf.WriteString(fmt.Sprintf("### %s\n\n", currentCategory))
 		}
 
-		name := cmd.Name()
+		name := c.Name()
 		display := name
 		if !(hasSpace(name) || startsWithUpper(name)) {
 			display = "/" + display
 		}
-
-		buf.WriteString(fmt.Sprintf("- **%s** — %s\n", display, cmd.Description()))
+		buf.WriteString(fmt.Sprintf("- **%s** — %s\n", display, c.Description()))
 	}
 
 	tmplPath := filepath.Join(".", "README.md.tmpl")

@@ -84,12 +84,10 @@ func (c *AnnounceCommand) runPublishMessage(s *discordgo.Session, e *discordgo.I
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&AnnounceCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&AnnounceCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

@@ -409,12 +409,10 @@ func randomLine(list []string) string {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&TaskCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&TaskCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

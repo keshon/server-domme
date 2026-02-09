@@ -311,12 +311,10 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageTaskCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageTaskCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

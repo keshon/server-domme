@@ -14,13 +14,11 @@ import (
 // registerMusicCommands registers the music commands
 func (b *Bot) registerMusicCommands() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&music.MusicCommand{Bot: b},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&music.MusicCommand{Bot: b},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }
 

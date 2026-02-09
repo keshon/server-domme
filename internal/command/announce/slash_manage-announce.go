@@ -105,12 +105,10 @@ func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageAnnounceCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageAnnounceCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

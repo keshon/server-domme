@@ -240,12 +240,10 @@ func (c *ManageChatCommand) runGetPrompt(s *discordgo.Session, e *discordgo.Inte
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageChatCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageChatCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

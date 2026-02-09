@@ -259,12 +259,10 @@ func (c *ManageMediaCommand) runResetDefaultCategory(s *discordgo.Session, e *di
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&ManageMediaCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&ManageMediaCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

@@ -282,12 +282,10 @@ func dmChannel(s *discordgo.Session, userID string) string {
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&AskCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&AskCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }

@@ -206,12 +206,10 @@ func saveUploadedFile(att *discordgo.MessageAttachment, guildID, category string
 
 func init() {
 	command.RegisterCommand(
-		command.ApplyMiddlewares(
-			&UploadMediaCommand{},
-			middleware.WithGroupAccessCheck(),
-			middleware.WithGuildOnly(),
-			middleware.WithUserPermissionCheck(),
-			middleware.WithCommandLogger(),
-		),
+		&UploadMediaCommand{},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
 	)
 }
