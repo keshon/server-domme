@@ -5,8 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
+	"server-domme/internal/config"
 	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 	"server-domme/pkg/cmd"
@@ -112,7 +113,7 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 
 	switch sub.Name {
 	case "log":
-		return c.runCmdLog(session, event, *storage)
+		return c.runCmdLog(session, event, *storage, context.Config)
 	case "status":
 		return c.runCmdStatus(session, event, *storage)
 	case "toggle":
@@ -120,24 +121,24 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 	case "update":
 		return c.runCmdUpdate(session, event)
 	default:
-		return bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
 }
 
-func (c *CommandsCommand) runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
+func (c *CommandsCommand) runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, cfg *config.Config) error {
 	guildID := e.GuildID
 	member := e.Member
 
 	records, err := storage.GetCommandsHistory(guildID)
 	if err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch command logs: %v", err),
 		})
 	}
 	if len(records) == 0 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No command logs found.",
 		})
 	}
@@ -149,7 +150,7 @@ func (c *CommandsCommand) runCmdLog(s *discordgo.Session, e *discordgo.Interacti
 		r := records[i]
 
 		username := r.Username
-		if r.Command == "confess" && !bot.IsDeveloper(member.User.ID) {
+		if r.Command == "confess" && !discord.IsDeveloper(cfg, member.User.ID) {
 			username = "###"
 		}
 
@@ -167,7 +168,7 @@ func (c *CommandsCommand) runCmdLog(s *discordgo.Session, e *discordgo.Interacti
 	}
 
 	msg := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
-	return bot.RespondEphemeral(s, e, msg)
+	return discord.RespondEphemeral(s, e, msg)
 }
 
 func (c *CommandsCommand) runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
@@ -203,7 +204,7 @@ func (c *CommandsCommand) runCmdStatus(s *discordgo.Session, e *discordgo.Intera
 			{Name: "Enabled", Value: strings.Join(enabled, ", "), Inline: false},
 		},
 	}
-	return bot.RespondEmbedEphemeral(s, e, embed)
+	return discord.RespondEmbedEphemeral(s, e, embed)
 }
 
 func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
@@ -222,8 +223,8 @@ func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.Intera
 	}
 
 	if group == "core" && state == "disable" {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "You can't disable the `core` group. It's the backbone of the bot.",
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "You can't disable the `core` group. It's the backbone of the discord.",
 		})
 	}
 
@@ -236,26 +237,26 @@ func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.Intera
 		err = storage.DisableGroup(e.GuildID, group)
 		if err != nil {
 			embed.Description = "Failed to disable the group."
-			return bot.RespondEmbedEphemeral(s, e, embed)
+			return discord.RespondEmbedEphemeral(s, e, embed)
 		}
 		embed.Description = fmt.Sprintf("Command/group `%s` disabled.", group)
 	} else {
 		err = storage.EnableGroup(e.GuildID, group)
 		if err != nil {
 			embed.Description = "Failed to enable the group."
-			return bot.RespondEmbedEphemeral(s, e, embed)
+			return discord.RespondEmbedEphemeral(s, e, embed)
 		}
 		embed.Description = fmt.Sprintf("Command/group `%s` enabled.", group)
 	}
 
 	// Publish event to refresh commands
-	bot.PublishSystemEvent(bot.SystemEvent{
-		Type:    bot.SystemEventRefreshCommands,
+	discord.PublishSystemEvent(discord.SystemEvent{
+		Type:    discord.SystemEventRefreshCommands,
 		GuildID: e.GuildID,
 		Target:  "group:" + group,
 	})
 
-	return bot.RespondEmbedEphemeral(s, e, embed)
+	return discord.RespondEmbedEphemeral(s, e, embed)
 }
 
 func (c *CommandsCommand) runCmdUpdate(s *discordgo.Session, e *discordgo.InteractionCreate) error {
@@ -266,13 +267,13 @@ func (c *CommandsCommand) runCmdUpdate(s *discordgo.Session, e *discordgo.Intera
 		target = subOptions[0].StringValue()
 	}
 
-	bot.PublishSystemEvent(bot.SystemEvent{
-		Type:    bot.SystemEventRefreshCommands,
+	discord.PublishSystemEvent(discord.SystemEvent{
+		Type:    discord.SystemEventRefreshCommands,
 		GuildID: e.GuildID,
 		Target:  target,
 	})
 
-	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Command update requested — it may take some time to apply.",
 	})
 }

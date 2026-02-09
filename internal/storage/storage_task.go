@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 	"log"
-	st "server-domme/internal/storagetypes"
+	st "server-domme/internal/domain"
 	"time"
 )
 

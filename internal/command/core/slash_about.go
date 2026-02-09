@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 	"server-domme/internal/version"
@@ -76,7 +76,7 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       "ℹ️ About " + version.AppName,
 		Description: version.AppDescription,
-		Color:       bot.EmbedColor,
+		Color:       discord.EmbedColor,
 		Fields:      fields,
 	}
 
@@ -86,11 +86,11 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 		defer f.Close()
 		imageName := filepath.Base(imagePath)
 		embed.Image = &discordgo.MessageEmbedImage{URL: "attachment://" + imageName}
-		return bot.RespondEmbedEphemeralWithFile(session, event, embed, f, imageName)
+		return discord.RespondEmbedEphemeralWithFile(session, event, embed, f, imageName)
 	}
 
 	// Just embed if no banner
-	bot.RespondEmbedEphemeral(session, event, embed)
+	discord.RespondEmbedEphemeral(session, event, embed)
 
 	return nil
 }

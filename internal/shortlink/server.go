@@ -1,4 +1,4 @@
-package discord
+package shortlink
 
 import (
 	"log"
@@ -7,8 +7,9 @@ import (
 	"server-domme/internal/storage"
 )
 
-// shortlinkServer starts a lightweight HTTP server that resolves short links to their original URLs.
-func shortlinkServer(storage *storage.Storage) {
+// RunServer starts a lightweight HTTP server that resolves short links to their original URLs.
+// It blocks until the server exits; typically run in a goroutine.
+func RunServer(store *storage.Storage) {
 	log.Printf("[INFO] Starting shortlink redirect server...")
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -18,13 +19,13 @@ func shortlinkServer(storage *storage.Storage) {
 			return
 		}
 
-		guildID, link, err := storage.FindLinkByID(id)
+		guildID, link, err := store.FindLinkByID(id)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
 
-		if err := storage.IncrementClicks(guildID, id); err != nil {
+		if err := store.IncrementClicks(guildID, id); err != nil {
 			log.Printf("[WARN] Failed to increment clicks for %s: %v", id, err)
 		}
 

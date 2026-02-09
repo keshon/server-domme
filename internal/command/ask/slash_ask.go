@@ -2,7 +2,7 @@ package ask
 
 import (
 	"fmt"
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 
@@ -80,7 +80,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 
 	askerID := event.Member.User.ID
 	if targetUser == nil || targetUser.ID == askerID {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You can't ask for permission to contact yourself.",
 		})
 		return nil
@@ -89,7 +89,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       strings.ToUpper(consentType),
 		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetUser.ID, formatReason(reason)),
-		Color:       bot.EmbedColor,
+		Color:       discord.EmbedColor,
 	}
 
 	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetUser.ID, consentType)
@@ -113,7 +113,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
 	)
 
-	bot.Message(session, dmChannel(session, targetUser.ID), dm)
+	discord.Message(session, dmChannel(session, targetUser.ID), dm)
 
 	return nil
 }
@@ -124,7 +124,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	parts := strings.Split(customID, ":")
 
 	if len(parts) != 5 || parts[0] != "ask" {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Something smells off about this button.",
 		})
 		return nil
@@ -134,7 +134,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	clickerID := event.Member.User.ID
 
 	if clickerID != askerID && clickerID != targetID {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "This ain't your party. Button's not meant for you.",
 		})
 		return nil
@@ -150,14 +150,14 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	if action == "revoke" {
 		if alreadyAnswered {
 			if clickerID != targetID {
-				bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "That decision's already been made. Only the other party can undo it now.",
 				})
 				return nil
 			}
 		} else {
 			if clickerID != askerID {
-				bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "Only the requester can withdraw this offer before it's answered. Once accepted, you may revoke your agreement instead.",
 				})
 				return nil
@@ -167,7 +167,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 
 	if action == "accept" || action == "deny" {
 		if clickerID != targetID {
-			bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 				Description: "Only the recipient of this request can respond. If you're the sender, you can still revoke it before they decide.",
 			})
 			return nil
@@ -187,7 +187,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 			status = fmt.Sprintf("<@%s> **revoked** their **%s** request to <@%s>.", askerID, consentType, targetID)
 		}
 	default:
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Unknown action. Not touching that.",
 		})
 		return nil
@@ -196,7 +196,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	updated := &discordgo.MessageEmbed{
 		Title:       embed.Title,
 		Description: fmt.Sprintf("%s\n\n%s", status, reason),
-		Color:       bot.EmbedColor,
+		Color:       discord.EmbedColor,
 	}
 
 	var components []discordgo.MessageComponent

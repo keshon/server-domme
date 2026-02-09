@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	_ "server-domme/internal/command/announce"
 	_ "server-domme/internal/command/ask"
@@ -16,15 +15,18 @@ import (
 	_ "server-domme/internal/command/core"
 	_ "server-domme/internal/command/discipline"
 	_ "server-domme/internal/command/media"
-	_ "server-domme/internal/command/music"
 	_ "server-domme/internal/command/purge"
 	_ "server-domme/internal/command/roll"
 	_ "server-domme/internal/command/shortlink"
 	_ "server-domme/internal/command/task"
 	_ "server-domme/internal/command/translate"
 
+	"server-domme/internal/command"
+	"server-domme/internal/command/music"
+	"server-domme/internal/command/task"
 	"server-domme/internal/config"
 	"server-domme/internal/discord"
+	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 	v "server-domme/internal/version"
 )
@@ -37,20 +39,30 @@ func main() {
 
 	cfg := config.New()
 
-	storage, err := storage.New(cfg.StoragePath)
+	store, err := storage.New(cfg.StoragePath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer storage.Close()
+	defer store.Close()
 
-	err = startCooldownCleaner(storage)
-	if err != nil {
+	if err := task.InitFromConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
+
+	go storage.RunCooldownCleaner(ctx, store)
+
+	bot := discord.NewBot(cfg, store)
+	command.RegisterCommand(
+		&music.MusicCommand{Bot: bot},
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(),
+	)
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := discord.StartBot(ctx, cfg, storage); err != nil {
+		if err := bot.Run(ctx); err != nil {
 			errCh <- err
 		}
 		close(errCh)
@@ -72,18 +84,4 @@ func main() {
 	}
 
 	log.Println("[INFO] Discord bot exited cleanly")
-}
-
-func startCooldownCleaner(storage *storage.Storage) error {
-	ticker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for range ticker.C {
-			err := storage.ClearExpiredCooldowns()
-			if err != nil {
-				log.Println("[ERR] Error clearing expired cooldowns:", err)
-			}
-		}
-	}()
-
-	return nil
 }

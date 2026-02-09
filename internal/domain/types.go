@@ -1,4 +1,4 @@
-package storagetypes
+package domain
 
 import (
 	"time"
@@ -41,17 +41,17 @@ type Task struct {
 }
 
 type Record struct {
-	AnnounceChannel   string               `json:"announce_channel"`
-	ConfessChannel    string               `json:"confess_channel"`
-	CommandsDisabled  []string             `json:"commands_disabled"`
-	CommandsHistory   []CommandHistory     `json:"commands_history"`
-	DisciplineRoles   map[string]string    `json:"discipline_roles"`
-	MediaCategories   []string             `json:"media_categories"`
-	MediaDefault      string               `json:"media_default"`
-	PurgeJobs         map[string]PurgeJob  `json:"purge_jobs"` // key = channelID
-	ShortLinks        []ShortLink          `json:"short_links"`
+	AnnounceChannel   string            `json:"announce_channel"`
+	ConfessChannel    string            `json:"confess_channel"`
+	CommandsDisabled  []string          `json:"commands_disabled"`
+	CommandsHistory   []CommandHistory   `json:"commands_history"`
+	DisciplineRoles   map[string]string `json:"discipline_roles"`
+	MediaCategories   []string          `json:"media_categories"`
+	MediaDefault      string            `json:"media_default"`
+	PurgeJobs         map[string]PurgeJob `json:"purge_jobs"` // key = channelID
+	ShortLinks        []ShortLink       `json:"short_links"`
 	TaskCooldowns     map[string]time.Time `json:"task_cooldowns"`
-	TaskList          map[string]Task      `json:"task_list"`
-	TaskRole          string               `json:"task_role"`
-	TranslateChannels []string             `json:"translate_channels"`
+	TaskList          map[string]Task   `json:"task_list"`
+	TaskRole          string            `json:"task_role"`
+	TranslateChannels []string          `json:"translate_channels"`
 }

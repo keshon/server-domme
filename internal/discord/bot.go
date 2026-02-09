@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"server-domme/internal/bot"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
+	"server-domme/internal/docs"
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
+	"server-domme/internal/purge"
+	"server-domme/internal/shortlink"
 	"server-domme/internal/storage"
 	"server-domme/pkg/cmd"
 	"slices"
@@ -21,27 +23,34 @@ import (
 
 // Bot is a Discord bot
 type Bot struct {
-	dg             *discordgo.Session
-	storage        *storage.Storage
-	slashCmds      map[string][]*discordgo.ApplicationCommand
-	cfg            *config.Config
-	mu             sync.RWMutex
+	dg        *discordgo.Session
+	storage   *storage.Storage
+	slashCmds map[string][]*discordgo.ApplicationCommand
+	cfg       *config.Config
+	mu        sync.RWMutex
+	players   map[string]*player.Player
 	sourceResolver *source_resolver.SourceResolver
-	players        map[string]*player.Player
 }
 
-// StartBot starts the Discord bot
-func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
-	b := &Bot{
+// NewBot creates a Bot instance. Register any bot-dependent commands (e.g. music) before calling Run.
+func NewBot(cfg *config.Config, storage *storage.Storage) *Bot {
+	return &Bot{
 		cfg:       cfg,
 		storage:   storage,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
 		players:   make(map[string]*player.Player),
 	}
-	if err := b.run(ctx, cfg.DiscordToken); err != nil {
-		return fmt.Errorf("bot run error: %w", err)
-	}
-	return nil
+}
+
+// Run starts the Discord session and runs until ctx is done.
+func (b *Bot) Run(ctx context.Context) error {
+	return b.run(ctx, b.cfg.DiscordToken)
+}
+
+// StartBot is a convenience that creates a bot and runs it. Use NewBot + RegisterCommand + Run when you need to register bot-dependent commands (e.g. music).
+func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
+	b := NewBot(cfg, storage)
+	return b.Run(ctx)
 }
 
 // run starts the Discord bot
@@ -66,9 +75,9 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	defer dg.Close()
 
 	go func() {
-		for evt := range bot.SystemEvents() {
+		for evt := range SystemEvents() {
 			switch evt.Type {
-			case bot.SystemEventRefreshCommands:
+			case SystemEventRefreshCommands:
 				go b.handleRefreshCommands(evt)
 			}
 		}
@@ -101,12 +110,12 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
-	msgCtx := &command.MessageContext{Session: s, Event: m, Storage: b.storage}
+	msgCtx := &command.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg}
 	inv := &cmd.Invocation{Data: msgCtx}
 	for _, c := range cmd.DefaultRegistry.GetAll() {
 		if err := c.Run(context.Background(), inv); err != nil {
 			log.Println("[ERR] Error running command:", err)
-			bot.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
+			MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Error running command: %v", err),
 			})
 		}
@@ -131,8 +140,6 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 			continue
 		}
 
-		b.registerMusicCommands()
-
 		if b.cfg.InitSlashCommands {
 			if err := b.registerCommands(g.ID); err != nil {
 				log.Println("[ERR] Error registering slash commands for guild", g.ID, ":", err)
@@ -143,10 +150,10 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	}
 
 	log.Println("[INFO] Starting commands services...")
-	purgeScheduler(b.storage, s)
-	go shortlinkServer(b.storage)
+	purge.RunScheduler(b.storage, s)
+	go shortlink.RunServer(b.storage)
 
-	if err := updateReadme(); err != nil {
+	if err := docs.UpdateReadme(cmd.DefaultRegistry, config.CategoryWeights); err != nil {
 		log.Println("[ERR] Failed to update README:", err)
 	}
 
@@ -165,8 +172,6 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 		return
 	}
 
-	b.registerMusicCommands()
-
 	if err := b.registerCommands(g.Guild.ID); err != nil {
 		log.Printf("[ERR] Failed to register commands for new guild %s: %v", g.Guild.ID, err)
 	}
@@ -174,13 +179,13 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 
 // onMessageReactionAdd is called when a reaction is added
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	reactionCtx := &command.MessageReactionContext{Session: s, Event: r, Storage: b.storage}
+	reactionCtx := &command.MessageReactionContext{Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: DefaultLogger}
 	inv := &cmd.Invocation{Data: reactionCtx}
 	for _, c := range cmd.DefaultRegistry.GetAll() {
 		if _, ok := cmd.Root(c).(command.ReactionProvider); ok {
 			if err := c.Run(context.Background(), inv); err != nil {
 				log.Println("[ERR] Error running reaction command:", err)
-				bot.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
+				MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
 					Description: fmt.Sprintf("Error running reaction command: %v", err),
 				})
 			}
@@ -202,21 +207,22 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		switch i.ApplicationCommandData().CommandType {
 		case discordgo.MessageApplicationCommand:
 			appCtx := &command.MessageApplicationCommandContext{
-				Session: s, Event: i, Storage: b.storage, Target: i.Message,
+				Session: s, Event: i, Storage: b.storage, Target: i.Message, Config: b.cfg,
+				Responder: DefaultResponder, Logger: DefaultLogger,
 			}
 			inv := &cmd.Invocation{Data: appCtx}
 			if err := c.Run(context.Background(), inv); err != nil {
 				log.Println("[ERR] Error running context menu command:", err)
-				bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
+				RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
 			}
 		case discordgo.ChatApplicationCommand:
 			slashCtx := &command.SlashInteractionContext{
-				Session: s, Event: i, Storage: b.storage,
+				Session: s, Event: i, Storage: b.storage, Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
 			}
 			inv := &cmd.Invocation{Data: slashCtx}
 			if err := c.Run(context.Background(), inv); err != nil {
 				log.Println("[ERR] Error running slash command:", err)
-				bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
+				RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
 			}
 		}
 
@@ -242,12 +248,12 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
 				log.Printf("[DEBUG] About to call Component() method...\n")
 				compCtx := &command.ComponentInteractionContext{
-					Session: s, Event: i, Storage: b.storage,
+					Session: s, Event: i, Storage: b.storage, Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
 				}
 				err := compHandler.Component(compCtx)
 				if err != nil {
 					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
-					bot.RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
+					RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
 				}
 				log.Printf("[DEBUG] Component() method completed: %s\n", matched.Name())
 			} else {
@@ -371,7 +377,7 @@ func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.App
 	wg.Wait()
 }
 
-func (b *Bot) handleRefreshCommands(evt bot.SystemEvent) {
+func (b *Bot) handleRefreshCommands(evt SystemEvent) {
 	appID := b.dg.State.User.ID
 	if appID == "" {
 		user, err := b.dg.User("@me")

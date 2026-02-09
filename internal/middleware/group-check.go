@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"server-domme/internal/bot"
 	"server-domme/internal/command"
 	"server-domme/internal/storage"
 	"server-domme/pkg/cmd"
@@ -23,13 +22,21 @@ func WithGroupAccessCheck() cmd.Middleware {
 			switch v := inv.Data.(type) {
 			case *command.SlashInteractionContext:
 				guildID, stor = v.Event.GuildID, v.Storage
-				respond = func(msg string) {
-					bot.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+				if v.Responder != nil {
+					respond = func(msg string) {
+						_ = v.Responder.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
+				} else {
+					respond = func(_ string) {}
 				}
 			case *command.ComponentInteractionContext:
 				guildID, stor = v.Event.GuildID, v.Storage
-				respond = func(msg string) {
-					bot.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+				if v.Responder != nil {
+					respond = func(msg string) {
+						_ = v.Responder.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
+				} else {
+					respond = func(_ string) {}
 				}
 				if disabledGroup(c, guildID, stor, respond) {
 					return nil
@@ -40,8 +47,12 @@ func WithGroupAccessCheck() cmd.Middleware {
 				return nil
 			case *command.MessageApplicationCommandContext:
 				guildID, stor = v.Event.GuildID, v.Storage
-				respond = func(msg string) {
-					bot.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+				if v.Responder != nil {
+					respond = func(msg string) {
+						_ = v.Responder.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
+				} else {
+					respond = func(_ string) {}
 				}
 			case *command.MessageContext:
 				guildID, stor = v.Event.GuildID, v.Storage

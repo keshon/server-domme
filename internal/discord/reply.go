@@ -1,7 +1,9 @@
-package bot
+package discord
 
 import (
 	"log"
+
+	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
 
@@ -9,6 +11,33 @@ import (
 )
 
 const EmbedColor = 0xb01e66
+
+// responder implements command.Responder so commands can reply without importing discord (breaks import cycles).
+type responder struct{}
+
+func (responder) RespondEmbedEphemeral(s *discordgo.Session, e *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+	return RespondEmbedEphemeral(s, e, embed)
+}
+func (responder) RespondEmbed(s *discordgo.Session, e *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error {
+	return RespondEmbed(s, e, embed)
+}
+func (responder) CheckBotPermissions(s *discordgo.Session, channelID string) bool {
+	return CheckBotPermissions(s, channelID)
+}
+func (responder) EmbedColor() int { return EmbedColor }
+
+// DefaultResponder is the Responder to set on command contexts (implements command.Responder).
+var DefaultResponder command.Responder = responder{}
+
+// cmdLogger implements command.CommandLogger so middleware can log without importing discord.
+type cmdLogger struct{}
+
+func (cmdLogger) LogCommand(s *discordgo.Session, store *storage.Storage, guildID, channelID, userID, username, commandName string) error {
+	return LogCommand(s, store, guildID, channelID, userID, username, commandName)
+}
+
+// DefaultLogger is the CommandLogger to set on command contexts.
+var DefaultLogger command.CommandLogger = cmdLogger{}
 
 // Respond sends a public message response to an interaction.
 func Respond(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) error {
@@ -77,7 +106,7 @@ func RespondEmbedEphemeralWithFile(
 	})
 }
 
-// RespondDeferredEphemeral sends an ephemeral deferred response to an interaction. This is often used to send a "loading" message before sending the actual response.
+// RespondDeferredEphemeral sends an ephemeral deferred response to an interaction.
 func RespondDeferredEphemeral(session *discordgo.Session, event *discordgo.InteractionCreate) error {
 	return session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -101,6 +130,7 @@ func Message(session *discordgo.Session, channelID string, content string) error
 	return err
 }
 
+// MessageEmbed sends an embed to a channel.
 func MessageEmbed(session *discordgo.Session, channelID string, embed *discordgo.MessageEmbed) error {
 	_, err := session.ChannelMessageSendEmbed(channelID, embed)
 	return err
@@ -139,7 +169,7 @@ func FollowupEmbedEphemeral(session *discordgo.Session, interaction *discordgo.I
 }
 
 // LogCommand logs a command to the database.
-func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channelID, userID, username, commandName string) error {
+func LogCommand(s *discordgo.Session, store *storage.Storage, guildID, channelID, userID, username, commandName string) error {
 	channel, err := s.State.Channel(channelID)
 	if err != nil {
 		channel, err = s.Channel(channelID)
@@ -164,7 +194,7 @@ func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 		guildName = guild.Name
 	}
 
-	return storage.SetCommand(
+	return store.SetCommand(
 		guildID,
 		channelID,
 		channelName,
@@ -176,17 +206,14 @@ func LogCommand(s *discordgo.Session, storage *storage.Storage, guildID, channel
 }
 
 // IsAdministrator checks if a member has admin permissions in a guild.
-func IsAdministrator(s *discordgo.Session, member *discordgo.Member) bool {
+func IsAdministrator(s *discordgo.Session, member *discordgo.Member, cfg *config.Config) bool {
 	if member == nil || member.User == nil {
 		return false
 	}
-
-	// Developer override
-	if member.User.ID == config.New().DeveloperID {
+	if cfg != nil && member.User.ID == cfg.DeveloperID {
 		return true
 	}
 
-	// Fetch guild from state or API
 	guild, err := s.State.Guild(member.GuildID)
 	if err != nil || guild == nil {
 		guild, err = s.Guild(member.GuildID)
@@ -195,12 +222,10 @@ func IsAdministrator(s *discordgo.Session, member *discordgo.Member) bool {
 		}
 	}
 
-	// Guild owner always has admin
 	if member.User.ID == guild.OwnerID {
 		return true
 	}
 
-	// Check if any of the member's roles has admin permission
 	for _, roleID := range member.Roles {
 		if role, _ := s.State.Role(guild.ID, roleID); role != nil && role.Permissions&discordgo.PermissionAdministrator != 0 {
 			return true
@@ -210,10 +235,9 @@ func IsAdministrator(s *discordgo.Session, member *discordgo.Member) bool {
 	return false
 }
 
-// IsDeveloper checks if a user is the developer.
-func IsDeveloper(userID string) bool {
-	cfg := config.New()
-	return userID == cfg.DeveloperID
+// IsDeveloper checks if a user is the developer (delegates to config for single source of truth).
+func IsDeveloper(cfg *config.Config, userID string) bool {
+	return config.IsDeveloper(cfg, userID)
 }
 
 // CheckBotPermissions checks if the bot has manage messages permissions in a channel.

@@ -194,9 +194,12 @@ func newSingleProvider(engine string) Provider {
 	}
 }
 
-func DefaultProvider() Provider {
-	cfg := config.New()
-	preferred := strings.TrimSpace(cfg.AIProvider)
+// DefaultProvider returns the AI provider for the given config. cfg may be nil (uses fallbacks).
+func DefaultProvider(cfg *config.Config) Provider {
+	preferred := ""
+	if cfg != nil {
+		preferred = strings.TrimSpace(cfg.AIProvider)
+	}
 
 	failovers := []string{
 		"g4f:gpt-oss-120b",

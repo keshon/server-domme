@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/middleware"
@@ -59,14 +59,14 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	session := context.Session
 	event := context.Event
 
-	if err := bot.RespondDeferredEphemeral(session, event); err != nil {
+	if err := discord.RespondDeferredEphemeral(session, event); err != nil {
 		log.Println("[ERROR] Failed to defer help interaction:", err)
 		return err
 	}
 
 	data := event.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return bot.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return discord.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No subcommand provided. Use `category`, `group`, or `flat`.",
 		})
 	}
@@ -84,10 +84,10 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       version.AppName + " Help",
 		Description: output,
-		Color:       bot.EmbedColor,
+		Color:       discord.EmbedColor,
 	}
 
-	return bot.FollowupEmbedEphemeral(session, event, embed)
+	return discord.FollowupEmbedEphemeral(session, event, embed)
 }
 
 func buildHelpByCategory() string {

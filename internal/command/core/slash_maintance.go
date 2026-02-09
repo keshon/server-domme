@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
@@ -60,7 +60,7 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	options := e.ApplicationCommandData().Options
 
 	if len(options) == 0 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -69,17 +69,17 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 	switch sub.Name {
 	case "ping":
 		latency := s.HeartbeatLatency().Milliseconds()
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "Pong! 🏓",
 			Description: fmt.Sprintf("Latency: %dms", latency),
-			Color:       bot.EmbedColor,
+			Color:       discord.EmbedColor,
 		})
 	case "download-db":
 		return runGetDB(s, e, *storage)
 	case "status":
 		return runStatus(s, e, *storage)
 	default:
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
@@ -89,28 +89,28 @@ func runGetDB(s *discordgo.Session, e *discordgo.InteractionCreate, storage stor
 	guildID := e.GuildID
 	record, err := storage.GetGuildRecord(guildID)
 	if err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch record: ```%v```", err),
-			Color:       bot.EmbedColor,
+			Color:       discord.EmbedColor,
 		})
 	}
 
 	jsonBytes, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("JSON encode failed: ```%v```", err),
-			Color:       bot.EmbedColor,
+			Color:       discord.EmbedColor,
 		})
 	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "🧠 Database Dump",
 		Description: "Here’s your current in-memory datastore snapshot.",
-		Color:       bot.EmbedColor,
+		Color:       discord.EmbedColor,
 	}
 
 	fileName := fmt.Sprintf("%s_database_dump.json", guildID)
-	return bot.RespondEmbedEphemeralWithFile(s, e, embed, bytes.NewReader(jsonBytes), fileName)
+	return discord.RespondEmbedEphemeralWithFile(s, e, embed, bytes.NewReader(jsonBytes), fileName)
 }
 
 func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
@@ -118,9 +118,9 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	if err != nil || guild == nil {
 		guild, err = s.Guild(e.GuildID)
 		if err != nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to fetch guild: %v", err),
-				Color:       bot.EmbedColor,
+				Color:       discord.EmbedColor,
 			})
 		}
 	}
@@ -145,10 +145,10 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 		channelCount,
 	)
 
-	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Title:       "📊 Guild Status",
 		Description: desc,
-		Color:       bot.EmbedColor,
+		Color:       discord.EmbedColor,
 	})
 }
 

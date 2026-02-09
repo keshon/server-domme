@@ -21,6 +21,11 @@ type Config struct {
 	ShortLinkBaseURL      string   `env:"SHORTLINK_BASE_URL"`
 }
 
+// IsDeveloper reports whether userID is the configured developer (avoids discord import in middleware).
+func IsDeveloper(cfg *Config, userID string) bool {
+	return cfg != nil && cfg.DeveloperID == userID
+}
+
 // New returns a new Config.
 func New() *Config {
 	if err := godotenv.Load(); err != nil {

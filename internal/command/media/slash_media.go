@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 	"strings"
@@ -80,14 +80,14 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 
 	file, err := pickRandomFile(searchPath)
 	if err != nil {
-		return bot.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
 		})
 	}
 
 	f, err := os.Open(file)
 	if err != nil {
-		return bot.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to open media: %v", err),
 		})
 	}

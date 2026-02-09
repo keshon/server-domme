@@ -3,44 +3,71 @@ package command
 import (
 	"context"
 
+	"server-domme/internal/config"
 	"server-domme/internal/storage"
 	"server-domme/pkg/cmd"
 
 	"github.com/bwmarrin/discordgo"
 )
 
+// Responder is used by commands to reply without importing the discord package (avoids import cycles).
+type Responder interface {
+	RespondEmbedEphemeral(s *discordgo.Session, e *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error
+	RespondEmbed(s *discordgo.Session, e *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) error
+	CheckBotPermissions(s *discordgo.Session, channelID string) bool
+	EmbedColor() int
+}
+
+// CommandLogger logs command execution (avoids discord import in middleware).
+type CommandLogger interface {
+	LogCommand(s *discordgo.Session, store *storage.Storage, guildID, channelID, userID, username, commandName string) error
+}
+
 // Discord-specific contexts (what the runtime passes when executing).
+// Config is injected so handlers and middleware never call config.New().
 
 type SlashInteractionContext struct {
-	Session *discordgo.Session
-	Event   *discordgo.InteractionCreate
-	Args    []string
-	Storage *storage.Storage
+	Session   *discordgo.Session
+	Event     *discordgo.InteractionCreate
+	Args      []string
+	Storage   *storage.Storage
+	Config    *config.Config
+	Responder Responder
+	Logger    CommandLogger
 }
 
 type ComponentInteractionContext struct {
-	Session *discordgo.Session
-	Event   *discordgo.InteractionCreate
-	Storage *storage.Storage
+	Session   *discordgo.Session
+	Event     *discordgo.InteractionCreate
+	Storage   *storage.Storage
+	Config    *config.Config
+	Responder Responder
+	Logger    CommandLogger
 }
 
 type MessageReactionContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.MessageReactionAdd
 	Storage *storage.Storage
+	Config  *config.Config
+	Logger  CommandLogger
 }
 
 type MessageApplicationCommandContext struct {
-	Session *discordgo.Session
-	Event   *discordgo.InteractionCreate
-	Storage *storage.Storage
-	Target  *discordgo.Message
+	Session   *discordgo.Session
+	Event     *discordgo.InteractionCreate
+	Storage   *storage.Storage
+	Target    *discordgo.Message
+	Config    *config.Config
+	Responder Responder
+	Logger    CommandLogger
 }
 
 type MessageContext struct {
 	Session *discordgo.Session
 	Event   *discordgo.MessageCreate
 	Storage *storage.Storage
+	Config  *config.Config
 }
 
 // Providers — how a command is registered with Discord (slash, context menu, reaction).
@@ -122,6 +149,27 @@ func (a *DiscordAdapter) Component(ctx *ComponentInteractionContext) error {
 		return ch.Component(ctx)
 	}
 	return nil
+}
+
+// ConfigFromInvocation returns the injected Config from inv.Data if it is a Discord context.
+func ConfigFromInvocation(inv *cmd.Invocation) *config.Config {
+	if inv == nil || inv.Data == nil {
+		return nil
+	}
+	switch v := inv.Data.(type) {
+	case *SlashInteractionContext:
+		return v.Config
+	case *ComponentInteractionContext:
+		return v.Config
+	case *MessageReactionContext:
+		return v.Config
+	case *MessageApplicationCommandContext:
+		return v.Config
+	case *MessageContext:
+		return v.Config
+	default:
+		return nil
+	}
 }
 
 // RegisterCommand registers a Discord command with the universal registry and applies middlewares.

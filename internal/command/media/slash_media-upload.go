@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 
@@ -112,7 +112,7 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 	e := context.Event
 	guildID := e.GuildID
 
-	if err := bot.RespondDeferredEphemeral(s, e); err != nil {
+	if err := discord.RespondDeferredEphemeral(s, e); err != nil {
 		log.Printf("[ERROR] Failed to defer interaction: %v", err)
 		return err
 	}
@@ -138,7 +138,7 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 	}
 
 	if len(files) == 0 {
-		return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No files uploaded.",
 		})
 	}
@@ -155,7 +155,7 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 		saved++
 	}
 
-	return bot.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discord.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Title: "📥 Media Upload",
 		Description: fmt.Sprintf(
 			"Saved **%d** file(s) to category `%s` (%d failed)",

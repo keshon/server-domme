@@ -1,6 +1,6 @@
 package storage
 
-import st "server-domme/internal/storagetypes"
+import st "server-domme/internal/domain"
 
 func (s *Storage) DisableGroup(guildID, group string) error {
 	record, err := s.getOrCreateGuildRecord(guildID)

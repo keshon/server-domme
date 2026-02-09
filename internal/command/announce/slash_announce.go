@@ -3,7 +3,7 @@ package announce
 import (
 	"fmt"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
@@ -48,7 +48,7 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return bot.RespondEphemeral(s, e, "Please provide a message ID to announce.")
+		return discord.RespondEphemeral(s, e, "Please provide a message ID to announce.")
 	}
 
 	messageID := data.Options[0].StringValue()
@@ -58,26 +58,26 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 func (c *AnnounceCommand) runPublishMessage(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, messageID string) error {
 	announceChannelID, _ := st.GetAnnounceChannel(e.GuildID)
 	if announceChannelID == "" {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Announcement channel is not set. Use `/manage-announce set-channel` first.",
 		})
 	}
 
 	msg, err := s.ChannelMessage(e.ChannelID, messageID)
 	if err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch message: %v", err),
 		})
 	}
 
 	_, err = s.ChannelMessageSend(announceChannelID, msg.Content)
 	if err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to publish message: %v", err),
 		})
 	}
 
-	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("Message successfully published to <#%s>.", announceChannelID),
 	})
 }

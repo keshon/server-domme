@@ -1,7 +1,7 @@
 package storage
 
 import (
-	st "server-domme/internal/storagetypes"
+	st "server-domme/internal/domain"
 	"time"
 )
 

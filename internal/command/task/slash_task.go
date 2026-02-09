@@ -8,7 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/middleware"
@@ -20,7 +20,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	st "server-domme/internal/storagetypes"
+	st "server-domme/internal/domain"
 )
 
 var (
@@ -74,14 +74,14 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 	userID := member.User.ID
 
 	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(time.Until(cooldownUntil))),
 		})
 		return nil
 	}
 
-	if slices.Contains(config.New().ProtectedUsers, userID) {
-		bot.RespondEmbed(session, event, &discordgo.MessageEmbed{
+	if context.Config != nil && slices.Contains(context.Config.ProtectedUsers, userID) {
+		discord.RespondEmbed(session, event, &discordgo.MessageEmbed{
 			Description: "You're above this. No tasks for you.",
 		})
 		return nil
@@ -96,7 +96,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 
 	existing, _ := storage.GetTask(guildID, userID)
 	if existing != nil && existing.Status == "pending" {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You already have a task pending.",
 		})
 		return nil
@@ -104,7 +104,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 
 	taskerRoles, _ := storage.GetTaskRole(guildID)
 	if len(taskerRoles) == 0 {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No tasker roles set. Ask an Admin to set them.",
 		})
 		return nil
@@ -113,7 +113,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Failed to load tasks.\nAsk an Admin to set them.",
 		})
 		log.Println("loadTasksForGuild:", err)
@@ -122,7 +122,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No task suits your... profile.\nAsk an Admin to upload tasks for your gender role and try again.",
 		})
 		return nil
@@ -205,14 +205,14 @@ func (c *TaskCommand) Component(ctx *command.ComponentInteractionContext) error 
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No active task found. Trying to cheat, hmm?",
 		})
 		return nil
 	}
 
 	if task.UserID != userID {
-		bot.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "That task doesn’t belong to you. Greedy little fingers, aren't you?",
 		})
 		return nil
@@ -287,20 +287,21 @@ func (c *TaskCommand) handleTaskCompletion(ctx *command.ComponentInteractionCont
 	})
 }
 
-func init() {
-	cfg := config.New()
-	var err error
-	tasks, err = loadTasks(cfg.TasksPath)
-	if err != nil {
-		log.Println("[ERR] Failed to load tasks:", err)
-		return
+// InitFromConfig loads the default task list from cfg.TasksPath. Call from main after loading config.
+func InitFromConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return nil
 	}
+	loaded, err := loadTasks(cfg.TasksPath)
+	if err != nil {
+		return err
+	}
+	tasks = loaded
 	if len(tasks) == 0 {
 		log.Println("[WARN] No tasks loaded! Aborting task assignment.")
-		return
 	}
-
 	log.Printf("[INFO] Loaded %d tasks from %s\n", len(tasks), cfg.TasksPath)
+	return nil
 }
 
 func handleTimers(session *discordgo.Session, storage *storage.Storage, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {

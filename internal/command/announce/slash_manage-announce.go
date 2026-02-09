@@ -2,7 +2,7 @@ package announce
 
 import (
 	"fmt"
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 
@@ -60,7 +60,7 @@ func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -70,34 +70,34 @@ func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
 	case "set-channel":
 		channel := sub.Options[0].ChannelValue(s)
 		if channel == nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Invalid channel.",
 			})
 		}
 
 		if err := st.SetAnnounceChannel(e.GuildID, channel.ID); err != nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set announcement channel: `%v`", err),
 			})
 		}
 
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Announcement channel updated to <#%s>.", channel.ID),
 		})
 
 	case "reset-channel":
 		if err := st.SetAnnounceChannel(e.GuildID, ""); err != nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to reset announcement channel: `%v`", err),
 			})
 		}
 
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Announcement channel has been reset.",
 		})
 
 	default:
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand.",
 		})
 	}

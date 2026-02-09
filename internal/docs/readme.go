@@ -1,4 +1,4 @@
-package discord
+package docs
 
 import (
 	"bytes"
@@ -6,29 +6,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"server-domme/internal/command"
-	"server-domme/internal/config"
-	"server-domme/pkg/cmd"
 	"sort"
 	"text/template"
+
+	"server-domme/internal/command"
+	"server-domme/pkg/cmd"
 )
 
-// CommandDoc is a command documentation
-type CommandDoc struct {
-	Group    string
-	Category string
-	Name     string
-	Desc     string
-}
-
-// TemplateData is a template data
-type TemplateData struct {
-	CommandSections string
-}
-
-// updateReadme updates the README.md file
-func updateReadme() error {
-	commands := cmd.DefaultRegistry.GetAll()
+// UpdateReadme generates README.md from the command registry and category ordering.
+// categoryWeights maps category name to sort order (lower first).
+func UpdateReadme(registry *cmd.Registry, categoryWeights map[string]int) error {
+	commands := registry.GetAll()
 	sort.Slice(commands, func(i, j int) bool {
 		metaI, _ := cmd.Root(commands[i]).(command.DiscordMeta)
 		metaJ, _ := cmd.Root(commands[j]).(command.DiscordMeta)
@@ -39,8 +27,8 @@ func updateReadme() error {
 		if metaJ != nil {
 			catJ = metaJ.Category()
 		}
-		wi := config.CategoryWeights[catI]
-		wj := config.CategoryWeights[catJ]
+		wi := categoryWeights[catI]
+		wj := categoryWeights[catJ]
 		if wi == wj {
 			return commands[i].Name() < commands[j].Name()
 		}
@@ -79,7 +67,9 @@ func updateReadme() error {
 		return err
 	}
 
-	data := TemplateData{
+	data := struct {
+		CommandSections string
+	}{
 		CommandSections: buf.String(),
 	}
 
@@ -97,7 +87,6 @@ func updateReadme() error {
 	return nil
 }
 
-// hasSpace returns true if the string contains a space
 func hasSpace(s string) bool {
 	for _, r := range s {
 		if r == ' ' {
@@ -107,7 +96,6 @@ func hasSpace(s string) bool {
 	return false
 }
 
-// startsWithUpper returns true if the string starts with an uppercase letter
 func startsWithUpper(s string) bool {
 	if s == "" {
 		return false

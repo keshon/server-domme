@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	st "server-domme/internal/storagetypes"
+	st "server-domme/internal/domain"
 
 	"github.com/keshon/datastore"
 )

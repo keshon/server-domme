@@ -1,21 +1,21 @@
-package discord
+package purge
 
 import (
 	"encoding/json"
 	"log"
 
 	"server-domme/internal/command/purge"
+	st "server-domme/internal/domain"
 	"server-domme/internal/storage"
-	st "server-domme/internal/storagetypes"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-// purgeScheduler starts scheduled purge jobs
-func purgeScheduler(storage *storage.Storage, session *discordgo.Session) {
+// RunScheduler starts scheduled purge jobs (delayed and recurring). Call from the Discord lifecycle.
+func RunScheduler(store *storage.Storage, session *discordgo.Session) {
 	log.Printf("[INFO] Starting purge scheduler...")
-	records := storage.GetRecordsList()
+	records := store.GetRecordsList()
 
 	for _, data := range records {
 		jsonData, _ := json.Marshal(data)
@@ -37,7 +37,7 @@ func purgeScheduler(storage *storage.Storage, session *discordgo.Session) {
 					log.Printf("[INFO] DelayUntil is in the past — executing delayed purge immediately for channel %s", job.ChannelID)
 					purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
-					err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
+					err := store.ClearDeletionJob(job.GuildID, job.ChannelID)
 					if err != nil {
 						log.Printf("[ERR] Failed to delete purge job for channel %s: %v", job.ChannelID, err)
 					}
@@ -48,7 +48,7 @@ func purgeScheduler(storage *storage.Storage, session *discordgo.Session) {
 						log.Printf("[INFO] Executing delayed purge for channel %s", job.ChannelID)
 						purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
-						err := storage.ClearDeletionJob(job.GuildID, job.ChannelID)
+						err := store.ClearDeletionJob(job.GuildID, job.ChannelID)
 						if err != nil {
 							log.Printf("[ERR] Failed to delete purge job for channel %s: %v", job.ChannelID, err)
 						} else {

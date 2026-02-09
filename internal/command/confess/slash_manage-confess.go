@@ -3,7 +3,7 @@ package confess
 import (
 	"fmt"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
@@ -66,7 +66,7 @@ func (c *ManageConfessCommand) Run(ctx interface{}) error {
 	data := e.ApplicationCommandData()
 
 	if len(data.Options) == 0 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -81,37 +81,37 @@ func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, 
 	case "set-channel":
 		channelID := sub.Options[0].ChannelValue(s).ID
 		if err := storage.SetConfessChannel(e.GuildID, channelID); err != nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set confession channel: `%v`", err),
 			})
 		}
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Confession channel has been set to <#%s>.", channelID),
 		})
 
 	case "list-channel":
 		channelID, err := storage.GetConfessChannel(e.GuildID)
 		if err != nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to get confession channel: `%v`", err),
 			})
 		}
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Current confession channel is <#%s>.", channelID),
 		})
 
 	case "reset-channel":
 		if err := storage.RemoveConfessChannel(e.GuildID); err != nil {
-			return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to remove confession channel: `%v`", err),
 			})
 		}
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Confession channel has been removed.",
 		})
 
 	default:
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	st "server-domme/internal/storagetypes"
+	st "server-domme/internal/domain"
 )
 
 func (s *Storage) AddShortLink(guildID, userID, original, shortID string) error {

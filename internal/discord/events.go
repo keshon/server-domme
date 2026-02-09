@@ -1,4 +1,4 @@
-package bot
+package discord
 
 type SystemEventType int
 
@@ -14,15 +14,16 @@ type SystemEvent struct {
 
 var systemEvents = make(chan SystemEvent, 32)
 
+// PublishSystemEvent sends an event to the system event bus.
 func PublishSystemEvent(ev SystemEvent) {
 	select {
 	case systemEvents <- ev:
 	default:
-		// fallback: channel full, drop event
-		// (or log if you want)]
+		// channel full, drop event
 	}
 }
 
+// SystemEvents returns the channel for system events.
 func SystemEvents() <-chan SystemEvent {
 	return systemEvents
 }

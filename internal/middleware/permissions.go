@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"server-domme/internal/bot"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/pkg/cmd"
@@ -91,6 +90,7 @@ func WithUserPermissionCheck() cmd.Middleware {
 				return c.Run(ctx, inv)
 			}
 
+			cfg := command.ConfigFromInvocation(inv)
 			memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
 			if err != nil {
 				return fmt.Errorf("failed to get user permissions: %w", err)
@@ -98,7 +98,7 @@ func WithUserPermissionCheck() cmd.Middleware {
 			if memberPerms&discordgo.PermissionAdministrator != 0 {
 				return c.Run(ctx, inv)
 			}
-			if m.User.ID == config.New().DeveloperID {
+			if config.IsDeveloper(cfg, m.User.ID) {
 				return c.Run(ctx, inv)
 			}
 
@@ -133,11 +133,17 @@ func WithUserPermissionCheck() cmd.Middleware {
 				)
 				switch v := inv.Data.(type) {
 				case *command.SlashInteractionContext:
-					bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+					if v.Responder != nil {
+						_ = v.Responder.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
 				case *command.ComponentInteractionContext:
-					bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+					if v.Responder != nil {
+						_ = v.Responder.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
 				case *command.MessageApplicationCommandContext:
-					bot.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+					if v.Responder != nil {
+						_ = v.Responder.RespondEmbedEphemeral(s, v.Event, &discordgo.MessageEmbed{Description: msg})
+					}
 				case *command.MessageContext:
 					_, _ = s.ChannelMessageSend(channelID, msg)
 				}

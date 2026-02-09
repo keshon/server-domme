@@ -12,7 +12,6 @@ import (
 
 	"server-domme/internal/ai"
 	"server-domme/internal/command"
-	"server-domme/internal/config"
 	"server-domme/internal/middleware"
 
 	"github.com/bwmarrin/discordgo"
@@ -79,13 +78,12 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 	history := convos.get(channelID)
 
 	// Load system prompt (guild-specific or fallback)
-	cfg := config.New()
-
-	localPromptPath := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", context.Event.GuildID))
-	globalPromptPath := cfg.AIPromtPath
-	if globalPromptPath == "" {
-		globalPromptPath = "data/chat.prompt.md"
+	cfg := context.Config
+	globalPromptPath := "data/chat.prompt.md"
+	if cfg != nil && cfg.AIPromtPath != "" {
+		globalPromptPath = cfg.AIPromtPath
 	}
+	localPromptPath := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", context.Event.GuildID))
 
 	var chosenPath string
 	if _, err := os.Stat(localPromptPath); err == nil {
@@ -120,7 +118,7 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 		messages = append(messages, ai.Message{Role: role, Content: m.Content})
 	}
 
-	client := ai.DefaultProvider()
+	client := ai.DefaultProvider(cfg)
 	reply, err := client.Generate(messages)
 	if err != nil {
 		log.Printf("[ERROR] AI request failed: %v", err)

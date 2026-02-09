@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"server-domme/internal/bot"
+	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/middleware"
@@ -81,7 +81,7 @@ func (c *ShortlinkCommand) Run(ctx interface{}) error {
 	data := e.ApplicationCommandData()
 
 	if len(data.Options) == 0 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -89,15 +89,15 @@ func (c *ShortlinkCommand) Run(ctx interface{}) error {
 	opt := data.Options[0]
 	switch opt.Name {
 	case "create":
-		return c.runCreate(s, e, st, opt)
+		return c.runCreate(s, e, st, opt, context.Config)
 	case "list":
-		return c.runList(s, e, st)
+		return c.runList(s, e, st, context.Config)
 	case "delete":
 		return c.runDelete(s, e, st, opt)
 	case "clear":
 		return c.runClear(s, e, st)
 	default:
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand.",
 		})
 	}
@@ -108,8 +108,11 @@ func (c *ShortlinkCommand) runCreate(
 	e *discordgo.InteractionCreate,
 	st *storage.Storage,
 	opt *discordgo.ApplicationCommandInteractionDataOption,
+	cfg *config.Config,
 ) error {
-	cfg := config.New()
+	if cfg == nil {
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
+	}
 	raw := strings.TrimSpace(opt.Options[0].StringValue())
 
 	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
@@ -119,8 +122,8 @@ func (c *ShortlinkCommand) runCreate(
 	}
 
 	if !isValidURL(raw) {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       bot.EmbedColor,
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discord.EmbedColor,
 			Description: fmt.Sprintf("`%s` doesn’t look like a valid link.\nTry something like `https://example.com`.", raw),
 		})
 	}
@@ -130,8 +133,8 @@ func (c *ShortlinkCommand) runCreate(
 
 	links, _ := st.GetUserShortLinks(guildID, userID)
 	if len(links) >= 50 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       bot.EmbedColor,
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discord.EmbedColor,
 			Description: "You have reached the maximum number of short links (50). Use `/shortlink clear` to clear them or `/shortlink delete` to delete some.",
 		})
 	}
@@ -140,14 +143,14 @@ func (c *ShortlinkCommand) runCreate(
 	shortURL := fmt.Sprintf("%s/%s", cfg.ShortLinkBaseURL, shortID)
 
 	if err := st.AddShortLink(guildID, userID, raw, shortID); err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       bot.EmbedColor,
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discord.EmbedColor,
 			Description: fmt.Sprintf("Failed to save short link: %v", err),
 		})
 	}
 
-	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Color: bot.EmbedColor,
+	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Color: discord.EmbedColor,
 		Title: "Short Link Created",
 		Description: fmt.Sprintf(
 			"**Original:** %s\n**Shortened:** %s\n\n💡 You can delete this later with `/shortlink delete id:%s`",
@@ -156,14 +159,16 @@ func (c *ShortlinkCommand) runCreate(
 	})
 }
 
-func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage) error {
-	cfg := config.New()
+func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage, cfg *config.Config) error {
+	if cfg == nil {
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
+	}
 	userID := e.Member.User.ID
 	guildID := e.GuildID
 
 	links, err := st.GetUserShortLinks(guildID, userID)
 	if err != nil || len(links) == 0 {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "You don’t have any shortened links yet.",
 		})
 	}
@@ -203,7 +208,7 @@ func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.Interactio
 
 	for i, embed := range embeds {
 		if i == 0 {
-			_ = bot.RespondEmbedEphemeral(s, e, embed)
+			_ = discord.RespondEmbedEphemeral(s, e, embed)
 		} else {
 			_, _ = s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
 				Embeds: []*discordgo.MessageEmbed{embed},
@@ -221,14 +226,14 @@ func (c *ShortlinkCommand) runDelete(s *discordgo.Session, e *discordgo.Interact
 
 	err := st.DeleteShortLink(guildID, userID, shortID)
 	if err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       bot.EmbedColor,
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discord.EmbedColor,
 			Description: fmt.Sprintf("Failed to delete short link: %v", err),
 		})
 	}
 
-	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Color:       bot.EmbedColor,
+	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Color:       discord.EmbedColor,
 		Description: fmt.Sprintf("Short link **%s** has been deleted.", shortID),
 	})
 }
@@ -238,14 +243,14 @@ func (c *ShortlinkCommand) runClear(s *discordgo.Session, e *discordgo.Interacti
 	guildID := e.GuildID
 
 	if err := st.ClearUserShortLinks(guildID, userID); err != nil {
-		return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       bot.EmbedColor,
+		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discord.EmbedColor,
 			Description: fmt.Sprintf("Failed to clear links: %v", err),
 		})
 	}
 
-	return bot.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Color:       bot.EmbedColor,
+	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Color:       discord.EmbedColor,
 		Description: "All your shortened links have been cleared.",
 	})
 }
