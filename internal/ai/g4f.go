@@ -1,4 +1,3 @@
-// g4f.go
 package ai
 
 import (

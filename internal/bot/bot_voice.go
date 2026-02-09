@@ -1,4 +1,3 @@
-// /internal/core/botvoice.go
 package bot
 
 type VoiceState struct {
