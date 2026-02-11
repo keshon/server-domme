@@ -16,7 +16,9 @@ type PollinationsProvider struct {
 
 func NewPollinationsProvider() *PollinationsProvider {
 	return &PollinationsProvider{
-		client: &http.Client{Timeout: 25 * time.Second},
+		client: &http.Client{
+			Timeout: 25 * time.Second,
+		},
 	}
 }
 
@@ -30,10 +32,14 @@ func (p *PollinationsProvider) Generate(messages []Message) (string, error) {
 
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return "", fmt.Errorf("marshal payload: %w", err)
+		return "", err
 	}
 
-	req, err := http.NewRequest("POST", "https://text.pollinations.ai/openai", bytes.NewReader(data))
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"https://text.pollinations.ai/openai",
+		bytes.NewReader(data),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -45,27 +51,39 @@ func (p *PollinationsProvider) Generate(messages []Message) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("pollinations status=%d body=%s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("pollinations http %d: %s", resp.StatusCode, truncate(body))
+	}
+
+	if strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
+		return "", fmt.Errorf("pollinations returned html")
 	}
 
 	var parsed struct {
 		Choices []struct {
 			Message struct {
-				Role    string `json:"role"`
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
 
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w body=%s", err, string(body))
+		return "", err
 	}
 
-	if len(parsed.Choices) > 0 {
-		return strings.TrimSpace(parsed.Choices[0].Message.Content), nil
+	if len(parsed.Choices) == 0 {
+		return "", fmt.Errorf("pollinations empty choices")
 	}
 
-	return "", fmt.Errorf("no choices returned: %s", string(body))
+	reply := cleanReply(parsed.Choices[0].Message.Content)
+	if isGarbageResponse(reply) {
+		return "", fmt.Errorf("pollinations returned garbage")
+	}
+
+	return reply, nil
 }

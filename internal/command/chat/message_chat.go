@@ -119,7 +119,21 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 	}
 
 	client := ai.DefaultProvider(cfg)
+
 	reply, err := client.Generate(messages)
+
+	if mp, ok := client.(*ai.MultiProvider); ok {
+		trace := mp.LastTrace()
+
+		if trace.Engine != "" {
+			log.Printf("[AI] provider=%s", trace.Engine)
+		}
+
+		for _, e := range trace.Errors {
+			log.Printf("[AI] fallback error: %s", e)
+		}
+	}
+
 	if err != nil {
 		log.Printf("[ERROR] AI request failed: %v", err)
 		context.Session.ChannelMessageSend(channelID,

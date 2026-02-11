@@ -6,12 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"server-domme/internal/config"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"server-domme/internal/config"
 )
 
 type Message struct {
@@ -21,6 +22,20 @@ type Message struct {
 
 type Provider interface {
 	Generate(messages []Message) (string, error)
+}
+
+type ProviderError struct {
+	Engine  string
+	Attempt int
+	Error   string
+}
+
+type GenerationReport struct {
+	Engine   string
+	Attempts int
+	Errors   []ProviderError
+	Success  bool
+	Duration time.Duration
 }
 
 type engineStats struct {
@@ -33,10 +48,12 @@ type engineStats struct {
 }
 
 type MultiProvider struct {
-	engines []string // canonical order
+	engines []string
 	stats   map[string]*engineStats
 	mu      sync.Mutex
-	path    string // path to persisted file
+	path    string
+
+	lastReport *GenerationReport
 }
 
 func NewMultiProvider(engines []string) *MultiProvider {
@@ -50,57 +67,113 @@ func NewMultiProvider(engines []string) *MultiProvider {
 }
 
 func (m *MultiProvider) Generate(messages []Message) (string, error) {
+	start := time.Now()
+
+	report := &GenerationReport{}
+	defer func() {
+		report.Duration = time.Since(start)
+		m.mu.Lock()
+		m.lastReport = report
+		m.mu.Unlock()
+	}()
+
 	var lastErr error
 
 	for _, engine := range m.orderedEngines() {
-		m.mu.Lock()
-		es := m.stats[engine]
-		if es == nil {
-			es = &engineStats{}
-			m.stats[engine] = es
-		}
-
-		// skip if in cooldown
+		es := m.getStats(engine)
 		if es.Cooldown.After(time.Now()) {
-			m.mu.Unlock()
 			continue
 		}
-		m.mu.Unlock()
 
 		provider := newSingleProvider(engine)
+
 		for attempt := 1; attempt <= 2; attempt++ {
+			report.Attempts++
+
 			reply, err := provider.Generate(messages)
 
 			m.mu.Lock()
 			es.LastUsed = time.Now()
+
 			if err == nil {
 				es.Successes++
-				es.Score += 5.0           // strong reward
-				es.Cooldown = time.Time{} // clear cooldown
+				es.Score += 5
+				es.Cooldown = time.Time{}
+				report.Engine = engine
+				report.Success = true
 				m.mu.Unlock()
-				fmt.Printf("[AI] success with %s (attempt %d)\n", engine, attempt)
+
 				m.saveStatsAsync()
 				return reply, nil
 			}
 
 			es.Failures++
 			es.LastError = err.Error()
-			es.Score -= 2.5 // moderate penalty
+			es.Score -= 2.5
+
+			report.Errors = append(report.Errors, ProviderError{
+				Engine:  engine,
+				Attempt: attempt,
+				Error:   err.Error(),
+			})
 
 			if attempt == 2 {
+				es.Score -= 5
 				es.Cooldown = time.Now().Add(45 * time.Second)
-				es.Score -= 5 // strong penalty after full failure
 			}
 			m.mu.Unlock()
 
 			lastErr = err
-			fmt.Printf("[AI] %s attempt %d failed: %v\n", engine, attempt, err)
 			time.Sleep(time.Duration(200*attempt) * time.Millisecond)
 		}
 	}
 
 	m.saveStatsAsync()
-	return "", fmt.Errorf("all providers failed, last error: %w", lastErr)
+	return "", fmt.Errorf("all providers failed: %w", lastErr)
+}
+
+type GenerationTrace struct {
+	Engine string
+	Errors []string
+}
+
+func (m *MultiProvider) LastTrace() GenerationTrace {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var errors []string
+	var used string
+
+	for _, engine := range m.engines {
+		es := m.stats[engine]
+		if es == nil {
+			continue
+		}
+		if es.LastUsed.After(time.Now().Add(-2 * time.Second)) {
+			used = engine
+			break
+		}
+		if es.LastError != "" {
+			errors = append(errors, fmt.Sprintf("%s: %s", engine, es.LastError))
+		}
+	}
+
+	return GenerationTrace{
+		Engine: used,
+		Errors: errors,
+	}
+}
+
+func (m *MultiProvider) getStats(engine string) *engineStats {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	es := m.stats[engine]
+	if es == nil {
+		es = &engineStats{}
+		m.stats[engine] = es
+	}
+	return es
 }
 
 var paramRegexp = regexp.MustCompile(`(\d+)b`)
@@ -111,7 +184,6 @@ func (m *MultiProvider) orderedEngines() []string {
 
 	now := time.Now()
 	for _, es := range m.stats {
-		// decay scores gradually
 		days := now.Sub(es.LastUsed).Hours() / 24
 		es.Score -= days * 0.1
 		if es.Score < -50 {
@@ -121,23 +193,22 @@ func (m *MultiProvider) orderedEngines() []string {
 
 	engines := append([]string(nil), m.engines...)
 	sort.SliceStable(engines, func(i, j int) bool {
-		si := m.stats[engines[i]]
-		sj := m.stats[engines[j]]
-
 		sizeI := extractBillionParams(engines[i])
 		sizeJ := extractBillionParams(engines[j])
 
-		// Step 1: push biggest models first
 		if sizeI != sizeJ {
 			return sizeI > sizeJ
 		}
 
-		// Step 2: among same size, use reliability score (and cooldown)
+		si := m.stats[engines[i]]
+		sj := m.stats[engines[j]]
+
 		scoreI := 0.0
 		scoreJ := 0.0
+
 		if si != nil {
 			if si.Cooldown.After(now) {
-				scoreI = -1000 // temporarily push down
+				scoreI = -1000
 			} else {
 				scoreI = si.Score
 			}
@@ -157,15 +228,13 @@ func (m *MultiProvider) orderedEngines() []string {
 }
 
 func extractBillionParams(name string) int {
-	match := paramRegexp.FindStringSubmatch(name)
-	if len(match) < 2 {
+	m := paramRegexp.FindStringSubmatch(name)
+	if len(m) < 2 {
 		return 0
 	}
-	val, _ := strconv.Atoi(match[1])
-	return val
+	v, _ := strconv.Atoi(m[1])
+	return v
 }
-
-// Persistence
 
 func (m *MultiProvider) loadStats() {
 	data, err := os.ReadFile(m.path)
@@ -176,25 +245,25 @@ func (m *MultiProvider) loadStats() {
 }
 
 func (m *MultiProvider) saveStatsAsync() {
-	go func(stats map[string]*engineStats, path string) {
+	stats := m.stats
+	path := m.path
+
+	go func() {
 		os.MkdirAll(filepath.Dir(path), 0755)
 		data, _ := json.MarshalIndent(stats, "", "  ")
 		_ = os.WriteFile(path, data, 0644)
-	}(m.stats, m.path)
+	}()
 }
 
 func newSingleProvider(engine string) Provider {
 	switch {
 	case engine == "pollinations":
 		return NewPollinationsProvider()
-	case strings.HasPrefix(engine, "g4f"):
-		return NewG4FProvider(engine)
 	default:
-		panic(fmt.Sprintf("unsupported AI_PROVIDER: %s", engine))
+		panic("unsupported provider: " + engine)
 	}
 }
 
-// DefaultProvider returns the AI provider for the given config. cfg may be nil (uses fallbacks).
 func DefaultProvider(cfg *config.Config) Provider {
 	preferred := ""
 	if cfg != nil {
@@ -202,32 +271,15 @@ func DefaultProvider(cfg *config.Config) Provider {
 	}
 
 	failovers := []string{
-		"g4f:gpt-oss-120b",
-		"g4f:groq/qwen/qwen3-32b",
-		"g4f:groq/gemma2-9b-it",
-		"g4f:groq/llama-3.1-8b-instant",
-		"g4f:groq/openai/gpt-oss-120b",
-		"g4f:groq/openai/gpt-oss-20b",
-		"g4f:groq/groq/compound-mini",
-		"g4f:groq/moonshotai/kimi-k2-instruct-0905",
-		"g4f:groq/meta-llama/llama-4-maverick-17b-128e-instruct",
-		"g4f:groq/meta-llama/llama-4-scout-17b-16e-instruct",
-		"g4f:groq/deepseek-r1-distill-llama-70b",
-		"g4f:groq/llama-3.3-70b-versatile",
-		"g4f:groq/moonshotai/kimi-k2-instruct",
-		"g4f:groq/groq/compound",
-		"g4f:ollama/deepseek-v3.1:671b",
-		"g4f:ollama/gpt-oss:120b",
-		"g4f:ollama/gpt-oss:20b",
 		"pollinations",
 	}
 
 	var engines []string
 	if preferred != "" {
 		engines = append(engines, preferred)
-		for _, f := range failovers {
-			if f != preferred {
-				engines = append(engines, f)
+		for _, e := range failovers {
+			if e != preferred {
+				engines = append(engines, e)
 			}
 		}
 	} else {

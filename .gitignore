@@ -12,3 +12,4 @@ datastore_dump.json
 *.json
 /assets/media
 *.exe~
+internal/dump.bat
