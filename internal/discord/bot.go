@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"server-domme/internal/ai"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/docs"
+	"server-domme/internal/mind"
 	"server-domme/internal/music/player"
 	"server-domme/internal/music/source_resolver"
 	"server-domme/internal/purge"
@@ -23,13 +25,14 @@ import (
 
 // Bot is a Discord bot
 type Bot struct {
-	dg        *discordgo.Session
-	storage   *storage.Storage
-	slashCmds map[string][]*discordgo.ApplicationCommand
-	cfg       *config.Config
-	mu        sync.RWMutex
-	players   map[string]*player.Player
+	dg          *discordgo.Session
+	storage     *storage.Storage
+	slashCmds   map[string][]*discordgo.ApplicationCommand
+	cfg         *config.Config
+	mu          sync.RWMutex
+	players     map[string]*player.Player
 	sourceResolver *source_resolver.SourceResolver
+	MindRunner  *mind.Runner // optional: cognitive layer for autonomous reply
 }
 
 // NewBot creates a Bot instance. Register any bot-dependent commands (e.g. music) before calling Run.
@@ -74,6 +77,10 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	}
 	defer dg.Close()
 
+	if b.MindRunner != nil {
+		b.MindRunner.Start(ctx, dg, ai.DefaultProvider(b.cfg), b.cfg)
+	}
+
 	go func() {
 		for evt := range SystemEvents() {
 			switch evt.Type {
@@ -106,6 +113,16 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 			break
 		}
 	}
+
+	// Ingest all guild messages into mind (for scheduler / autonomous reply)
+	if m.GuildID != "" && b.MindRunner != nil {
+		display := m.Author.Username
+		if m.Author.GlobalName != "" {
+			display = m.Author.GlobalName
+		}
+		b.MindRunner.IngestMessage(m.GuildID, m.ChannelID, m.Author.ID, display, strings.TrimSpace(m.Content), mentioned)
+	}
+
 	if !mentioned {
 		return
 	}

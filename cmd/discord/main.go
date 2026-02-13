@@ -27,6 +27,7 @@ import (
 	"server-domme/internal/config"
 	"server-domme/internal/discord"
 	"server-domme/internal/middleware"
+	"server-domme/internal/mind"
 	"server-domme/internal/storage"
 	v "server-domme/internal/version"
 )
@@ -51,7 +52,9 @@ func main() {
 
 	go storage.RunCooldownCleaner(ctx, store)
 
+	mindRunner := mind.NewRunner("data/mind")
 	bot := discord.NewBot(cfg, store)
+	bot.MindRunner = mindRunner
 	command.RegisterCommand(
 		&music.MusicCommand{Bot: bot},
 		middleware.WithGroupAccessCheck(),
