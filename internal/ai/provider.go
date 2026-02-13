@@ -48,19 +48,21 @@ type engineStats struct {
 }
 
 type MultiProvider struct {
-	engines []string
-	stats   map[string]*engineStats
-	mu      sync.Mutex
-	path    string
+	engines            []string
+	stats              map[string]*engineStats
+	mu                 sync.Mutex
+	path               string
+	pollinationsAPIKey string
 
 	lastReport *GenerationReport
 }
 
-func NewMultiProvider(engines []string) *MultiProvider {
+func NewMultiProvider(engines []string, pollinationsAPIKey string) *MultiProvider {
 	m := &MultiProvider{
-		engines: engines,
-		stats:   make(map[string]*engineStats),
-		path:    filepath.Join("data", "ai_stats.json"),
+		engines:            engines,
+		stats:              make(map[string]*engineStats),
+		path:               filepath.Join("data", "ai_stats.json"),
+		pollinationsAPIKey: pollinationsAPIKey,
 	}
 	m.loadStats()
 	return m
@@ -85,7 +87,7 @@ func (m *MultiProvider) Generate(messages []Message) (string, error) {
 			continue
 		}
 
-		provider := newSingleProvider(engine)
+		provider := m.newSingleProvider(engine)
 
 		for attempt := 1; attempt <= 2; attempt++ {
 			report.Attempts++
@@ -255,10 +257,10 @@ func (m *MultiProvider) saveStatsAsync() {
 	}()
 }
 
-func newSingleProvider(engine string) Provider {
+func (m *MultiProvider) newSingleProvider(engine string) Provider {
 	switch {
 	case engine == "pollinations":
-		return NewPollinationsProvider()
+		return NewPollinationsProvider(m.pollinationsAPIKey)
 	default:
 		panic("unsupported provider: " + engine)
 	}
@@ -286,5 +288,9 @@ func DefaultProvider(cfg *config.Config) Provider {
 		engines = failovers
 	}
 
-	return NewMultiProvider(engines)
+	pollinationsKey := ""
+	if cfg != nil {
+		pollinationsKey = strings.TrimSpace(cfg.PollinationsAPIKey)
+	}
+	return NewMultiProvider(engines, pollinationsKey)
 }

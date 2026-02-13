@@ -17,6 +17,7 @@ type Config struct {
 	DeveloperID           string   `env:"DEVELOPER_ID"`
 	InitSlashCommands     bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
 	AIProvider            string   `env:"AI_PROVIDER"`
+	PollinationsAPIKey    string   `env:"POLLINATIONS_API_KEY"` // optional; get key at https://enter.pollinations.ai
 	AIPromtPath           string   `env:"AI_PROMPT_PATH"`
 	ShortLinkBaseURL      string   `env:"SHORTLINK_BASE_URL"`
 }

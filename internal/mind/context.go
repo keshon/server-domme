@@ -10,34 +10,37 @@ import (
 
 // TokenBudget — approximate token limits per section. LLMs ~4 chars/token for English.
 const (
-	BudgetCoreIdentity  = 600   // tokens
-	BudgetBiology       = 150
-	BudgetWorldview     = 100
-	BudgetMediumMemory  = 400
-	BudgetPeopleSummary = 300   // total for all mentioned people
-	BudgetShortContext  = 800   // last N messages; dynamic
-	CharsPerToken       = 4
+	BudgetCoreIdentity     = 600 // tokens
+	BudgetBiology          = 150
+	BudgetWorldview        = 100
+	BudgetMediumMemory     = 400
+	BudgetRelevantMemories = 100 // episodic memories in system prompt
+	BudgetPeopleSummary    = 300 // total for all mentioned people
+	BudgetShortContext     = 800 // last N messages; dynamic
+	CharsPerToken          = 4
 )
 
 // TokenBudgetManager enforces limits. Never send full chat history or raw logs.
 type TokenBudgetManager struct {
-	MaxCoreIdentity  int
-	MaxBiology       int
-	MaxWorldview     int
-	MaxMediumMemory  int
-	MaxPeopleSummary int
-	MaxShortContext  int
+	MaxCoreIdentity     int
+	MaxBiology          int
+	MaxWorldview        int
+	MaxMediumMemory     int
+	MaxRelevantMemories int
+	MaxPeopleSummary    int
+	MaxShortContext     int
 }
 
 // DefaultTokenBudget returns default limits.
 func DefaultTokenBudget() TokenBudgetManager {
 	return TokenBudgetManager{
-		MaxCoreIdentity:  BudgetCoreIdentity * CharsPerToken,
-		MaxBiology:       BudgetBiology * CharsPerToken,
-		MaxWorldview:     BudgetWorldview * CharsPerToken,
-		MaxMediumMemory:  BudgetMediumMemory * CharsPerToken,
-		MaxPeopleSummary: BudgetPeopleSummary * CharsPerToken,
-		MaxShortContext:  BudgetShortContext * CharsPerToken,
+		MaxCoreIdentity:     BudgetCoreIdentity * CharsPerToken,
+		MaxBiology:          BudgetBiology * CharsPerToken,
+		MaxWorldview:        BudgetWorldview * CharsPerToken,
+		MaxMediumMemory:     BudgetMediumMemory * CharsPerToken,
+		MaxRelevantMemories: BudgetRelevantMemories * CharsPerToken,
+		MaxPeopleSummary:    BudgetPeopleSummary * CharsPerToken,
+		MaxShortContext:     BudgetShortContext * CharsPerToken,
 	}
 }
 
@@ -59,48 +62,72 @@ func TrimToChars(s string, maxChars int) string {
 	return strings.TrimSpace(out)
 }
 
-// BuildSystemPrompt builds the system prompt from core + guild. Core (identity, biology, worldview) is not trimmed.
-func BuildSystemPrompt(core *Core, g *GuildState, budget TokenBudgetManager) string {
+// BuildSystemPrompt builds the system prompt. Identity + behavioral directives + guild context + relevant memories + current feeling.
+func BuildSystemPrompt(core *Core, g *GuildState, store *Store, budget TokenBudgetManager) string {
 	var b strings.Builder
 
-	// 1. Identity — never trim; it's the core personality
+	// 1. Identity — never trim
 	ident := core.GetIdentityMD()
 	if len(ident) > 0 {
 		b.WriteString(string(ident))
 		b.WriteString("\n\n")
 	}
 
-	// 2. Biology (fixed; LLM-readable keys)
+	// 2. Behavioral directives (interpreted from biology + worldview; no raw numbers)
 	bio := core.GetBiology()
-	b.WriteString("--- Biology (fixed) ---\n")
-	b.WriteString(fmt.Sprintf("temperament=%s age=%d speech_style=%s dominance=%.2f emotional_reactivity=%.2f\n",
-		bio.Temperament, bio.Age, bio.SpeechStyle, bio.Dominance, bio.EmoReact))
-
-	// 3. Worldview
 	w := core.GetWorldview()
-	b.WriteString("--- Worldview ---\n")
-	b.WriteString(fmt.Sprintf("trust_in_people=%.2f cynicism=%.2f openness=%.2f loyalty_bias=%.2f\n",
-		w.TrustInPeople, w.Cynicism, w.Openness, w.LoyaltyBias))
+	b.WriteString(BuildBehaviorDirectives(bio, w))
+	b.WriteString("\n")
 
-	// 4. Medium memory (trim to budget)
+	// 3. Medium memory — trim to budget only
 	if mm := g.GetMediumMemory(); len(mm) > 0 {
 		b.WriteString("--- Guild context ---\n")
 		b.WriteString(TrimToChars(string(mm), budget.MaxMediumMemory))
 		b.WriteString("\n")
 	}
 
+	// 4. Relevant episodic memories (1–3)
+	if store != nil && budget.MaxRelevantMemories > 0 {
+		if mem := FormatMemoriesForPrompt(store, g.GuildID, budget.MaxRelevantMemories); mem != "" {
+			b.WriteString(mem)
+		}
+	}
+
+	// 5. Current feeling (plain phrase, no numbers)
+	feeling := CurrentFeelingPhrase(g.GetEmotions())
+	if feeling != "" {
+		b.WriteString("--- Current state ---\n")
+		b.WriteString(feeling)
+		b.WriteString("\n")
+	}
+
 	return b.String()
 }
 
-// BuildMessagesForLLM returns ai.Message slice: system (from BuildSystemPrompt) + recent messages.
-// People summaries for authors in recent msgs are appended to system if within budget.
-func BuildMessagesForLLM(core *Core, g *GuildState, shortBuf []ShortMessage, budget TokenBudgetManager) []ai.Message {
-	sys := BuildSystemPrompt(core, g, budget)
+// BuildMessagesForLLM returns ai.Message slice: system (identity + directives + relationship + people) + recent messages.
+func BuildMessagesForLLM(core *Core, g *GuildState, shortBuf []ShortMessage, budget TokenBudgetManager, store *Store) []ai.Message {
+	sys := BuildSystemPrompt(core, g, store, budget)
 
-	// Append people summaries (for users in shortBuf)
+	// Current speaker: last user in shortBuf (most recent message from a user)
+	var currentSpeakerID string
+	for i := len(shortBuf) - 1; i >= 0; i-- {
+		if shortBuf[i].Role == "user" && shortBuf[i].UserID != "" {
+			currentSpeakerID = shortBuf[i].UserID
+			break
+		}
+	}
+	if currentSpeakerID != "" {
+		p := g.GetPerson(currentSpeakerID)
+		if p != nil {
+			sys += "\n" + BuildRelationshipContext(p.Affinity, p.Trust, p.Irritation)
+		}
+	}
+
+	// People summaries — trim to budget
 	seen := make(map[string]bool)
 	var peopleParts []string
-	for i := len(shortBuf) - 1; i >= 0 && len(peopleParts)*50 < budget.MaxPeopleSummary; i-- {
+	peopleChars := 0
+	for i := len(shortBuf) - 1; i >= 0; i-- {
 		uid := shortBuf[i].UserID
 		if uid == "" || seen[uid] {
 			continue
@@ -108,13 +135,17 @@ func BuildMessagesForLLM(core *Core, g *GuildState, shortBuf []ShortMessage, bud
 		seen[uid] = true
 		p := g.GetPerson(uid)
 		if p != nil && p.Summary != "" {
-			peopleParts = append(peopleParts, fmt.Sprintf("[%s]: %s", uid, TrimToChars(p.Summary, 200)))
+			part := fmt.Sprintf("[%s]: %s", uid, TrimToChars(p.Summary, 200))
+			if peopleChars+len(part) > budget.MaxPeopleSummary {
+				break
+			}
+			peopleParts = append(peopleParts, part)
+			peopleChars += len(part)
 		}
 	}
 	if len(peopleParts) > 0 {
 		sys += "\n--- People ---\n" + strings.Join(peopleParts, "\n") + "\n"
 	}
-	sys = TrimToChars(sys, budget.MaxCoreIdentity+budget.MaxBiology+budget.MaxWorldview+budget.MaxMediumMemory+budget.MaxPeopleSummary)
 
 	msgs := []ai.Message{{Role: "system", Content: sys}}
 

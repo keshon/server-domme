@@ -42,20 +42,14 @@ func InitDefaultCore(dataRoot string) {
 
 	bioPath := filepath.Join(coreDir, CoreBiology)
 	if _, err := os.Stat(bioPath); os.IsNotExist(err) {
-		def := &Biology{
-			Temperament: "dominant_reserved",
-			Age:         28,
-			SpeechStyle:  "sharp_aristocratic",
-			Dominance:    0.8,
-			EmoReact:     0.6,
-		}
+		def := defaultBiology()
 		b, _ := json.MarshalIndent(def, "", "  ")
 		_ = os.WriteFile(bioPath, b, 0644)
 	}
 
 	worldPath := filepath.Join(coreDir, CoreWorldview)
 	if _, err := os.Stat(worldPath); os.IsNotExist(err) {
-		def := &Worldview{TrustInPeople: 0.5, Cynicism: 0.4, Openness: 0.6, LoyaltyBias: 0.5}
+		def := defaultWorldview()
 		b, _ := json.MarshalIndent(def, "", "  ")
 		_ = os.WriteFile(worldPath, b, 0644)
 	}
@@ -131,13 +125,7 @@ func (c *Core) GetBiology() *Biology {
 	if b != nil {
 		return b
 	}
-	return &Biology{
-		Temperament: "dominant_reserved",
-		Age:         28,
-		SpeechStyle: "sharp_aristocratic",
-		Dominance:   0.8,
-		EmoReact:    0.6,
-	}
+	return defaultBiology()
 }
 
 // GetWorldview returns current worldview; if not loaded, returns default.
@@ -148,11 +136,39 @@ func (c *Core) GetWorldview() *Worldview {
 	if w != nil {
 		return w
 	}
+	return defaultWorldview()
+}
+
+func defaultBiology() *Biology {
+	return &Biology{
+		Temperament:         Temperament{Openness: 0.75, Conscientiousness: 0.55, Extraversion: 0.6, Agreeableness: 0.65, Neuroticism: 0.35},
+		Dominance:           0.55,
+		EmotionalReactivity: 0.6,
+		BaselineEnergy:      0.7,
+		BaselineEngagement:  0.65,
+		SpeechStyle:         SpeechStyle{Verbosity: 0.6, Sarcasm: 0.35, Formality: 0.4, Warmth: 0.7},
+		ConflictTendency:    0.4,
+		LoyaltyBias:         0.65,
+		CuriosityDrive:      0.75,
+		Adaptability:        0.7,
+		Impulsivity:         0.45,
+	}
+}
+
+func defaultWorldview() *Worldview {
 	return &Worldview{
-		TrustInPeople: 0.5,
-		Cynicism:      0.4,
-		Openness:      0.6,
-		LoyaltyBias:   0.5,
+		TrustInPeople:               0.65,
+		Cynicism:                    0.25,
+		Optimism:                    0.6,
+		Patience:                    0.55,
+		Skepticism:                  0.45,
+		AttachmentToRegulars:        0.7,
+		SensitivityToDisrespect:     0.5,
+		NeedForRecognition:          0.4,
+		ToleranceForChaos:           0.6,
+		RiskTaking:                  0.45,
+		ValueOfLoyalty:              0.8,
+		ImportanceOfIntellectualDepth: 0.65,
 	}
 }
 

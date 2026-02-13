@@ -1,6 +1,7 @@
 package mind
 
 import (
+	"path/filepath"
 	"sync"
 )
 
@@ -10,6 +11,11 @@ type Store struct {
 	root   string
 	mu     sync.RWMutex
 	guilds map[string]*GuildState
+}
+
+// Root returns the data root (e.g. "data/mind").
+func (s *Store) Root() string {
+	return s.root
 }
 
 // NewStore creates a Store with data root (e.g. "data/mind"). Calls InitDefaultCore so core files exist.
@@ -60,4 +66,9 @@ func (s *Store) AllGuildIDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// GuildMemoriesDir returns the path to episodic memories for a guild.
+func (s *Store) GuildMemoriesDir(guildID string) string {
+	return filepath.Join(s.root, "guilds", guildID, "memories")
 }

@@ -7,46 +7,66 @@ import (
 
 // DecisionConfig holds thresholds and weights for DesireToSpeak.
 type DecisionConfig struct {
-	SpeakThreshold   float64       // min DesireToSpeak to trigger LLM (e.g. 0.4)
-	ActivityWeight  float64       // weight for ActivityScore (0..1 scale)
-	EmotionWeight   float64
-	TopicWeight     float64
-	RecentSpokePenalty float64    // subtract if spoke recently
-	RecentSpokeWindow  time.Duration
-	RandomFactor    float64       // [0, RandomFactor] added
+	SpeakThreshold      float64
+	ActivityWeight      float64 // w1
+	EmotionWeight       float64 // w2
+	TopicWeight         float64 // w3
+	FatigueWeight       float64 // w4, subtract
+	RecentSpokePenalty  float64 // w5
+	RecentSpokeWindow   time.Duration
+	RandomFactor        float64
+	RunawayMaxConsecutive int   // max bot messages in a row without user reply (e.g. 3)
 }
 
-// DefaultDecisionConfig returns a sane default.
+// MentionBoost is added to desire when the bot was recently mentioned (direct address).
+const MentionBoost = 0.15
+
+// DefaultDecisionConfig returns a sane default. Threshold 0.28 so bot reacts to direct address.
 func DefaultDecisionConfig() DecisionConfig {
 	return DecisionConfig{
-		SpeakThreshold:     0.35,
-		ActivityWeight:     0.3,
-		EmotionWeight:      0.25,
-		TopicWeight:        0.25,
-		RecentSpokePenalty: 0.3,
-		RecentSpokeWindow:  2 * time.Minute,
-		RandomFactor:       0.15,
+		SpeakThreshold:       0.28,
+		ActivityWeight:        0.25,
+		EmotionWeight:        0.2,
+		TopicWeight:          0.2,
+		FatigueWeight:        0.1,
+		RecentSpokePenalty:   0.25,
+		RecentSpokeWindow:    2 * time.Minute,
+		RandomFactor:         0.12,
+		RunawayMaxConsecutive: 3,
 	}
 }
 
-// DesireToSpeak computes 0..1 score. No LLM — pure Go.
-func DesireToSpeak(cfg DecisionConfig, activityScore float64, emotionalActivation float64, topicRelevance float64, lastSpokeAt time.Time, now time.Time) float64 {
-	// Normalize activity to ~0..1 (ActivityScore is 0..100)
-	actNorm := activityScore / 100.0
-	if actNorm > 1 {
-		actNorm = 1
+// DesireToSpeakInput bundles all inputs for the decision (no LLM — pure Go).
+type DesireToSpeakInput struct {
+	ActivityScoreNorm     float64
+	EmotionalActivation   float64
+	TopicRelevance        float64
+	Fatigue               float64
+	LastSpokeAt           time.Time
+	ConsecutiveBotReplies int
+	HasRecentMention      bool
+	Now                   time.Time
+}
+
+// DesireToSpeak computes 0..1 score. Mention boost applied when HasRecentMention.
+func DesireToSpeak(cfg DecisionConfig, in DesireToSpeakInput) float64 {
+	if in.ConsecutiveBotReplies >= cfg.RunawayMaxConsecutive {
+		return 0
 	}
 
-	score := cfg.ActivityWeight*actNorm +
-		cfg.EmotionWeight*emotionalActivation +
-		cfg.TopicWeight*topicRelevance
+	score := cfg.ActivityWeight*in.ActivityScoreNorm +
+		cfg.EmotionWeight*in.EmotionalActivation +
+		cfg.TopicWeight*in.TopicRelevance -
+		cfg.FatigueWeight*in.Fatigue
 
-	// Recently spoke -> penalty
-	if !lastSpokeAt.IsZero() && now.Sub(lastSpokeAt) < cfg.RecentSpokeWindow {
+	if in.HasRecentMention {
+		score += MentionBoost
+	}
+
+	if !in.LastSpokeAt.IsZero() && in.Now.Sub(in.LastSpokeAt) < cfg.RecentSpokeWindow {
 		score -= cfg.RecentSpokePenalty
 	}
 
-	// Random factor (so bot doesn't always speak at same threshold)
 	score += cfg.RandomFactor * rand.Float64()
 
 	if score < 0 {
@@ -56,6 +76,20 @@ func DesireToSpeak(cfg DecisionConfig, activityScore float64, emotionalActivatio
 		score = 1
 	}
 	return score
+}
+
+// HasRecentMention returns true if any message in the buffer within since has Mentioned set.
+func HasRecentMention(msgs []ShortMessage, since time.Duration, now time.Time) bool {
+	cutoff := now.Add(-since)
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].At.Before(cutoff) {
+			break
+		}
+		if msgs[i].Mentioned {
+			return true
+		}
+	}
+	return false
 }
 
 // TopicRelevanceFromBuffer returns 0..1 from recent messages: mention = high, else lower.

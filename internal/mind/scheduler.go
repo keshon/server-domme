@@ -2,6 +2,7 @@ package mind
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 )
@@ -29,21 +30,30 @@ type TickResult struct {
 // Scheduler runs one goroutine, processes guilds by priority (next tick time).
 type Scheduler struct {
 	store    *Store
+	limiter  *LLMRateLimiter
 	decCfg   DecisionConfig
 	nextTick map[string]time.Time
 	mu       sync.Mutex
 	ticker   *time.Ticker
-	onTick   func(TickResult) // called when a guild is chosen to tick
+	onTick   func(TickResult)
 }
 
-// NewScheduler creates a scheduler. onTick can be nil; set with SetOnTick before Run.
-func NewScheduler(store *Store, onTick func(TickResult)) *Scheduler {
+// NewScheduler creates a scheduler. limiter can be nil (no global/per-guild limit). onTick can be set with SetOnTick.
+func NewScheduler(store *Store, limiter *LLMRateLimiter, onTick func(TickResult)) *Scheduler {
 	return &Scheduler{
 		store:    store,
+		limiter:  limiter,
 		decCfg:   DefaultDecisionConfig(),
 		nextTick: make(map[string]time.Time),
 		onTick:   onTick,
 	}
+}
+
+// SetRateLimiter sets the LLM rate limiter (e.g. after Runner creates it).
+func (s *Scheduler) SetRateLimiter(l *LLMRateLimiter) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.limiter = l
 }
 
 // SetOnTick sets the tick callback (e.g. after Discord session is available).
@@ -117,23 +127,62 @@ func (s *Scheduler) runGuildTick(guildID string, g *GuildState, now time.Time) {
 	e = DecayEmotionsSinceLastUpdate(e, now)
 	g.SetEmotions(e)
 
-	// 2. Decay activity (per second decay)
-	g.ApplyActivityDecay(0.02, now)
+	// 2. Apply exponential activity decay by elapsed time
+	g.ApplyActivityDecay(now)
 	g.SaveActivity()
 
-	// 3. Decision: DesireToSpeak
+	// 3. Decision: DesireToSpeak (with Fatigue, runaway, rate limit)
 	act := g.GetActivity()
 	emoAct := EmotionalActivation(e)
 	msgs := g.GetShortBuffer()
 	topicRel := TopicRelevanceFromBuffer(msgs, 5*time.Minute)
-	desire := DesireToSpeak(s.decCfg, act.Score, emoAct, topicRel, act.LastSpokeAt, now)
+	hasMention := HasRecentMention(msgs, 5*time.Minute, now)
+	actNorm := act.Score / 100.0
+	if actNorm > 1 {
+		actNorm = 1
+	}
+	desire := DesireToSpeak(s.decCfg, DesireToSpeakInput{
+		ActivityScoreNorm:     actNorm,
+		EmotionalActivation:  emoAct,
+		TopicRelevance:       topicRel,
+		Fatigue:              e.Fatigue,
+		LastSpokeAt:          act.LastSpokeAt,
+		ConsecutiveBotReplies: act.ConsecutiveBotReplies,
+		HasRecentMention:     hasMention,
+		Now:                  now,
+	})
+	// Topic continuity: don't repeat a question we just asked
+	if act.LastAIAction == "asked_question" && now.Sub(act.LastAITimestamp) < 90*time.Second {
+		desire *= 0.5
+	}
+
+	shouldSpeak := desire >= s.decCfg.SpeakThreshold
+	if shouldSpeak && act.AwaitingReply && now.Sub(act.AwaitingReplySince) < AwaitingReplyTimeout {
+		shouldSpeak = false
+		log.Printf("[MIND] awaiting_reply guild=%s topic=%s (block proactive)", guildID, act.AwaitingTopic)
+	}
+	rateLimited := false
+	if shouldSpeak && s.limiter != nil && !s.limiter.Allow(guildID, act.LastLLMCallAt, now) {
+		shouldSpeak = false
+		rateLimited = true
+	}
+	if act.ConsecutiveBotReplies >= s.decCfg.RunawayMaxConsecutive {
+		e.Engagement = clamp01(e.Engagement - 0.02)
+		g.SetEmotions(e)
+	}
 
 	g.SetLastTickAt(now)
+
+	log.Printf("[MIND] tick guild=%s desire=%.2f threshold=%.2f shouldSpeak=%v activity=%.1f fatigue=%.2f topicRel=%.2f",
+		guildID, desire, s.decCfg.SpeakThreshold, shouldSpeak, act.Score, e.Fatigue, topicRel)
+	if rateLimited {
+		log.Printf("[MIND] rate_limited guild=%s (global or per-guild cooldown)", guildID)
+	}
 
 	res := TickResult{
 		GuildID:       guildID,
 		DesireToSpeak: desire,
-		ShouldSpeak:   desire >= s.decCfg.SpeakThreshold,
+		ShouldSpeak:   shouldSpeak,
 	}
 	if s.onTick != nil {
 		s.onTick(res)

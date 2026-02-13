@@ -63,11 +63,15 @@ type MessageApplicationCommandContext struct {
 	Logger    CommandLogger
 }
 
+// RecordAssistantReplyFunc is called after the bot sends a reply (e.g. on mention) so the mind can sync short buffer.
+type RecordAssistantReplyFunc func(guildID, channelID, reply string)
+
 type MessageContext struct {
-	Session *discordgo.Session
-	Event   *discordgo.MessageCreate
-	Storage *storage.Storage
-	Config  *config.Config
+	Session              *discordgo.Session
+	Event                *discordgo.MessageCreate
+	Storage              *storage.Storage
+	Config               *config.Config
+	RecordAssistantReply RecordAssistantReplyFunc // optional: sync reactive reply into mind short buffer
 }
 
 // Providers — how a command is registered with Discord (slash, context menu, reaction).

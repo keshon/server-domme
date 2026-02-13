@@ -65,9 +65,19 @@ func EmotionalActivation(e *Emotions) float64 {
 	if e == nil {
 		return 0
 	}
-	// anger and joy both increase tendency to speak; fatigue decreases
 	act := (e.Anger + e.Joy) * 0.5 - e.Fatigue*0.3 + e.Engagement*0.4
 	return clamp01(act)
+}
+
+// BumpFatigueAfterLLM increases Fatigue after an LLM call (then it decays over time).
+func BumpFatigueAfterLLM(e *Emotions, amount float64) *Emotions {
+	if e == nil {
+		e = &Emotions{}
+	}
+	out := *e
+	out.Fatigue = clamp01(out.Fatigue + amount)
+	out.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	return &out
 }
 
 func clamp01(x float64) float64 {
@@ -99,6 +109,14 @@ func ClampWorldviewRange(w *Worldview) {
 	}
 	w.TrustInPeople = clamp01(w.TrustInPeople)
 	w.Cynicism = clamp01(w.Cynicism)
-	w.Openness = clamp01(w.Openness)
-	w.LoyaltyBias = clamp01(w.LoyaltyBias)
+	w.Optimism = clamp01(w.Optimism)
+	w.Patience = clamp01(w.Patience)
+	w.Skepticism = clamp01(w.Skepticism)
+	w.AttachmentToRegulars = clamp01(w.AttachmentToRegulars)
+	w.SensitivityToDisrespect = clamp01(w.SensitivityToDisrespect)
+	w.NeedForRecognition = clamp01(w.NeedForRecognition)
+	w.ToleranceForChaos = clamp01(w.ToleranceForChaos)
+	w.RiskTaking = clamp01(w.RiskTaking)
+	w.ValueOfLoyalty = clamp01(w.ValueOfLoyalty)
+	w.ImportanceOfIntellectualDepth = clamp01(w.ImportanceOfIntellectualDepth)
 }

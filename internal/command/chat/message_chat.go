@@ -152,6 +152,10 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 		time.Sleep(200 * time.Millisecond)
 	}
 
+	if context.RecordAssistantReply != nil {
+		context.RecordAssistantReply(context.Event.GuildID, channelID, reply)
+	}
+
 	close(done)
 
 	return nil
