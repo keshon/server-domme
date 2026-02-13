@@ -130,6 +130,7 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 	msgCtx := &command.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg}
 	if b.MindRunner != nil {
 		msgCtx.RecordAssistantReply = b.MindRunner.RecordAssistantReply
+		msgCtx.BuildMessagesForReactiveChat = b.MindRunner.BuildMessagesForReactiveChat
 	}
 	inv := &cmd.Invocation{Data: msgCtx}
 	for _, c := range cmd.DefaultRegistry.GetAll() {

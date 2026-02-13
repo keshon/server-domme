@@ -68,7 +68,6 @@ It’s designed to be practical for server management while providing light, int
 - **/commands** — Manage or inspect commands
 - **/maintenance** — Bot maintenance commands
 - **/manage-announce** — Announcement settings
-- **/manage-chat** — Chat settings
 - **/manage-confess** — Confession settings
 - **/manage-discipline** — Discipline settings
 - **/manage-media** — Media settings

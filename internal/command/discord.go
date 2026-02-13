@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 
+	"server-domme/internal/ai"
 	"server-domme/internal/config"
 	"server-domme/internal/storage"
 	"server-domme/pkg/cmd"
@@ -66,12 +67,16 @@ type MessageApplicationCommandContext struct {
 // RecordAssistantReplyFunc is called after the bot sends a reply (e.g. on mention) so the mind can sync short buffer.
 type RecordAssistantReplyFunc func(guildID, channelID, reply string)
 
+// BuildMessagesForReactiveChatFunc builds LLM messages for mention-triggered chat using mind (identity + short buffer).
+type BuildMessagesForReactiveChatFunc func(guildID, channelID string) ([]ai.Message, error)
+
 type MessageContext struct {
-	Session              *discordgo.Session
-	Event                *discordgo.MessageCreate
-	Storage              *storage.Storage
-	Config               *config.Config
-	RecordAssistantReply RecordAssistantReplyFunc // optional: sync reactive reply into mind short buffer
+	Session                      *discordgo.Session
+	Event                        *discordgo.MessageCreate
+	Storage                      *storage.Storage
+	Config                       *config.Config
+	RecordAssistantReply         RecordAssistantReplyFunc         // optional: sync reactive reply into mind short buffer
+	BuildMessagesForReactiveChat BuildMessagesForReactiveChatFunc // optional: build messages from mind for reactive reply
 }
 
 // Providers — how a command is registered with Discord (slash, context menu, reaction).

@@ -49,13 +49,12 @@ func EvolveWorldview(provider ai.Provider, core *Core, g *GuildState, guildID st
 		content = content[:2500]
 	}
 
-	log.Printf("[MIND] evolution prompt guild=%s system_len=%d user_len=%d", guildID, len(WorldviewEvolutionPrompt), len(content))
-	log.Printf("[MIND] evolution user_content: %s", truncateForLog(content, 400))
-
 	messages := []ai.Message{
 		{Role: "system", Content: WorldviewEvolutionPrompt},
 		{Role: "user", Content: content},
 	}
+	LogLLMCall("evolution", messages, map[string]string{"guild_id": guildID})
+	log.Printf("[MIND] evolution user_content_preview: %s", truncateForLog(content, 400))
 	out, err := provider.Generate(messages)
 	if err != nil {
 		return err

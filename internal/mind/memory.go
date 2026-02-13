@@ -43,17 +43,16 @@ func SummarizeMemory(provider ai.Provider, g *GuildState, guildID string, store 
 		content = content[len(content)-8000:]
 	}
 
-	log.Printf("[MIND] summarization prompt guild=%s system_len=%d user_len=%d", guildID, len(SummarizeMemoryPrompt), len(content))
-	preview := content
-	if len(preview) > 300 {
-		preview = preview[:300] + "..."
-	}
-	log.Printf("[MIND] summarization user_content: %s", preview)
-
 	messages := []ai.Message{
 		{Role: "system", Content: SummarizeMemoryPrompt},
 		{Role: "user", Content: content},
 	}
+	LogLLMCall("summarize", messages, map[string]string{"guild_id": guildID})
+	preview := content
+	if len(preview) > 300 {
+		preview = preview[:300] + "..."
+	}
+	log.Printf("[MIND] summarization user_content_preview: %s", preview)
 	out, err := provider.Generate(messages)
 	if err != nil {
 		return err

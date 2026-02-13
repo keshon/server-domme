@@ -2,6 +2,7 @@ package mind
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math/rand"
 	"strings"
@@ -81,6 +82,27 @@ func (r *Runner) runWorldviewEvolution(ctx context.Context, provider ai.Provider
 			}
 		}
 	}
+}
+
+// BuildMessagesForReactiveChat builds LLM messages for reactive (mention) reply using mind context.
+// Filters short buffer by channelID. Call from chat command when mind is available.
+func (r *Runner) BuildMessagesForReactiveChat(guildID, channelID string) ([]ai.Message, error) {
+	if guildID == "" || channelID == "" {
+		return nil, fmt.Errorf("guildID and channelID required")
+	}
+	g := r.Store.Guild(guildID)
+	shortBuf := g.GetShortBuffer()
+	var filtered []ShortMessage
+	for _, m := range shortBuf {
+		if m.ChannelID == channelID {
+			filtered = append(filtered, m)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no messages in channel %s", channelID)
+	}
+	core := r.Store.Core()
+	return BuildMessagesForLLM(core, g, filtered, r.budget, r.Store), nil
 }
 
 // RecordAssistantReply pushes a reactive (mention) AI reply into the guild short buffer so proactive tick sees it.
@@ -168,24 +190,7 @@ func (r *Runner) handleTick(ctx context.Context, session *discordgo.Session, pro
 
 	core := r.Store.Core()
 	messages := BuildMessagesForLLM(core, g, shortBuf, r.budget, r.Store)
-	log.Printf("[MIND] prompt messages=%d system_len=%d", len(messages), len(messages[0].Content))
-	if len(messages[0].Content) > 0 {
-		preview := messages[0].Content
-		if len(preview) > 500 {
-			preview = preview[:500] + "..."
-		}
-		log.Printf("[MIND] system_prompt: %s", preview)
-	}
-	for i, m := range messages {
-		if i == 0 {
-			continue
-		}
-		preview := m.Content
-		if len(preview) > 200 {
-			preview = preview[:200] + "..."
-		}
-		log.Printf("[MIND] msg[%d] role=%s: %s", i, m.Role, preview)
-	}
+	LogLLMCall("speak", messages, map[string]string{"guild_id": tr.GuildID, "channel_id": act.LastChannelID})
 	reply, err := provider.Generate(messages)
 	if err != nil {
 		log.Printf("[MIND] LLM generate failed for guild %s: %v", tr.GuildID, err)
@@ -251,7 +256,6 @@ func (r *Runner) maybeIdleReflection(ctx context.Context, session *discordgo.Ses
 	if rand.Float64() >= ReflectionProbability {
 		return
 	}
-	log.Printf("[MIND] action=reflection guild=%s (idle, engaged)", guildID)
 	core := r.Store.Core()
 	ident := string(core.GetIdentityMD())
 	if ident == "" {
@@ -259,6 +263,7 @@ func (r *Runner) maybeIdleReflection(ctx context.Context, session *discordgo.Ses
 	}
 	prompt := strings.TrimSpace(ident) + "\n\nTask: Generate one short proactive thought, question, or comment to initiate or re-engage conversation. One sentence only. No preamble, no quotes."
 	msgs := []ai.Message{{Role: "system", Content: prompt}, {Role: "user", Content: "Now."}}
+	LogLLMCall("reflection", msgs, map[string]string{"guild_id": guildID, "channel_id": act.LastChannelID})
 	reply, err := provider.Generate(msgs)
 	if err != nil {
 		return

@@ -2,16 +2,15 @@ package chat
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"server-domme/internal/ai"
 	"server-domme/internal/command"
+	"server-domme/internal/config"
 	"server-domme/internal/middleware"
 
 	"github.com/bwmarrin/discordgo"
@@ -31,12 +30,10 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	// Ignore own messages
 	if context.Event.Author.ID == context.Session.State.User.ID {
 		return nil
 	}
 
-	// Ignore confessions
 	confessID, _ := context.Storage.GetConfessChannel(context.Event.GuildID)
 	if confessID != "" && context.Event.ChannelID == confessID {
 		return nil
@@ -48,20 +45,18 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 	}
 
 	session := context.Session
-	user := context.Event.Author.Username
 	display := context.Event.Author.DisplayName()
 	userID := context.Event.Author.ID
 	channelID := context.Event.ChannelID
+	guildID := context.Event.GuildID
 	msg := strings.TrimSpace(context.Event.Content)
 
-	log.Printf("[CHAT] %s (%s) @ %s: %s", user, userID, channelID, msg)
+	log.Printf("[CHAT] %s (%s) @ %s: %s", context.Event.Author.Username, userID, channelID, msg)
 
-	// Start typing indicator goroutine
 	done := make(chan struct{})
 	go keepTyping(session, channelID, done)
 
-	// DMs not supported
-	if context.Event.GuildID == "" {
+	if guildID == "" {
 		_, err := context.Session.ChannelMessageSend(channelID,
 			fmt.Sprintf("%s, I don't chat in DMs. Speak on a server channel.", display))
 		return err
@@ -73,62 +68,29 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	// Add user message to memory
-	convos.add(channelID, "user", fmt.Sprintf("User %s: %s", display, msg))
-	history := convos.get(channelID)
-
-	// Load system prompt (guild-specific or fallback)
-	cfg := context.Config
-	globalPromptPath := "data/chat.prompt.md"
-	if cfg != nil && cfg.AIPromtPath != "" {
-		globalPromptPath = cfg.AIPromtPath
-	}
-	localPromptPath := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", context.Event.GuildID))
-
-	var chosenPath string
-	if _, err := os.Stat(localPromptPath); err == nil {
-		chosenPath = localPromptPath
-	} else if _, err := os.Stat(globalPromptPath); err == nil {
-		chosenPath = globalPromptPath
-	} else {
-		_, _ = context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, I can’t think properly without my system prompt.", display))
-		return fmt.Errorf("no prompt found (local or global)")
-	}
-
-	file, err := os.Open(chosenPath)
-	if err != nil {
-		log.Printf("[ERROR] Failed to open system prompt: %v", err)
-		context.Session.ChannelMessageSend(channelID,
-			fmt.Sprintf("%s, I can’t think properly without my system prompt.", display))
-		return err
-	}
-	defer file.Close()
-
-	promptBytes, _ := io.ReadAll(file)
-	systemPrompt := string(promptBytes)
-
-	// Build AI conversation
-	messages := []ai.Message{{Role: "system", Content: systemPrompt}}
-	for _, m := range history {
-		role := m.Role
-		if role != "user" && role != "assistant" {
-			role = "user"
+	var messages []ai.Message
+	if context.BuildMessagesForReactiveChat != nil {
+		msgs, err := context.BuildMessagesForReactiveChat(guildID, channelID)
+		if err != nil {
+			log.Printf("[CHAT] mind context failed: %v, using fallback", err)
+			messages = c.fallbackMessages(guildID, display, msg, context.Config)
+		} else {
+			messages = msgs
 		}
-		messages = append(messages, ai.Message{Role: role, Content: m.Content})
+	} else {
+		messages = c.fallbackMessages(guildID, display, msg, context.Config)
 	}
 
-	client := ai.DefaultProvider(cfg)
+	logChatPrompt(guildID, channelID, messages)
 
+	client := ai.DefaultProvider(context.Config)
 	reply, err := client.Generate(messages)
 
 	if mp, ok := client.(*ai.MultiProvider); ok {
 		trace := mp.LastTrace()
-
 		if trace.Engine != "" {
 			log.Printf("[AI] provider=%s", trace.Engine)
 		}
-
 		for _, e := range trace.Errors {
 			log.Printf("[AI] fallback error: %s", e)
 		}
@@ -141,9 +103,7 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 		return err
 	}
 
-	// Save and send reply
-	convos.add(channelID, "assistant", reply)
-	log.Printf("[CHAT] AI reply to %s (%s) @ %s: %s", user, userID, channelID, reply)
+	log.Printf("[CHAT] reply to %s @ %s: %s", display, channelID, truncateLog(reply, 120))
 
 	for _, chunk := range splitMessage(reply, 2000) {
 		if _, err := context.Session.ChannelMessageSend(channelID, chunk); err != nil {
@@ -153,60 +113,70 @@ func (c *ChatMessageCommand) Run(ctx interface{}) error {
 	}
 
 	if context.RecordAssistantReply != nil {
-		context.RecordAssistantReply(context.Event.GuildID, channelID, reply)
+		context.RecordAssistantReply(guildID, channelID, reply)
 	}
 
 	close(done)
-
 	return nil
 }
 
-// ---- Conversation store ----
-
-type convoMsg struct {
-	Role, Content string
-}
-
-type convoStore struct {
-	mu       sync.Mutex
-	store    map[string][]convoMsg
-	maxMsgs  int
-	maxChars int
-}
-
-var convos = &convoStore{
-	store:    map[string][]convoMsg{},
-	maxMsgs:  60,
-	maxChars: 25000,
-}
-
-func (c *convoStore) add(channelID, role, content string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	list := append(c.store[channelID], convoMsg{Role: role, Content: content})
-	if len(list) > c.maxMsgs {
-		list = list[len(list)-c.maxMsgs:]
+// fallbackMessages builds [system, user] when mind is not available (identity file + current message only).
+func (c *ChatMessageCommand) fallbackMessages(guildID, display, msg string, cfg *config.Config) []ai.Message {
+	identityPath := "data/mind/core/identity.md"
+	if cfg != nil && cfg.AIPromtPath != "" {
+		identityPath = cfg.AIPromtPath
 	}
-
-	total := 0
-	for i := len(list) - 1; i >= 0; i-- {
-		total += len(list[i].Content)
-		if total > c.maxChars {
-			list = list[i+1:]
-			break
+	localPath := filepath.Join("data", fmt.Sprintf("%s_chat.prompt.md", guildID))
+	var path string
+	if _, err := os.Stat(localPath); err == nil {
+		path = localPath
+	} else if _, err := os.Stat(identityPath); err == nil {
+		path = identityPath
+	} else {
+		return []ai.Message{
+			{Role: "system", Content: "You are a helpful character."},
+			{Role: "user", Content: fmt.Sprintf("User %s: %s", display, msg)},
 		}
 	}
-
-	c.store[channelID] = list
+	body, _ := os.ReadFile(path)
+	system := string(body)
+	if system == "" {
+		system = "You are a helpful character."
+	}
+	userContent := fmt.Sprintf("User %s: %s", display, msg)
+	return []ai.Message{
+		{Role: "system", Content: strings.TrimSpace(system)},
+		{Role: "user", Content: userContent},
+	}
 }
 
-func (c *convoStore) get(channelID string) []convoMsg {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	dst := make([]convoMsg, len(c.store[channelID]))
-	copy(dst, c.store[channelID])
-	return dst
+func logChatPrompt(guildID, channelID string, messages []ai.Message) {
+	log.Printf("[CHAT] prompt guild=%s channel=%s messages=%d", guildID, channelID, len(messages))
+	if len(messages) == 0 {
+		return
+	}
+	sysLen := len(messages[0].Content)
+	preview := messages[0].Content
+	if len(preview) > 400 {
+		preview = preview[:400] + "..."
+	}
+	log.Printf("[CHAT] system_len=%d preview: %s", sysLen, preview)
+	for i := 1; i < len(messages); i++ {
+		m := messages[i]
+		p := m.Content
+		if len(p) > 200 {
+			p = p[:200] + "..."
+		}
+		log.Printf("[CHAT] msg[%d] role=%s len=%d: %s", i, m.Role, len(m.Content), p)
+	}
+}
+
+func truncateLog(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }
 
 func splitMessage(msg string, limit int) []string {
@@ -227,10 +197,8 @@ func splitMessage(msg string, limit int) []string {
 
 func keepTyping(s *discordgo.Session, channelID string, done <-chan struct{}) {
 	_ = s.ChannelTyping(channelID)
-
 	ticker := time.NewTicker(8 * time.Second)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-done:
