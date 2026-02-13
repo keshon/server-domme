@@ -157,6 +157,14 @@ func (s *Scheduler) runGuildTick(guildID string, g *GuildState, now time.Time) {
 	}
 
 	shouldSpeak := desire >= s.decCfg.SpeakThreshold
+	// Avoid double reply: reactive (mention) path handles the reply; don't also speak proactively right after a mention
+	if shouldSpeak && len(msgs) > 0 {
+		last := msgs[len(msgs)-1]
+		if last.Role == "user" && last.Mentioned && now.Sub(last.At) < 45*time.Second {
+			shouldSpeak = false
+			log.Printf("[MIND] recent_mention guild=%s (reactive path handles reply, skip proactive)", guildID)
+		}
+	}
 	if shouldSpeak && act.AwaitingReply && now.Sub(act.AwaitingReplySince) < AwaitingReplyTimeout {
 		shouldSpeak = false
 		log.Printf("[MIND] awaiting_reply guild=%s topic=%s (block proactive)", guildID, act.AwaitingTopic)
