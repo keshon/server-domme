@@ -11,11 +11,11 @@ import (
 // TokenBudget — approximate token limits per section. LLMs ~4 chars/token for English.
 const (
 	BudgetCoreIdentity     = 600 // tokens
-	BudgetBiology          = 150
-	BudgetWorldview        = 100
+	BudgetBiology          = 250
+	BudgetWorldview        = 200
 	BudgetMediumMemory     = 400
-	BudgetRelevantMemories = 100 // episodic memories in system prompt
-	BudgetPeopleSummary    = 300 // total for all mentioned people
+	BudgetRelevantMemories = 200 // episodic memories in system prompt
+	BudgetPeopleSummary    = 400 // total for all mentioned people
 	BudgetShortContext     = 800 // last N messages; dynamic
 	CharsPerToken          = 4
 )
