@@ -46,10 +46,6 @@ It’s designed to be practical for server management while providing light, int
 - **/discipline** — Punish or release a brat
 - **/task** — Assign yourself a new random task
 
-### 💬 Chat
-
-- **/chat** — Mention the bot to chat
-
 ### 🎵 Music
 
 - **/music** — Control music playback
@@ -68,7 +64,6 @@ It’s designed to be practical for server management while providing light, int
 - **/commands** — Manage or inspect commands
 - **/maintenance** — Bot maintenance commands
 - **/manage-announce** — Announcement settings
-- **/manage-chat** — Chat settings
 - **/manage-confess** — Confession settings
 - **/manage-discipline** — Discipline settings
 - **/manage-media** — Media settings

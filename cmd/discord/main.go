@@ -10,7 +10,6 @@ import (
 
 	_ "server-domme/internal/command/announce"
 	_ "server-domme/internal/command/ask"
-	_ "server-domme/internal/command/chat"
 	_ "server-domme/internal/command/confess"
 	_ "server-domme/internal/command/core"
 	_ "server-domme/internal/command/discipline"
