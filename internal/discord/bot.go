@@ -23,12 +23,12 @@ import (
 
 // Bot is a Discord bot
 type Bot struct {
-	dg        *discordgo.Session
-	storage   *storage.Storage
-	slashCmds map[string][]*discordgo.ApplicationCommand
-	cfg       *config.Config
-	mu        sync.RWMutex
-	players   map[string]*player.Player
+	dg             *discordgo.Session
+	storage        *storage.Storage
+	slashCmds      map[string][]*discordgo.ApplicationCommand
+	cfg            *config.Config
+	mu             sync.RWMutex
+	players        map[string]*player.Player
 	sourceResolver *source_resolver.SourceResolver
 }
 
@@ -42,9 +42,22 @@ func NewBot(cfg *config.Config, storage *storage.Storage) *Bot {
 	}
 }
 
-// Run starts the Discord session and runs until ctx is done.
+// Run starts the Discord session, restarts if needed
 func (b *Bot) Run(ctx context.Context) error {
-	return b.run(ctx, b.cfg.DiscordToken)
+	for {
+		err := b.run(ctx, b.cfg.DiscordToken)
+		if err != nil {
+			log.Println("[ERR] Bot session ended:", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			log.Println("[WARN] Restarting Discord session in 5 seconds...")
+			time.Sleep(5 * time.Second)
+		}
+	}
 }
 
 // StartBot is a convenience that creates a bot and runs it. Use NewBot + RegisterCommand + Run when you need to register bot-dependent commands (e.g. music).
@@ -90,7 +103,11 @@ func (b *Bot) run(ctx context.Context, token string) error {
 
 // configureIntents configures the Discord intents
 func (b *Bot) configureIntents() {
-	b.dg.Identify.Intents = discordgo.IntentsAll
+	b.dg.Identify.Intents = discordgo.IntentsGuilds |
+		discordgo.IntentsGuildMessages |
+		discordgo.IntentsMessageContent |
+		discordgo.IntentsGuildMessageReactions |
+		discordgo.IntentsGuildMembers
 }
 
 // onMessageCreate is called when a message is created
