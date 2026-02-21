@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
+	"sync"
+	"time"
+
 	"server-domme/internal/command"
 	"server-domme/internal/config"
 	"server-domme/internal/docs"
@@ -13,15 +17,11 @@ import (
 	"server-domme/internal/shortlink"
 	"server-domme/internal/storage"
 	"server-domme/pkg/cmd"
-	"slices"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-// Bot is a Discord bot
+// Bot is the Discord bot. Lifecycle is managed by Run/run; handlers are wired in run.
 type Bot struct {
 	dg             *discordgo.Session
 	storage        *storage.Storage
@@ -31,12 +31,12 @@ type Bot struct {
 	players        map[string]*player.Player
 	sourceResolver *source_resolver.SourceResolver
 
-	// once guards one-time background services (purge scheduler, shortlink server)
-	// so they don't get re-launched on every Discord reconnect.
+	// once ensures one-time background services (purge, shortlink) are not
+	// re-launched on subsequent reconnects.
 	once sync.Once
 }
 
-// NewBot creates a Bot instance. Register any bot-dependent commands (e.g. music) before calling Run.
+// NewBot creates a Bot. Register any bot-dependent commands before calling Run.
 func NewBot(cfg *config.Config, storage *storage.Storage) *Bot {
 	return &Bot{
 		cfg:       cfg,
@@ -46,14 +46,18 @@ func NewBot(cfg *config.Config, storage *storage.Storage) *Bot {
 	}
 }
 
-// Run starts the Discord session, restarting on disconnect until ctx is cancelled.
+// StartBot is a convenience constructor + runner.
+// Use NewBot + Run directly when you need to register bot-dependent commands first.
+func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
+	return NewBot(cfg, storage).Run(ctx)
+}
+
+// Run starts the bot, restarting the session on disconnect until ctx is cancelled.
 func (b *Bot) Run(ctx context.Context) error {
 	for {
-		err := b.run(ctx)
-		if err != nil {
+		if err := b.run(ctx); err != nil {
 			log.Println("[ERR] Bot session ended:", err)
 		}
-
 		select {
 		case <-ctx.Done():
 			return nil
@@ -64,14 +68,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 }
 
-// StartBot is a convenience that creates a bot and runs it.
-// Use NewBot + RegisterCommand + Run when you need to register bot-dependent commands (e.g. music).
-func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
-	b := NewBot(cfg, storage)
-	return b.Run(ctx)
-}
-
-// run opens one Discord session and blocks until ctx is cancelled or the WebSocket disconnects.
+// run opens one Discord session and blocks until ctx is cancelled or the connection is lost.
 func (b *Bot) run(ctx context.Context) error {
 	dg, err := discordgo.New("Bot " + b.cfg.DiscordToken)
 	if err != nil {
@@ -82,8 +79,8 @@ func (b *Bot) run(ctx context.Context) error {
 	b.dg = dg
 	b.mu.Unlock()
 
-	// disconnected is closed (not sent to) so multiple concurrent firings
-	// (discordgo internal reconnect + our handler) only trigger one restart.
+	// disconnected is closed once — multiple concurrent signals (our handler + discordgo
+	// internal reconnect attempts) collapse into a single restart.
 	disconnected := make(chan struct{})
 	var disconnectOnce sync.Once
 	notifyDisconnect := func() {
@@ -93,16 +90,14 @@ func (b *Bot) run(ctx context.Context) error {
 		})
 	}
 
-	dg.AddHandler(func(s *discordgo.Session, d *discordgo.Disconnect) {
-		notifyDisconnect()
-	})
+	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Disconnect) { notifyDisconnect() })
 
 	b.configureIntents()
 	dg.AddHandler(b.onReady)
+	dg.AddHandler(b.onGuildCreate)
 	dg.AddHandler(b.onMessageCreate)
 	dg.AddHandler(b.onMessageReactionAdd)
 	dg.AddHandler(b.onInteractionCreate)
-	dg.AddHandler(b.onGuildCreate)
 
 	if err := dg.Open(); err != nil {
 		return fmt.Errorf("failed to open Discord session: %w", err)
@@ -112,11 +107,10 @@ func (b *Bot) run(ctx context.Context) error {
 		dg.Close()
 	}()
 
-	// Forward SystemEvents into handler goroutine.
-	// This goroutine is tied to the session lifetime via sessionCtx.
 	sessionCtx, cancelSession := context.WithCancel(ctx)
 	defer cancelSession()
 
+	// Forward system events (e.g. command refresh) to the handler.
 	go func() {
 		for {
 			select {
@@ -133,50 +127,45 @@ func (b *Bot) run(ctx context.Context) error {
 		}
 	}()
 
-	// Connection health monitor.
-	// HeartbeatLatency alone is unreliable after system sleep — the connection may appear
-	// alive while Discord is actually unreachable. We do an active API probe every 30s
-	// to catch stale/zombie connections that heartbeat misses.
+	// Connection health monitor: active API probe every 30s.
+	// HeartbeatLatency alone is unreliable after system sleep — the TCP connection
+	// may appear alive while Discord is actually unreachable.
 	go func() {
-		// Give the session time to fully establish before first check.
 		select {
 		case <-sessionCtx.Done():
 			return
-		case <-time.After(15 * time.Second):
+		case <-time.After(15 * time.Second): // let the session settle first
 		}
 
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		consecutiveFails := 0
+		fails := 0
 
 		for {
 			select {
 			case <-sessionCtx.Done():
 				return
 			case <-ticker.C:
-				latency := dg.HeartbeatLatency()
-				if latency < 0 {
-					log.Printf("[WARN] Negative heartbeat latency (%v) — likely post-sleep stale connection, reconnecting", latency)
+				var lat time.Duration
+				if lat = dg.HeartbeatLatency(); lat < 0 {
+					log.Printf("[WARN] Negative heartbeat latency (%v) — reconnecting", lat)
 					notifyDisconnect()
 					return
 				}
-
-				// Active probe: actually call the Discord API.
-				_, err := dg.User("@me")
-				if err != nil {
-					consecutiveFails++
-					log.Printf("[WARN] Discord API probe failed (%d/3): %v", consecutiveFails, err)
-					if consecutiveFails >= 3 {
-						log.Println("[WARN] 3 consecutive API probe failures — triggering reconnect")
+				if _, err := dg.User("@me"); err != nil {
+					fails++
+					log.Printf("[WARN] API probe failed (%d/3): %v", fails, err)
+					if fails >= 3 {
+						log.Println("[WARN] 3 consecutive API probe failures — reconnecting")
 						notifyDisconnect()
 						return
 					}
 				} else {
-					if consecutiveFails > 0 {
-						log.Printf("[INFO] Discord API probe recovered after %d failures", consecutiveFails)
+					if fails > 0 {
+						log.Printf("[INFO] API probe recovered after %d failure(s)", fails)
 					}
-					consecutiveFails = 0
-					log.Printf("[DEBUG] Heartbeat latency: %v", latency)
+					fails = 0
+					log.Printf("[DEBUG] Heartbeat latency: %v", lat)
 				}
 			}
 		}
@@ -191,7 +180,6 @@ func (b *Bot) run(ctx context.Context) error {
 	}
 }
 
-// configureIntents configures the Discord intents
 func (b *Bot) configureIntents() {
 	b.dg.Identify.Intents = discordgo.IntentsGuilds |
 		discordgo.IntentsGuildMessages |
@@ -200,36 +188,7 @@ func (b *Bot) configureIntents() {
 		discordgo.IntentsGuildMembers
 }
 
-// onMessageCreate is called when a message is created
-func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == s.State.User.ID {
-		return
-	}
-
-	mentioned := false
-	for _, user := range m.Mentions {
-		if user.ID == s.State.User.ID {
-			mentioned = true
-			break
-		}
-	}
-	if !mentioned {
-		return
-	}
-
-	msgCtx := &command.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg}
-	inv := &cmd.Invocation{Data: msgCtx}
-	for _, c := range cmd.DefaultRegistry.GetAll() {
-		if err := c.Run(context.Background(), inv); err != nil {
-			log.Println("[ERR] Error running command:", err)
-			MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
-				Description: fmt.Sprintf("Error running command: %v", err),
-			})
-		}
-	}
-}
-
-// onReady is called when the bot is ready (fires on every reconnect).
+// onReady fires on every successful connect/reconnect.
 func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	botInfo, err := s.User("@me")
 	if err != nil {
@@ -237,33 +196,26 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		return
 	}
 
-	// Leave any blacklisted guilds on startup
 	for _, g := range r.Guilds {
 		if b.isGuildBlacklisted(g.ID) {
-			log.Printf("[INFO] Leaving blacklisted guild: %s (%s)", g.ID, g.Name)
+			log.Printf("[INFO] Leaving blacklisted guild: %s", g.ID)
 			if err := s.GuildLeave(g.ID); err != nil {
 				log.Printf("[ERR] Failed to leave guild %s: %v", g.ID, err)
 			}
 			continue
 		}
-
 		if b.cfg.InitSlashCommands {
 			if err := b.registerCommands(g.ID); err != nil {
-				log.Println("[ERR] Error registering slash commands for guild", g.ID, ":", err)
+				log.Printf("[ERR] Error registering slash commands for guild %s: %v", g.ID, err)
 			}
-		} else {
-			log.Println("[INFO] Registering slash commands skipped")
 		}
 	}
 
-	// Start one-time background services.
-	// sync.Once ensures these are never launched more than once even if
-	// onReady fires multiple times due to reconnects.
+	// Background services start once across all reconnects.
 	b.once.Do(func() {
-		log.Println("[INFO] Starting background services (first connect)...")
+		log.Println("[INFO] Starting background services...")
 		purge.RunScheduler(b.storage, s)
 		go shortlink.RunServer(b.storage)
-
 		if err := docs.UpdateReadme(cmd.DefaultRegistry, config.CategoryWeights); err != nil {
 			log.Println("[ERR] Failed to update README:", err)
 		}
@@ -272,297 +224,157 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	log.Printf("[INFO] ✅ Discord bot %v is ready.", botInfo.Username)
 }
 
-// onGuildCreate is called when a guild is created
+// onGuildCreate fires when the bot joins a new guild.
 func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 	log.Printf("[INFO] Bot added to guild: %s (%s)", g.Guild.ID, g.Guild.Name)
-
 	if b.isGuildBlacklisted(g.Guild.ID) {
-		log.Printf("[INFO] Leaving blacklisted guild: %s (%s)", g.Guild.ID, g.Guild.Name)
+		log.Printf("[INFO] Leaving blacklisted guild: %s", g.Guild.ID)
 		if err := s.GuildLeave(g.Guild.ID); err != nil {
 			log.Printf("[ERR] Failed to leave guild %s: %v", g.Guild.ID, err)
 		}
 		return
 	}
-
 	if err := b.registerCommands(g.Guild.ID); err != nil {
-		log.Printf("[ERR] Failed to register commands for new guild %s: %v", g.Guild.ID, err)
+		log.Printf("[ERR] Failed to register commands for guild %s: %v", g.Guild.ID, err)
 	}
 }
 
-// onMessageReactionAdd is called when a reaction is added
-func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	reactionCtx := &command.MessageReactionContext{Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: DefaultLogger}
-	inv := &cmd.Invocation{Data: reactionCtx}
+// onMessageCreate handles @mention messages directed at the bot.
+func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+	mentioned := false
+	for _, u := range m.Mentions {
+		if u.ID == s.State.User.ID {
+			mentioned = true
+			break
+		}
+	}
+	if !mentioned {
+		return
+	}
+
+	inv := &cmd.Invocation{Data: &command.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg}}
 	for _, c := range cmd.DefaultRegistry.GetAll() {
-		if _, ok := cmd.Root(c).(command.ReactionProvider); ok {
-			if err := c.Run(context.Background(), inv); err != nil {
-				log.Println("[ERR] Error running reaction command:", err)
-				MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
-					Description: fmt.Sprintf("Error running reaction command: %v", err),
-				})
-			}
+		if err := c.Run(context.Background(), inv); err != nil {
+			log.Println("[ERR] Error running message command:", err)
+			MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Error: %v", err),
+			})
 		}
 	}
 }
 
-// onInteractionCreate is called when an interaction is created
+// onMessageReactionAdd handles reaction events for commands that use reactions.
+func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+	inv := &cmd.Invocation{Data: &command.MessageReactionContext{
+		Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: DefaultLogger,
+	}}
+	for _, c := range cmd.DefaultRegistry.GetAll() {
+		if _, ok := cmd.Root(c).(command.ReactionProvider); !ok {
+			continue
+		}
+		if err := c.Run(context.Background(), inv); err != nil {
+			log.Println("[ERR] Error running reaction command:", err)
+			MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Error: %v", err),
+			})
+		}
+	}
+}
+
+// onInteractionCreate dispatches slash commands, context menu commands, and component interactions.
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
-		cmdName := i.ApplicationCommandData().Name
-		c := cmd.DefaultRegistry.Get(cmdName)
-		if c == nil {
-			log.Printf("[WARN] Unknown command: %s\n", cmdName)
-			return
-		}
-
-		switch i.ApplicationCommandData().CommandType {
-		case discordgo.MessageApplicationCommand:
-			appCtx := &command.MessageApplicationCommandContext{
-				Session: s, Event: i, Storage: b.storage, Target: i.Message, Config: b.cfg,
-				Responder: DefaultResponder, Logger: DefaultLogger,
-			}
-			inv := &cmd.Invocation{Data: appCtx}
-			if err := c.Run(context.Background(), inv); err != nil {
-				log.Println("[ERR] Error running context menu command:", err)
-				RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running context menu command: %v", err)})
-			}
-		case discordgo.ChatApplicationCommand:
-			slashCtx := &command.SlashInteractionContext{
-				Session: s, Event: i, Storage: b.storage, Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
-			}
-			inv := &cmd.Invocation{Data: slashCtx}
-			if err := c.Run(context.Background(), inv); err != nil {
-				log.Println("[ERR] Error running slash command:", err)
-				RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running slash command: %v", err)})
-			}
-		}
-
+		b.handleApplicationCommand(s, i)
 	case discordgo.InteractionMessageComponent:
-		customID := i.MessageComponentData().CustomID
-		log.Printf("[DEBUG] Processing component interaction: %s\n", customID)
-
-		var matched cmd.Command
-		for _, c := range cmd.DefaultRegistry.GetAll() {
-			if strings.HasPrefix(customID, c.Name()) || strings.HasPrefix(customID, c.Name()+":") || strings.HasPrefix(customID, c.Name()+"_") {
-				matched = c
-				log.Printf("[DEBUG] Found matching command: %s\n", c.Name())
-				break
-			}
-		}
-
-		if matched != nil {
-			log.Printf("[DEBUG] Matched command type: %T", matched)
-			root := cmd.Root(matched)
-			compHandler, ok := root.(command.ComponentInteractionHandler)
-			log.Printf("[DEBUG] ComponentInteractionHandler? %v", ok)
-			if ok {
-				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
-				compCtx := &command.ComponentInteractionContext{
-					Session: s, Event: i, Storage: b.storage, Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
-				}
-				err := compHandler.Component(compCtx)
-				if err != nil {
-					log.Printf("[ERR] Error running component command %s: %v\n", matched.Name(), err)
-					RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{Description: fmt.Sprintf("Error running component command: %v", err)})
-				}
-				log.Printf("[DEBUG] Component() method completed: %s\n", matched.Name())
-			} else {
-				log.Printf("[WARN] Command %s does not implement ComponentHandler interface\n", matched.Name())
-				log.Printf("[DEBUG] Command type: %T\n", matched)
-			}
-		} else {
-			log.Printf("[WARN] No matching component for customID: %s\n", customID)
-		}
-
+		b.handleComponentInteraction(s, i)
 	default:
-		log.Printf("[DEBUG] Unknown interaction type: %d\n", i.Type)
+		log.Printf("[DEBUG] Unhandled interaction type: %d", i.Type)
 	}
 }
 
-// registerCommands registers slash commands
-func (b *Bot) registerCommands(guildID string) error {
-	appID := b.dg.State.User.ID
-	if appID == "" {
-		user, err := b.dg.User("@me")
-		if err != nil {
-			return err
-		}
-		appID = user.ID
+func (b *Bot) handleApplicationCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	name := i.ApplicationCommandData().Name
+	c := cmd.DefaultRegistry.Get(name)
+	if c == nil {
+		log.Printf("[WARN] Unknown command: %s", name)
+		return
 	}
 
-	existing, _ := b.dg.ApplicationCommands(appID, guildID)
-	localHashes := loadGuildCommandHashes(guildID)
+	var inv *cmd.Invocation
+	switch i.ApplicationCommandData().CommandType {
+	case discordgo.MessageApplicationCommand:
+		inv = &cmd.Invocation{Data: &command.MessageApplicationCommandContext{
+			Session: s, Event: i, Storage: b.storage, Target: i.Message,
+			Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
+		}}
+	case discordgo.ChatApplicationCommand:
+		inv = &cmd.Invocation{Data: &command.SlashInteractionContext{
+			Session: s, Event: i, Storage: b.storage,
+			Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
+		}}
+	default:
+		return
+	}
 
-	var wanted []*discordgo.ApplicationCommand
-	wantedHashes := make(map[string]string)
+	if err := c.Run(context.Background(), inv); err != nil {
+		log.Printf("[ERR] Error running command %s: %v", name, err)
+		RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Error running command: %v", err),
+		})
+	}
+}
+
+func (b *Bot) handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+	log.Printf("[DEBUG] Component interaction: %s", customID)
+
+	var matched cmd.Command
 	for _, c := range cmd.DefaultRegistry.GetAll() {
-		if def := normalizeDefinition(c); def != nil {
-			wanted = append(wanted, def)
-			wantedHashes[def.Name] = hashCommand(def)
+		if matchesComponentID(customID, c.Name()) {
+			matched = c
+			break
 		}
 	}
-
-	// Delete obsolete
-	for _, old := range existing {
-		if _, ok := wantedHashes[old.Name]; !ok {
-			log.Printf("[INFO] [%s] Deleting obsolete command: %s", guildID, old.Name)
-			if err := b.dg.ApplicationCommandDelete(appID, guildID, old.ID); err != nil {
-				log.Printf("[ERR] [%s] Failed to delete %s: %v", guildID, old.Name, err)
-			}
-			delete(localHashes, old.Name)
-		}
+	if matched == nil {
+		log.Printf("[WARN] No component handler for customID: %s", customID)
+		return
 	}
 
-	// Create or update changed commands
-	var changed []*discordgo.ApplicationCommand
-	for _, cmd := range wanted {
-		newHash := wantedHashes[cmd.Name]
-		if localHashes[cmd.Name] != newHash {
-			changed = append(changed, cmd)
-		}
+	handler, ok := cmd.Root(matched).(command.ComponentInteractionHandler)
+	if !ok {
+		log.Printf("[WARN] Command %s does not implement ComponentInteractionHandler", matched.Name())
+		return
 	}
 
-	if len(changed) > 0 {
-		log.Printf("[INFO] [%s] %d commands changed — updating with rate limit...", guildID, len(changed))
-		registerCommandsWithRateLimit(b, guildID, changed)
-		for _, c := range changed {
-			localHashes[c.Name] = wantedHashes[c.Name]
-		}
+	err := handler.Component(&command.ComponentInteractionContext{
+		Session: s, Event: i, Storage: b.storage,
+		Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
+	})
+	if err != nil {
+		log.Printf("[ERR] Error in component handler %s: %v", matched.Name(), err)
+		RespondEmbedEphemeral(s, i, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Error: %v", err),
+		})
 	}
+}
 
-	saveGuildCommandHashes(guildID, localHashes)
-	return nil
+// matchesComponentID reports whether a component customID belongs to a command.
+// CustomIDs follow the convention "commandName", "commandName:...", or "commandName_...".
+func matchesComponentID(customID, commandName string) bool {
+	if customID == commandName {
+		return true
+	}
+	if len(customID) > len(commandName) {
+		sep := customID[len(commandName)]
+		return (sep == ':' || sep == '_') && customID[:len(commandName)] == commandName
+	}
+	return false
 }
 
 func (b *Bot) isGuildBlacklisted(guildID string) bool {
 	return slices.Contains(b.cfg.DiscordGuildBlacklist, guildID)
-}
-
-// normalizeDefinition normalizes a command definition (uses root so wrapped commands still expose providers)
-func normalizeDefinition(c cmd.Command) *discordgo.ApplicationCommand {
-	root := cmd.Root(c)
-	if slash, ok := root.(command.SlashProvider); ok {
-		if def := slash.SlashDefinition(); def != nil {
-			if def.Type == 0 {
-				def.Type = discordgo.ChatApplicationCommand
-			}
-			return def
-		}
-	}
-	if menu, ok := root.(command.ContextMenuProvider); ok {
-		if def := menu.ContextDefinition(); def != nil {
-			if def.Type == 0 {
-				def.Type = discordgo.MessageApplicationCommand
-			}
-			return def
-		}
-	}
-	return nil
-}
-
-// registerCommandsWithRateLimit registers commands with a rate limit
-func registerCommandsWithRateLimit(b *Bot, guildID string, cmds []*discordgo.ApplicationCommand) {
-	rateLimit := time.Second / 40
-	ticker := time.NewTicker(rateLimit)
-	defer ticker.Stop()
-
-	var wg sync.WaitGroup
-
-	for _, job := range cmds {
-		wg.Add(1)
-
-		go func(cmd *discordgo.ApplicationCommand) {
-			defer wg.Done()
-			<-ticker.C
-
-			_, err := b.dg.ApplicationCommandCreate(b.dg.State.User.ID, guildID, cmd)
-			if err != nil {
-				log.Printf("[ERR] Can't create command %s: %v", cmd.Name, err)
-			} else {
-				log.Printf("[DONE] Command created: %s", cmd.Name)
-			}
-		}(job)
-	}
-
-	wg.Wait()
-}
-
-func (b *Bot) handleRefreshCommands(evt SystemEvent) {
-	appID := b.dg.State.User.ID
-	if appID == "" {
-		user, err := b.dg.User("@me")
-		if err != nil {
-			log.Printf("[ERR][%s] Failed to fetch self: %v", evt.GuildID, err)
-			return
-		}
-		appID = user.ID
-	}
-
-	// Fetch existing commands for the guild
-	existing, _ := b.dg.ApplicationCommands(appID, evt.GuildID)
-
-	// If guild is blacklisted, forcibly delete all commands
-	if b.isGuildBlacklisted(evt.GuildID) {
-		log.Printf("[BLACKLIST][%s] Guild is blacklisted — removing all commands", evt.GuildID)
-		for _, cmd := range existing {
-			if err := b.dg.ApplicationCommandDelete(appID, evt.GuildID, cmd.ID); err != nil {
-				log.Printf("[ERR][%s] Failed to delete command %s: %v", evt.GuildID, cmd.Name, err)
-			} else {
-				log.Printf("[DONE][%s] Deleted command %s", evt.GuildID, cmd.Name)
-			}
-		}
-		return
-	}
-
-	// Handle group-specific enable/disable
-	if strings.HasPrefix(evt.Target, "group:") {
-		group := strings.TrimPrefix(evt.Target, "group:")
-		disabledGroups, _ := b.storage.GetDisabledGroups(evt.GuildID)
-		disabledMap := make(map[string]bool)
-		for _, g := range disabledGroups {
-			disabledMap[g] = true
-		}
-
-		for _, c := range cmd.DefaultRegistry.GetAll() {
-			meta, ok := cmd.Root(c).(command.DiscordMeta)
-			if !ok || meta.Group() != group {
-				continue
-			}
-			found := false
-			for _, ex := range existing {
-				if ex.Name == c.Name() {
-					found = true
-					if disabledMap[group] {
-						log.Printf("[INFO][%s] Deleting disabled command %s", evt.GuildID, c.Name())
-						_ = b.dg.ApplicationCommandDelete(appID, evt.GuildID, ex.ID)
-					}
-					break
-				}
-			}
-			if !found && !disabledMap[group] {
-				if def := normalizeDefinition(c); def != nil {
-					log.Printf("[INFO][%s] Registering enabled command %s", evt.GuildID, c.Name())
-					_, _ = b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
-				}
-			}
-		}
-		return
-	}
-
-	// Refresh all commands
-	if strings.ToLower(evt.Target) == "all" || evt.Target == "" {
-		_ = b.registerCommands(evt.GuildID)
-		return
-	}
-
-	// Refresh single command by name
-	for _, c := range cmd.DefaultRegistry.GetAll() {
-		if strings.EqualFold(c.Name(), evt.Target) {
-			if def := normalizeDefinition(c); def != nil {
-				_, _ = b.dg.ApplicationCommandCreate(appID, evt.GuildID, def)
-			}
-			return
-		}
-	}
 }
