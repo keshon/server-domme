@@ -146,11 +146,13 @@ func (b *Bot) run(ctx context.Context) error {
 			case <-sessionCtx.Done():
 				return
 			case <-ticker.C:
-				var lat time.Duration
-				if lat = dg.HeartbeatLatency(); lat < 0 {
-					log.Printf("[WARN] Negative heartbeat latency (%v) — reconnecting", lat)
-					notifyDisconnect()
-					return
+				// Negative latency is normal during discordgo's internal reconnect cycle —
+				// it resets the heartbeat timer and the next ACK appears to arrive "before"
+				// the send. Skip the probe this tick and let discordgo handle it.
+				lat := dg.HeartbeatLatency()
+				if lat < 0 {
+					log.Printf("[DEBUG] Heartbeat latency negative (%v), skipping probe this tick", lat)
+					continue
 				}
 				if _, err := dg.User("@me"); err != nil {
 					fails++
@@ -181,8 +183,7 @@ func (b *Bot) run(ctx context.Context) error {
 }
 
 func (b *Bot) configureIntents() {
-	b.dg.Identify.Intents = discordgo.IntentsGuilds |
-		discordgo.IntentsAll
+	b.dg.Identify.Intents = discordgo.IntentsAll
 }
 
 // onReady fires on every successful connect/reconnect.
