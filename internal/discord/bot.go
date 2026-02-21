@@ -182,10 +182,7 @@ func (b *Bot) run(ctx context.Context) error {
 
 func (b *Bot) configureIntents() {
 	b.dg.Identify.Intents = discordgo.IntentsGuilds |
-		discordgo.IntentsGuildMessages |
-		discordgo.IntentsMessageContent |
-		discordgo.IntentsGuildMessageReactions |
-		discordgo.IntentsGuildMembers
+		discordgo.IntentsAll
 }
 
 // onReady fires on every successful connect/reconnect.
