@@ -30,6 +30,10 @@ type Bot struct {
 	mu             sync.RWMutex
 	players        map[string]*player.Player
 	sourceResolver *source_resolver.SourceResolver
+
+	// once guards one-time background services (purge scheduler, shortlink server)
+	// so they don't get re-launched on every Discord reconnect.
+	once sync.Once
 }
 
 // NewBot creates a Bot instance. Register any bot-dependent commands (e.g. music) before calling Run.
@@ -42,10 +46,10 @@ func NewBot(cfg *config.Config, storage *storage.Storage) *Bot {
 	}
 }
 
-// Run starts the Discord session, restarts if needed
+// Run starts the Discord session, restarting on disconnect until ctx is cancelled.
 func (b *Bot) Run(ctx context.Context) error {
 	for {
-		err := b.run(ctx, b.cfg.DiscordToken)
+		err := b.run(ctx)
 		if err != nil {
 			log.Println("[ERR] Bot session ended:", err)
 		}
@@ -60,20 +64,38 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 }
 
-// StartBot is a convenience that creates a bot and runs it. Use NewBot + RegisterCommand + Run when you need to register bot-dependent commands (e.g. music).
+// StartBot is a convenience that creates a bot and runs it.
+// Use NewBot + RegisterCommand + Run when you need to register bot-dependent commands (e.g. music).
 func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
 	b := NewBot(cfg, storage)
 	return b.Run(ctx)
 }
 
-// run starts the Discord bot
-func (b *Bot) run(ctx context.Context, token string) error {
-	dg, err := discordgo.New("Bot " + token)
+// run opens one Discord session and blocks until ctx is cancelled or the WebSocket disconnects.
+func (b *Bot) run(ctx context.Context) error {
+	dg, err := discordgo.New("Bot " + b.cfg.DiscordToken)
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
 	}
 
+	b.mu.Lock()
 	b.dg = dg
+	b.mu.Unlock()
+
+	// disconnected is closed (not sent to) so multiple concurrent firings
+	// (discordgo internal reconnect + our handler) only trigger one restart.
+	disconnected := make(chan struct{})
+	var disconnectOnce sync.Once
+	notifyDisconnect := func() {
+		disconnectOnce.Do(func() {
+			log.Println("[WARN] WebSocket disconnected — will restart session")
+			close(disconnected)
+		})
+	}
+
+	dg.AddHandler(func(s *discordgo.Session, d *discordgo.Disconnect) {
+		notifyDisconnect()
+	})
 
 	b.configureIntents()
 	dg.AddHandler(b.onReady)
@@ -85,20 +107,88 @@ func (b *Bot) run(ctx context.Context, token string) error {
 	if err := dg.Open(); err != nil {
 		return fmt.Errorf("failed to open Discord session: %w", err)
 	}
-	defer dg.Close()
+	defer func() {
+		log.Println("[INFO] Closing Discord session...")
+		dg.Close()
+	}()
+
+	// Forward SystemEvents into handler goroutine.
+	// This goroutine is tied to the session lifetime via sessionCtx.
+	sessionCtx, cancelSession := context.WithCancel(ctx)
+	defer cancelSession()
 
 	go func() {
-		for evt := range SystemEvents() {
-			switch evt.Type {
-			case SystemEventRefreshCommands:
-				go b.handleRefreshCommands(evt)
+		for {
+			select {
+			case <-sessionCtx.Done():
+				return
+			case evt, ok := <-SystemEvents():
+				if !ok {
+					return
+				}
+				if evt.Type == SystemEventRefreshCommands {
+					go b.handleRefreshCommands(evt)
+				}
 			}
 		}
 	}()
 
-	<-ctx.Done()
-	log.Println("[INFO] ❎ Shutdown signal received. Cleaning up...")
-	return nil
+	// Connection health monitor.
+	// HeartbeatLatency alone is unreliable after system sleep — the connection may appear
+	// alive while Discord is actually unreachable. We do an active API probe every 30s
+	// to catch stale/zombie connections that heartbeat misses.
+	go func() {
+		// Give the session time to fully establish before first check.
+		select {
+		case <-sessionCtx.Done():
+			return
+		case <-time.After(15 * time.Second):
+		}
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		consecutiveFails := 0
+
+		for {
+			select {
+			case <-sessionCtx.Done():
+				return
+			case <-ticker.C:
+				latency := dg.HeartbeatLatency()
+				if latency < 0 {
+					log.Printf("[WARN] Negative heartbeat latency (%v) — likely post-sleep stale connection, reconnecting", latency)
+					notifyDisconnect()
+					return
+				}
+
+				// Active probe: actually call the Discord API.
+				_, err := dg.User("@me")
+				if err != nil {
+					consecutiveFails++
+					log.Printf("[WARN] Discord API probe failed (%d/3): %v", consecutiveFails, err)
+					if consecutiveFails >= 3 {
+						log.Println("[WARN] 3 consecutive API probe failures — triggering reconnect")
+						notifyDisconnect()
+						return
+					}
+				} else {
+					if consecutiveFails > 0 {
+						log.Printf("[INFO] Discord API probe recovered after %d failures", consecutiveFails)
+					}
+					consecutiveFails = 0
+					log.Printf("[DEBUG] Heartbeat latency: %v", latency)
+				}
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		log.Println("[INFO] ❎ Shutdown signal received. Cleaning up...")
+		return nil
+	case <-disconnected:
+		return fmt.Errorf("websocket disconnected")
+	}
 }
 
 // configureIntents configures the Discord intents
@@ -139,7 +229,7 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 	}
 }
 
-// onReady is called when the bot is ready
+// onReady is called when the bot is ready (fires on every reconnect).
 func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	botInfo, err := s.User("@me")
 	if err != nil {
@@ -166,15 +256,20 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		}
 	}
 
-	log.Println("[INFO] Starting commands services...")
-	purge.RunScheduler(b.storage, s)
-	go shortlink.RunServer(b.storage)
+	// Start one-time background services.
+	// sync.Once ensures these are never launched more than once even if
+	// onReady fires multiple times due to reconnects.
+	b.once.Do(func() {
+		log.Println("[INFO] Starting background services (first connect)...")
+		purge.RunScheduler(b.storage, s)
+		go shortlink.RunServer(b.storage)
 
-	if err := docs.UpdateReadme(cmd.DefaultRegistry, config.CategoryWeights); err != nil {
-		log.Println("[ERR] Failed to update README:", err)
-	}
+		if err := docs.UpdateReadme(cmd.DefaultRegistry, config.CategoryWeights); err != nil {
+			log.Println("[ERR] Failed to update README:", err)
+		}
+	})
 
-	log.Printf("[INFO] ✅ Discord bot %v is running.", botInfo.Username)
+	log.Printf("[INFO] ✅ Discord bot %v is ready.", botInfo.Username)
 }
 
 // onGuildCreate is called when a guild is created
@@ -263,7 +358,6 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			log.Printf("[DEBUG] ComponentInteractionHandler? %v", ok)
 			if ok {
 				log.Printf("[DEBUG] Command %s implements ComponentHandler\n", matched.Name())
-				log.Printf("[DEBUG] About to call Component() method...\n")
 				compCtx := &command.ComponentInteractionContext{
 					Session: s, Event: i, Storage: b.storage, Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
 				}

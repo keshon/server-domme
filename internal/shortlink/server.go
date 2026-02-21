@@ -1,6 +1,7 @@
 package shortlink
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -8,11 +9,17 @@ import (
 )
 
 // RunServer starts a lightweight HTTP server that resolves short links to their original URLs.
-// It blocks until the server exits; typically run in a goroutine.
+// It blocks until the server exits or ctx is cancelled; run in a goroutine.
 func RunServer(store *storage.Storage) {
+	RunServerWithContext(context.Background(), store)
+}
+
+// RunServerWithContext starts the shortlink HTTP server and respects ctx for graceful shutdown.
+func RunServerWithContext(ctx context.Context, store *storage.Storage) {
 	log.Printf("[INFO] Starting shortlink redirect server...")
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Path[1:] // remove leading "/"
 		if id == "" {
 			http.NotFound(w, r)
@@ -34,6 +41,17 @@ func RunServer(store *storage.Storage) {
 	})
 
 	addr := ":8787"
+	srv := &http.Server{Addr: addr, Handler: mux}
+
+	go func() {
+		<-ctx.Done()
+		log.Println("[INFO] Shutting down shortlink server...")
+		srv.Shutdown(context.Background()) //nolint:errcheck
+	}()
+
 	log.Printf("[INFO] Shortlink redirect server listening on %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		// Log the error but do NOT call log.Fatal — that would kill the whole process.
+		log.Printf("[ERR] Shortlink server exited: %v", err)
+	}
 }
