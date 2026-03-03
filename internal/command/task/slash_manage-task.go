@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
+	"server-domme/internal/command"
+	"server-domme/internal/discord"
+	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"

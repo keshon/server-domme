@@ -19,6 +19,8 @@ type Config struct {
 	AIProvider            string   `env:"AI_PROVIDER"`
 	AIPromtPath           string   `env:"AI_PROMPT_PATH"`
 	ShortLinkBaseURL      string   `env:"SHORTLINK_BASE_URL"`
+	VoiceReadyDelayMs     int      `env:"VOICE_READY_DELAY_MS" envDefault:"500"` // VoiceReadyDelayMs is the delay in ms after joining VC before sending opus (discordgo op 4 race). Default 500.
+
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids discord import in middleware).
@@ -27,15 +29,15 @@ func IsDeveloper(cfg *Config, userID string) bool {
 }
 
 // New returns a new Config.
-func New() *Config {
+func New() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, falling back to system environment variables")
 	}
 
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		return nil, err
 	}
 
-	return &cfg
+	return &cfg, nil
 }

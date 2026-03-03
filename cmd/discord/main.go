@@ -17,26 +17,32 @@ import (
 	_ "server-domme/internal/command/purge"
 	_ "server-domme/internal/command/roll"
 	_ "server-domme/internal/command/shortlink"
+	"server-domme/internal/command/task"
 	_ "server-domme/internal/command/task"
 	_ "server-domme/internal/command/translate"
 
 	"server-domme/internal/command"
 	"server-domme/internal/command/music"
-	"server-domme/internal/command/task"
 	"server-domme/internal/config"
 	"server-domme/internal/discord"
 	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
-	v "server-domme/internal/version"
+
+	"github.com/keshon/buildinfo"
 )
 
 func main() {
-	log.Printf("[INFO] Starting %v bot...", v.AppName)
+	info := buildinfo.Get()
+
+	log.Printf("[INFO] Starting %v bot...", info.Project)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cfg := config.New()
+	cfg, err := config.New()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	store, err := storage.New(cfg.StoragePath)
 	if err != nil {
@@ -47,8 +53,9 @@ func main() {
 	if err := task.InitFromConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
-
+	log.Println("[INFO] Tasks initialized")
 	go storage.RunCooldownCleaner(ctx, store)
+	log.Println("[INFO] Cooldown cleaner started")
 
 	bot := discord.NewBot(cfg, store)
 	command.RegisterCommand(
@@ -82,5 +89,7 @@ func main() {
 	case <-ctx.Done():
 	}
 
+	// Wait for the bot goroutine to exit so defer dg.Close() and cleanup run before process exit.
+	<-errCh
 	log.Println("[INFO] Discord bot exited cleanly")
 }

@@ -23,52 +23,6 @@ It’s designed to be practical for server management while providing light, int
 
 ## Available Commands
 
-### 🕯️ Information
-
-- **/about** — Discover the origin of this bot
-- **/help** — Get a list of available commands
-
-### 📢 Utilities
-
-- **Announce (context command)** — Send a message on bot's behalf
-- **/announce** — Send a message on bot's behalf
-- **/shortlink** — Shorten URLs and manage your links
-- **translate (reaction)** — Translate message on flag emoji reaction
-
-### 🎲 Gameplay
-
-- **/roll** — Roll dices like `2d20+1d6-2`
-
-### 🎭 Roleplay
-
-- **/ask** — Ask for permission to contact another member
-- **/confess** — Send an anonymous confession
-- **/discipline** — Punish or release a brat
-- **/task** — Assign yourself a new random task
-
-### 🎵 Music
-
-- **/music** — Control music playback
-
-### 🎞️ Media
-
-- **/media** — Post a random media file
-- **/upload-media** — Upload one or multiple media files
-
-### 🧹 Cleanup
-
-- **/purge** — Manage message purges
-
-### ⚙️ Settings
-
-- **/commands** — Manage or inspect commands
-- **/maintenance** — Bot maintenance commands
-- **/manage-announce** — Announcement settings
-- **/manage-confess** — Confession settings
-- **/manage-discipline** — Discipline settings
-- **/manage-media** — Media settings
-- **/manage-task** — Task settings
-- **/manage-translate** — Translate settings
 
 
 ---

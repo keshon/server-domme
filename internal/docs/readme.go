@@ -9,26 +9,61 @@ import (
 	"sort"
 	"text/template"
 
+	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/commandkit"
+
 	"server-domme/internal/command"
-	"server-domme/pkg/cmd"
 )
+
+// RecommendedBotPermissions is the bitmask for the minimal permissions the bot needs.
+// Used in the OAuth2 invite URL so the generated README shows the correct link.
+// Combines: View Channel, Send Messages, Embed Links, Read Message History, Manage Messages, Connect, Speak.
+var RecommendedBotPermissions = discordgo.PermissionManageRoles |
+	discordgo.PermissionViewChannel |
+	discordgo.PermissionSendMessages |
+	discordgo.PermissionEmbedLinks |
+	discordgo.PermissionAttachFiles |
+	discordgo.PermissionReadMessageHistory |
+	discordgo.PermissionManageMessages |
+	discordgo.PermissionUseApplicationCommands |
+	discordgo.PermissionVoiceConnect |
+	discordgo.PermissionVoiceSpeak
+
+// RecommendedBotPermissionsList is a human-readable list of these permissions for the README.
+var RecommendedBotPermissionsList = []string{
+	"Manage Roles",
+	"View Channel",
+	"Send Messages",
+	"Embed Links",
+	"Read Message History",
+	"Manage Messages",
+	"Use Application Commands",
+	"Connect",
+	"Speak",
+}
 
 // UpdateReadme generates README.md from the command registry and category ordering.
 // categoryWeights maps category name to sort order (lower first).
-func UpdateReadme(registry *cmd.Registry, categoryWeights map[string]int) error {
+func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int) error {
 	commands := registry.GetAll()
+
 	sort.Slice(commands, func(i, j int) bool {
-		metaI, _ := cmd.Root(commands[i]).(command.DiscordMeta)
-		metaJ, _ := cmd.Root(commands[j]).(command.DiscordMeta)
-		catI, catJ := "", ""
+		metaI, _ := commandkit.Root(commands[i]).(command.DiscordMeta)
+		metaJ, _ := commandkit.Root(commands[j]).(command.DiscordMeta)
+
+		catI := ""
+		catJ := ""
+
 		if metaI != nil {
 			catI = metaI.Category()
 		}
 		if metaJ != nil {
 			catJ = metaJ.Category()
 		}
+
 		wi := categoryWeights[catI]
 		wj := categoryWeights[catJ]
+
 		if wi == wj {
 			return commands[i].Name() < commands[j].Name()
 		}
@@ -37,12 +72,16 @@ func UpdateReadme(registry *cmd.Registry, categoryWeights map[string]int) error 
 
 	var buf bytes.Buffer
 	currentCategory := ""
+
 	for _, c := range commands {
-		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		root := commandkit.Root(c)
+
+		meta, _ := root.(command.DiscordMeta)
 		cat := ""
 		if meta != nil {
 			cat = meta.Category()
 		}
+
 		if cat != currentCategory {
 			if currentCategory != "" {
 				buf.WriteString("\n")
@@ -51,12 +90,7 @@ func UpdateReadme(registry *cmd.Registry, categoryWeights map[string]int) error 
 			buf.WriteString(fmt.Sprintf("### %s\n\n", currentCategory))
 		}
 
-		name := c.Name()
-		display := name
-		if !(hasSpace(name) || startsWithUpper(name)) {
-			display = "/" + display
-		}
-		buf.WriteString(fmt.Sprintf("- **%s** — %s\n", display, c.Description()))
+		renderDiscordCommand(&buf, root)
 	}
 
 	tmplPath := filepath.Join(".", "README.md.tmpl")
@@ -67,10 +101,22 @@ func UpdateReadme(registry *cmd.Registry, categoryWeights map[string]int) error 
 		return err
 	}
 
+	permListBuf := new(bytes.Buffer)
+	for i, name := range RecommendedBotPermissionsList {
+		if i > 0 {
+			permListBuf.WriteString(", ")
+		}
+		permListBuf.WriteString(name)
+	}
+
 	data := struct {
-		CommandSections string
+		CommandSections    string
+		BotPermissions     int64
+		BotPermissionsList string
 	}{
-		CommandSections: buf.String(),
+		CommandSections:    buf.String(),
+		BotPermissions:     int64(RecommendedBotPermissions),
+		BotPermissionsList: permListBuf.String(),
 	}
 
 	f, err := os.Create(outPath)
@@ -85,6 +131,43 @@ func UpdateReadme(registry *cmd.Registry, categoryWeights map[string]int) error 
 
 	log.Println("[INFO] README.md updated with current commands")
 	return nil
+}
+
+func renderDiscordCommand(buf *bytes.Buffer, c commandkit.Command) {
+	name := c.Name()
+	display := name
+	if !(hasSpace(name) || startsWithUpper(name)) {
+		display = "/" + display
+	}
+
+	buf.WriteString(fmt.Sprintf(
+		"- **%s** — %s\n",
+		display,
+		c.Description(),
+	))
+
+	sp, ok := c.(command.SlashProvider)
+	if !ok {
+		return
+	}
+
+	def := sp.SlashDefinition()
+	if def == nil {
+		return
+	}
+
+	for _, opt := range def.Options {
+		if opt.Type != discordgo.ApplicationCommandOptionSubCommand {
+			continue
+		}
+
+		buf.WriteString(fmt.Sprintf(
+			"  - **/%s %s** — %s\n",
+			def.Name,
+			opt.Name,
+			opt.Description,
+		))
+	}
 }
 
 func hasSpace(s string) bool {

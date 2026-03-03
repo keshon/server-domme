@@ -3,12 +3,12 @@ package music
 import (
 	"fmt"
 
-	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/music/player"
-	"server-domme/internal/music/source_resolver"
+	"server-domme/internal/discord"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/melodix/pkg/music/player"
+	"github.com/keshon/melodix/pkg/music/source_resolver"
 )
 
 type MusicCommand struct {
