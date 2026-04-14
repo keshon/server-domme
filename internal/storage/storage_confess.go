@@ -9,8 +9,7 @@ func (s *Storage) SetConfessChannel(guildID, channelID string) error {
 	}
 
 	record.ConfessChannel = channelID
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetConfessChannel(guildID string) (string, error) {
@@ -33,6 +32,5 @@ func (s *Storage) RemoveConfessChannel(guildID string) error {
 	}
 
 	record.ConfessChannel = ""
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }

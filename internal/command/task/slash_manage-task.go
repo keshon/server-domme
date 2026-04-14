@@ -10,7 +10,6 @@ import (
 
 	"server-domme/internal/command"
 	"server-domme/internal/discord"
-	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -309,12 +308,4 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 	return "", fmt.Errorf("role ID %s not found in guild %s", roleID, guildID)
 }
 
-func init() {
-	command.RegisterCommand(
-		&ManageTaskCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

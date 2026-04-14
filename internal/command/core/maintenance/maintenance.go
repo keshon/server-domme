@@ -1,13 +1,12 @@
-package core
+package maintenance
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 
-	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
+	"server-domme/internal/discord"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -28,21 +27,9 @@ func (c *MaintenanceCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "ping",
-				Description: "Check bot latency",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "download-db",
-				Description: "Download the current server database as a JSON file",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "status",
-				Description: "Retrieve statistics about the guild",
-			},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "ping", Description: "Check bot latency"},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "download-db", Description: "Download the current server database as a JSON file"},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "status", Description: "Retrieve statistics about the guild"},
 		},
 	}
 }
@@ -55,10 +42,9 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 
 	s := context.Session
 	e := context.Event
-	storage := context.Storage
+	st := context.Storage
 
 	options := e.ApplicationCommandData().Options
-
 	if len(options) == 0 {
 		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
@@ -75,9 +61,9 @@ func (c *MaintenanceCommand) Run(ctx interface{}) error {
 			Color:       discord.EmbedColor,
 		})
 	case "download-db":
-		return runGetDB(s, e, *storage)
+		return runGetDB(s, e, *st)
 	case "status":
-		return runStatus(s, e, *storage)
+		return runStatus(s, e, *st)
 	default:
 		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
@@ -125,12 +111,10 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 		}
 	}
 
-	// Gather statistics
 	memberCount := len(guild.Members)
 	roleCount := len(guild.Roles)
 	channelCount := len(guild.Channels)
 
-	// Build message
 	desc := fmt.Sprintf(
 		"**Guild name: %s**\n"+
 			"**Guild ID: %s**\n"+
@@ -152,12 +136,3 @@ func runStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage sto
 	})
 }
 
-func init() {
-	command.RegisterCommand(
-		&MaintenanceCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}

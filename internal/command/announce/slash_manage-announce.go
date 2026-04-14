@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -101,14 +100,4 @@ func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
 			Description: "Unknown subcommand.",
 		})
 	}
-}
-
-func init() {
-	command.RegisterCommand(
-		&ManageAnnounceCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

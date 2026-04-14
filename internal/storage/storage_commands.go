@@ -15,8 +15,7 @@ func (s *Storage) DisableGroup(guildID, group string) error {
 	}
 
 	record.CommandsDisabled = append(record.CommandsDisabled, group)
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) EnableGroup(guildID, group string) error {
@@ -32,8 +31,7 @@ func (s *Storage) EnableGroup(guildID, group string) error {
 		}
 	}
 	record.CommandsDisabled = updated
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) IsGroupDisabled(guildID, group string) (bool, error) {
@@ -64,4 +62,22 @@ func (s *Storage) GetCommandsHistory(guildID string) ([]st.CommandHistory, error
 	}
 
 	return record.CommandsHistory, nil
+}
+
+// CommandHashes returns the cached slash-command hashes for a guild (may be nil).
+func (s *Storage) CommandHashes(guildID string) (map[string]string, error) {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return nil, err
+	}
+	return record.CommandHashes, nil
+}
+
+func (s *Storage) SetCommandHashes(guildID string, hashes map[string]string) error {
+	record, err := s.getOrCreateGuildRecord(guildID)
+	if err != nil {
+		return err
+	}
+	record.CommandHashes = hashes
+	return s.ds.Set(guildID, record)
 }

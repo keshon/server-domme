@@ -22,8 +22,7 @@ func (s *Storage) AddTranslateChannel(guildID string, channelID string) error {
 	}
 
 	record.TranslateChannels = append(record.TranslateChannels, channelID)
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) RemoveTranslateChannel(guildID string, channelID string) error {
@@ -51,8 +50,7 @@ func (s *Storage) RemoveTranslateChannel(guildID string, channelID string) error
 	}
 
 	record.TranslateChannels = newList
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetTranslateChannels(guildID string) ([]string, error) {
@@ -75,6 +73,5 @@ func (s *Storage) ResetTranslateChannels(guildID string) error {
 	}
 
 	record.TranslateChannels = []string{}
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }

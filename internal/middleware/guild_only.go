@@ -3,13 +3,14 @@ package middleware
 import (
 	"context"
 	"server-domme/internal/command"
-	"server-domme/pkg/cmd"
+
+	"github.com/keshon/commandkit"
 )
 
 // WithGuildOnly wraps a command to enforce guild-only access
-func WithGuildOnly() cmd.Middleware {
-	return func(c cmd.Command) cmd.Command {
-		return cmd.Wrap(c, func(ctx context.Context, inv *cmd.Invocation) error {
+func WithGuildOnly() commandkit.Middleware {
+	return func(c commandkit.Command) commandkit.Command {
+		return commandkit.Wrap(c, func(ctx context.Context, inv *commandkit.Invocation) error {
 			if v, ok := inv.Data.(*command.SlashInteractionContext); ok && v.Event.GuildID == "" {
 				return nil
 			}
@@ -20,3 +21,4 @@ func WithGuildOnly() cmd.Middleware {
 		})
 	}
 }
+

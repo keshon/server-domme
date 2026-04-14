@@ -1,4 +1,4 @@
-package core
+package help
 
 import (
 	"fmt"
@@ -6,14 +6,13 @@ import (
 	"sort"
 	"strings"
 
-	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/middleware"
+	"server-domme/internal/discord"
 	"server-domme/internal/version"
-	"server-domme/pkg/cmd"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/commandkit"
 )
 
 type HelpUnifiedCommand struct{}
@@ -22,30 +21,16 @@ func (c *HelpUnifiedCommand) Name() string        { return "help" }
 func (c *HelpUnifiedCommand) Description() string { return "Get a list of available commands" }
 func (c *HelpUnifiedCommand) Group() string       { return "core" }
 func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information" }
-func (c *HelpUnifiedCommand) UserPermissions() []int64 {
-	return []int64{}
-}
+func (c *HelpUnifiedCommand) UserPermissions() []int64 { return []int64{} }
 
 func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "category",
-				Description: "View commands grouped by category",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "group",
-				Description: "View commands grouped by group",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "flat",
-				Description: "View all commands as a flat list",
-			},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "category", Description: "View commands grouped by category"},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "group", Description: "View commands grouped by group"},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "flat", Description: "View all commands as a flat list"},
 		},
 	}
 }
@@ -91,13 +76,13 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 }
 
 func buildHelpByCategory() string {
-	all := cmd.DefaultRegistry.GetAll()
+	all := commandkit.DefaultRegistry.GetAll()
 
-	categoryMap := make(map[string][]cmd.Command)
+	categoryMap := make(map[string][]commandkit.Command)
 	categorySort := make(map[string]int)
 
 	for _, c := range all {
-		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		meta, _ := commandkit.Root(c).(command.DiscordMeta)
 		cat := ""
 		if meta != nil {
 			cat = meta.Category()
@@ -116,9 +101,7 @@ func buildHelpByCategory() string {
 	for cat, sortVal := range categorySort {
 		sortedCats = append(sortedCats, catSort{cat, sortVal})
 	}
-	sort.Slice(sortedCats, func(i, j int) bool {
-		return sortedCats[i].Sort < sortedCats[j].Sort
-	})
+	sort.Slice(sortedCats, func(i, j int) bool { return sortedCats[i].Sort < sortedCats[j].Sort })
 
 	var sb strings.Builder
 	for _, cat := range sortedCats {
@@ -135,11 +118,11 @@ func buildHelpByCategory() string {
 }
 
 func buildHelpByGroup() string {
-	all := cmd.DefaultRegistry.GetAll()
+	all := commandkit.DefaultRegistry.GetAll()
 
-	groupMap := make(map[string][]cmd.Command)
+	groupMap := make(map[string][]commandkit.Command)
 	for _, c := range all {
-		meta, _ := cmd.Root(c).(command.DiscordMeta)
+		meta, _ := commandkit.Root(c).(command.DiscordMeta)
 		group := ""
 		if meta != nil {
 			group = meta.Group()
@@ -168,7 +151,7 @@ func buildHelpByGroup() string {
 }
 
 func buildHelpFlat() string {
-	all := cmd.DefaultRegistry.GetAll()
+	all := commandkit.DefaultRegistry.GetAll()
 	sort.Slice(all, func(i, j int) bool { return all[i].Name() < all[j].Name() })
 
 	var sb strings.Builder
@@ -178,12 +161,3 @@ func buildHelpFlat() string {
 	return sb.String()
 }
 
-func init() {
-	command.RegisterCommand(
-		&HelpUnifiedCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}

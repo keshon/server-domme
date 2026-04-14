@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"strings"
 
@@ -278,14 +277,4 @@ func dmChannel(s *discordgo.Session, userID string) string {
 		return ""
 	}
 	return ch.ID
-}
-
-func init() {
-	command.RegisterCommand(
-		&AskCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

@@ -13,8 +13,7 @@ func (s *Storage) SetPunishRole(guildID string, roleType string, roleID string) 
 	}
 
 	record.DisciplineRoles[roleType] = roleID
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetPunishRole(guildID string, roleType string) (string, error) {

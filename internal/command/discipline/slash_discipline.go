@@ -6,7 +6,6 @@ import (
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/middleware"
 
 	"server-domme/internal/storage"
 	"slices"
@@ -211,14 +210,4 @@ var punishPhrases = []string{
 	"📺 <@%s> is now broadcasting live... from the Brat Corner. Audience: none.",
 	"🪤 <@%s> walked right into it. The trap was the Brat Corner all along.",
 	"📎 <@%s> has been attached to the Brat Report. Filed permanently in the Brat Corner.",
-}
-
-func init() {
-	command.RegisterCommand(
-		&DisciplineCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

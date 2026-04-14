@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"regexp"
 	"server-domme/internal/discord"
-	"server-domme/internal/middleware"
 
 	"server-domme/internal/command"
 	"strings"
@@ -146,14 +145,4 @@ func restoreMentions(s *discordgo.Session, guildID, content string) string {
 		}
 		return m
 	})
-}
-
-func init() {
-	command.RegisterCommand(
-		&AnnounceContextCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

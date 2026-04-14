@@ -1,4 +1,4 @@
-package docs
+package readme
 
 import (
 	"bytes"
@@ -186,3 +186,4 @@ func startsWithUpper(s string) bool {
 	r := rune(s[0])
 	return r >= 'A' && r <= 'Z'
 }
+

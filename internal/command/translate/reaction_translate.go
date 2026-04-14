@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"strings"
 
@@ -178,12 +177,4 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 	return translated.String(), detectedLang, nil
 }
 
-func init() {
-	command.RegisterCommand(
-		&TranslateOnReaction{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

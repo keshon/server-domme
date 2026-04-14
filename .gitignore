@@ -13,3 +13,4 @@ datastore_dump.json
 *.json
 dump.bat
 !default_task.list.json
+/tmp

@@ -25,8 +25,7 @@ func (s *Storage) SetDeletionJob(guildID, channelID, mode string, delayUntil tim
 	}
 
 	record.PurgeJobs[channelID] = job
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) ClearDeletionJob(guildID, channelID string) error {
@@ -35,8 +34,7 @@ func (s *Storage) ClearDeletionJob(guildID, channelID string) error {
 		return err
 	}
 	delete(record.PurgeJobs, channelID)
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetDeletionJobsList(guildID string) (map[string]st.PurgeJob, error) {

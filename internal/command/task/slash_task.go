@@ -11,7 +11,6 @@ import (
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/middleware"
 
 	"server-domme/internal/storage"
 	"slices"
@@ -406,14 +405,4 @@ func pluralize(n int) string {
 
 func randomLine(list []string) string {
 	return list[rand.Intn(len(list))]
-}
-
-func init() {
-	command.RegisterCommand(
-		&TaskCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

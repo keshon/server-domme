@@ -22,8 +22,7 @@ func (s *Storage) AddShortLink(guildID, userID, original, shortID string) error 
 	}
 
 	record.ShortLinks = append(record.ShortLinks, newLink)
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetUserShortLinks(guildID, userID string) ([]st.ShortLink, error) {
@@ -56,8 +55,7 @@ func (s *Storage) ClearUserShortLinks(guildID, userID string) error {
 	}
 
 	record.ShortLinks = filtered
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 // DeleteShortLink removes a single short link by its shortID for the specified user.
@@ -82,8 +80,7 @@ func (s *Storage) DeleteShortLink(guildID, userID, shortID string) error {
 	}
 
 	record.ShortLinks = filtered
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 // IncrementClicks increments the click count for a specific short link.
@@ -96,8 +93,7 @@ func (s *Storage) IncrementClicks(guildID, shortID string) error {
 	for i, link := range record.ShortLinks {
 		if link.ShortID == shortID {
 			record.ShortLinks[i].Clicks++
-			s.ds.Add(guildID, record)
-			return nil
+			return s.ds.Set(guildID, record)
 		}
 	}
 

@@ -7,8 +7,7 @@ func (s *Storage) CreateMediaCategory(guildID string, categoryID string) error {
 	}
 
 	record.MediaCategories = append(record.MediaCategories, categoryID)
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) RemoveMediaCategory(guildID string, categoryID string) error {
@@ -23,8 +22,7 @@ func (s *Storage) RemoveMediaCategory(guildID string, categoryID string) error {
 			break
 		}
 	}
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetMediaCategories(guildID string) ([]string, error) {
@@ -42,8 +40,7 @@ func (s *Storage) SetMediaDefault(guildID string, categoryID string) error {
 	}
 
 	record.MediaDefault = categoryID
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) ResetMediaDefault(guildID string) error {
@@ -53,8 +50,7 @@ func (s *Storage) ResetMediaDefault(guildID string) error {
 	}
 
 	record.MediaDefault = ""
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetMediaDefault(guildID string) (string, error) {

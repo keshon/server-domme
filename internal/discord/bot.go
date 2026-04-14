@@ -10,15 +10,16 @@ import (
 
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/docs"
+	"server-domme/internal/discord/cmdlog"
+	"server-domme/internal/discord/cmdmanager"
+	"server-domme/internal/discord/voice"
 	"server-domme/internal/purge"
+	"server-domme/internal/readme"
 	"server-domme/internal/shortlink"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/commandkit"
-	"github.com/keshon/melodix/pkg/music/player"
-	"github.com/keshon/melodix/pkg/music/source_resolver"
 )
 
 // guildMusicStatus holds the channel and message ID for a guild's "now playing" message,
@@ -35,10 +36,11 @@ type Bot struct {
 	slashCmds          map[string][]*discordgo.ApplicationCommand
 	cfg                *config.Config
 	mu                 sync.RWMutex
-	players            map[string]*player.Player
-	sourceResolver     *source_resolver.SourceResolver
-	guildMusicStatus   map[string]guildMusicStatus
-	guildMusicStatusMu sync.RWMutex
+	voice              *voice.Service
+
+	cmdManager *cmdmanager.Manager
+	cmdLogger  *cmdlog.Logger
+	sessionCtx context.Context
 
 	// once ensures one-time background services (purge, shortlink) are not
 	// re-launched on subsequent reconnects.
@@ -51,35 +53,17 @@ func NewBot(cfg *config.Config, storage *storage.Storage) *Bot {
 		cfg:              cfg,
 		storage:          storage,
 		slashCmds:        make(map[string][]*discordgo.ApplicationCommand),
-		players:          make(map[string]*player.Player),
-		guildMusicStatus: make(map[string]guildMusicStatus),
 	}
 }
 
 // StartBot is a convenience constructor + runner.
 // Use NewBot + Run directly when you need to register bot-dependent commands first.
 func StartBot(ctx context.Context, cfg *config.Config, storage *storage.Storage) error {
-	return NewBot(cfg, storage).Run(ctx)
+	return NewBot(cfg, storage).RunSession(ctx)
 }
 
-// Run starts the bot, restarting the session on disconnect until ctx is cancelled.
-func (b *Bot) Run(ctx context.Context) error {
-	for {
-		if err := b.run(ctx); err != nil {
-			log.Println("[ERR] Bot session ended:", err)
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			log.Println("[WARN] Restarting Discord session in 5 seconds...")
-			time.Sleep(5 * time.Second)
-		}
-	}
-}
-
-// run opens one Discord session and blocks until ctx is cancelled or the connection is lost.
-func (b *Bot) run(ctx context.Context) error {
+// RunSession opens one Discord session and blocks until ctx is cancelled or the connection is lost.
+func (b *Bot) RunSession(ctx context.Context) error {
 	dg, err := discordgo.New("Bot " + b.cfg.DiscordToken)
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
@@ -87,6 +71,20 @@ func (b *Bot) run(ctx context.Context) error {
 
 	b.mu.Lock()
 	b.dg = dg
+	if b.voice != nil {
+		old := b.voice
+		b.mu.Unlock()
+		old.StopAllPlayers()
+		b.mu.Lock()
+	}
+	b.voice = voice.New(func() *discordgo.Session {
+		b.mu.RLock()
+		s := b.dg
+		b.mu.RUnlock()
+		return s
+	}, b.cfg)
+	b.cmdManager = cmdmanager.NewManager(dg, b.storage, commandkit.DefaultRegistry)
+	b.cmdLogger = cmdlog.New(dg, b.storage)
 	b.mu.Unlock()
 
 	// disconnected is closed once — multiple concurrent signals (our handler + discordgo
@@ -99,8 +97,6 @@ func (b *Bot) run(ctx context.Context) error {
 			close(disconnected)
 		})
 	}
-
-	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Disconnect) { notifyDisconnect() })
 
 	b.configureIntents()
 	dg.AddHandler(b.onReady)
@@ -119,6 +115,10 @@ func (b *Bot) run(ctx context.Context) error {
 
 	sessionCtx, cancelSession := context.WithCancel(ctx)
 	defer cancelSession()
+
+	b.mu.Lock()
+	b.sessionCtx = sessionCtx
+	b.mu.Unlock()
 
 	// Forward system events (e.g. command refresh) to the handler.
 	go func() {
@@ -195,20 +195,12 @@ func (b *Bot) run(ctx context.Context) error {
 
 // stopAllPlayers stops playback and disconnects voice for all guilds. Call on shutdown.
 func (b *Bot) stopAllPlayers() {
-	b.mu.Lock()
-	players := make(map[string]*player.Player, len(b.players))
-	for k, v := range b.players {
-		players[k] = v
+	b.mu.RLock()
+	v := b.voice
+	b.mu.RUnlock()
+	if v != nil {
+		v.StopAllPlayers()
 	}
-	b.mu.Unlock()
-
-	for _, p := range players {
-		_ = p.Stop(true)
-	}
-
-	b.mu.Lock()
-	b.players = make(map[string]*player.Player)
-	b.mu.Unlock()
 	log.Println("[INFO] All players stopped")
 }
 
@@ -233,7 +225,7 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 			continue
 		}
 		if b.cfg.InitSlashCommands {
-			if err := b.registerCommands(g.ID); err != nil {
+			if err := b.cmdManager.RegisterCommands(g.ID); err != nil {
 				log.Printf("[ERR] Error registering slash commands for guild %s: %v", g.ID, err)
 			}
 		}
@@ -241,9 +233,16 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	// Background services start once across all reconnects.
 	b.once.Do(func() {
 		log.Println("[INFO] Starting background services...")
-		purge.RunScheduler(b.storage, s)
-		go shortlink.RunServer(b.storage)
-		if err := docs.UpdateReadme(commandkit.DefaultRegistry, config.CategoryWeights); err != nil {
+		b.mu.RLock()
+		bgCtx := b.sessionCtx
+		b.mu.RUnlock()
+		if bgCtx == nil {
+			bgCtx = context.Background()
+		}
+
+		purge.RunScheduler(bgCtx, b.storage, s)
+		go shortlink.RunServerWithContext(bgCtx, b.storage)
+		if err := readme.UpdateReadme(commandkit.DefaultRegistry, config.CategoryWeights); err != nil {
 			log.Println("[ERR] Failed to update README:", err)
 		}
 	})
@@ -261,7 +260,7 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 		}
 		return
 	}
-	if err := b.registerCommands(g.Guild.ID); err != nil {
+	if err := b.cmdManager.RegisterCommands(g.Guild.ID); err != nil {
 		log.Printf("[ERR] Failed to register commands for guild %s: %v", g.Guild.ID, err)
 	}
 }
@@ -295,8 +294,12 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 
 // onMessageReactionAdd handles reaction events for commands that use reactions.
 func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+	b.mu.RLock()
+	logger := b.cmdLogger
+	b.mu.RUnlock()
+
 	inv := &commandkit.Invocation{Data: &command.MessageReactionContext{
-		Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: DefaultLogger,
+		Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: logger,
 	}}
 	for _, c := range commandkit.DefaultRegistry.GetAll() {
 		if _, ok := commandkit.Root(c).(command.ReactionProvider); !ok {
@@ -331,17 +334,21 @@ func (b *Bot) handleApplicationCommand(s *discordgo.Session, i *discordgo.Intera
 		return
 	}
 
+	b.mu.RLock()
+	logger := b.cmdLogger
+	b.mu.RUnlock()
+
 	var inv *commandkit.Invocation
 	switch i.ApplicationCommandData().CommandType {
 	case discordgo.MessageApplicationCommand:
 		inv = &commandkit.Invocation{Data: &command.MessageApplicationCommandContext{
 			Session: s, Event: i, Storage: b.storage, Target: i.Message,
-			Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
+			Config: b.cfg, Responder: DefaultResponder, Logger: logger,
 		}}
 	case discordgo.ChatApplicationCommand:
 		inv = &commandkit.Invocation{Data: &command.SlashInteractionContext{
 			Session: s, Event: i, Storage: b.storage,
-			Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
+			Config: b.cfg, Responder: DefaultResponder, Logger: logger,
 		}}
 	default:
 		return
@@ -377,9 +384,13 @@ func (b *Bot) handleComponentInteraction(s *discordgo.Session, i *discordgo.Inte
 		return
 	}
 
+	b.mu.RLock()
+	logger := b.cmdLogger
+	b.mu.RUnlock()
+
 	err := handler.Component(&command.ComponentInteractionContext{
 		Session: s, Event: i, Storage: b.storage,
-		Config: b.cfg, Responder: DefaultResponder, Logger: DefaultLogger,
+		Config: b.cfg, Responder: DefaultResponder, Logger: logger,
 	})
 	if err != nil {
 		log.Printf("[ERR] Error in component handler %s: %v", matched.Name(), err)

@@ -5,7 +5,6 @@ import (
 
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -115,14 +114,4 @@ func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, 
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
-}
-
-func init() {
-	command.RegisterCommand(
-		&ManageConfessCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

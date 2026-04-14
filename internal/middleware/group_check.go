@@ -4,15 +4,15 @@ import (
 	"context"
 	"server-domme/internal/command"
 	"server-domme/internal/storage"
-	"server-domme/pkg/cmd"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/commandkit"
 )
 
 // WithGroupAccessCheck wraps a command to enforce group access
-func WithGroupAccessCheck() cmd.Middleware {
-	return func(c cmd.Command) cmd.Command {
-		return cmd.Wrap(c, func(ctx context.Context, inv *cmd.Invocation) error {
+func WithGroupAccessCheck() commandkit.Middleware {
+	return func(c commandkit.Command) commandkit.Command {
+		return commandkit.Wrap(c, func(ctx context.Context, inv *commandkit.Invocation) error {
 			var (
 				guildID string
 				stor    *storage.Storage
@@ -41,7 +41,7 @@ func WithGroupAccessCheck() cmd.Middleware {
 				if disabledGroup(c, guildID, stor, respond) {
 					return nil
 				}
-				if ch, ok := cmd.Root(c).(command.ComponentInteractionHandler); ok {
+				if ch, ok := commandkit.Root(c).(command.ComponentInteractionHandler); ok {
 					return ch.Component(v)
 				}
 				return nil
@@ -72,8 +72,8 @@ func WithGroupAccessCheck() cmd.Middleware {
 	}
 }
 
-func disabledGroup(c cmd.Command, guildID string, stor *storage.Storage, respond func(string)) bool {
-	meta, ok := cmd.Root(c).(command.DiscordMeta)
+func disabledGroup(c commandkit.Command, guildID string, stor *storage.Storage, respond func(string)) bool {
+	meta, ok := commandkit.Root(c).(command.DiscordMeta)
 	if !ok || meta.Group() == "" {
 		return false
 	}
@@ -87,3 +87,4 @@ func disabledGroup(c cmd.Command, guildID string, stor *storage.Storage, respond
 	}
 	return false
 }
+

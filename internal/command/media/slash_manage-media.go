@@ -5,7 +5,6 @@ import (
 	"log"
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"server-domme/internal/storage"
 
@@ -217,7 +216,7 @@ func (c *ManageMediaCommand) runSetDefaultCategory(s *discordgo.Session, e *disc
 	existing, err := st.GetMediaCategories(guildID)
 	if err != nil {
 		return discord.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("Failed to load categories", err),
+			Description: fmt.Sprintf("Failed to load categories: %v", err),
 		})
 	}
 
@@ -255,14 +254,4 @@ func (c *ManageMediaCommand) runResetDefaultCategory(s *discordgo.Session, e *di
 	return discord.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Default category reset.",
 	})
-}
-
-func init() {
-	command.RegisterCommand(
-		&ManageMediaCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

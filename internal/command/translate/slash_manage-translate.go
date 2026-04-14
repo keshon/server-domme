@@ -5,7 +5,6 @@ import (
 
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -161,12 +160,4 @@ func runResetChannels(s *discordgo.Session, e *discordgo.InteractionCreate, stor
 	})
 }
 
-func init() {
-	command.RegisterCommand(
-		&ManageTranslateCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

@@ -14,8 +14,7 @@ func (s *Storage) SetTaskRole(guildID, roleID string) error {
 	}
 
 	record.TaskRole = roleID
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetTaskRole(guildID string) (string, error) {
@@ -41,8 +40,7 @@ func (s *Storage) SetTask(guildID string, userID string, task st.Task) error {
 	}
 
 	record.TaskList[userID] = task
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetTask(guildID string, userID string) (*st.Task, error) {
@@ -71,7 +69,7 @@ func (s *Storage) ClearTask(guildID string, userID string) error {
 
 	if record.TaskList != nil {
 		delete(record.TaskList, userID)
-		s.ds.Add(guildID, record)
+		return s.ds.Set(guildID, record)
 	}
 
 	return nil
@@ -90,8 +88,7 @@ func (s *Storage) SetCooldown(guildID string, userID string, cooldown time.Time)
 	}
 
 	record.TaskCooldowns[userID] = cooldown
-	s.ds.Add(guildID, record)
-	return nil
+	return s.ds.Set(guildID, record)
 }
 
 func (s *Storage) GetCooldown(guildID string, userID string) (time.Time, error) {
@@ -120,7 +117,7 @@ func (s *Storage) ClearCooldown(guildID string, userID string) error {
 
 	if record.TaskCooldowns != nil {
 		delete(record.TaskCooldowns, userID)
-		s.ds.Add(guildID, record)
+		return s.ds.Set(guildID, record)
 	}
 
 	return nil
@@ -149,7 +146,9 @@ func (s *Storage) ClearExpiredCooldowns() error {
 		}
 
 		if changed {
-			s.ds.Add(guildID, record)
+			if err := s.ds.Set(guildID, record); err != nil {
+				return err
+			}
 		}
 	}
 

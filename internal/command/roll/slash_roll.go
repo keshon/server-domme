@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"strconv"
 	"strings"
@@ -217,12 +216,4 @@ func evaluateToken(token string) (int, string, error) {
 	return num, fmt.Sprintf("`%d`", num), nil
 }
 
-func init() {
-	command.RegisterCommand(
-		&RollCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

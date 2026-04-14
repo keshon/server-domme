@@ -1,18 +1,17 @@
-package core
+package commands
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
-	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/middleware"
+	"server-domme/internal/discord"
 	"server-domme/internal/storage"
-	"server-domme/pkg/cmd"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/commandkit"
 )
 
 type CommandsCommand struct{}
@@ -103,7 +102,7 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
-	storage := context.Storage
+	st := context.Storage
 
 	if len(event.ApplicationCommandData().Options) == 0 {
 		return nil
@@ -113,11 +112,11 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 
 	switch sub.Name {
 	case "log":
-		return c.runCmdLog(session, event, *storage, context.Config)
+		return c.runCmdLog(session, event, *st, context.Config)
 	case "status":
-		return c.runCmdStatus(session, event, *storage)
+		return c.runCmdStatus(session, event, *st)
 	case "toggle":
-		return c.runCmdToggle(session, event, *storage)
+		return c.runCmdToggle(session, event, *st)
 	case "update":
 		return c.runCmdUpdate(session, event)
 	default:
@@ -280,8 +279,8 @@ func (c *CommandsCommand) runCmdUpdate(s *discordgo.Session, e *discordgo.Intera
 
 func getUniqueGroups() []string {
 	set := map[string]struct{}{}
-	for _, c := range cmd.DefaultRegistry.GetAll() {
-		meta, _ := cmd.Root(c).(command.DiscordMeta)
+	for _, c := range commandkit.DefaultRegistry.GetAll() {
+		meta, _ := commandkit.Root(c).(command.DiscordMeta)
 		group := ""
 		if meta != nil {
 			group = meta.Group()
@@ -298,12 +297,3 @@ func getUniqueGroups() []string {
 	return result
 }
 
-func init() {
-	command.RegisterCommand(
-		&CommandsCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}

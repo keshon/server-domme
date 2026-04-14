@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"strconv"
 	"strings"
@@ -448,12 +447,4 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 	}
 }
 
-func init() {
-	command.RegisterCommand(
-		&PurgeCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

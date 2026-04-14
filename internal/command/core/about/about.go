@@ -1,15 +1,14 @@
-package core
+package about
 
 import (
 	"os"
 	"path/filepath"
-
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/middleware"
-	"server-domme/internal/version"
 	"strings"
 	"time"
+
+	"server-domme/internal/command"
+	"server-domme/internal/discord"
+	"server-domme/internal/version"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -58,49 +57,26 @@ func (c *AboutCommand) Run(ctx interface{}) error {
 
 	// Info fields for embed
 	fields := []*discordgo.MessageEmbedField{
-		{
-			Name:  "Developed by Señor Mega",
-			Value: "[LinkedIn](https://www.linkedin.com/in/keshon), [GitHub](https://github.com/keshon), [Homepage](https://keshon.ru)",
-		},
-		{
-			Name:  "Repository",
-			Value: "https://github.com/keshon/server-domme",
-		},
-		{
-			Name:  "Release",
-			Value: buildDate + " (Go " + goVer + ")",
-		},
+		{Name: "App", Value: version.AppName, Inline: true},
+		{Name: "Build Date", Value: buildDate, Inline: true},
+		{Name: "Go", Value: goVer, Inline: true},
 	}
 
-	// Create embed
+	// Optional license file snippet
+	licensePath := filepath.Join(".", "LICENSE")
+	if b, err := os.ReadFile(licensePath); err == nil {
+		line := strings.Split(string(b), "\n")
+		if len(line) > 0 && strings.TrimSpace(line[0]) != "" {
+			fields = append(fields, &discordgo.MessageEmbedField{Name: "License", Value: strings.TrimSpace(line[0]), Inline: false})
+		}
+	}
+
 	embed := &discordgo.MessageEmbed{
-		Title:       "ℹ️ About " + version.AppName,
-		Description: version.AppDescription,
-		Color:       discord.EmbedColor,
-		Fields:      fields,
+		Title:  "About",
+		Color:  discord.EmbedColor,
+		Fields: fields,
 	}
 
-	// Try attaching banner if exists
-	imagePath := "./assets/about-banner.webp"
-	if f, err := os.Open(imagePath); err == nil {
-		defer f.Close()
-		imageName := filepath.Base(imagePath)
-		embed.Image = &discordgo.MessageEmbedImage{URL: "attachment://" + imageName}
-		return discord.RespondEmbedEphemeralWithFile(session, event, embed, f, imageName)
-	}
-
-	// Just embed if no banner
-	discord.RespondEmbedEphemeral(session, event, embed)
-
-	return nil
+	return discord.RespondEmbedEphemeral(session, event, embed)
 }
 
-func init() {
-	command.RegisterCommand(
-		&AboutCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}

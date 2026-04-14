@@ -5,7 +5,6 @@ import (
 
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -80,14 +79,4 @@ func (c *AnnounceCommand) runPublishMessage(s *discordgo.Session, e *discordgo.I
 	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("Message successfully published to <#%s>.", announceChannelID),
 	})
-}
-
-func init() {
-	command.RegisterCommand(
-		&AnnounceCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

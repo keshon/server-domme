@@ -17,7 +17,7 @@ type Config struct {
 	DeveloperID           string   `env:"DEVELOPER_ID"`
 	InitSlashCommands     bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
 	AIProvider            string   `env:"AI_PROVIDER"`
-	AIPromtPath           string   `env:"AI_PROMPT_PATH"`
+	AIPromptPath          string   `env:"AI_PROMPT_PATH"`
 	ShortLinkBaseURL      string   `env:"SHORTLINK_BASE_URL"`
 	VoiceReadyDelayMs     int      `env:"VOICE_READY_DELAY_MS" envDefault:"500"` // VoiceReadyDelayMs is the delay in ms after joining VC before sending opus (discordgo op 4 race). Default 500.
 

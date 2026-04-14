@@ -11,7 +11,6 @@ import (
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
 	"server-domme/internal/config"
-	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -295,12 +294,4 @@ func shortenLongURL(s string, max int) string {
 	return fmt.Sprintf("%s...%s", start, end)
 }
 
-func init() {
-	command.RegisterCommand(
-		&ShortlinkCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

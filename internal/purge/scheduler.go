@@ -1,6 +1,7 @@
 package purge
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 
@@ -13,7 +14,7 @@ import (
 )
 
 // RunScheduler starts scheduled purge jobs (delayed and recurring). Call from the Discord lifecycle.
-func RunScheduler(store *storage.Storage, session *discordgo.Session) {
+func RunScheduler(ctx context.Context, store *storage.Storage, session *discordgo.Session) {
 	log.Printf("[INFO] Starting purge scheduler...")
 	records := store.GetRecordsList()
 
@@ -44,7 +45,13 @@ func RunScheduler(store *storage.Storage, session *discordgo.Session) {
 				} else {
 					log.Printf("[INFO] Scheduling delayed purge in %v for channel %s", dur, job.ChannelID)
 					go func(job st.PurgeJob) {
-						time.Sleep(dur)
+						timer := time.NewTimer(dur)
+						defer timer.Stop()
+						select {
+						case <-ctx.Done():
+							return
+						case <-timer.C:
+						}
 						log.Printf("[INFO] Executing delayed purge for channel %s", job.ChannelID)
 						purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
 
@@ -79,6 +86,9 @@ func RunScheduler(store *storage.Storage, session *discordgo.Session) {
 						select {
 						case <-stopChan:
 							log.Printf("[INFO] Stopping recurring purge for channel %s", job.ChannelID)
+							return
+						case <-ctx.Done():
+							log.Printf("[INFO] Stopping recurring purge for channel %s (shutdown)", job.ChannelID)
 							return
 						case <-ticker.C:
 							start := time.Now().Add(-d)

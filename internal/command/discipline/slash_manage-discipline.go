@@ -5,7 +5,6 @@ import (
 
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 	"server-domme/internal/storage"
 	"strings"
 
@@ -168,14 +167,4 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Unknown subcommand.",
 	})
-}
-
-func init() {
-	command.RegisterCommand(
-		&ManageDisciplineCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

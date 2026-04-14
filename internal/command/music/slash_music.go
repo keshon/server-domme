@@ -8,7 +8,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/melodix/pkg/music/player"
-	"github.com/keshon/melodix/pkg/music/source_resolver"
 )
 
 type MusicCommand struct {
@@ -146,18 +145,8 @@ func (c *MusicCommand) runPlay(s *discordgo.Session, e *discordgo.InteractionCre
 		return nil
 	}
 
-	resolver := source_resolver.New()
-	tracks, err := resolver.Resolve(input, src, parser)
-	if err != nil || len(tracks) == 0 {
-		discord.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Title:       "🎵 Error",
-			Description: fmt.Sprintf("Failed to resolve track: %v", err),
-		})
-		return nil
-	}
-
 	player := c.Bot.GetOrCreatePlayer(guildID)
-	err = player.Enqueue(tracks[0].URL, src, parser)
+	err = player.Enqueue(input, src, parser)
 	if err != nil {
 		discord.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Queue Error",

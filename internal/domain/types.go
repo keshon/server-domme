@@ -45,6 +45,7 @@ type Record struct {
 	ConfessChannel    string            `json:"confess_channel"`
 	CommandsDisabled  []string          `json:"commands_disabled"`
 	CommandsHistory   []CommandHistory   `json:"commands_history"`
+	CommandHashes     map[string]string `json:"command_hashes,omitempty"` // slash command name -> hash for sync
 	DisciplineRoles   map[string]string `json:"discipline_roles"`
 	MediaCategories   []string          `json:"media_categories"`
 	MediaDefault      string            `json:"media_default"`

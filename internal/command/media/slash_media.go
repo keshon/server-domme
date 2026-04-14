@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 	"strings"
 	"sync"
 
@@ -291,14 +290,4 @@ func updateHistory(file string) {
 	if len(recentHistory) > historyLimit {
 		recentHistory = recentHistory[len(recentHistory)-historyLimit:]
 	}
-}
-
-func init() {
-	command.RegisterCommand(
-		&RandomMediaCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }

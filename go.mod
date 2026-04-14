@@ -1,23 +1,28 @@
 module server-domme
 
-go 1.24.10
+go 1.26
 
-require github.com/keshon/datastore v0.1.0
+require github.com/keshon/datastore v0.1.1
 
 require (
-	github.com/godeps/opus v1.0.3 // indirect
-	github.com/tetratelabs/wazero v1.9.0 // indirect
+	github.com/godeps/opus v1.0.3
+	github.com/tetratelabs/wazero v1.11.0 // indirect
 )
 
 require (
 	github.com/bdandy/go-errors v1.2.2 // indirect
 	github.com/bdandy/go-socks4 v1.2.3 // indirect
 	github.com/bitly/go-simplejson v0.5.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
-	github.com/dop251/goja v0.0.0-20260226184354-913bd86fb70c // indirect
+	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c // indirect
+	github.com/ebitengine/oto/v3 v3.4.0 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
-	github.com/google/pprof v0.0.0-20260302011040-a15ffb7f9dcc // indirect
-	golang.org/x/text v0.34.0 // indirect
+	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
+	golang.org/x/crypto v0.50.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 )
 
 require (
@@ -27,8 +32,10 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/keshon/buildinfo v0.1.0
 	github.com/keshon/commandkit v0.1.0
-	github.com/keshon/melodix v0.0.0-20260303062049-c08b341da8af
-	github.com/kkdai/youtube/v2 v2.10.5 // indirect
-	golang.org/x/net v0.49.0 // indirect
+	github.com/keshon/melodix v0.0.0-20260413184019-976f1ac1aa35
+	github.com/kkdai/youtube/v2 v2.10.6 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/time v0.14.0
 )
+
+replace github.com/bwmarrin/discordgo => github.com/yeongaori/discordgo-fork v0.0.0-20260315104245-037b0e48bb49

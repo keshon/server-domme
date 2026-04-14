@@ -11,7 +11,6 @@ import (
 
 	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -204,12 +203,4 @@ func saveUploadedFile(att *discordgo.MessageAttachment, guildID, category string
 	return nil
 }
 
-func init() {
-	command.RegisterCommand(
-		&UploadMediaCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-}
+

@@ -3,9 +3,8 @@ package confess
 import (
 	"fmt"
 
-	"server-domme/internal/discord"
 	"server-domme/internal/command"
-	"server-domme/internal/middleware"
+	"server-domme/internal/discord"
 	"server-domme/internal/storage"
 	"strings"
 
@@ -97,14 +96,4 @@ func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.In
 	}
 
 	return nil
-}
-
-func init() {
-	command.RegisterCommand(
-		&ConfessCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
 }
