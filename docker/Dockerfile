@@ -1,50 +1,50 @@
-# Stage 1 — Builder
-FROM golang:1.24.0-alpine3.20 AS builder
+# ---- Stage 1: Builder ----
+FROM golang:1.26-alpine AS builder
 
-RUN apk add --no-cache \
-        build-base \
-        git \
-        opus-dev
+ENV GOPROXY=https://proxy.golang.org,direct
 
-WORKDIR /build
+# Install CGO deps
+RUN apk add --no-cache git build-base alsa-lib-dev
 
-# Кеширование зависимостей
+WORKDIR /usr/project
+
+# Cache dependencies layer
 COPY src/go.mod src/go.sum ./
+COPY src/pkg ./pkg
 RUN go mod download
 
-# Копируем исходники
+# Copy rest of the source
 COPY src .
 
-# Сборка с CGO
-RUN GO_VERSION=$(go version | awk '{print $3}') && \
-    BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") && \
+# Build with embedded metadata, CGO enabled
+RUN BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ") && \
+    GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none") && \
     CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
         -o app \
         -ldflags="-s -w \
-        -X 'server-domme/internal/version.BuildDate=${BUILD_DATE}' \
-        -X 'server-domme/internal/version.GoVersion=${GO_VERSION}'" \
-        cmd/discord/main.go
+            -X github.com/keshon/buildinfo.Version=dev \
+            -X github.com/keshon/buildinfo.Commit=${GIT_COMMIT} \
+            -X github.com/keshon/buildinfo.BuildTime=${BUILD_DATE} \
+            -X github.com/keshon/buildinfo.Project=Server Domme \
+            -X 'github.com/keshon/buildinfo.Description=Server Domme'" \
+        ./cmd/discord/
 
+# ---- Stage 2: Runtime ----
+FROM alpine:latest
 
-# Stage 2 — Runtime
-FROM alpine:3.20
-
-# Только runtime-зависимости
+# Runtime dependencies
 RUN apk add --no-cache \
         ffmpeg \
         python3 \
         py3-pip \
-        opus \
         libstdc++ \
+        alsa-lib \
     && pip3 install --no-cache-dir --break-system-packages yt-dlp \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /usr/project
+COPY --from=builder /usr/project/app ./app
 
-# Копируем только бинарник
-COPY --from=builder /build/app ./app
-
-# Данные
 RUN mkdir -p data && touch data/datastore.json
 
-ENTRYPOINT ["./app"]
+ENTRYPOINT ["/usr/project/app"]
