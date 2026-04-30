@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	st "server-domme/internal/domain"
+	st "github.com/keshon/server-domme/internal/domain"
 )
 
 func (s *Storage) AddShortLink(guildID, userID, original, shortID string) error {
@@ -103,7 +103,7 @@ func (s *Storage) IncrementClicks(guildID, shortID string) error {
 // FindLinkByID searches all guild records for a link with the given shortID.
 // Returns (guildID, *ShortLink, error)
 func (s *Storage) FindLinkByID(shortID string) (string, *st.ShortLink, error) {
-	records := s.GetRecordsList()
+	records := s.Records()
 
 	for guildID, record := range records {
 		for _, link := range record.ShortLinks {

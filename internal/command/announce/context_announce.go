@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"server-domme/internal/discord"
 
-	"server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
+
 	"strings"
+
+	"github.com/keshon/server-domme/internal/command"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -50,7 +52,7 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	channelID := e.ChannelID
 
 	// Deferred ephemeral reply
-	if err := discord.RespondDeferredEphemeral(s, e); err != nil {
+	if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
 		log.Println("Failed to send deferred response:", err)
 		return nil
 	}
@@ -59,24 +61,24 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	targetID := e.ApplicationCommandData().TargetID
 	msg, err := s.ChannelMessage(channelID, targetID)
 	if err != nil {
-		discord.EditResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
+		discordreply.EditResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return nil
 	}
 
 	// Validation
 	if msg.Author == nil {
-		discord.EditResponse(s, e, "I won't announce ghost messages.")
+		discordreply.EditResponse(s, e, "I won't announce ghost messages.")
 		return nil
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		discord.EditResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
+		discordreply.EditResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
 		return nil
 	}
 
 	// Fetch announcement channel
 	announceChannelID, err := storage.GetAnnounceChannel(guildID)
 	if err != nil || announceChannelID == "" {
-		discord.EditResponse(s, e, "No announcement channel configured. Bother the admin.")
+		discordreply.EditResponse(s, e, "No announcement channel configured. Bother the admin.")
 		return nil
 	}
 
@@ -110,11 +112,11 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	}
 
 	if _, err := s.ChannelMessageSendComplex(announceChannelID, message); err != nil {
-		discord.EditResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
+		discordreply.EditResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return nil
 	}
 
-	discord.EditResponse(s, e, "Announced. Everyone’s watching now.")
+	discordreply.EditResponse(s, e, "Announced. Everyone’s watching now.")
 	return nil
 }
 

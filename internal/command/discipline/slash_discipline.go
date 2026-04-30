@@ -3,14 +3,13 @@ package discipline
 import (
 	"fmt"
 	"math/rand"
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/config"
-
-	"server-domme/internal/storage"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 type DisciplineCommand struct{}
@@ -70,7 +69,7 @@ func (c *DisciplineCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -84,7 +83,7 @@ func (c *DisciplineCommand) Run(ctx interface{}) error {
 	case "release":
 		return c.runRelease(s, e, *storage, targetID)
 	default:
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand.",
 		})
 	}
@@ -92,7 +91,7 @@ func (c *DisciplineCommand) Run(ctx interface{}) error {
 
 func (c *DisciplineCommand) runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string, cfg *config.Config) error {
 	if cfg != nil && slices.Contains(cfg.ProtectedUsers, e.Member.User.ID) {
-		discord.Respond(s, e, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
+		discordreply.Respond(s, e, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
 		return nil
 	}
 
@@ -101,14 +100,14 @@ func (c *DisciplineCommand) runPunish(s *discordgo.Session, e *discordgo.Interac
 	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
 
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
-		discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Roles not configured properly. Set them first via `/manage-discipline roles`.",
 		})
 		return nil
 	}
 
 	if !slices.Contains(e.Member.Roles, punisherRoleID) {
-		discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Nice try, sugar. You don’t wear the right collar to give punishments.",
 		})
 		return nil
@@ -116,14 +115,14 @@ func (c *DisciplineCommand) runPunish(s *discordgo.Session, e *discordgo.Interac
 
 	err := s.GuildMemberRoleAdd(e.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to assign role: %v", err),
 		})
 		return nil
 	}
 
 	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
-	discord.Respond(s, e, fmt.Sprintf(phrase, targetID))
+	discordreply.Respond(s, e, fmt.Sprintf(phrase, targetID))
 	return nil
 }
 
@@ -132,14 +131,14 @@ func (c *DisciplineCommand) runRelease(s *discordgo.Session, e *discordgo.Intera
 	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
 
 	if punisherRoleID == "" || assignedRoleID == "" {
-		discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Roles not configured properly. Set them first via `/manage-discipline roles`.",
 		})
 		return nil
 	}
 
 	if !slices.Contains(e.Member.Roles, punisherRoleID) {
-		discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.",
 		})
 		return nil
@@ -147,13 +146,13 @@ func (c *DisciplineCommand) runRelease(s *discordgo.Session, e *discordgo.Intera
 
 	err := s.GuildMemberRoleRemove(e.GuildID, targetID, assignedRoleID)
 	if err != nil {
-		discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to remove role: %v", err),
 		})
 		return nil
 	}
 
-	discord.RespondEmbed(s, e, &discordgo.MessageEmbed{
+	discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave.", targetID),
 	})
 	return nil

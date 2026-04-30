@@ -3,12 +3,12 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"server-domme/internal/command"
-	"server-domme/internal/config"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/commandkit"
+	"github.com/keshon/server-domme/internal/command"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 var PermissionNames = map[int64]string{
@@ -90,7 +90,6 @@ func WithUserPermissionCheck() commandkit.Middleware {
 				return c.Run(ctx, inv)
 			}
 
-			cfg := command.ConfigFromInvocation(inv)
 			memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
 			if err != nil {
 				return fmt.Errorf("failed to get user permissions: %w", err)
@@ -98,11 +97,8 @@ func WithUserPermissionCheck() commandkit.Middleware {
 			if memberPerms&discordgo.PermissionAdministrator != 0 {
 				return c.Run(ctx, inv)
 			}
-			if config.IsDeveloper(cfg, m.User.ID) {
-				return c.Run(ctx, inv)
-			}
 
-			meta, ok := commandkit.Root(c).(command.DiscordMeta)
+			meta, ok := commandkit.Root(c).(command.Meta)
 			if !ok {
 				return c.Run(ctx, inv)
 			}

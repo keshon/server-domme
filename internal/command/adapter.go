@@ -7,8 +7,6 @@ import (
 	"github.com/keshon/commandkit"
 )
 
-// Adapter adapts a Handler to commandkit.Command so it can live in the commandkit registry.
-// It also exposes provider interfaces (slash/context/reaction/component) by delegating to the inner handler.
 type Adapter struct {
 	Cmd Handler
 }
@@ -50,7 +48,3 @@ func (a *Adapter) Component(ctx *ComponentInteractionContext) error {
 	}
 	return nil
 }
-
-// Back-compat aliases.
-type DiscordAdapter = Adapter
-

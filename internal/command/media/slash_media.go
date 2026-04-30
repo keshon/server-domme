@@ -7,12 +7,12 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
 	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
 )
 
 type RandomMediaCommand struct{}
@@ -70,6 +70,11 @@ func (c *RandomMediaCommand) Run(ctx interface{}) error {
 }
 
 func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.InteractionCreate, guildID, category string) error {
+	// ACK immediately to avoid "Application unavailable" on slow disks/large media sets.
+	if err := discordreply.AckDeferred(s, e); err != nil {
+		log.Printf("[WARN] media: failed to ACK deferred: %v", err)
+	}
+
 	baseDir := filepath.Join("assets", "media", guildID)
 	searchPath := baseDir
 
@@ -79,14 +84,14 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 
 	file, err := pickRandomFile(searchPath)
 	if err != nil {
-		return discord.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
 		})
 	}
 
 	f, err := os.Open(file)
 	if err != nil {
-		return discord.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to open media: %v", err),
 		})
 	}
@@ -97,22 +102,19 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 		username = e.Member.User.GlobalName
 	}
 
-	err = s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("`#%s`\n-# Requested by **%s**", categoryOrDefault(category), username),
-			Files: []*discordgo.File{{
-				Name:   filepath.Base(file),
-				Reader: f,
-			}},
-			Components: []discordgo.MessageComponent{
-				discordgo.ActionsRow{
-					Components: []discordgo.MessageComponent{
-						discordgo.Button{
-							Label:    "Next",
-							Style:    discordgo.SecondaryButton,
-							CustomID: fmt.Sprintf("media_next_trigger|%s", category),
-						},
+	_, err = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
+		Content: fmt.Sprintf("`#%s`\n-# Requested by **%s**", categoryOrDefault(category), username),
+		Files: []*discordgo.File{{
+			Name:   filepath.Base(file),
+			Reader: f,
+		}},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label:    "Next",
+						Style:    discordgo.SecondaryButton,
+						CustomID: fmt.Sprintf("media_next_trigger|%s", category),
 					},
 				},
 			},
@@ -157,17 +159,21 @@ func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext)
 
 	file, err := pickRandomFile(filepath.Join("assets", "media", guildID, category))
 	if err != nil {
-		_, _ = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
+		if _, ferr := s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
-		})
+		}); ferr != nil {
+			log.Printf("[ERR] Failed to send media followup (no media): %v", ferr)
+		}
 		return nil
 	}
 
 	f, err := os.Open(file)
 	if err != nil {
-		_, _ = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
+		if _, ferr := s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("Failed to open media: %v", err),
-		})
+		}); ferr != nil {
+			log.Printf("[ERR] Failed to send media followup (open failed): %v", ferr)
+		}
 		return nil
 	}
 	defer f.Close()

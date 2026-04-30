@@ -8,18 +8,16 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/config"
-
-	"server-domme/internal/storage"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-
-	st "server-domme/internal/domain"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
+	st "github.com/keshon/server-domme/internal/domain"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 var (
@@ -73,14 +71,14 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 	userID := member.User.ID
 
 	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(time.Until(cooldownUntil))),
 		})
 		return nil
 	}
 
 	if context.Config != nil && slices.Contains(context.Config.ProtectedUsers, userID) {
-		discord.RespondEmbed(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbed(session, event, &discordgo.MessageEmbed{
 			Description: "You're above this. No tasks for you.",
 		})
 		return nil
@@ -95,7 +93,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 
 	existing, _ := storage.GetTask(guildID, userID)
 	if existing != nil && existing.Status == "pending" {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You already have a task pending.",
 		})
 		return nil
@@ -103,7 +101,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 
 	taskerRoles, _ := storage.GetTaskRole(guildID)
 	if len(taskerRoles) == 0 {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No tasker roles set. Ask an Admin to set them.",
 		})
 		return nil
@@ -112,7 +110,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Failed to load tasks.\nAsk an Admin to set them.",
 		})
 		log.Println("loadTasksForGuild:", err)
@@ -121,7 +119,7 @@ func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) er
 
 	filtered := filterTasksByRoles(tasks, memberRoleNames)
 	if len(filtered) == 0 {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No task suits your... profile.\nAsk an Admin to upload tasks for your gender role and try again.",
 		})
 		return nil
@@ -204,29 +202,31 @@ func (c *TaskCommand) Component(ctx *command.ComponentInteractionContext) error 
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No active task found. Trying to cheat, hmm?",
 		})
 		return nil
 	}
 
 	if task.UserID != userID {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "That task doesn’t belong to you. Greedy little fingers, aren't you?",
 		})
 		return nil
 	}
 
 	if task.Status != "pending" {
-		session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredMessageUpdate,
-		})
+		}); err != nil {
+			log.Printf("[ERR] task: failed to defer message update (custom_id=%s): %v", event.MessageComponentData().CustomID, err)
+		}
 		return nil
 	}
 
 	switch event.MessageComponentData().CustomID {
 	case "task_complete_trigger":
-		session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseUpdateMessage,
 			Data: &discordgo.InteractionResponseData{
 				Content: event.Message.Content,
@@ -238,7 +238,9 @@ func (c *TaskCommand) Component(ctx *command.ComponentInteractionContext) error 
 					}},
 				},
 			},
-		})
+		}); err != nil {
+			log.Printf("[ERR] task: failed to update message for completion prompt: %v", err)
+		}
 	case "task_complete_yes", "task_complete_no", "task_complete_safeword":
 		c.handleTaskCompletion(ctx, event, task)
 	}
@@ -274,16 +276,20 @@ func (c *TaskCommand) handleTaskCompletion(ctx *command.ComponentInteractionCont
 	}
 	taskCancelMutex.Unlock()
 
-	session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
 			Content:    event.Message.Content,
 			Components: []discordgo.MessageComponent{},
 		},
-	})
-	session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
+	}); err != nil {
+		log.Printf("[ERR] task: failed to ACK completion (custom_id=%s): %v", customID, err)
+	}
+	if _, err := session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
 		Content: reply,
-	})
+	}); err != nil {
+		log.Printf("[ERR] task: failed to send completion followup (custom_id=%s): %v", customID, err)
+	}
 }
 
 // InitFromConfig loads the default task list from cfg.TasksPath. Call from main after loading config.

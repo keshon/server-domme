@@ -8,12 +8,11 @@ import (
 	"regexp"
 	"strings"
 
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/config"
-	"server-domme/internal/storage"
-
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 type ShortlinkCommand struct{}
@@ -80,7 +79,7 @@ func (c *ShortlinkCommand) Run(ctx interface{}) error {
 	data := e.ApplicationCommandData()
 
 	if len(data.Options) == 0 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -96,7 +95,7 @@ func (c *ShortlinkCommand) Run(ctx interface{}) error {
 	case "clear":
 		return c.runClear(s, e, st)
 	default:
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand.",
 		})
 	}
@@ -110,7 +109,7 @@ func (c *ShortlinkCommand) runCreate(
 	cfg *config.Config,
 ) error {
 	if cfg == nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
 	}
 	raw := strings.TrimSpace(opt.Options[0].StringValue())
 
@@ -121,8 +120,8 @@ func (c *ShortlinkCommand) runCreate(
 	}
 
 	if !isValidURL(raw) {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       discord.EmbedColor,
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discordreply.EmbedColor,
 			Description: fmt.Sprintf("`%s` doesn’t look like a valid link.\nTry something like `https://example.com`.", raw),
 		})
 	}
@@ -132,8 +131,8 @@ func (c *ShortlinkCommand) runCreate(
 
 	links, _ := st.GetUserShortLinks(guildID, userID)
 	if len(links) >= 50 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       discord.EmbedColor,
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discordreply.EmbedColor,
 			Description: "You have reached the maximum number of short links (50). Use `/shortlink clear` to clear them or `/shortlink delete` to delete some.",
 		})
 	}
@@ -142,14 +141,14 @@ func (c *ShortlinkCommand) runCreate(
 	shortURL := fmt.Sprintf("%s/%s", cfg.ShortLinkBaseURL, shortID)
 
 	if err := st.AddShortLink(guildID, userID, raw, shortID); err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       discord.EmbedColor,
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discordreply.EmbedColor,
 			Description: fmt.Sprintf("Failed to save short link: %v", err),
 		})
 	}
 
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Color: discord.EmbedColor,
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Color: discordreply.EmbedColor,
 		Title: "Short Link Created",
 		Description: fmt.Sprintf(
 			"**Original:** %s\n**Shortened:** %s\n\n💡 You can delete this later with `/shortlink delete id:%s`",
@@ -160,14 +159,14 @@ func (c *ShortlinkCommand) runCreate(
 
 func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage, cfg *config.Config) error {
 	if cfg == nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
 	}
 	userID := e.Member.User.ID
 	guildID := e.GuildID
 
 	links, err := st.GetUserShortLinks(guildID, userID)
 	if err != nil || len(links) == 0 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "You don’t have any shortened links yet.",
 		})
 	}
@@ -207,11 +206,15 @@ func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.Interactio
 
 	for i, embed := range embeds {
 		if i == 0 {
-			_ = discord.RespondEmbedEphemeral(s, e, embed)
+			if err := discordreply.RespondEmbedEphemeral(s, e, embed); err != nil {
+				return fmt.Errorf("shortlink: failed to respond to interaction: %w", err)
+			}
 		} else {
-			_, _ = s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
+			if _, err := s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
 				Embeds: []*discordgo.MessageEmbed{embed},
-			})
+			}); err != nil {
+				return fmt.Errorf("shortlink: failed to send followup (%d/%d): %w", i+1, len(embeds), err)
+			}
 		}
 	}
 
@@ -225,14 +228,14 @@ func (c *ShortlinkCommand) runDelete(s *discordgo.Session, e *discordgo.Interact
 
 	err := st.DeleteShortLink(guildID, userID, shortID)
 	if err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       discord.EmbedColor,
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discordreply.EmbedColor,
 			Description: fmt.Sprintf("Failed to delete short link: %v", err),
 		})
 	}
 
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Color:       discord.EmbedColor,
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Color:       discordreply.EmbedColor,
 		Description: fmt.Sprintf("Short link **%s** has been deleted.", shortID),
 	})
 }
@@ -242,14 +245,14 @@ func (c *ShortlinkCommand) runClear(s *discordgo.Session, e *discordgo.Interacti
 	guildID := e.GuildID
 
 	if err := st.ClearUserShortLinks(guildID, userID); err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Color:       discord.EmbedColor,
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Color:       discordreply.EmbedColor,
 			Description: fmt.Sprintf("Failed to clear links: %v", err),
 		})
 	}
 
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Color:       discord.EmbedColor,
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Color:       discordreply.EmbedColor,
 		Description: "All your shortened links have been cleared.",
 	})
 }
@@ -293,5 +296,3 @@ func shortenLongURL(s string, max int) string {
 	end := s[len(s)-max/2+5:]
 	return fmt.Sprintf("%s...%s", start, end)
 }
-
-

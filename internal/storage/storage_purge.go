@@ -1,8 +1,9 @@
 package storage
 
 import (
-	st "server-domme/internal/domain"
 	"time"
+
+	st "github.com/keshon/server-domme/internal/domain"
 )
 
 func (s *Storage) SetDeletionJob(guildID, channelID, mode string, delayUntil time.Time, silent bool, olderThan ...string) error {

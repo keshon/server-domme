@@ -3,9 +3,10 @@ package announce
 import (
 	"fmt"
 
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/storage"
+	"github.com/keshon/server-domme/internal/storage"
+
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -47,7 +48,7 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return discord.RespondEphemeral(s, e, "Please provide a message ID to announce.")
+		return discordreply.RespondEphemeral(s, e, "Please provide a message ID to announce.")
 	}
 
 	messageID := data.Options[0].StringValue()
@@ -57,26 +58,26 @@ func (c *AnnounceCommand) Run(ctx interface{}) error {
 func (c *AnnounceCommand) runPublishMessage(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, messageID string) error {
 	announceChannelID, _ := st.GetAnnounceChannel(e.GuildID)
 	if announceChannelID == "" {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Announcement channel is not set. Use `/manage-announce set-channel` first.",
 		})
 	}
 
 	msg, err := s.ChannelMessage(e.ChannelID, messageID)
 	if err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to fetch message: %v", err),
 		})
 	}
 
 	_, err = s.ChannelMessageSend(announceChannelID, msg.Content)
 	if err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to publish message: %v", err),
 		})
 	}
 
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("Message successfully published to <#%s>.", announceChannelID),
 	})
 }

@@ -3,16 +3,16 @@ package readme
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"text/template"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/commandkit"
+	"github.com/keshon/server-domme/internal/command"
 
-	"server-domme/internal/command"
+	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog"
 )
 
 // RecommendedBotPermissions is the bitmask for the minimal permissions the bot needs.
@@ -31,25 +31,23 @@ var RecommendedBotPermissions = discordgo.PermissionManageRoles |
 
 // RecommendedBotPermissionsList is a human-readable list of these permissions for the README.
 var RecommendedBotPermissionsList = []string{
-	"Manage Roles",
 	"View Channel",
 	"Send Messages",
 	"Embed Links",
 	"Read Message History",
 	"Manage Messages",
-	"Use Application Commands",
-	"Connect",
+	"Connect to Voice Channel",
 	"Speak",
 }
 
 // UpdateReadme generates README.md from the command registry and category ordering.
 // categoryWeights maps category name to sort order (lower first).
-func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int) error {
+func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int, log zerolog.Logger) error {
 	commands := registry.GetAll()
 
 	sort.Slice(commands, func(i, j int) bool {
-		metaI, _ := commandkit.Root(commands[i]).(command.DiscordMeta)
-		metaJ, _ := commandkit.Root(commands[j]).(command.DiscordMeta)
+		metaI, _ := commandkit.Root(commands[i]).(command.Meta)
+		metaJ, _ := commandkit.Root(commands[j]).(command.Meta)
 
 		catI := ""
 		catJ := ""
@@ -76,7 +74,7 @@ func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int)
 	for _, c := range commands {
 		root := commandkit.Root(c)
 
-		meta, _ := root.(command.DiscordMeta)
+		meta, _ := root.(command.Meta)
 		cat := ""
 		if meta != nil {
 			cat = meta.Category()
@@ -129,7 +127,7 @@ func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int)
 		return err
 	}
 
-	log.Println("[INFO] README.md updated with current commands")
+	log.Info().Msg("readme_updated")
 	return nil
 }
 
@@ -186,4 +184,3 @@ func startsWithUpper(s string) bool {
 	r := rune(s[0])
 	return r >= 'A' && r <= 'Z'
 }
-

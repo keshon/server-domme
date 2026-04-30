@@ -2,8 +2,9 @@ package ask
 
 import (
 	"fmt"
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
+
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
 
 	"strings"
 
@@ -79,7 +80,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 
 	askerID := event.Member.User.ID
 	if targetUser == nil || targetUser.ID == askerID {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You can't ask for permission to contact yourself.",
 		})
 		return nil
@@ -88,12 +89,12 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       strings.ToUpper(consentType),
 		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetUser.ID, formatReason(reason)),
-		Color:       discord.EmbedColor,
+		Color:       discordreply.EmbedColor,
 	}
 
 	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetUser.ID, consentType)
 
-	session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: []*discordgo.MessageEmbed{embed},
@@ -105,14 +106,16 @@ func (c *AskCommand) Run(ctx interface{}) error {
 				}},
 			},
 		},
-	})
+	}); err != nil {
+		return fmt.Errorf("ask: failed to respond to interaction: %w", err)
+	}
 
 	dm := fmt.Sprintf(
-		"<@%s> wants to **%s** with you.\nhttps://discord.com/channels/%s/%s/%s",
+		"<@%s> wants to **%s** with you.\nhttps://discordreply.com/channels/%s/%s/%s",
 		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
 	)
 
-	discord.Message(session, dmChannel(session, targetUser.ID), dm)
+	discordreply.Message(session, dmChannel(session, targetUser.ID), dm)
 
 	return nil
 }
@@ -123,7 +126,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	parts := strings.Split(customID, ":")
 
 	if len(parts) != 5 || parts[0] != "ask" {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Something smells off about this button.",
 		})
 		return nil
@@ -133,7 +136,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	clickerID := event.Member.User.ID
 
 	if clickerID != askerID && clickerID != targetID {
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "This ain't your party. Button's not meant for you.",
 		})
 		return nil
@@ -142,21 +145,21 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	embed := event.Message.Embeds[0]
 	desc := embed.Description
 	reason := extractReason(desc)
-	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
+	msgLink := fmt.Sprintf("https://discordreply.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
 
 	alreadyAnswered := strings.Contains(desc, "**accepted**") || strings.Contains(desc, "**declined**")
 
 	if action == "revoke" {
 		if alreadyAnswered {
 			if clickerID != targetID {
-				discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "That decision's already been made. Only the other party can undo it now.",
 				})
 				return nil
 			}
 		} else {
 			if clickerID != askerID {
-				discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "Only the requester can withdraw this offer before it's answered. Once accepted, you may revoke your agreement instead.",
 				})
 				return nil
@@ -166,7 +169,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 
 	if action == "accept" || action == "deny" {
 		if clickerID != targetID {
-			discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 				Description: "Only the recipient of this request can respond. If you're the sender, you can still revoke it before they decide.",
 			})
 			return nil
@@ -186,7 +189,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 			status = fmt.Sprintf("<@%s> **revoked** their **%s** request to <@%s>.", askerID, consentType, targetID)
 		}
 	default:
-		discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Unknown action. Not touching that.",
 		})
 		return nil
@@ -195,7 +198,7 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 	updated := &discordgo.MessageEmbed{
 		Title:       embed.Title,
 		Description: fmt.Sprintf("%s\n\n%s", status, reason),
-		Color:       discord.EmbedColor,
+		Color:       discordreply.EmbedColor,
 	}
 
 	var components []discordgo.MessageComponent
@@ -214,13 +217,15 @@ func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
 		}
 	}
 
-	session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
 			Embeds:     []*discordgo.MessageEmbed{updated},
 			Components: components,
 		},
-	})
+	}); err != nil {
+		return fmt.Errorf("ask: failed to update message: %w", err)
+	}
 
 	notifyParticipants(session, action, askerID, targetID, clickerID, consentType, msgLink)
 

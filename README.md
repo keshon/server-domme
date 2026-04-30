@@ -57,10 +57,10 @@ It’s designed to be practical for server management while providing light, int
 
 ### 🎵 Music
 
-- **/music** — Control music playback
-  - **/music play** — Play a music track
-  - **/music next** — Skip to the next track
-  - **/music stop** — Stop playback and clear queue
+- **/history** — Show recently played tracks (replay by id with /play)
+- **/next** — Skip to the next track
+- **/play** — Play a music track
+- **/stop** — Stop playback and clear queue
 
 ### 🎞️ Media
 
@@ -78,7 +78,7 @@ It’s designed to be practical for server management while providing light, int
 ### ⚙️ Settings
 
 - **/commands** — Manage or inspect commands
-  - **/commands log** — Review recent commands and their punishments
+  - **/commands log** — Review recent commands called by users
   - **/commands status** — Check which command groups are enabled or disabled
   - **/commands toggle** — Enable or disable a group of commands
   - **/commands update** — Re-register or update slash commands

@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"server-domme/internal/command"
+
+	"github.com/keshon/server-domme/internal/command"
 
 	"strconv"
 	"strings"

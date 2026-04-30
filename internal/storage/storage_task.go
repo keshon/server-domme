@@ -3,8 +3,9 @@ package storage
 import (
 	"fmt"
 	"log"
-	st "server-domme/internal/domain"
 	"time"
+
+	st "github.com/keshon/server-domme/internal/domain"
 )
 
 func (s *Storage) SetTaskRole(guildID, roleID string) error {

@@ -6,11 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"server-domme/internal/command"
-
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/command"
 )
 
 type TranslateOnReaction struct{}
@@ -176,5 +175,3 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 
 	return translated.String(), detectedLang, nil
 }
-
-

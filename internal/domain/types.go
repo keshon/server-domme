@@ -41,18 +41,30 @@ type Task struct {
 }
 
 type Record struct {
-	AnnounceChannel   string            `json:"announce_channel"`
-	ConfessChannel    string            `json:"confess_channel"`
-	CommandsDisabled  []string          `json:"commands_disabled"`
-	CommandsHistory   []CommandHistory   `json:"commands_history"`
-	CommandHashes     map[string]string `json:"command_hashes,omitempty"` // slash command name -> hash for sync
-	DisciplineRoles   map[string]string `json:"discipline_roles"`
-	MediaCategories   []string          `json:"media_categories"`
-	MediaDefault      string            `json:"media_default"`
-	PurgeJobs         map[string]PurgeJob `json:"purge_jobs"` // key = channelID
-	ShortLinks        []ShortLink       `json:"short_links"`
-	TaskCooldowns     map[string]time.Time `json:"task_cooldowns"`
-	TaskList          map[string]Task   `json:"task_list"`
-	TaskRole          string            `json:"task_role"`
-	TranslateChannels []string          `json:"translate_channels"`
+	AnnounceChannel      string               `json:"announce_channel"`
+	ConfessChannel       string               `json:"confess_channel"`
+	CommandsDisabled     []string             `json:"commands_disabled"`
+	CommandsHistory      []CommandHistory     `json:"commands_history"`
+	CommandHashes        map[string]string    `json:"command_hashes,omitempty"` // slash command name -> hash for sync
+	DisciplineRoles      map[string]string    `json:"discipline_roles"`
+	MediaCategories      []string             `json:"media_categories"`
+	MediaDefault         string               `json:"media_default"`
+	PurgeJobs            map[string]PurgeJob  `json:"purge_jobs"` // key = channelID
+	ShortLinks           []ShortLink          `json:"short_links"`
+	TaskCooldowns        map[string]time.Time `json:"task_cooldowns"`
+	TaskList             map[string]Task      `json:"task_list"`
+	TaskRole             string               `json:"task_role"`
+	TranslateChannels    []string             `json:"translate_channels"`
+	MusicPlaybackHistory []MusicPlayback      `json:"music_playback_history,omitempty"`
+	NextMusicHistoryID   uint64               `json:"next_music_history_id"`
+}
+
+type MusicPlayback struct {
+	ID               uint64    `json:"id"`
+	PlayedAt         time.Time `json:"played_at"`
+	URL              string    `json:"url"`
+	Title            string    `json:"title"`
+	CurrentParser    string    `json:"current_parser"`
+	AvailableParsers []string  `json:"available_parsers"`
+	SourceName       string    `json:"source_name"`
 }

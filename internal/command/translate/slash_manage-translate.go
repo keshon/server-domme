@@ -3,11 +3,10 @@ package translate
 import (
 	"fmt"
 
-	"server-domme/internal/discord"
-	"server-domme/internal/command"
-	"server-domme/internal/storage"
-
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 // Need to add at least one channel or translation wont work
@@ -77,7 +76,7 @@ func (c *ManageTranslateCommand) Run(ctx interface{}) error {
 
 	options := e.ApplicationCommandData().Options
 	if len(options) == 0 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -93,7 +92,7 @@ func (c *ManageTranslateCommand) Run(ctx interface{}) error {
 	case "reset-all-channels":
 		return runResetChannels(s, e, *storage)
 	default:
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand provided.",
 		})
 	}
@@ -102,11 +101,11 @@ func (c *ManageTranslateCommand) Run(ctx interface{}) error {
 func runAddChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	channelID := sub.Options[0].ChannelValue(s).ID
 	if err := storage.AddTranslateChannel(e.GuildID, channelID); err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to add channel: `%v`", err),
 		})
 	}
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("<#%s> added to translate reaction channels.", channelID),
 	})
 }
@@ -114,11 +113,11 @@ func runAddChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage
 func runRemoveChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	channelID := sub.Options[0].ChannelValue(s).ID
 	if err := storage.RemoveTranslateChannel(e.GuildID, channelID); err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to remove channel: `%v`", err),
 		})
 	}
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("<#%s> removed from translate reaction channels.", channelID),
 	})
 }
@@ -126,13 +125,13 @@ func runRemoveChannel(s *discordgo.Session, e *discordgo.InteractionCreate, stor
 func runListChannels(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	channels, err := storage.GetTranslateChannels(e.GuildID)
 	if err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to get channels: `%v`", err),
 		})
 	}
 
 	if len(channels) == 0 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No channels currently configured for translation reactions.",
 		})
 	}
@@ -142,22 +141,20 @@ func runListChannels(s *discordgo.Session, e *discordgo.InteractionCreate, stora
 		desc += fmt.Sprintf("- <#%s>\n", ch)
 	}
 
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Title:       "🌐 Translate Channels",
 		Description: desc,
-		Color:       discord.EmbedColor,
+		Color:       discordreply.EmbedColor,
 	})
 }
 
 func runResetChannels(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
 	if err := storage.ResetTranslateChannels(e.GuildID); err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to reset channels: `%v`", err),
 		})
 	}
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "All translate reaction channels have been reset.",
 	})
 }
-
-

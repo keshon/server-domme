@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"context"
-	"server-domme/internal/command"
 
 	"github.com/keshon/commandkit"
+	"github.com/keshon/server-domme/internal/command"
 )
 
 // WithGuildOnly wraps a command to enforce guild-only access
@@ -21,4 +21,3 @@ func WithGuildOnly() commandkit.Middleware {
 		})
 	}
 }
-

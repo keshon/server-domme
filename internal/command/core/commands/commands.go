@@ -3,24 +3,21 @@ package commands
 import (
 	"fmt"
 	"sort"
-	"strings"
 
-	"server-domme/internal/command"
-	"server-domme/internal/config"
-	"server-domme/internal/discord"
-	"server-domme/internal/storage"
+	"github.com/keshon/commandkit"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/commandkit"
 )
 
-type CommandsCommand struct{}
+type Commands struct{}
 
-func (c *CommandsCommand) Name() string        { return "commands" }
-func (c *CommandsCommand) Description() string { return "Manage or inspect commands" }
-func (c *CommandsCommand) Group() string       { return "core" }
-func (c *CommandsCommand) Category() string    { return "⚙️ Settings" }
-func (c *CommandsCommand) UserPermissions() []int64 {
+func (c *Commands) Name() string        { return "commands" }
+func (c *Commands) Description() string { return "Manage or inspect commands" }
+func (c *Commands) Group() string       { return "core" }
+func (c *Commands) Category() string    { return "⚙️ Settings" }
+func (c *Commands) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
 
@@ -32,7 +29,7 @@ const (
 
 var maxContentLength = discordMaxMessageLength - len(codeLeftBlockWrapper) - len(codeRightBlockWrapper)
 
-func (c *CommandsCommand) SlashDefinition() *discordgo.ApplicationCommand {
+func (c *Commands) SlashDefinition() *discordgo.ApplicationCommand {
 	groupChoices := []*discordgo.ApplicationCommandOptionChoice{}
 	for _, g := range getUniqueGroups() {
 		groupChoices = append(groupChoices, &discordgo.ApplicationCommandOptionChoice{Name: g, Value: g})
@@ -46,7 +43,7 @@ func (c *CommandsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "log",
-				Description: "Review recent commands and their punishments",
+				Description: "Review recent commands called by users",
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -81,20 +78,12 @@ func (c *CommandsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "update",
 				Description: "Re-register or update slash commands",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "target",
-						Description: "Type a command name to update, or 'all', use /help for a list",
-						Required:    true,
-					},
-				},
 			},
 		},
 	}
 }
 
-func (c *CommandsCommand) Run(ctx interface{}) error {
+func (c *Commands) Run(ctx interface{}) error {
 	context, ok := ctx.(*command.SlashInteractionContext)
 	if !ok {
 		return nil
@@ -102,7 +91,7 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 
 	session := context.Session
 	event := context.Event
-	st := context.Storage
+	storage := context.Storage
 
 	if len(event.ApplicationCommandData().Options) == 0 {
 		return nil
@@ -112,175 +101,24 @@ func (c *CommandsCommand) Run(ctx interface{}) error {
 
 	switch sub.Name {
 	case "log":
-		return c.runCmdLog(session, event, *st, context.Config)
+		return c.runCmdLog(session, event, *storage)
 	case "status":
-		return c.runCmdStatus(session, event, *st)
+		return c.runCmdStatus(session, event, *storage)
 	case "toggle":
-		return c.runCmdToggle(session, event, *st)
+		return c.runCmdToggle(session, event, *storage, context.Syncer)
 	case "update":
-		return c.runCmdUpdate(session, event)
+		return c.runCmdUpdate(session, event, context.Syncer)
 	default:
-		return discord.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
 }
 
-func (c *CommandsCommand) runCmdLog(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, cfg *config.Config) error {
-	guildID := e.GuildID
-	member := e.Member
-
-	records, err := storage.GetCommandsHistory(guildID)
-	if err != nil {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("Failed to fetch command logs: %v", err),
-		})
-	}
-	if len(records) == 0 {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No command logs found.",
-		})
-	}
-
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("%-19s\t%-15s\t%-12s\t%s\n", "# Datetime", "# Username", "# Channel", "# Command"))
-
-	for i := len(records) - 1; i >= 0; i-- {
-		r := records[i]
-
-		username := r.Username
-		if r.Command == "confess" && !discord.IsDeveloper(cfg, member.User.ID) {
-			username = "###"
-		}
-
-		line := fmt.Sprintf("%-19s\t%-15s\t#%-12s\t/%s\n",
-			r.Datetime.Format("2006-01-02 15:04:05"),
-			username,
-			r.ChannelName,
-			r.Command,
-		)
-
-		if builder.Len()+len(line) > maxContentLength {
-			break
-		}
-		builder.WriteString(line)
-	}
-
-	msg := codeLeftBlockWrapper + "\n" + builder.String() + codeRightBlockWrapper
-	return discord.RespondEphemeral(s, e, msg)
-}
-
-func (c *CommandsCommand) runCmdStatus(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
-	guildID := e.GuildID
-
-	disabledGroups, _ := storage.GetDisabledGroups(guildID)
-	disabledMap := make(map[string]bool)
-	for _, g := range disabledGroups {
-		disabledMap[g] = true
-	}
-
-	var enabled, disabled []string
-	for _, group := range getUniqueGroups() {
-		if disabledMap[group] {
-			disabled = append(disabled, fmt.Sprintf("`%s`", group))
-		} else {
-			enabled = append(enabled, fmt.Sprintf("`%s`", group))
-		}
-	}
-
-	if len(disabled) == 0 {
-		disabled = []string{"_none_"}
-	}
-	if len(enabled) == 0 {
-		enabled = []string{"_none_"}
-	}
-
-	embed := &discordgo.MessageEmbed{
-		Title:       "Commands Status",
-		Description: "Commands are grouped (e.g., purge, core, translate). Use `/help group` to view or `/commands toggle` to manage. Core group can't be disabled.",
-		Fields: []*discordgo.MessageEmbedField{
-			{Name: "Disabled", Value: strings.Join(disabled, ", "), Inline: false},
-			{Name: "Enabled", Value: strings.Join(enabled, ", "), Inline: false},
-		},
-	}
-	return discord.RespondEmbedEphemeral(s, e, embed)
-}
-
-func (c *CommandsCommand) runCmdToggle(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage) error {
-	data := e.ApplicationCommandData()
-
-	subOptions := data.Options[0].Options
-
-	var group, state string
-	for _, opt := range subOptions {
-		switch opt.Name {
-		case "group":
-			group = opt.StringValue()
-		case "state":
-			state = opt.StringValue()
-		}
-	}
-
-	if group == "core" && state == "disable" {
-		return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "You can't disable the `core` group. It's the backbone of the discord.",
-		})
-	}
-
-	var err error
-	embed := &discordgo.MessageEmbed{
-		Footer: &discordgo.MessageEmbedFooter{Text: "Use /commands status to check which commands are disabled."},
-	}
-
-	if state == "disable" {
-		err = storage.DisableGroup(e.GuildID, group)
-		if err != nil {
-			embed.Description = "Failed to disable the group."
-			return discord.RespondEmbedEphemeral(s, e, embed)
-		}
-		embed.Description = fmt.Sprintf("Command/group `%s` disabled.", group)
-	} else {
-		err = storage.EnableGroup(e.GuildID, group)
-		if err != nil {
-			embed.Description = "Failed to enable the group."
-			return discord.RespondEmbedEphemeral(s, e, embed)
-		}
-		embed.Description = fmt.Sprintf("Command/group `%s` enabled.", group)
-	}
-
-	// Publish event to refresh commands
-	discord.PublishSystemEvent(discord.SystemEvent{
-		Type:    discord.SystemEventRefreshCommands,
-		GuildID: e.GuildID,
-		Target:  "group:" + group,
-	})
-
-	return discord.RespondEmbedEphemeral(s, e, embed)
-}
-
-func (c *CommandsCommand) runCmdUpdate(s *discordgo.Session, e *discordgo.InteractionCreate) error {
-	subOptions := e.ApplicationCommandData().Options[0].Options
-
-	var target string
-	if len(subOptions) > 0 {
-		target = subOptions[0].StringValue()
-	}
-
-	discord.PublishSystemEvent(discord.SystemEvent{
-		Type:    discord.SystemEventRefreshCommands,
-		GuildID: e.GuildID,
-		Target:  target,
-	})
-
-	return discord.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Description: "Command update requested — it may take some time to apply.",
-	})
-}
-
 func getUniqueGroups() []string {
 	set := map[string]struct{}{}
 	for _, c := range commandkit.DefaultRegistry.GetAll() {
-		meta, _ := commandkit.Root(c).(command.DiscordMeta)
+		meta, _ := commandkit.Root(c).(command.Meta)
 		group := ""
 		if meta != nil {
 			group = meta.Group()
@@ -296,4 +134,3 @@ func getUniqueGroups() []string {
 	sort.Strings(result)
 	return result
 }
-

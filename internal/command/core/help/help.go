@@ -1,41 +1,47 @@
 package help
 
 import (
-	"fmt"
-	"log"
-	"sort"
-	"strings"
-
-	"server-domme/internal/command"
-	"server-domme/internal/config"
-	"server-domme/internal/discord"
-	"server-domme/internal/version"
-
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/commandkit"
+	"github.com/keshon/buildinfo"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/discordreply"
 )
 
-type HelpUnifiedCommand struct{}
+type Help struct{}
 
-func (c *HelpUnifiedCommand) Name() string        { return "help" }
-func (c *HelpUnifiedCommand) Description() string { return "Get a list of available commands" }
-func (c *HelpUnifiedCommand) Group() string       { return "core" }
-func (c *HelpUnifiedCommand) Category() string    { return "🕯️ Information" }
-func (c *HelpUnifiedCommand) UserPermissions() []int64 { return []int64{} }
+func (c *Help) Name() string        { return "help" }
+func (c *Help) Description() string { return "Get a list of available commands" }
+func (c *Help) Group() string       { return "core" }
+func (c *Help) Category() string    { return "🕯️ Information" }
+func (c *Help) UserPermissions() []int64 {
+	return []int64{}
+}
 
-func (c *HelpUnifiedCommand) SlashDefinition() *discordgo.ApplicationCommand {
+func (c *Help) SlashDefinition() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
-			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "category", Description: "View commands grouped by category"},
-			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "group", Description: "View commands grouped by group"},
-			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "flat", Description: "View all commands as a flat list"},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "category",
+				Description: "View commands grouped by category",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "group",
+				Description: "View commands grouped by group",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "flat",
+				Description: "View all commands as a flat list",
+			},
 		},
 	}
 }
 
-func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
+func (c *Help) Run(ctx interface{}) error {
 	context, ok := ctx.(*command.SlashInteractionContext)
 	if !ok {
 		return nil
@@ -44,14 +50,14 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	session := context.Session
 	event := context.Event
 
-	if err := discord.RespondDeferredEphemeral(session, event); err != nil {
-		log.Println("[ERROR] Failed to defer help interaction:", err)
+	if err := discordreply.RespondDeferredEphemeral(session, event); err != nil {
+		context.AppLog.Error().Err(err).Msg("help_defer_failed")
 		return err
 	}
 
 	data := event.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return discord.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return discordreply.FollowupEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "No subcommand provided. Use `category`, `group`, or `flat`.",
 		})
 	}
@@ -59,105 +65,19 @@ func (c *HelpUnifiedCommand) Run(ctx interface{}) error {
 	var output string
 	switch data.Options[0].Name {
 	case "group":
-		output = buildHelpByGroup()
+		output = runHelpByGroup()
 	case "flat":
-		output = buildHelpFlat()
+		output = runHelpFlat()
 	default:
-		output = buildHelpByCategory()
+		output = runHelpByCategory()
 	}
 
+	info := buildinfo.Get()
 	embed := &discordgo.MessageEmbed{
-		Title:       version.AppName + " Help",
+		Title:       info.Project + " Help",
 		Description: output,
-		Color:       discord.EmbedColor,
+		Color:       discordreply.EmbedColor,
 	}
 
-	return discord.FollowupEmbedEphemeral(session, event, embed)
+	return discordreply.FollowupEmbedEphemeral(session, event, embed)
 }
-
-func buildHelpByCategory() string {
-	all := commandkit.DefaultRegistry.GetAll()
-
-	categoryMap := make(map[string][]commandkit.Command)
-	categorySort := make(map[string]int)
-
-	for _, c := range all {
-		meta, _ := commandkit.Root(c).(command.DiscordMeta)
-		cat := ""
-		if meta != nil {
-			cat = meta.Category()
-		}
-		categoryMap[cat] = append(categoryMap[cat], c)
-		if _, ok := categorySort[cat]; !ok {
-			categorySort[cat] = config.CategoryWeights[cat]
-		}
-	}
-
-	type catSort struct {
-		Name string
-		Sort int
-	}
-	var sortedCats []catSort
-	for cat, sortVal := range categorySort {
-		sortedCats = append(sortedCats, catSort{cat, sortVal})
-	}
-	sort.Slice(sortedCats, func(i, j int) bool { return sortedCats[i].Sort < sortedCats[j].Sort })
-
-	var sb strings.Builder
-	for _, cat := range sortedCats {
-		sb.WriteString(fmt.Sprintf("**%s**\n", cat.Name))
-		cmds := categoryMap[cat.Name]
-		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
-		for _, c := range cmds {
-			sb.WriteString(fmt.Sprintf("`%s` - %s\n", c.Name(), c.Description()))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-func buildHelpByGroup() string {
-	all := commandkit.DefaultRegistry.GetAll()
-
-	groupMap := make(map[string][]commandkit.Command)
-	for _, c := range all {
-		meta, _ := commandkit.Root(c).(command.DiscordMeta)
-		group := ""
-		if meta != nil {
-			group = meta.Group()
-		}
-		groupMap[group] = append(groupMap[group], c)
-	}
-
-	var sortedGroups []string
-	for group := range groupMap {
-		sortedGroups = append(sortedGroups, group)
-	}
-	sort.Strings(sortedGroups)
-
-	var sb strings.Builder
-	for _, group := range sortedGroups {
-		sb.WriteString(fmt.Sprintf("**%s**\n", group))
-		cmds := groupMap[group]
-		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
-		for _, c := range cmds {
-			sb.WriteString(fmt.Sprintf("`%s` - %s\n", c.Name(), c.Description()))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-func buildHelpFlat() string {
-	all := commandkit.DefaultRegistry.GetAll()
-	sort.Slice(all, func(i, j int) bool { return all[i].Name() < all[j].Name() })
-
-	var sb strings.Builder
-	for _, c := range all {
-		sb.WriteString(fmt.Sprintf("`%s` - %s\n", c.Name(), c.Description()))
-	}
-	return sb.String()
-}
-

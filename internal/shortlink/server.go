@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"server-domme/internal/storage"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 // RunServer starts a lightweight HTTP server that resolves short links to their original URLs.

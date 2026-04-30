@@ -1,14 +1,15 @@
 package command
 
 import (
-	"server-domme/internal/config"
-	"server-domme/internal/storage"
-
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/storage"
+	"github.com/rs/zerolog"
 )
 
-// Discord-specific contexts (what the runtime passes when executing).
-// Config is injected so handlers and middleware never call config.New().
+type CommandSyncer interface {
+	SyncGuildCommands(guildID string) error
+}
 
 type SlashInteractionContext struct {
 	Session   *discordgo.Session
@@ -18,6 +19,8 @@ type SlashInteractionContext struct {
 	Config    *config.Config
 	Responder Responder
 	Logger    Logger
+	AppLog    zerolog.Logger
+	Syncer    CommandSyncer
 }
 
 type ComponentInteractionContext struct {
@@ -27,6 +30,7 @@ type ComponentInteractionContext struct {
 	Config    *config.Config
 	Responder Responder
 	Logger    Logger
+	AppLog    zerolog.Logger
 }
 
 type MessageReactionContext struct {
@@ -45,6 +49,7 @@ type MessageApplicationCommandContext struct {
 	Config    *config.Config
 	Responder Responder
 	Logger    Logger
+	AppLog    zerolog.Logger
 }
 
 type MessageContext struct {
@@ -53,4 +58,3 @@ type MessageContext struct {
 	Storage *storage.Storage
 	Config  *config.Config
 }
-

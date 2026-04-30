@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"log"
 
-	"server-domme/internal/command/purge"
-	st "server-domme/internal/domain"
-	"server-domme/internal/storage"
 	"time"
+
+	"github.com/keshon/server-domme/internal/command/purge"
+	st "github.com/keshon/server-domme/internal/domain"
+	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -16,7 +17,7 @@ import (
 // RunScheduler starts scheduled purge jobs (delayed and recurring). Call from the Discord lifecycle.
 func RunScheduler(ctx context.Context, store *storage.Storage, session *discordgo.Session) {
 	log.Printf("[INFO] Starting purge scheduler...")
-	records := store.GetRecordsList()
+	records := store.Records()
 
 	for _, data := range records {
 		jsonData, _ := json.Marshal(data)

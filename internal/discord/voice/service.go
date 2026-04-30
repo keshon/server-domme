@@ -1,36 +1,38 @@
 package voice
 
 import (
-	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/melodix/pkg/music/parsers"
 	"github.com/keshon/melodix/pkg/music/player"
 	"github.com/keshon/melodix/pkg/music/resolve"
 	"github.com/keshon/melodix/pkg/music/sources"
-
-	"server-domme/internal/config"
-	"server-domme/internal/discord/voice/sink"
+	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord/voice/sink"
+	"github.com/keshon/server-domme/internal/storage"
+	"github.com/rs/zerolog"
 )
+
+// SessionGetter returns the current Discord session (used so providers stay valid across reconnects).
+//
+// Kept in the parent package so call sites (e.g. bot wiring) keep using voice.New(...)
+// without importing the implementation subpackage.
+type SessionGetter = sink.SessionGetter
 
 type guildMusicStatus struct {
 	ChannelID string
 	MessageID string
 }
 
-// VoiceState holds minimal voice channel state for a user.
-type VoiceState struct {
-	ChannelID string
-	UserID    string
-}
-
-// Service provides voice/music for a Discord bot: players, resolver, and guild music status.
+// Service provides voice/music for a Discord bot: players, sink providers, resolver, and guild music status.
+// It is pluggable: a bot without voice can omit it.
 type Service struct {
-	getSession func() *discordgo.Session
-	cfg        *config.Config
-
+	getSession    SessionGetter
+	cfg           *config.Config
+	store         *storage.Storage
+	log           zerolog.Logger
 	mu            sync.RWMutex
 	players       map[string]*player.Player
 	sinkProviders map[string]*sink.DiscordSinkProvider
@@ -40,16 +42,34 @@ type Service struct {
 	guildMusicStatusMu sync.RWMutex
 }
 
-func New(getSession func() *discordgo.Session, cfg *config.Config) *Service {
+// New creates a voice service for the given session getter and config.
+func NewVoiceService(getSession SessionGetter, cfg *config.Config, store *storage.Storage, log zerolog.Logger) *Service {
 	return &Service{
 		getSession:       getSession,
 		cfg:              cfg,
+		store:            store,
+		log:              log,
 		players:          make(map[string]*player.Player),
 		sinkProviders:    make(map[string]*sink.DiscordSinkProvider),
 		guildMusicStatus: make(map[string]guildMusicStatus),
 	}
 }
 
+type playbackRecorder struct {
+	store *storage.Storage
+	log   zerolog.Logger
+}
+
+func (r playbackRecorder) Record(guildID string, playedAt time.Time, track parsers.TrackParse) {
+	if r.store == nil {
+		return
+	}
+	if _, err := r.store.AppendMusicPlayback(guildID, track, playedAt); err != nil {
+		r.log.Warn().Str("guild_id", guildID).Err(err).Msg("playback_history_append_failed")
+	}
+}
+
+// GetOrCreatePlayer returns an existing player for the guild or creates a new one.
 func (s *Service) GetOrCreatePlayer(guildID string) *player.Player {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,32 +77,37 @@ func (s *Service) GetOrCreatePlayer(guildID string) *player.Player {
 	if s.sinkProviders == nil {
 		s.sinkProviders = make(map[string]*sink.DiscordSinkProvider)
 	}
-
 	if p, ok := s.players[guildID]; ok {
 		p.SetGuildID(guildID)
+		if s.store != nil {
+			p.SetRecorder(playbackRecorder{store: s.store, log: s.log})
+		}
 		return p
 	}
-
 	if s.resolver == nil {
 		s.resolver = resolve.New()
 	}
-
 	provider, ok := s.sinkProviders[guildID]
 	if !ok {
 		voiceDelay := time.Duration(s.cfg.VoiceReadyDelayMs) * time.Millisecond
-		provider = sink.NewDiscordSinkProvider(func() *discordgo.Session {
-			return s.getSession()
-		}, guildID, voiceDelay)
+		provider = sink.NewDiscordSinkProvider(s.getSession, guildID, voiceDelay, s.log)
 		s.sinkProviders[guildID] = provider
 	}
-
-	p := player.New(provider, s.resolver)
+	p := player.NewWithOptions(provider, s.resolver, player.Options{
+		Logger:                s.log,
+		TransportRecoveryMode: s.cfg.PlayerTransportRecoveryMode,
+		TransportSoftAttempts: s.cfg.PlayerTransportSoftAttempts,
+	})
 	p.SetGuildID(guildID)
+	if s.store != nil {
+		p.SetRecorder(playbackRecorder{store: s.store, log: s.log})
+	}
 	s.players[guildID] = p
 	return p
 }
 
-func (s *Service) Resolve(guildID, input, source, parser string) ([]sources.TrackInfo, error) {
+// ResolveTracks resolves input to tracks using the service's shared resolver.
+func (s *Service) ResolveTracks(guildID, input, source, parser string) ([]sources.TrackInfo, error) {
 	s.mu.Lock()
 	if s.resolver == nil {
 		s.resolver = resolve.New()
@@ -92,24 +117,8 @@ func (s *Service) Resolve(guildID, input, source, parser string) ([]sources.Trac
 	return r.Resolve(input, source, parser)
 }
 
-func (s *Service) FindUserVoiceState(guildID, userID string) (*VoiceState, error) {
-	session := s.getSession()
-	if session == nil {
-		return nil, fmt.Errorf("discord session not available")
-	}
-	guild, err := session.State.Guild(guildID)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving guild: %w", err)
-	}
-	for _, vs := range guild.VoiceStates {
-		if vs.UserID == userID {
-			return &VoiceState{ChannelID: vs.ChannelID, UserID: vs.UserID}, nil
-		}
-	}
-	return nil, fmt.Errorf("user not in any voice channel")
-}
-
-func (s *Service) UpdateGuildMusicStatus(session *discordgo.Session, i *discordgo.InteractionCreate, guildID string, embed *discordgo.MessageEmbed) error {
+// UpdatePlaybackStatus creates or edits the guild's music status message.
+func (s *Service) UpdatePlaybackStatus(session *discordgo.Session, i *discordgo.InteractionCreate, guildID string, embed *discordgo.MessageEmbed) error {
 	s.guildMusicStatusMu.RLock()
 	msg, ok := s.guildMusicStatus[guildID]
 	s.guildMusicStatusMu.RUnlock()
@@ -139,6 +148,7 @@ func (s *Service) UpdateGuildMusicStatus(session *discordgo.Session, i *discordg
 	return nil
 }
 
+// StopAllPlayers stops playback and disconnects voice for all guilds. Call on shutdown.
 func (s *Service) StopAllPlayers() {
 	s.mu.Lock()
 	players := make(map[string]*player.Player, len(s.players))
@@ -146,13 +156,28 @@ func (s *Service) StopAllPlayers() {
 		players[k] = v
 	}
 	s.players = make(map[string]*player.Player)
-	s.sinkProviders = nil
-	s.resolver = nil
+	s.sinkProviders = nil // reinitialized on next GetOrCreatePlayer if needed
 	s.mu.Unlock()
 
 	for _, p := range players {
 		_ = p.Stop(true)
 	}
-	log.Println("[INFO] All players stopped")
 }
 
+// InvalidateAllSinks disconnects and forgets current voice connections for all guilds,
+// without stopping players or clearing queues. Intended for session restarts.
+func (s *Service) InvalidateAllSinks() {
+	s.mu.RLock()
+	providers := make([]*sink.DiscordSinkProvider, 0, len(s.sinkProviders))
+	for _, p := range s.sinkProviders {
+		providers = append(providers, p)
+	}
+	s.mu.RUnlock()
+
+	for _, p := range providers {
+		if p == nil {
+			continue
+		}
+		p.InvalidateSink()
+	}
+}

@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"context"
-	"server-domme/internal/command"
-	"server-domme/internal/storage"
+
+	"github.com/keshon/commandkit"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/commandkit"
 )
 
 // WithGroupAccessCheck wraps a command to enforce group access
@@ -73,7 +74,7 @@ func WithGroupAccessCheck() commandkit.Middleware {
 }
 
 func disabledGroup(c commandkit.Command, guildID string, stor *storage.Storage, respond func(string)) bool {
-	meta, ok := commandkit.Root(c).(command.DiscordMeta)
+	meta, ok := commandkit.Root(c).(command.Meta)
 	if !ok || meta.Group() == "" {
 		return false
 	}
@@ -87,4 +88,3 @@ func disabledGroup(c commandkit.Command, guildID string, stor *storage.Storage, 
 	}
 	return false
 }
-

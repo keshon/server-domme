@@ -3,254 +3,138 @@ package main
 
 import (
 	"context"
-	"log"
+	"math/rand/v2"
+	"os"
 	"os/signal"
-	"syscall"
 	"sync"
+	"syscall"
 	"time"
 
-	"server-domme/internal/command"
-	"server-domme/internal/command/announce"
-	"server-domme/internal/command/ask"
-	"server-domme/internal/command/confess"
-	"server-domme/internal/command/core/about"
-	"server-domme/internal/command/core/commands"
-	"server-domme/internal/command/core/help"
-	"server-domme/internal/command/core/maintenance"
-	"server-domme/internal/command/discipline"
-	"server-domme/internal/command/media"
-	"server-domme/internal/command/music"
-	"server-domme/internal/command/purge"
-	"server-domme/internal/command/roll"
-	"server-domme/internal/command/shortlink"
-	taskcmd "server-domme/internal/command/task"
-	"server-domme/internal/command/translate"
-	"server-domme/internal/config"
-	"server-domme/internal/discord"
-	"server-domme/internal/middleware"
-	"server-domme/internal/storage"
-
 	"github.com/keshon/buildinfo"
+	"github.com/keshon/commandkit"
+	"github.com/keshon/server-domme/internal/applog"
+	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/command/announce"
+	"github.com/keshon/server-domme/internal/command/ask"
+	"github.com/keshon/server-domme/internal/command/confess"
+	"github.com/keshon/server-domme/internal/command/core/about"
+	"github.com/keshon/server-domme/internal/command/core/commands"
+	"github.com/keshon/server-domme/internal/command/core/help"
+	"github.com/keshon/server-domme/internal/command/core/maintenance"
+	"github.com/keshon/server-domme/internal/command/discipline"
+	"github.com/keshon/server-domme/internal/command/media"
+	"github.com/keshon/server-domme/internal/command/music/history"
+	"github.com/keshon/server-domme/internal/command/music/next"
+	"github.com/keshon/server-domme/internal/command/music/play"
+	"github.com/keshon/server-domme/internal/command/music/stop"
+	"github.com/keshon/server-domme/internal/command/purge"
+	"github.com/keshon/server-domme/internal/command/roll"
+	"github.com/keshon/server-domme/internal/command/shortlink"
+	taskcmd "github.com/keshon/server-domme/internal/command/task"
+	"github.com/keshon/server-domme/internal/command/translate"
+	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord"
+	"github.com/keshon/server-domme/internal/middleware"
+	"github.com/keshon/server-domme/internal/storage"
+	"github.com/rs/zerolog"
 )
 
-func registerCommands(bot *discord.Bot) {
-	command.Register(
-		&about.AboutCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&help.HelpUnifiedCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&commands.CommandsCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&maintenance.MaintenanceCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+func registerCommands(bot *discord.Bot, log zerolog.Logger) {
+	mw := defaultMiddleware(log)
+	command.Register(&about.About{}, mw...)
+	command.Register(&help.Help{}, mw...)
+	command.Register(&commands.Commands{}, mw...)
+	command.Register(&maintenance.Maintenance{}, mw...)
 
-	command.Register(
-		&announce.AnnounceCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&announce.ManageAnnounceCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&announce.AnnounceContextCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&announce.AnnounceCommand{}, mw...)
+	command.Register(&announce.ManageAnnounceCommand{}, mw...)
+	command.Register(&announce.AnnounceContextCommand{}, mw...)
 
-	command.Register(
-		&ask.AskCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&ask.AskCommand{}, mw...)
 
-	command.Register(
-		&confess.ConfessCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&confess.ManageConfessCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&confess.ConfessCommand{}, mw...)
+	command.Register(&confess.ManageConfessCommand{}, mw...)
 
-	command.Register(
-		&discipline.DisciplineCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&discipline.ManageDisciplineCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&discipline.DisciplineCommand{}, mw...)
+	command.Register(&discipline.ManageDisciplineCommand{}, mw...)
 
-	command.Register(
-		&media.RandomMediaCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&media.UploadMediaCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&media.ManageMediaCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&media.RandomMediaCommand{}, mw...)
+	command.Register(&media.UploadMediaCommand{}, mw...)
+	command.Register(&media.ManageMediaCommand{}, mw...)
 
-	command.Register(
-		&purge.PurgeCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&roll.RollCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&shortlink.ShortlinkCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&purge.PurgeCommand{}, mw...)
+	command.Register(&roll.RollCommand{}, mw...)
+	command.Register(&shortlink.ShortlinkCommand{}, mw...)
 
-	command.Register(
-		&taskcmd.TaskCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&taskcmd.ManageTaskCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&taskcmd.TaskCommand{}, mw...)
+	command.Register(&taskcmd.ManageTaskCommand{}, mw...)
 
-	command.Register(
-		&translate.ManageTranslateCommand{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
-	command.Register(
-		&translate.TranslateOnReaction{},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&translate.ManageTranslateCommand{}, mw...)
+	command.Register(&translate.TranslateOnReaction{}, mw...)
 
-	command.Register(
-		&music.MusicCommand{Bot: bot},
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(),
-	)
+	command.Register(&play.Play{Bot: bot}, mw...)
+	command.Register(&next.Next{Bot: bot}, mw...)
+	command.Register(&stop.Stop{Bot: bot}, mw...)
+	command.Register(&history.History{Bot: bot}, mw...)
 }
 
 func main() {
 	info := buildinfo.Get()
 
-	log.Printf("[INFO] Starting %v bot...", info.Project)
-
 	// Root context cancels on SIGINT/SIGTERM.
 	rootCtx, stopSignal := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignal()
 
-	cfg, err := config.New()
+	cfg, err := config.NewConfig()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		_, _ = os.Stderr.WriteString("failed to load config: " + err.Error() + "\n")
+		os.Exit(1)
 	}
 
-	store, err := storage.New(rootCtx, cfg.StoragePath)
+	log := applog.Setup("discord", cfg)
+	log.Info().Str("project", info.Project).Msg("bot_starting")
+
+	if cfg.DiscordToken == "" {
+		log.Fatal().Msg("config_missing_token")
+	}
+
+	store, err := storage.NewStorage(rootCtx, cfg.StoragePath, log)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("storage_init_failed")
 	}
 
 	if err := taskcmd.InitFromConfig(cfg); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("task_init_failed")
 	}
 	log.Println("[INFO] Tasks initialized")
 	go storage.RunCooldownCleaner(rootCtx, store)
 	log.Println("[INFO] Cooldown cleaner started")
 
-	bot := discord.NewBot(cfg, store)
-	registerCommands(bot)
+	bot := discord.NewBot(cfg, store, log)
 
-	// Start Discord session with auto-reconnect loop
+	registerCommands(bot, log)
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
+			var lastErr error
 			if err := bot.RunSession(rootCtx); err != nil {
-				log.Println("[ERR] Discord session ended:", err)
+				lastErr = err
+				log.Error().Err(err).Msg("discord_session_end")
 			}
 
 			select {
 			case <-rootCtx.Done():
 				return
 			default:
-				log.Println("[WARN] Restarting session in 5s...")
-				timer := time.NewTimer(5 * time.Second)
+				delay := 5 * time.Second
+				if discord.IsSessionUnhealthyError(lastErr) {
+					delay = time.Duration(rand.IntN(200)) * time.Millisecond
+				}
+				log.Warn().Dur("delay", delay).Msg("discord_session_restart")
+				timer := time.NewTimer(delay)
 				select {
 				case <-rootCtx.Done():
 					timer.Stop()
@@ -262,16 +146,24 @@ func main() {
 	}()
 
 	<-rootCtx.Done()
-	log.Println("[INFO] Shutdown signal received, stopping bot...")
+	log.Info().Msg("shutdown_signal_received")
 
-	// Wait for the session loop goroutine to exit.
 	wg.Wait()
 
-	// Timebox storage shutdown so Ctrl+C always returns to the shell.
 	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelClose()
 	if err := store.Close(closeCtx); err != nil {
-		log.Printf("[ERR] Storage close error: %v", err)
+		log.Error().Err(err).Msg("storage_close_failed")
 	}
-	log.Println("[INFO] Discord bot exited cleanly")
+
+	log.Info().Msg("bot_exit")
+}
+
+func defaultMiddleware(log zerolog.Logger) []commandkit.Middleware {
+	return []commandkit.Middleware{
+		middleware.WithGroupAccessCheck(),
+		middleware.WithGuildOnly(),
+		middleware.WithUserPermissionCheck(),
+		middleware.WithCommandLogger(log),
+	}
 }
