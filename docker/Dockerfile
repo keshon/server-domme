@@ -25,7 +25,7 @@ RUN BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ") && \
             -X github.com/keshon/buildinfo.Version=dev \
             -X github.com/keshon/buildinfo.Commit=${GIT_COMMIT} \
             -X github.com/keshon/buildinfo.BuildTime=${BUILD_DATE} \
-            -X github.com/keshon/buildinfo.Project=Server Domme \
+            -X github.com/keshon/buildinfo.Project=ServerDomme \
             -X 'github.com/keshon/buildinfo.Description=Server Domme'" \
         ./cmd/discord/
 
