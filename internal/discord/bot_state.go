@@ -11,7 +11,6 @@ import (
 	"github.com/keshon/server-domme/internal/discord/commandlogger"
 	"github.com/keshon/server-domme/internal/discord/commandsync"
 	"github.com/keshon/server-domme/internal/discord/execguard"
-	"github.com/keshon/server-domme/internal/discord/voice"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -23,7 +22,6 @@ type Bot struct {
 	slashCmds map[string][]*discordgo.ApplicationCommand
 	cfg       *config.Config
 	mu        sync.RWMutex
-	voice     *voice.Service
 	log       zerolog.Logger
 
 	cmdSyncer *commandsync.Syncer

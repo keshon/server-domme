@@ -55,13 +55,6 @@ It’s designed to be practical for server management while providing light, int
   - **/discipline release** — Remove the brat role
 - **/task** — Assign yourself a new random task
 
-### 🎵 Music
-
-- **/history** — Show recently played tracks (replay by id with /play)
-- **/next** — Skip to the next track
-- **/play** — Play a music track
-- **/stop** — Stop playback and clear queue
-
 ### 🎞️ Media
 
 - **/media** — Post a random media file

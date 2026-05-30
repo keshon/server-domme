@@ -6,7 +6,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/voice"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -19,24 +18,9 @@ func NewBot(cfg *config.Config, storage *storage.Storage, log zerolog.Logger) *B
 		log:       log,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
 	}
-	// Voice service must outlive a single Discord session so playback/queues survive reconnects.
-	b.voice = voice.NewVoiceService(func() *discordgo.Session {
-		b.mu.RLock()
-		s := b.dg
-		b.mu.RUnlock()
-		return s
-	}, cfg, storage, log)
 	b.sessionCtx.Store(&sessionCtxHolder{ctx: context.Background()})
 	b.cmdGuard.Store(&cmdGuardHolder{g: disabledGuard})
 	return b
-}
-
-// stopAllPlayers stops playback and disconnects voice for all guilds. Call on shutdown.
-func (b *Bot) stopAllPlayers() {
-	if b.voice != nil {
-		b.voice.StopAllPlayers()
-	}
-	b.log.Info().Msg("players_all_stopped")
 }
 
 func (b *Bot) configureIntents() {

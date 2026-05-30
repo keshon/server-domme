@@ -15,19 +15,12 @@ func (b *Bot) makeSessionUnhealthyNotifier(disconnected chan struct{}) func() {
 	var unhealthyCount int
 	var unhealthyWindowStart time.Time
 
-	invalidateSinks := func() {
-		if b.voice != nil {
-			b.voice.InvalidateAllSinks()
-		}
-	}
-
 	return func() {
 		mode := b.cfg.DiscordUnhealthyMode
 		switch mode {
 		case "ignore":
 			return
 		case "restart-voice":
-			invalidateSinks()
 			return
 		case "restart-session", "":
 		default:
@@ -59,13 +52,11 @@ func (b *Bot) makeSessionUnhealthyNotifier(disconnected chan struct{}) func() {
 		}
 
 		if !shouldRestart {
-			invalidateSinks()
 			return
 		}
 
 		restartOnce.Do(func() {
 			b.log.Warn().Msg("discord_session_unhealthy")
-			invalidateSinks()
 			close(disconnected)
 		})
 	}

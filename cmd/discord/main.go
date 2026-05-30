@@ -23,10 +23,6 @@ import (
 	"github.com/keshon/server-domme/internal/command/core/maintenance"
 	"github.com/keshon/server-domme/internal/command/discipline"
 	"github.com/keshon/server-domme/internal/command/media"
-	"github.com/keshon/server-domme/internal/command/music/history"
-	"github.com/keshon/server-domme/internal/command/music/next"
-	"github.com/keshon/server-domme/internal/command/music/play"
-	"github.com/keshon/server-domme/internal/command/music/stop"
 	"github.com/keshon/server-domme/internal/command/purge"
 	"github.com/keshon/server-domme/internal/command/roll"
 	"github.com/keshon/server-domme/internal/command/shortlink"
@@ -71,11 +67,6 @@ func registerCommands(bot *discord.Bot, log zerolog.Logger) {
 
 	command.Register(&translate.ManageTranslateCommand{}, mw...)
 	command.Register(&translate.TranslateOnReaction{}, mw...)
-
-	command.Register(&play.Play{Bot: bot}, mw...)
-	command.Register(&next.Next{Bot: bot}, mw...)
-	command.Register(&stop.Stop{Bot: bot}, mw...)
-	command.Register(&history.History{Bot: bot}, mw...)
 }
 
 func main() {

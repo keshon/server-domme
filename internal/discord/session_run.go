@@ -57,7 +57,6 @@ func (b *Bot) RunSession(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		b.log.Info().Msg("shutdown_signal_received")
-		b.stopAllPlayers()
 		return nil
 	case <-disconnected:
 		return fmt.Errorf("%w: websocket disconnected", ErrSessionUnhealthy)
