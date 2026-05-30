@@ -42,7 +42,7 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		}
 		bgCtx, _ := context.WithCancel(context.Background())
 		purge.RunScheduler(bgCtx, b.storage, s)
-		go shortlink.RunServerWithContext(bgCtx, b.storage)
+		go shortlink.RunServerWithContext(bgCtx, b.storage, b.cfg)
 	})
 
 	b.log.Info().Str("username", botInfo.Username).Msg("discord_ready")

@@ -54,6 +54,8 @@ type Config struct {
 	AIProvider       string   `env:"AI_PROVIDER"`
 	AIPromptPath     string   `env:"AI_PROMPT_PATH"`
 	ShortLinkBaseURL string   `env:"SHORTLINK_BASE_URL"`
+	// HealthCheckPath registers a shallow GET/HEAD health endpoint at this path (empty = disabled).
+	HealthCheckPath string `env:"HEALTHCHECK_PATH" envDefault:"/ping"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids discord import in middleware).

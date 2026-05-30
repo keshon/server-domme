@@ -28,6 +28,7 @@ services:
       - TASKS_PATH=${TASKS_PATH}
       - PROTECTED_USERS=${PROTECTED_USERS}
       - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
+      - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
     entrypoint: /usr/project/app
     networks:
       - proxy
