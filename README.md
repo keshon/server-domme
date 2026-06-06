@@ -1,6 +1,6 @@
 # Server Domme — Your Dominant Discord Assistant
 
-> *“Discipline. Sass. Music. Control.  
+> *“Discipline. Sass. Control.  
 All in one bot, ready to whip your server into shape.”*  
 
 ![Discord](https://img.shields.io/badge/Discord-Bot-5865F2?logo=discord&logoColor=white) ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white) ![GitHub Repo size](https://img.shields.io/github/repo-size/keshon/server-domme) ![License](https://img.shields.io/github/license/keshon/server-domme) [![GitHub stars](https://img.shields.io/github/stars/keshon/server-domme?style=social)](https://github.com/keshon/server-domme)
@@ -11,7 +11,6 @@ All in one bot, ready to whip your server into shape.”*
 
 **Server Domme combines several key features in one place**:
 
-* 🎵 Plays music from YouTube and SoundCloud
 * 🧹 Automates channel cleanup and message purges
 * 🎭 Supports roleplay interactions, task management, and anonymous confessions
 * ⚙️ Offers admin tools for command and server configuration
@@ -103,6 +102,8 @@ It’s designed to be practical for server management while providing light, int
   - **/manage-task upload-tasks** — Upload a new task list for this server
   - **/manage-task download-tasks** — Download the current task list for this server
   - **/manage-task reset-tasks** — Reset the task list to default for this server
+  - **/manage-task set-cooldown** — Set task cooldown duration for this server
+  - **/manage-task list-cooldowns** — Show guild cooldown setting and active user cooldowns
 - **/manage-translate** — Translate settings
   - **/manage-translate set-channel** — Add a channel to the translate list
   - **/manage-translate reset-channel** — Remove a channel from the translate list
@@ -121,8 +122,6 @@ It’s designed to be practical for server management while providing light, int
    `go build && ./server-domme`
 5. Invite her into your server. She’s waiting.
 
-FFMPEG and YTDLP is required for music playback/streaming.
-
 ---
 
 ## Bot Permissions
@@ -134,8 +133,6 @@ FFMPEG and YTDLP is required for music playback/streaming.
 - **Attach Files**
 - **Read Message History**
 - **Use Application Commands**
-- **Connect**
-- **Speak**
 
 ## Disclaimer
 

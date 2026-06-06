@@ -21,8 +21,8 @@ import (
 )
 
 var (
-	reminderFraction = 0.9 // 10% before expiry
-	cooldownDuration = time.Minute * 60 * 3
+	reminderFraction         = 0.9 // 10% before expiry
+	defaultCooldownDuration  = storage.DefaultTaskCooldownDuration
 
 	taskCancels     = make(map[string]context.CancelFunc)
 	taskCancelMutex = sync.Mutex{}
@@ -267,7 +267,7 @@ func (c *TaskCommand) handleTaskCompletion(ctx *command.ComponentInteractionCont
 	}
 
 	ctx.Storage.ClearTask(guildID, userID)
-	ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
+	ctx.Storage.SetCooldown(guildID, userID, time.Now().Add(cooldownForGuild(ctx.Storage, guildID)))
 
 	taskCancelMutex.Lock()
 	if cancel, exists := taskCancels[userID]; exists {
@@ -336,7 +336,7 @@ func handleTimers(session *discordgo.Session, storage *storage.Storage, ctxTimer
 				},
 			})
 			storage.ClearTask(guildID, userID)
-			storage.SetCooldown(guildID, userID, time.Now().Add(cooldownDuration))
+			storage.SetCooldown(guildID, userID, time.Now().Add(cooldownForGuild(storage, guildID)))
 			session.ChannelMessageEditComplex(&discordgo.MessageEdit{
 				ID: taskMsgID, Channel: channelID, Components: &[]discordgo.MessageComponent{},
 			})
@@ -353,6 +353,14 @@ func loadTasks(file string) ([]Task, error) {
 	}
 	var list []Task
 	return list, json.Unmarshal(raw, &list)
+}
+
+func cooldownForGuild(storage *storage.Storage, guildID string) time.Duration {
+	duration, err := storage.GetTaskCooldownDuration(guildID)
+	if err != nil {
+		return defaultCooldownDuration
+	}
+	return duration
 }
 
 func getMemberRoleNames(session *discordgo.Session, guildID string, roleIDs []string) map[string]bool {

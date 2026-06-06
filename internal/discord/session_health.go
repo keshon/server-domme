@@ -20,8 +20,6 @@ func (b *Bot) makeSessionUnhealthyNotifier(disconnected chan struct{}) func() {
 		switch mode {
 		case "ignore":
 			return
-		case "restart-voice":
-			return
 		case "restart-session", "":
 		default:
 			b.log.Warn().Str("mode", mode).Msg("discord_unhealthy_mode_unknown")

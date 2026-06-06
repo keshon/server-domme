@@ -17,7 +17,7 @@ import (
 
 // RecommendedBotPermissions is the bitmask for the minimal permissions the bot needs.
 // Used in the OAuth2 invite URL so the generated README shows the correct link.
-// Combines: View Channel, Send Messages, Embed Links, Read Message History, Manage Messages, Connect, Speak.
+// Combines: View Channel, Send Messages, Embed Links, Read Message History, Manage Messages.
 var RecommendedBotPermissions = discordgo.PermissionManageRoles |
 	discordgo.PermissionViewChannel |
 	discordgo.PermissionSendMessages |
@@ -25,9 +25,7 @@ var RecommendedBotPermissions = discordgo.PermissionManageRoles |
 	discordgo.PermissionAttachFiles |
 	discordgo.PermissionReadMessageHistory |
 	discordgo.PermissionManageMessages |
-	discordgo.PermissionUseApplicationCommands |
-	discordgo.PermissionVoiceConnect |
-	discordgo.PermissionVoiceSpeak
+	discordgo.PermissionUseApplicationCommands
 
 // RecommendedBotPermissionsList is a human-readable list of these permissions for the README.
 var RecommendedBotPermissionsList = []string{
@@ -36,8 +34,6 @@ var RecommendedBotPermissionsList = []string{
 	"Embed Links",
 	"Read Message History",
 	"Manage Messages",
-	"Connect to Voice Channel",
-	"Speak",
 }
 
 // UpdateReadme generates README.md from the command registry and category ordering.

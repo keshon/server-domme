@@ -52,19 +52,8 @@ type Record struct {
 	PurgeJobs            map[string]PurgeJob  `json:"purge_jobs"` // key = channelID
 	ShortLinks           []ShortLink          `json:"short_links"`
 	TaskCooldowns        map[string]time.Time `json:"task_cooldowns"`
+	TaskCooldownDuration string               `json:"task_cooldown_duration"`
 	TaskList             map[string]Task      `json:"task_list"`
 	TaskRole             string               `json:"task_role"`
 	TranslateChannels    []string             `json:"translate_channels"`
-	MusicPlaybackHistory []MusicPlayback      `json:"music_playback_history,omitempty"`
-	NextMusicHistoryID   uint64               `json:"next_music_history_id"`
-}
-
-type MusicPlayback struct {
-	ID               uint64    `json:"id"`
-	PlayedAt         time.Time `json:"played_at"`
-	URL              string    `json:"url"`
-	Title            string    `json:"title"`
-	CurrentParser    string    `json:"current_parser"`
-	AvailableParsers []string  `json:"available_parsers"`
-	SourceName       string    `json:"source_name"`
 }

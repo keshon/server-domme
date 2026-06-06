@@ -46,7 +46,7 @@ func (c *About) Run(ctx interface{}) error {
 		},
 		{
 			Name:  "Repository",
-			Value: "https://github.com/keshon/melodix\nCommit: " + info.Commit,
+			Value: "https://github.com/keshon/server-domme\nCommit: " + info.Commit,
 		},
 		{
 			Name:  "Release",

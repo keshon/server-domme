@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/command"
@@ -76,6 +78,24 @@ func (c *ManageTaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "reset-tasks",
 				Description: "Reset the task list to default for this server",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "set-cooldown",
+				Description: "Set task cooldown duration for this server",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "duration",
+						Description: "Cooldown after completing/failing a task (e.g. 30m, 3h, 1d)",
+						Required:    true,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "list-cooldowns",
+				Description: "Show guild cooldown setting and active user cooldowns",
 			},
 		},
 	}
@@ -283,6 +303,69 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Tasks have been reset. Use `/manage-task upload-tasks` to upload new tasks.",
 		})
+
+	case "set-cooldown":
+		var durationRaw string
+		for _, opt := range sub.Options {
+			if opt.Name == "duration" {
+				durationRaw = opt.StringValue()
+			}
+		}
+
+		if durationRaw == "" {
+			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+				Description: "Missing required options.",
+			})
+		}
+
+		if err := storage.SetTaskCooldownDuration(e.GuildID, durationRaw); err != nil {
+			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Invalid duration: %v\nUse `30m`, `3h`, `1d`, etc.", err),
+			})
+		}
+
+		duration, _ := storage.GetTaskCooldownDuration(e.GuildID)
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Task cooldown set to **%s**.", humanDuration(duration)),
+		})
+		return nil
+
+	case "list-cooldowns":
+		duration, err := storage.GetTaskCooldownDuration(e.GuildID)
+		if err != nil {
+			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Failed to read cooldown setting: %v", err),
+			})
+		}
+
+		isDefault, _ := storage.IsTaskCooldownDurationDefault(e.GuildID)
+		guildLine := fmt.Sprintf("**Guild cooldown:** %s", humanDuration(duration))
+		if isDefault {
+			guildLine += " (default)"
+		}
+
+		active, err := storage.ListActiveTaskCooldowns(e.GuildID)
+		if err != nil {
+			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+				Description: fmt.Sprintf("Failed to list cooldowns: %v", err),
+			})
+		}
+
+		var cooldownLines []string
+		now := time.Now()
+		for userID, expiry := range active {
+			cooldownLines = append(cooldownLines, fmt.Sprintf("• <@%s> — expires in %s", userID, humanDuration(expiry.Sub(now))))
+		}
+
+		activeSection := "**Active cooldowns:**\nNone"
+		if len(cooldownLines) > 0 {
+			activeSection = "**Active cooldowns:**\n" + strings.Join(cooldownLines, "\n")
+		}
+
+		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: guildLine + "\n\n" + activeSection,
+		})
+		return nil
 
 	default:
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{

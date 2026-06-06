@@ -6,7 +6,6 @@ var CategoryWeights = map[string]int{
 	"🎲 Gameplay":     20,
 	"🎭 Roleplay":     30,
 	"💬 Chat":         35,
-	"🎵 Music":        39,
 	"🎞️ Media":       40,
 	"🧹 Cleanup":      45,
 	"⚙️ Settings":    50,

@@ -3,8 +3,7 @@ FROM golang:1.26-alpine AS builder
 
 ENV GOPROXY=https://proxy.golang.org,direct
 
-# Install CGO deps
-RUN apk add --no-cache git build-base alsa-lib-dev
+RUN apk add --no-cache git
 
 WORKDIR /usr/project
 
@@ -16,10 +15,10 @@ RUN go mod download
 # Copy rest of the source
 COPY src .
 
-# Build with embedded metadata, CGO enabled
+# Build with embedded metadata
 RUN BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ") && \
     GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none") && \
-    CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
         -o app \
         -ldflags="-s -w \
             -X github.com/keshon/buildinfo.Version=dev \
@@ -32,15 +31,7 @@ RUN BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ") && \
 # ---- Stage 2: Runtime ----
 FROM alpine:latest
 
-# Runtime dependencies
-RUN apk add --no-cache \
-        ffmpeg \
-        python3 \
-        py3-pip \
-        libstdc++ \
-        alsa-lib \
-    && pip3 install --no-cache-dir --break-system-packages yt-dlp \
-    && rm -rf /var/cache/apk/*
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /usr/project
 COPY --from=builder /usr/project/app ./app
