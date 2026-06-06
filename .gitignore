@@ -14,3 +14,5 @@ datastore_dump.json
 dump.bat
 !default_task.list.json
 /tmp
+/dev
+/data/media-plain
