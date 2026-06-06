@@ -3,6 +3,7 @@ package command
 import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/media"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -12,25 +13,27 @@ type CommandSyncer interface {
 }
 
 type SlashInteractionContext struct {
-	Session   *discordgo.Session
-	Event     *discordgo.InteractionCreate
-	Args      []string
-	Storage   *storage.Storage
-	Config    *config.Config
-	Responder Responder
-	Logger    Logger
-	AppLog    zerolog.Logger
-	Syncer    CommandSyncer
+	Session    *discordgo.Session
+	Event      *discordgo.InteractionCreate
+	Args       []string
+	Storage    *storage.Storage
+	MediaStore media.Store
+	Config     *config.Config
+	Responder  Responder
+	Logger     Logger
+	AppLog     zerolog.Logger
+	Syncer     CommandSyncer
 }
 
 type ComponentInteractionContext struct {
-	Session   *discordgo.Session
-	Event     *discordgo.InteractionCreate
-	Storage   *storage.Storage
-	Config    *config.Config
-	Responder Responder
-	Logger    Logger
-	AppLog    zerolog.Logger
+	Session    *discordgo.Session
+	Event      *discordgo.InteractionCreate
+	Storage    *storage.Storage
+	MediaStore media.Store
+	Config     *config.Config
+	Responder  Responder
+	Logger     Logger
+	AppLog     zerolog.Logger
 }
 
 type MessageReactionContext struct {

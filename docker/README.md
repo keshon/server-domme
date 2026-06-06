@@ -23,6 +23,27 @@ Copy `.env.example` to `.env` in this directory and set at least:
 
 Other variables (e.g. `STORAGE_PATH`, `INIT_SLASH_COMMANDS`, `DEVELOPER_ID`, `DISCORD_GUILD_BLACKLIST`, `WS_SILENCE_TIMEOUT`, `DISCORD_UNHEALTHY_MODE`, `DISCORD_UNHEALTHY_GRACE`, `DISCORD_UNHEALTHY_WINDOW`, `COMMAND_TIMEOUT`, `COMMAND_PARALLELISM`) are optional and match the main app config.
 
+### Media storage (rclone)
+
+Media files are stored through **rclone Remote Control** using a **crypt remote** (filenames and contents encrypted on the backend).
+
+1. Copy `rclone.conf.example` to `rclone.conf` in this directory.
+2. Generate an obscured password: `rclone obscure "your-strong-password"`.
+3. Create the plain media directory: `mkdir -p data/media-plain`.
+4. For local development, run rclone RC alongside the bot:
+
+   ```bash
+   rclone rcd --rc-addr :5572 --config docker/rclone.conf
+   ```
+
+5. Set in `.env`: `MEDIA_RCLONE_RC_URL=http://127.0.0.1:5572` and `MEDIA_RCLONE_REMOTE=crypt-media`.
+
+Docker Compose starts an `rclone` sidecar automatically. The app connects to it at `http://rclone:5572` on the Compose network.
+
+For cloud backends (S3, Google Drive, etc.), replace the `media-plain` remote in `rclone.conf` with your provider; keep the `crypt-media` remote name so the bot config stays the same.
+
+**Production:** enable RC auth (`--rc-user` / `--rc-pass` on rclone, `MEDIA_RCLONE_USER` / `MEDIA_RCLONE_PASS` on the bot). Do not commit `rclone.conf` with real passwords.
+
 Notes on recovery modes:
 
 - `DISCORD_UNHEALTHY_MODE=restart-session` restarts the Discord gateway session when watchdogs or API probes mark it unhealthy.

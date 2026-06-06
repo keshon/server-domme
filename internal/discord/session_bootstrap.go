@@ -6,17 +6,19 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/media"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
 
 // NewBot creates a Bot. Register any bot-dependent commands before calling Run.
-func NewBot(cfg *config.Config, storage *storage.Storage, log zerolog.Logger) *Bot {
+func NewBot(cfg *config.Config, storage *storage.Storage, mediaStore media.Store, log zerolog.Logger) *Bot {
 	b := &Bot{
-		cfg:       cfg,
-		storage:   storage,
-		log:       log,
-		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
+		cfg:        cfg,
+		storage:    storage,
+		mediaStore: mediaStore,
+		log:        log,
+		slashCmds:  make(map[string][]*discordgo.ApplicationCommand),
 	}
 	b.sessionCtx.Store(&sessionCtxHolder{ctx: context.Background()})
 	b.cmdGuard.Store(&cmdGuardHolder{g: disabledGuard})

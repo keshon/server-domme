@@ -1,12 +1,15 @@
 package media
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/command"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
+	mediastore "github.com/keshon/server-domme/internal/media"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
@@ -87,6 +90,7 @@ func (c *ManageMediaCommand) Run(ctx interface{}) error {
 	s := context.Session
 	e := context.Event
 	st := context.Storage
+	store := context.MediaStore
 	guildID := e.GuildID
 
 	if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
@@ -104,9 +108,9 @@ func (c *ManageMediaCommand) Run(ctx interface{}) error {
 	sub := data.Options[0]
 	switch sub.Name {
 	case "add-category":
-		return c.runAddCategory(s, e, *st, guildID, sub)
+		return c.runAddCategory(s, e, *st, store, guildID, sub)
 	case "list-categories":
-		return c.runListCategories(s, e, *st, guildID)
+		return c.runListCategories(s, e, *st, store, guildID)
 	case "remove-category":
 		return c.runRemoveCategory(s, e, *st, guildID, sub)
 	case "set-default-category":
@@ -120,8 +124,13 @@ func (c *ManageMediaCommand) Run(ctx interface{}) error {
 	}
 }
 
-func (c *ManageMediaCommand) runAddCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-	name := sub.Options[0].StringValue()
+func (c *ManageMediaCommand) runAddCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, store mediastore.Store, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+	name := sanitizeCategory(sub.Options[0].StringValue())
+	if name == "" {
+		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "Category name cannot be empty.",
+		})
+	}
 
 	existing, err := st.GetMediaCategories(guildID)
 	if err != nil {
@@ -144,12 +153,18 @@ func (c *ManageMediaCommand) runAddCategory(s *discordgo.Session, e *discordgo.I
 		})
 	}
 
+	if store != nil {
+		if err := store.Mkdir(context.Background(), guildID, name); err != nil {
+			log.Printf("[WARN] Failed to create remote category dir %s/%s: %v", guildID, name, err)
+		}
+	}
+
 	return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: fmt.Sprintf("Added new category: `%s`", name),
 	})
 }
 
-func (c *ManageMediaCommand) runListCategories(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string) error {
+func (c *ManageMediaCommand) runListCategories(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, store mediastore.Store, guildID string) error {
 	cats, err := st.GetMediaCategories(guildID)
 	if err != nil {
 		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -163,14 +178,20 @@ func (c *ManageMediaCommand) runListCategories(s *discordgo.Session, e *discordg
 		})
 	}
 
-	list := ""
+	list := strings.Builder{}
 	for i, cat := range cats {
-		list += fmt.Sprintf("%d. %s\n", i+1, cat)
+		count := "?"
+		if store != nil {
+			if files, err := store.List(context.Background(), guildID, cat); err == nil {
+				count = fmt.Sprintf("%d", len(files))
+			}
+		}
+		list.WriteString(fmt.Sprintf("%d. `%s` — %s file(s)\n", i+1, cat, count))
 	}
 
 	return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Title:       "📂 Media Categories",
-		Description: list,
+		Description: list.String(),
 	})
 }
 
@@ -205,7 +226,7 @@ func (c *ManageMediaCommand) runRemoveCategory(s *discordgo.Session, e *discordg
 	}
 
 	return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("Removed category: `%s`", name),
+		Description: fmt.Sprintf("Removed category: `%s`\n-# Files on remote storage were not deleted.", name),
 	})
 }
 

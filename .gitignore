@@ -2,7 +2,11 @@
 *.exe
 *.exe~
 /.VSCodeCounter
+/dev/tools
+/dev/rclone.pid
 /assets/media
+/docker/rclone.conf
+/docker/data/media-plain
 /data/*_task.list.json
 /dist
 /tools
@@ -14,3 +18,5 @@ datastore_dump.json
 dump.bat
 !default_task.list.json
 /tmp
+/data/media-plain
+/dev

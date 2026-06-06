@@ -30,6 +30,7 @@ import (
 	"github.com/keshon/server-domme/internal/command/translate"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord"
+	"github.com/keshon/server-domme/internal/media/rclone"
 	"github.com/keshon/server-domme/internal/middleware"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
@@ -98,10 +99,20 @@ func main() {
 		log.Fatal().Err(err).Msg("task_init_failed")
 	}
 	log.Println("[INFO] Tasks initialized")
+
+	mediaStore, err := rclone.NewFromConfig(cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("media_store_init_failed")
+	}
+	if err := mediaStore.Ping(rootCtx); err != nil {
+		log.Fatal().Err(err).Msg("media_store_ping_failed")
+	}
+	log.Println("[INFO] Media store connected")
+
 	go storage.RunCooldownCleaner(rootCtx, store)
 	log.Println("[INFO] Cooldown cleaner started")
 
-	bot := discord.NewBot(cfg, store, log)
+	bot := discord.NewBot(cfg, store, mediaStore, log)
 
 	registerCommands(bot, log)
 

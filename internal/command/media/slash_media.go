@@ -1,18 +1,18 @@
 package media
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/command"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
+	mediastore "github.com/keshon/server-domme/internal/media"
 )
 
 type RandomMediaCommand struct{}
@@ -34,7 +34,7 @@ func (c *RandomMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "category",
-				Description: "Optional category to pull from (if omitted, uses default or random)",
+				Description: "Optional category to pull from (if omitted, uses default or all)",
 				Required:    false,
 			},
 		},
@@ -42,60 +42,66 @@ func (c *RandomMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *RandomMediaCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	slashCtx, ok := ctx.(*command.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
 
-	s := context.Session
-	e := context.Event
-	st := context.Storage
+	s := slashCtx.Session
+	e := slashCtx.Event
+	st := slashCtx.Storage
+	store := slashCtx.MediaStore
 	guildID := e.GuildID
 
 	data := e.ApplicationCommandData()
-	var category string
-
+	var requested string
 	if len(data.Options) > 0 {
-		category = data.Options[0].StringValue()
+		requested = data.Options[0].StringValue()
 	}
 
-	if category == "" && st != nil {
-		if defCat, err := st.GetMediaDefault(guildID); err == nil && defCat != "" {
-			category = defCat
-			log.Printf("[INFO] Using default media category '%s' for guild %s", defCat, guildID)
-		}
+	category, err := resolveCategory(st, guildID, requested)
+	if err != nil && requested == "" {
+		// No category and no default — search entire guild.
+		category = ""
+	} else if err != nil {
+		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
+			Description: err.Error(),
+		})
 	}
 
-	return c.sendMedia(s, e, guildID, category)
+	if category != "" {
+		log.Printf("[INFO] Using media category '%s' for guild %s", category, guildID)
+	}
+
+	return c.sendMedia(context.Background(), s, e, store, guildID, category)
 }
 
-func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.InteractionCreate, guildID, category string) error {
-	// ACK immediately to avoid "Application unavailable" on slow disks/large media sets.
+func (c *RandomMediaCommand) sendMedia(ctx context.Context, s *discordgo.Session, e *discordgo.InteractionCreate, store mediastore.Store, guildID, category string) error {
+	if store == nil {
+		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
+			Description: "Media storage is not configured.",
+		})
+	}
+
 	if err := discordreply.AckDeferred(s, e); err != nil {
 		log.Printf("[WARN] media: failed to ACK deferred: %v", err)
 	}
 
-	baseDir := filepath.Join("assets", "media", guildID)
-	searchPath := baseDir
-
-	if category != "" {
-		searchPath = filepath.Join(baseDir, category)
-	}
-
-	file, err := pickRandomFile(searchPath)
+	file, err := pickRandomFile(ctx, store, guildID, category)
 	if err != nil {
 		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
 		})
 	}
 
-	f, err := os.Open(file)
+	reader, err := store.Read(ctx, file.Path)
 	if err != nil {
+		log.Printf("[WARN] media: read failed path=%q: %v", file.Path, err)
 		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to open media: %v", err),
 		})
 	}
-	defer f.Close()
+	defer reader.Close()
 
 	username := e.Member.User.Username
 	if e.Member.User.GlobalName != "" {
@@ -105,8 +111,8 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 	_, err = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 		Content: fmt.Sprintf("`#%s`\n-# Requested by **%s**", categoryOrDefault(category), username),
 		Files: []*discordgo.File{{
-			Name:   filepath.Base(file),
-			Reader: f,
+			Name:   file.Name,
+			Reader: reader,
 		}},
 		Components: []discordgo.MessageComponent{
 			discordgo.ActionsRow{
@@ -127,27 +133,43 @@ func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext)
 	e := ctx.Event
 	s := ctx.Session
 	st := ctx.Storage
+	store := ctx.MediaStore
 	guildID := e.GuildID
 
 	customID := e.MessageComponentData().CustomID
 	log.Printf("[DEBUG] Component handler called for: %s\n", customID)
 
-	category := ""
+	requested := ""
 	if parts := strings.SplitN(customID, "|", 2); len(parts) == 2 {
-		category = parts[1]
+		requested = parts[1]
 	}
 
-	if category == "" && st != nil {
-		if defCat, err := st.GetMediaDefault(guildID); err == nil && defCat != "" {
-			category = defCat
-			log.Printf("[INFO] Using default media category '%s' for follow-up in guild %s", defCat, guildID)
-		}
+	category, err := resolveCategory(st, guildID, requested)
+	if err != nil && requested == "" {
+		category = ""
+	} else if err != nil {
+		return s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: err.Error(),
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
 	}
 
-	err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
+	if store == nil {
+		return s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Media storage is not configured.",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+	}
+
+	if err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredMessageUpdate,
-	})
-	if err != nil {
+	}); err != nil {
 		log.Println("[ERR] Failed to ACK interaction:", err)
 		return err
 	}
@@ -157,7 +179,8 @@ func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext)
 		username = e.Member.User.GlobalName
 	}
 
-	file, err := pickRandomFile(filepath.Join("assets", "media", guildID, category))
+	cmdCtx := context.Background()
+	file, err := pickRandomFile(cmdCtx, store, guildID, category)
 	if err != nil {
 		if _, ferr := s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
@@ -167,7 +190,7 @@ func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext)
 		return nil
 	}
 
-	f, err := os.Open(file)
+	reader, err := store.Read(cmdCtx, file.Path)
 	if err != nil {
 		if _, ferr := s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("Failed to open media: %v", err),
@@ -176,13 +199,13 @@ func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext)
 		}
 		return nil
 	}
-	defer f.Close()
+	defer reader.Close()
 
 	_, err = s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 		Content: fmt.Sprintf("`#%s`\n-# Requested by **%s**", categoryOrDefault(category), username),
 		Files: []*discordgo.File{{
-			Name:   filepath.Base(file),
-			Reader: f,
+			Name:   file.Name,
+			Reader: reader,
 		}},
 		Components: []discordgo.MessageComponent{
 			discordgo.ActionsRow{
@@ -202,13 +225,6 @@ func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext)
 	return nil
 }
 
-func categoryOrDefault(cat string) string {
-	if cat == "" {
-		return "random"
-	}
-	return cat
-}
-
 // --- Weighted random system ---
 var (
 	recentHistory   = []string{}
@@ -217,44 +233,32 @@ var (
 	recentHistoryMu sync.Mutex
 )
 
-func pickRandomFile(root string) (string, error) {
-	files := []string{}
-
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			files = append(files, path)
-		}
-		return nil
-	})
+func pickRandomFile(ctx context.Context, store mediastore.Store, guildID, category string) (mediastore.File, error) {
+	files, err := store.List(ctx, guildID, category)
 	if err != nil {
-		return "", err
+		return mediastore.File{}, err
 	}
-
 	if len(files) == 0 {
-		return "", fmt.Errorf("no files found")
+		return mediastore.File{}, fmt.Errorf("no files found")
 	}
-
 	return pickWeightedRandomFile(files), nil
 }
 
-func pickWeightedRandomFile(files []string) string {
+func pickWeightedRandomFile(files []mediastore.File) mediastore.File {
 	recentHistoryMu.Lock()
 	defer recentHistoryMu.Unlock()
 
 	if len(files) == 0 {
-		return ""
+		return mediastore.File{}
 	}
 	if len(files) == 1 {
-		updateHistory(files[0])
+		updateHistory(files[0].Path)
 		return files[0]
 	}
 
 	weights := make([]float64, len(files))
 	for i, file := range files {
-		recencyIndex := findInHistory(file)
+		recencyIndex := findInHistory(file.Path)
 		if recencyIndex == -1 {
 			weights[i] = 1.0
 		} else {
@@ -273,12 +277,12 @@ func pickWeightedRandomFile(files []string) string {
 	for i, w := range weights {
 		acc += w
 		if r <= acc {
-			updateHistory(files[i])
+			updateHistory(files[i].Path)
 			return files[i]
 		}
 	}
 
-	updateHistory(files[len(files)-1])
+	updateHistory(files[len(files)-1].Path)
 	return files[len(files)-1]
 }
 

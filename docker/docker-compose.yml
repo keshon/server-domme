@@ -1,8 +1,25 @@
 services:
+  rclone:
+    container_name: ${ALIAS}-rclone
+    restart: always
+    image: rclone/rclone:latest
+    command: >
+      rcd
+      --rc-addr :5572
+      --rc-no-auth
+      --config /config/rclone/rclone.conf
+    volumes:
+      - ./rclone.conf:/config/rclone/rclone.conf:ro
+      - ./data/media-plain:/media
+    networks:
+      - proxy
+
   app:
     container_name: ${ALIAS}
     restart: always
     image: '${ALIAS}-image'
+    depends_on:
+      - rclone
     volumes:
       - ./data:/usr/project/data
     environment:
@@ -26,6 +43,10 @@ services:
       - PROTECTED_USERS=${PROTECTED_USERS}
       - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
       - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
+      - MEDIA_RCLONE_RC_URL=http://rclone:5572
+      - MEDIA_RCLONE_REMOTE=${MEDIA_RCLONE_REMOTE:-crypt-media}
+      - MEDIA_RCLONE_USER=${MEDIA_RCLONE_USER:-}
+      - MEDIA_RCLONE_PASS=${MEDIA_RCLONE_PASS:-}
     entrypoint: /usr/project/app
     networks:
       - proxy

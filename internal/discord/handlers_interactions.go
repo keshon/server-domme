@@ -43,7 +43,7 @@ func (b *Bot) onApplicationCommand(s *discordgo.Session, i *discordgo.Interactio
 		}}
 	case discordgo.ChatApplicationCommand:
 		inv = &commandkit.Invocation{Data: &command.SlashInteractionContext{
-			Session: s, Event: i, Storage: b.storage,
+			Session: s, Event: i, Storage: b.storage, MediaStore: b.mediaStore,
 			Config: b.cfg, Responder: discordreply.DefaultResponder, Logger: logger,
 			AppLog: b.log,
 			Syncer: b.cmdSyncer,
@@ -86,7 +86,7 @@ func (b *Bot) onComponentInteraction(s *discordgo.Session, i *discordgo.Interact
 	b.runGuardedInteraction(s, i, "component", matched.Name(), func(cmdCtx context.Context) error {
 		_ = cmdCtx
 		return handler.Component(&command.ComponentInteractionContext{
-			Session: s, Event: i, Storage: b.storage,
+			Session: s, Event: i, Storage: b.storage, MediaStore: b.mediaStore,
 			Config: b.cfg, Responder: discordreply.DefaultResponder, Logger: logger,
 			AppLog: b.log,
 		})

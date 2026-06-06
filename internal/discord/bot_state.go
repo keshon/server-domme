@@ -11,15 +11,17 @@ import (
 	"github.com/keshon/server-domme/internal/discord/commandlogger"
 	"github.com/keshon/server-domme/internal/discord/commandsync"
 	"github.com/keshon/server-domme/internal/discord/execguard"
+	"github.com/keshon/server-domme/internal/media"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
 
 // Bot is the Discord bot. Lifecycle is managed by Run/run; handlers are wired in run.
 type Bot struct {
-	dg        *discordgo.Session
-	storage   *storage.Storage
-	slashCmds map[string][]*discordgo.ApplicationCommand
+	dg         *discordgo.Session
+	storage    *storage.Storage
+	mediaStore media.Store
+	slashCmds  map[string][]*discordgo.ApplicationCommand
 	cfg       *config.Config
 	mu        sync.RWMutex
 	log       zerolog.Logger

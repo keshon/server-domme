@@ -1,17 +1,15 @@
 package media
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/command"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
+	mediastore "github.com/keshon/server-domme/internal/media"
 )
 
 type UploadMediaCommand struct{}
@@ -89,11 +87,10 @@ func (c *UploadMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Description: "Optional 10th file",
 				Required:    false,
 			},
-			// ✅ Optional string goes last
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "category",
-				Description: "Tag or category for the uploaded media (e.g. memes, cats)",
+				Description: "Registered category for the upload (uses default if omitted)",
 				Required:    false,
 			},
 		},
@@ -101,13 +98,15 @@ func (c *UploadMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *UploadMediaCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	slashCtx, ok := ctx.(*command.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
 
-	s := context.Session
-	e := context.Event
+	s := slashCtx.Session
+	e := slashCtx.Event
+	st := slashCtx.Storage
+	store := slashCtx.MediaStore
 	guildID := e.GuildID
 
 	if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
@@ -115,18 +114,23 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 		return err
 	}
 
+	if store == nil {
+		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "Media storage is not configured.",
+		})
+	}
+
 	data := e.ApplicationCommandData()
 	options := data.Options
 
-	var category string = "uncategorized"
+	var requestedCategory string
 	files := []*discordgo.MessageAttachment{}
 
-	// Extract category + attachments
 	for _, opt := range options {
 		switch opt.Type {
 		case discordgo.ApplicationCommandOptionString:
 			if opt.Name == "category" {
-				category = sanitizeCategory(opt.StringValue())
+				requestedCategory = opt.StringValue()
 			}
 		case discordgo.ApplicationCommandOptionAttachment:
 			if att, ok := data.Resolved.Attachments[opt.Value.(string)]; ok {
@@ -141,11 +145,25 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 		})
 	}
 
+	category, err := resolveCategory(st, guildID, requestedCategory)
+	if err != nil {
+		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: err.Error(),
+		})
+	}
+
+	if err := validateRegisteredCategory(st, guildID, category); err != nil {
+		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: err.Error(),
+		})
+	}
+
+	cmdCtx := context.Background()
 	saved := 0
 	failed := 0
 
 	for _, file := range files {
-		if err := saveUploadedFile(file, guildID, category); err != nil {
+		if err := saveUploadedFile(cmdCtx, store, file, guildID, category); err != nil {
 			log.Printf("[ERROR] Failed to save uploaded file %s: %v", file.Filename, err)
 			failed++
 			continue
@@ -162,17 +180,7 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 	})
 }
 
-func sanitizeCategory(cat string) string {
-	cat = strings.TrimSpace(cat)
-	if cat == "" {
-		return "uncategorized"
-	}
-	cat = strings.ToLower(cat)
-	cat = strings.ReplaceAll(cat, " ", "_")
-	return cat
-}
-
-func saveUploadedFile(att *discordgo.MessageAttachment, guildID, category string) error {
+func saveUploadedFile(ctx context.Context, store mediastore.Store, att *discordgo.MessageAttachment, guildID, category string) error {
 	resp, err := http.Get(att.URL)
 	if err != nil {
 		return fmt.Errorf("failed to download attachment: %v", err)
@@ -183,21 +191,5 @@ func saveUploadedFile(att *discordgo.MessageAttachment, guildID, category string
 		return fmt.Errorf("bad response downloading file: %v", resp.Status)
 	}
 
-	dir := filepath.Join("assets", "media", guildID, category)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create dir: %v", err)
-	}
-
-	destPath := filepath.Join(dir, att.Filename)
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		return fmt.Errorf("failed to write file: %v", err)
-	}
-
-	return nil
+	return store.Write(ctx, guildID, category, att.Filename, resp.Body)
 }

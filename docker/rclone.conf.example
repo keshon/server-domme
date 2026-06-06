@@ -1,0 +1,28 @@
+# Copy to rclone.conf and set passwords with: rclone obscure "your-password"
+#
+# Local backend (development / self-hosted):
+[media-plain]
+type = local
+noun = true
+
+[crypt-media]
+type = crypt
+remote = media-plain:/media
+password = REPLACE_ME
+# password2 = OPTIONAL_SALT
+
+# Cloud example — replace [media-plain] with your provider remote, keep crypt-media name:
+#
+# [s3-media]
+# type = s3
+# provider = Other
+# env_auth = false
+# access_key_id = ...
+# secret_access_key = ...
+# endpoint = ...
+# bucket = my-bucket
+#
+# [crypt-media]
+# type = crypt
+# remote = s3-media:media
+# password = REPLACE_ME

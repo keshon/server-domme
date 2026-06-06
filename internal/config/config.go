@@ -42,6 +42,10 @@ type Config struct {
 	LogCompress   bool   `env:"LOG_COMPRESS" envDefault:"false"`
 
 	TasksPath        string   `env:"TASKS_PATH,required"`
+	MediaRcloneRCURL string   `env:"MEDIA_RCLONE_RC_URL" envDefault:"http://127.0.0.1:5572"`
+	MediaRcloneRemote string  `env:"MEDIA_RCLONE_REMOTE" envDefault:"crypt-media"`
+	MediaRcloneUser  string   `env:"MEDIA_RCLONE_USER"`
+	MediaRclonePass  string   `env:"MEDIA_RCLONE_PASS"`
 	ProtectedUsers   []string `env:"PROTECTED_USERS" envSeparator:","`
 	AIProvider       string   `env:"AI_PROVIDER"`
 	AIPromptPath     string   `env:"AI_PROMPT_PATH"`
