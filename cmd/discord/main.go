@@ -11,9 +11,8 @@ import (
 	"time"
 
 	"github.com/keshon/buildinfo"
-	"github.com/keshon/commandkit"
+	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/applog"
-	"github.com/keshon/server-domme/internal/command"
 	"github.com/keshon/server-domme/internal/command/announce"
 	"github.com/keshon/server-domme/internal/command/ask"
 	"github.com/keshon/server-domme/internal/command/confess"
@@ -30,44 +29,11 @@ import (
 	"github.com/keshon/server-domme/internal/command/translate"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/middleware"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
-
-func registerCommands(bot *discord.Bot, log zerolog.Logger) {
-	mw := defaultMiddleware(log)
-	command.Register(&about.About{}, mw...)
-	command.Register(&help.Help{}, mw...)
-	command.Register(&commands.Commands{}, mw...)
-	command.Register(&maintenance.Maintenance{}, mw...)
-
-	command.Register(&announce.AnnounceCommand{}, mw...)
-	command.Register(&announce.ManageAnnounceCommand{}, mw...)
-	command.Register(&announce.AnnounceContextCommand{}, mw...)
-
-	command.Register(&ask.AskCommand{}, mw...)
-
-	command.Register(&confess.ConfessCommand{}, mw...)
-	command.Register(&confess.ManageConfessCommand{}, mw...)
-
-	command.Register(&discipline.DisciplineCommand{}, mw...)
-	command.Register(&discipline.ManageDisciplineCommand{}, mw...)
-
-	command.Register(&media.RandomMediaCommand{}, mw...)
-	command.Register(&media.UploadMediaCommand{}, mw...)
-	command.Register(&media.ManageMediaCommand{}, mw...)
-
-	command.Register(&purge.PurgeCommand{}, mw...)
-	command.Register(&roll.RollCommand{}, mw...)
-	command.Register(&shortlink.ShortlinkCommand{}, mw...)
-
-	command.Register(&taskcmd.TaskCommand{}, mw...)
-	command.Register(&taskcmd.ManageTaskCommand{}, mw...)
-
-	command.Register(&translate.ManageTranslateCommand{}, mw...)
-	command.Register(&translate.TranslateOnReaction{}, mw...)
-}
 
 func main() {
 	info := buildinfo.Get()
@@ -103,7 +69,7 @@ func main() {
 
 	bot := discord.NewBot(cfg, store, log)
 
-	registerCommands(bot, log)
+	registerCommands(log)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -150,11 +116,45 @@ func main() {
 	log.Info().Msg("bot_exit")
 }
 
-func defaultMiddleware(log zerolog.Logger) []commandkit.Middleware {
-	return []commandkit.Middleware{
+func defaultMiddleware(log zerolog.Logger) []command.Middleware {
+	return []command.Middleware{
 		middleware.WithGroupAccessCheck(),
 		middleware.WithGuildOnly(),
 		middleware.WithUserPermissionCheck(),
 		middleware.WithCommandLogger(log),
 	}
+}
+
+func registerCommands(log zerolog.Logger) {
+	mw := defaultMiddleware(log)
+	cmdadapter.Register(&about.About{}, mw...)
+	cmdadapter.Register(&help.Help{}, mw...)
+	cmdadapter.Register(&commands.Commands{}, mw...)
+	cmdadapter.Register(&maintenance.Maintenance{}, mw...)
+
+	cmdadapter.Register(&announce.AnnounceCommand{}, mw...)
+	cmdadapter.Register(&announce.ManageAnnounceCommand{}, mw...)
+	cmdadapter.Register(&announce.AnnounceContextCommand{}, mw...)
+
+	cmdadapter.Register(&ask.AskCommand{}, mw...)
+
+	cmdadapter.Register(&confess.ConfessCommand{}, mw...)
+	cmdadapter.Register(&confess.ManageConfessCommand{}, mw...)
+
+	cmdadapter.Register(&discipline.DisciplineCommand{}, mw...)
+	cmdadapter.Register(&discipline.ManageDisciplineCommand{}, mw...)
+
+	cmdadapter.Register(&media.RandomMediaCommand{}, mw...)
+	cmdadapter.Register(&media.UploadMediaCommand{}, mw...)
+	cmdadapter.Register(&media.ManageMediaCommand{}, mw...)
+
+	cmdadapter.Register(&purge.PurgeCommand{}, mw...)
+	cmdadapter.Register(&roll.RollCommand{}, mw...)
+	cmdadapter.Register(&shortlink.ShortlinkCommand{}, mw...)
+
+	cmdadapter.Register(&taskcmd.TaskCommand{}, mw...)
+	cmdadapter.Register(&taskcmd.ManageTaskCommand{}, mw...)
+
+	cmdadapter.Register(&translate.ManageTranslateCommand{}, mw...)
+	cmdadapter.Register(&translate.TranslateOnReaction{}, mw...)
 }

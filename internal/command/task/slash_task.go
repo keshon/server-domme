@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/command"
 	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	st "github.com/keshon/server-domme/internal/domain"
 	"github.com/keshon/server-domme/internal/storage"
@@ -53,14 +53,14 @@ func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *TaskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
 	return c.runSelfAssign(context)
 }
 
-func (c *TaskCommand) runSelfAssign(context *command.SlashInteractionContext) error {
+func (c *TaskCommand) runSelfAssign(context *cmdadapter.SlashInteractionContext) error {
 
 	session := context.Session
 	event := context.Event
@@ -194,7 +194,7 @@ func (c *TaskCommand) assignTask(session *discordgo.Session, event *discordgo.In
 
 }
 
-func (c *TaskCommand) Component(ctx *command.ComponentInteractionContext) error {
+func (c *TaskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	guildID := event.GuildID
@@ -248,7 +248,7 @@ func (c *TaskCommand) Component(ctx *command.ComponentInteractionContext) error 
 	return nil
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *command.ComponentInteractionContext, event *discordgo.InteractionCreate, task *st.Task) {
+func (c *TaskCommand) handleTaskCompletion(ctx *cmdadapter.ComponentInteractionContext, event *discordgo.InteractionCreate, task *st.Task) {
 	session := ctx.Session
 	userID, guildID := event.Member.User.ID, event.GuildID
 	customID := event.MessageComponentData().CustomID

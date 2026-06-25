@@ -1,20 +1,21 @@
+// FILE: melodix/internal/discord/middleware/command_logger.go
 package middleware
 
 import (
 	"context"
 
-	"github.com/keshon/server-domme/internal/command"
-
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/commandkit"
+	"github.com/keshon/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+
 	"github.com/rs/zerolog"
 )
 
 // WithCommandLogger wraps a command to log its execution after Run completes.
 // Logging is best-effort: failures are warned but never affect the command result.
-func WithCommandLogger(log zerolog.Logger) commandkit.Middleware {
-	return func(c commandkit.Command) commandkit.Command {
-		return commandkit.Wrap(c, func(ctx context.Context, inv *commandkit.Invocation) error {
+func WithCommandLogger(log zerolog.Logger) command.Middleware {
+	return func(c command.Command) command.Command {
+		return command.Wrap(c, func(ctx context.Context, inv *command.Invocation) error {
 			err := c.Run(ctx, inv)
 			logInvocation(log, c.Name(), inv)
 			return err
@@ -23,23 +24,23 @@ func WithCommandLogger(log zerolog.Logger) commandkit.Middleware {
 }
 
 // logInvocation resolves the invocation context and delegates to the injected logger.
-func logInvocation(log zerolog.Logger, cmdName string, inv *commandkit.Invocation) {
+func logInvocation(log zerolog.Logger, cmdName string, inv *command.Invocation) {
 	switch v := inv.Data.(type) {
-	case *command.SlashInteractionContext:
+	case *cmdadapter.SlashInteractionContext:
 		logInteraction(log, cmdName, v.Logger, v.Session, v.Event)
 
-	case *command.ComponentInteractionContext:
+	case *cmdadapter.ComponentInteractionContext:
 		logInteraction(log, cmdName, v.Logger, v.Session, v.Event)
 
-	case *command.MessageApplicationCommandContext:
+	case *cmdadapter.MessageApplicationCommandContext:
 		logInteraction(log, cmdName, v.Logger, v.Session, v.Event)
 
-	case *command.MessageReactionContext:
+	case *cmdadapter.MessageReactionContext:
 		if v.Logger != nil {
 			logEntry(log, cmdName, v.Logger, v.Event.GuildID, v.Event.ChannelID, v.Event.UserID, v.Event.UserID)
 		}
 
-	case *command.MessageContext:
+	case *cmdadapter.MessageContext:
 		// Message commands are intentionally not logged.
 
 	default:
@@ -48,7 +49,7 @@ func logInvocation(log zerolog.Logger, cmdName string, inv *commandkit.Invocatio
 }
 
 // logInteraction extracts user info from an InteractionCreate event and logs it.
-func logInteraction(log zerolog.Logger, cmdName string, logger command.Logger, s *discordgo.Session, e *discordgo.InteractionCreate) {
+func logInteraction(log zerolog.Logger, cmdName string, logger cmdadapter.Logger, s *discordgo.Session, e *discordgo.InteractionCreate) {
 	if logger == nil {
 		return
 	}
@@ -57,7 +58,7 @@ func logInteraction(log zerolog.Logger, cmdName string, logger command.Logger, s
 }
 
 // logEntry calls the logger and warns on failure.
-func logEntry(log zerolog.Logger, cmdName string, logger command.Logger, guildID, channelID, userID, username string) {
+func logEntry(log zerolog.Logger, cmdName string, logger cmdadapter.Logger, guildID, channelID, userID, username string) {
 	if err := logger.LogCommand(guildID, channelID, userID, username, cmdName); err != nil {
 		log.Warn().Str("command", cmdName).Err(err).Msg("command_audit_write_failed")
 	}

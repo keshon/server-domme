@@ -8,8 +8,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/commandlogger"
-	"github.com/keshon/server-domme/internal/discord/commandsync"
+	"github.com/keshon/server-domme/internal/discord/cmdlogger"
+	"github.com/keshon/server-domme/internal/discord/cmdsync"
 	"github.com/keshon/server-domme/internal/discord/execguard"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
@@ -24,8 +24,8 @@ type Bot struct {
 	mu        sync.RWMutex
 	log       zerolog.Logger
 
-	cmdSyncer *commandsync.Syncer
-	cmdLogger *commandlogger.Logger
+	cmdSyncer *cmdsync.Syncer
+	cmdLogger *cmdlogger.Logger
 
 	sessionCtx atomic.Value // *sessionCtxHolder
 	cmdGuard   atomic.Value // *cmdGuardHolder

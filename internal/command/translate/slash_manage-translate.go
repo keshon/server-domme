@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	"github.com/keshon/server-domme/internal/storage"
 )
@@ -67,7 +67,7 @@ func (c *ManageTranslateCommand) SlashDefinition() *discordgo.ApplicationCommand
 }
 
 func (c *ManageTranslateCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
 	if !ok {
 		return nil
 	}

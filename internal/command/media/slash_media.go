@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 )
 
@@ -42,7 +42,7 @@ func (c *RandomMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *RandomMediaCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -123,7 +123,7 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 	return err
 }
 
-func (c *RandomMediaCommand) Component(ctx *command.ComponentInteractionContext) error {
+func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionContext) error {
 	e := ctx.Event
 	s := ctx.Session
 	st := ctx.Storage

@@ -12,7 +12,7 @@ import (
 
 	"strings"
 
-	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -39,7 +39,7 @@ func (c *AnnounceContextCommand) ContextDefinition() *discordgo.ApplicationComma
 }
 
 func (c *AnnounceContextCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.MessageApplicationCommandContext)
+	context, ok := ctx.(*cmdadapter.MessageApplicationCommandContext)
 	if !ok {
 		return nil
 	}

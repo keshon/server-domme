@@ -3,7 +3,7 @@ package ask
 import (
 	"fmt"
 
-	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 
 	"strings"
@@ -54,7 +54,7 @@ func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *AskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -120,7 +120,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	return nil
 }
 
-func (c *AskCommand) Component(ctx *command.ComponentInteractionContext) error {
+func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) error {
 	session, event := ctx.Session, ctx.Event
 	customID := event.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 )
 
 type TranslateOnReaction struct{}
@@ -36,7 +36,7 @@ var flags = map[string]string{
 }
 
 func (t *TranslateOnReaction) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.MessageReactionContext)
+	context, ok := ctx.(*cmdadapter.MessageReactionContext)
 	if !ok {
 		return nil
 	}

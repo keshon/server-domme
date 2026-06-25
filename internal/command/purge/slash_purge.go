@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/keshon/server-domme/internal/command"
-
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 )
 
 type PurgeCommand struct{}
@@ -111,7 +110,7 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 }
 
 func (c *PurgeCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*command.SlashInteractionContext)
+	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
 	if !ok {
 		return nil
 	}
@@ -143,7 +142,7 @@ func (c *PurgeCommand) Run(ctx interface{}) error {
 	}
 }
 
-func runPurgeAuto(ctx *command.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+func runPurgeAuto(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
@@ -234,7 +233,7 @@ func runPurgeAuto(ctx *command.SlashInteractionContext, sub *discordgo.Applicati
 	return nil
 }
 
-func runPurgeNow(ctx *command.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
@@ -308,7 +307,7 @@ func runPurgeNow(ctx *command.SlashInteractionContext, sub *discordgo.Applicatio
 	return nil
 }
 
-func runPurgeJobs(ctx *command.SlashInteractionContext) error {
+func runPurgeJobs(ctx *cmdadapter.SlashInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage
@@ -343,7 +342,7 @@ func runPurgeJobs(ctx *command.SlashInteractionContext) error {
 	return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: sb.String()})
 }
 
-func runPurgeStop(ctx *command.SlashInteractionContext) error {
+func runPurgeStop(ctx *cmdadapter.SlashInteractionContext) error {
 	session := ctx.Session
 	event := ctx.Event
 	storage := ctx.Storage

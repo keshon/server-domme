@@ -8,8 +8,8 @@ import (
 	"sort"
 	"text/template"
 
-	"github.com/keshon/commandkit"
-	"github.com/keshon/server-domme/internal/command"
+	"github.com/keshon/command"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog"
@@ -38,12 +38,12 @@ var RecommendedBotPermissionsList = []string{
 
 // UpdateReadme generates README.md from the command registry and category ordering.
 // categoryWeights maps category name to sort order (lower first).
-func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int, log zerolog.Logger) error {
+func UpdateReadme(registry *command.Registry, categoryWeights map[string]int, log zerolog.Logger) error {
 	commands := registry.GetAll()
 
 	sort.Slice(commands, func(i, j int) bool {
-		metaI, _ := commandkit.Root(commands[i]).(command.Meta)
-		metaJ, _ := commandkit.Root(commands[j]).(command.Meta)
+		metaI, _ := command.Root(commands[i]).(cmdadapter.Meta)
+		metaJ, _ := command.Root(commands[j]).(cmdadapter.Meta)
 
 		catI := ""
 		catJ := ""
@@ -68,9 +68,9 @@ func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int,
 	currentCategory := ""
 
 	for _, c := range commands {
-		root := commandkit.Root(c)
+		root := command.Root(c)
 
-		meta, _ := root.(command.Meta)
+		meta, _ := root.(cmdadapter.Meta)
 		cat := ""
 		if meta != nil {
 			cat = meta.Category()
@@ -127,7 +127,7 @@ func UpdateReadme(registry *commandkit.Registry, categoryWeights map[string]int,
 	return nil
 }
 
-func renderDiscordCommand(buf *bytes.Buffer, c commandkit.Command) {
+func renderDiscordCommand(buf *bytes.Buffer, c command.Command) {
 	name := c.Name()
 	display := name
 	if !(hasSpace(name) || startsWithUpper(name)) {
@@ -140,7 +140,7 @@ func renderDiscordCommand(buf *bytes.Buffer, c commandkit.Command) {
 		c.Description(),
 	))
 
-	sp, ok := c.(command.SlashProvider)
+	sp, ok := c.(cmdadapter.SlashProvider)
 	if !ok {
 		return
 	}

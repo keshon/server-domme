@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/commandkit"
+	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/purge"
 	"github.com/keshon/server-domme/internal/readme"
@@ -37,7 +37,7 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	// Background services start once across all reconnects.
 	b.once.Do(func() {
 		b.log.Info().Msg("bg_services_started")
-		if err := readme.UpdateReadme(commandkit.DefaultRegistry, config.CategoryWeights, b.log); err != nil {
+		if err := readme.UpdateReadme(command.DefaultRegistry, config.CategoryWeights, b.log); err != nil {
 			b.log.Error().Err(err).Msg("readme_update_failed")
 		}
 		bgCtx, _ := context.WithCancel(context.Background())
