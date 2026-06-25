@@ -26,7 +26,7 @@ It’s designed to be practical for server management while providing light, int
 
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
-  - **/help category** — View commands grouped by category
+  - **`/help category** — View commands grouped by category
   - **/help group** — View commands grouped by group
   - **/help flat** — View all commands as a flat list
 
@@ -35,7 +35,7 @@ It’s designed to be practical for server management while providing light, int
 - **Announce (context command)** — Send a message on bot's behalf
 - **/announce** — Send a message on bot's behalf
 - **/shortlink** — Shorten URLs and manage your links
-  - **/shortlink create** — Shorten a URL
+  - **`/shortlink create** — Shorten a URL
   - **/shortlink list** — List your shortened URLs
   - **/shortlink delete** — Delete a specific shortened URL
   - **/shortlink clear** — Clear all your shortened URLs
@@ -50,7 +50,7 @@ It’s designed to be practical for server management while providing light, int
 - **/ask** — Ask for permission to contact another member
 - **/confess** — Send an anonymous confession
 - **/discipline** — Punish or release a brat
-  - **/discipline punish** — Assign the brat role
+  - **`/discipline punish** — Assign the brat role
   - **/discipline release** — Remove the brat role
 - **/task** — Assign yourself a new random task
 
@@ -62,53 +62,53 @@ It’s designed to be practical for server management while providing light, int
 ### 🧹 Cleanup
 
 - **/purge** — Manage message purges
-  - **/purge auto** — Regularly purge old messages in this channel
+  - **`/purge auto** — Regularly purge old messages in this channel
   - **/purge now** — Schedule or perform an immediate purge
   - **/purge jobs** — List all active purge jobs
   - **/purge stop** — Stop ongoing purge in this channel
 
 ### ⚙️ Settings
 
-- **/commands** — Manage or inspect commands
-  - **/commands log** — Review recent commands called by users
-  - **/commands status** — Check which command groups are enabled or disabled
-  - **/commands toggle** — Enable or disable a group of commands
-  - **/commands update** — Re-register or update slash commands
+- **/settings** — Server settings
+  - **`/settings announce channel-set** — Set the announcement channel
+  - **/settings announce channel-show** — Show the current announcement channel
+  - **/settings announce channel-reset** — Remove the announcement channel
+  - **/settings confess channel-set** — Set the confession channel
+  - **/settings confess channel-show** — Show the current confession channel
+  - **/settings confess channel-reset** — Remove the confession channel
+  - **/settings discipline roles-set** — Configure discipline roles
+  - **/settings discipline roles-show** — Show configured discipline roles
+  - **/settings discipline roles-reset** — Reset discipline role configuration
+  - **/settings media category-add** — Add a media category
+  - **/settings media category-list** — List media categories
+  - **/settings media category-remove** — Remove a media category
+  - **/settings media default-set** — Set the default media category
+  - **/settings media default-show** — Show the default media category
+  - **/settings media default-reset** — Clear the default media category
+  - **/settings task role-set** — Configure the Tasker role
+  - **/settings task role-show** — Show the configured Tasker role
+  - **/settings task role-reset** — Reset the Tasker role configuration
+  - **/settings task tasks-upload** — Upload a task list
+  - **/settings task tasks-download** — Download the current task list
+  - **/settings task tasks-reset** — Reset tasks to defaults
+  - **/settings task cooldown-set** — Set task cooldown duration
+  - **/settings task cooldown-show** — Show cooldown settings and active cooldowns
+  - **/settings translate channel-add** — Enable translation reactions in a channel
+  - **/settings translate channel-remove** — Disable translation reactions in a channel
+  - **/settings translate channel-list** — List translation-enabled channels
+  - **/settings translate channels-clear** — Remove all translation-enabled channels
+  - **/settings commands log** — Review recently used commands
+  - **/settings commands status** — Show enabled and disabled command groups
+  - **/settings commands enable** — Enable a command group
+  - **/settings commands disable** — Disable a command group
+
+### 🛠️ Maintenance
+
 - **/maintenance** — Bot maintenance commands
-  - **/maintenance ping** — Check bot latency
-  - **/maintenance download-db** — Download the current server database as a JSON file
-  - **/maintenance status** — Retrieve statistics about the guild
-- **/manage-announce** — Announcement settings
-  - **/manage-announce set-channel** — Set or update the announcement channel
-  - **/manage-announce reset-channel** — Reset and remove the current announcement channel
-- **/manage-confess** — Confession settings
-  - **/manage-confess set-channel** — Set the confession channel
-  - **/manage-confess list-channel** — Show the currently configured confession channel
-  - **/manage-confess reset-channel** — Remove the confession channel
-- **/manage-discipline** — Discipline settings
-  - **/manage-discipline set-roles** — Set or update discipline roles
-  - **/manage-discipline list-roles** — List all configured discipline roles
-  - **/manage-discipline reset-roles** — Reset all discipline role configurations
-- **/manage-media** — Media settings
-  - **/manage-media add-category** — Add a new media category
-  - **/manage-media list-categories** — List all existing media categories
-  - **/manage-media remove-category** — Remove a media category
-  - **/manage-media set-default-category** — Set a default media category for this server
-  - **/manage-media reset-default-category** — Reset the default media category to none
-- **/manage-task** — Task settings
-  - **/manage-task set-role** — Set or update a Tasker role
-  - **/manage-task list-role** — List all task-related roles
-  - **/manage-task reset-role** — Reset the Tasker role configuration
-  - **/manage-task upload-tasks** — Upload a new task list for this server
-  - **/manage-task download-tasks** — Download the current task list for this server
-  - **/manage-task reset-tasks** — Reset the task list to default for this server
-  - **/manage-task set-cooldown** — Set task cooldown duration for this server
-  - **/manage-task list-cooldowns** — Show guild cooldown setting and active user cooldowns
-- **/manage-translate** — Translate settings
-  - **/manage-translate set-channel** — Add a channel to the translate list
-  - **/manage-translate reset-channel** — Remove a channel from the translate list
-  - **/manage-translate list-channels** — List all channels enabled for translation reactions
-  - **/manage-translate reset-all-channels** — Reset all channels for translation reactions
+  - **`/maintenance ping** — Check bot latency
+  - **/maintenance export-data** — Export the current server database as JSON
+  - **/maintenance status** — Retrieve guild statistics
+  - **/maintenance sync** — Re-register slash commands
 
 
 ---

@@ -101,7 +101,7 @@ func (c *DisciplineCommand) runPunish(s *discordgo.Session, e *discordgo.Interac
 
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
 		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Roles not configured properly. Set them first via `/manage-discipline roles`.",
+			Description: "Roles not configured properly. Set them first via `/settings discipline roles-set`.",
 		})
 		return nil
 	}
@@ -132,7 +132,7 @@ func (c *DisciplineCommand) runRelease(s *discordgo.Session, e *discordgo.Intera
 
 	if punisherRoleID == "" || assignedRoleID == "" {
 		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Roles not configured properly. Set them first via `/manage-discipline roles`.",
+			Description: "Roles not configured properly. Set them first via `/settings discipline roles-set`.",
 		})
 		return nil
 	}

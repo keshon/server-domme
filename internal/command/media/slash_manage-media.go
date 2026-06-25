@@ -2,117 +2,27 @@ package media
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
-type ManageMediaCommand struct{}
-
-func (c *ManageMediaCommand) Name() string        { return "manage-media" }
-func (c *ManageMediaCommand) Description() string { return "Media settings" }
-func (c *ManageMediaCommand) Group() string       { return "media" }
-func (c *ManageMediaCommand) Category() string    { return "⚙️ Settings" }
-func (c *ManageMediaCommand) UserPermissions() []int64 {
-	return []int64{discordgo.PermissionAdministrator}
-}
-
-func (c *ManageMediaCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        c.Name(),
-		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "add-category",
-				Description: "Add a new media category",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "name",
-						Description: "Category name",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "list-categories",
-				Description: "List all existing media categories",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "remove-category",
-				Description: "Remove a media category",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "name",
-						Description: "Category name to remove",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-default-category",
-				Description: "Set a default media category for this server",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "name",
-						Description: "Category name to set as default",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-default-category",
-				Description: "Reset the default media category to none",
-			},
-		},
-	}
-}
-
-func (c *ManageMediaCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	s := context.Session
-	e := context.Event
-	st := context.Storage
-	guildID := e.GuildID
-
-	if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
-		log.Printf("[ERROR] Failed to defer interaction: %v", err)
-		return err
-	}
-
-	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	sub := data.Options[0]
+// RunManageMediaSettings handles media settings subcommands.
+func RunManageMediaSettings(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	switch sub.Name {
-	case "add-category":
-		return c.runAddCategory(s, e, *st, guildID, sub)
-	case "list-categories":
-		return c.runListCategories(s, e, *st, guildID)
-	case "remove-category":
-		return c.runRemoveCategory(s, e, *st, guildID, sub)
-	case "set-default-category":
-		return c.runSetDefaultCategory(s, e, *st, guildID, sub)
-	case "reset-default-category":
-		return c.runResetDefaultCategory(s, e, *st, guildID)
+	case "category-add":
+		return runAddCategory(s, e, st, guildID, sub)
+	case "category-list":
+		return runListCategories(s, e, st, guildID)
+	case "category-remove":
+		return runRemoveCategory(s, e, st, guildID, sub)
+	case "default-set":
+		return runSetDefaultCategory(s, e, st, guildID, sub)
+	case "default-show":
+		return runShowDefaultCategory(s, e, st, guildID)
+	case "default-reset":
+		return runResetDefaultCategory(s, e, st, guildID)
 	default:
 		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
@@ -120,7 +30,67 @@ func (c *ManageMediaCommand) Run(ctx interface{}) error {
 	}
 }
 
-func (c *ManageMediaCommand) runAddCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+// MediaSettingsOptions returns slash options for media settings.
+func MediaSettingsOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "category-add",
+			Description: "Add a media category",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "name",
+					Description: "Category name",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "category-list",
+			Description: "List media categories",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "category-remove",
+			Description: "Remove a media category",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "name",
+					Description: "Category name to remove",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "default-set",
+			Description: "Set the default media category",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "name",
+					Description: "Category name to set as default",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "default-show",
+			Description: "Show the default media category",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "default-reset",
+			Description: "Clear the default media category",
+		},
+	}
+}
+
+func runAddCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	name := sub.Options[0].StringValue()
 
 	existing, err := st.GetMediaCategories(guildID)
@@ -149,7 +119,7 @@ func (c *ManageMediaCommand) runAddCategory(s *discordgo.Session, e *discordgo.I
 	})
 }
 
-func (c *ManageMediaCommand) runListCategories(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string) error {
+func runListCategories(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string) error {
 	cats, err := st.GetMediaCategories(guildID)
 	if err != nil {
 		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -174,7 +144,7 @@ func (c *ManageMediaCommand) runListCategories(s *discordgo.Session, e *discordg
 	})
 }
 
-func (c *ManageMediaCommand) runRemoveCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+func runRemoveCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	name := sub.Options[0].StringValue()
 
 	existing, err := st.GetMediaCategories(guildID)
@@ -209,7 +179,7 @@ func (c *ManageMediaCommand) runRemoveCategory(s *discordgo.Session, e *discordg
 	})
 }
 
-func (c *ManageMediaCommand) runSetDefaultCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+func runSetDefaultCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	name := sub.Options[0].StringValue()
 
 	existing, err := st.GetMediaCategories(guildID)
@@ -244,7 +214,19 @@ func (c *ManageMediaCommand) runSetDefaultCategory(s *discordgo.Session, e *disc
 	})
 }
 
-func (c *ManageMediaCommand) runResetDefaultCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string) error {
+func runShowDefaultCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string) error {
+	name, err := st.GetMediaDefault(guildID)
+	if err != nil || name == "" {
+		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: "No default media category set.",
+		})
+	}
+	return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		Description: fmt.Sprintf("Default media category is `%s`.", name),
+	})
+}
+
+func runResetDefaultCategory(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, guildID string) error {
 	if err := st.ResetMediaDefault(guildID); err != nil {
 		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to reset default category: %v", err),

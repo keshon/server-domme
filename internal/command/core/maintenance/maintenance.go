@@ -13,7 +13,7 @@ type Maintenance struct{}
 func (c *Maintenance) Name() string        { return "maintenance" }
 func (c *Maintenance) Description() string { return "Bot maintenance commands" }
 func (c *Maintenance) Group() string       { return "core" }
-func (c *Maintenance) Category() string    { return "⚙️ Settings" }
+func (c *Maintenance) Category() string    { return "🛠️ Maintenance" }
 func (c *Maintenance) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
@@ -30,13 +30,18 @@ func (c *Maintenance) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "download-db",
-				Description: "Download the current server database as a JSON file",
+				Name:        "export-data",
+				Description: "Export the current server database as JSON",
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "status",
-				Description: "Retrieve statistics about the guild",
+				Description: "Retrieve guild statistics",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "sync",
+				Description: "Re-register slash commands",
 			},
 		},
 	}
@@ -64,10 +69,12 @@ func (c *Maintenance) Run(ctx interface{}) error {
 	switch sub.Name {
 	case "ping":
 		return runPing(s, e)
-	case "download-db":
-		return runDownloadDB(s, e, *storage)
+	case "export-data":
+		return runExportData(s, e, *storage)
 	case "status":
 		return runStatus(s, e, *storage)
+	case "sync":
+		return runSync(s, e, context.Syncer)
 	default:
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),

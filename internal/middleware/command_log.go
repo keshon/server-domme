@@ -27,7 +27,7 @@ func WithCommandLogger(log zerolog.Logger) command.Middleware {
 func logInvocation(log zerolog.Logger, cmdName string, inv *command.Invocation) {
 	switch v := inv.Data.(type) {
 	case *cmdadapter.SlashInteractionContext:
-		logInteraction(log, cmdName, v.Logger, v.Session, v.Event)
+		logInteraction(log, slashLogName(cmdName, v.Event), v.Logger, v.Session, v.Event)
 
 	case *cmdadapter.ComponentInteractionContext:
 		logInteraction(log, cmdName, v.Logger, v.Session, v.Event)
@@ -46,6 +46,17 @@ func logInvocation(log zerolog.Logger, cmdName string, inv *command.Invocation) 
 	default:
 		// Unknown context type — nothing to log.
 	}
+}
+
+func slashLogName(cmdName string, e *discordgo.InteractionCreate) string {
+	if e == nil || e.Type != discordgo.InteractionApplicationCommand {
+		return cmdName
+	}
+	data := e.ApplicationCommandData()
+	if data.Name == "" {
+		return cmdName
+	}
+	return cmdadapter.SlashCommandPath(data.Name, data.Options)
 }
 
 // logInteraction extracts user info from an InteractionCreate event and logs it.

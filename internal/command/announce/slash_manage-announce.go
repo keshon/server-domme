@@ -3,71 +3,16 @@ package announce
 import (
 	"fmt"
 
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-type ManageAnnounceCommand struct{}
-
-func (c *ManageAnnounceCommand) Name() string { return "manage-announce" }
-func (c *ManageAnnounceCommand) Description() string {
-	return "Announcement settings"
-}
-func (c *ManageAnnounceCommand) Group() string    { return "announce" }
-func (c *ManageAnnounceCommand) Category() string { return "⚙️ Settings" }
-func (c *ManageAnnounceCommand) UserPermissions() []int64 {
-	return []int64{discordgo.PermissionAdministrator}
-}
-
-func (c *ManageAnnounceCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        c.Name(),
-		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-channel",
-				Description: "Set or update the announcement channel",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionChannel,
-						Name:        "channel",
-						Description: "Pick a channel from this server",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-channel",
-				Description: "Reset and remove the current announcement channel",
-			},
-		},
-	}
-}
-
-func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	s := context.Session
-	e := context.Event
-	st := context.Storage
-
-	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	sub := data.Options[0]
+// RunManageAnnounceChannel handles announce channel settings subcommands.
+func RunManageAnnounceChannel(s *discordgo.Session, e *discordgo.InteractionCreate, st storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	switch sub.Name {
-	case "set-channel":
+	case "channel-set":
 		channel := sub.Options[0].ChannelValue(s)
 		if channel == nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -85,7 +30,18 @@ func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
 			Description: fmt.Sprintf("Announcement channel updated to <#%s>.", channel.ID),
 		})
 
-	case "reset-channel":
+	case "channel-show":
+		channelID, err := st.GetAnnounceChannel(e.GuildID)
+		if err != nil || channelID == "" {
+			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+				Description: "No announcement channel set.",
+			})
+		}
+		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			Description: fmt.Sprintf("Current announcement channel is <#%s>.", channelID),
+		})
+
+	case "channel-reset":
 		if err := st.SetAnnounceChannel(e.GuildID, ""); err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to reset announcement channel: `%v`", err),
@@ -100,5 +56,34 @@ func (c *ManageAnnounceCommand) Run(ctx interface{}) error {
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand.",
 		})
+	}
+}
+
+// AnnounceChannelOptions returns slash options for announce channel settings.
+func AnnounceChannelOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-set",
+			Description: "Set the announcement channel",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionChannel,
+					Name:        "channel",
+					Description: "Pick a channel from this server",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-show",
+			Description: "Show the current announcement channel",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-reset",
+			Description: "Remove the announcement channel",
+		},
 	}
 }

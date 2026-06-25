@@ -4,97 +4,67 @@ import (
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
-// Need to add at least one channel or translation wont work
-
-type ManageTranslateCommand struct{}
-
-func (c *ManageTranslateCommand) Name() string        { return "manage-translate" }
-func (c *ManageTranslateCommand) Description() string { return "Translate settings" }
-func (c *ManageTranslateCommand) Group() string       { return "translate" }
-func (c *ManageTranslateCommand) Category() string    { return "⚙️ Settings" }
-func (c *ManageTranslateCommand) UserPermissions() []int64 {
-	return []int64{discordgo.PermissionAdministrator}
-}
-
-func (c *ManageTranslateCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        c.Name(),
-		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-channel",
-				Description: "Add a channel to the translate list",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionChannel,
-						Name:        "channel",
-						Description: "Select a channel to enable translation reactions",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-channel",
-				Description: "Remove a channel from the translate list",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionChannel,
-						Name:        "channel",
-						Description: "Select a channel to remove from translation reactions",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "list-channels",
-				Description: "List all channels enabled for translation reactions",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-all-channels",
-				Description: "Reset all channels for translation reactions",
-			},
-		},
-	}
-}
-
-func (c *ManageTranslateCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	s, e, storage := context.Session, context.Event, context.Storage
-
-	options := e.ApplicationCommandData().Options
-	if len(options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	sub := options[0]
+// RunManageTranslateChannel handles translate channel settings subcommands.
+func RunManageTranslateChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	switch sub.Name {
-	case "set-channel":
-		return runAddChannel(s, e, *storage, sub)
-	case "reset-channel":
-		return runRemoveChannel(s, e, *storage, sub)
-	case "list-channels":
-		return runListChannels(s, e, *storage)
-	case "reset-all-channels":
-		return runResetChannels(s, e, *storage)
+	case "channel-add":
+		return runAddChannel(s, e, storage, sub)
+	case "channel-remove":
+		return runRemoveChannel(s, e, storage, sub)
+	case "channel-list":
+		return runListChannels(s, e, storage)
+	case "channels-clear":
+		return runResetChannels(s, e, storage)
 	default:
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand provided.",
 		})
+	}
+}
+
+// TranslateChannelOptions returns slash options for translate channel settings.
+func TranslateChannelOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-add",
+			Description: "Enable translation reactions in a channel",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionChannel,
+					Name:        "channel",
+					Description: "Select a channel to enable translation reactions",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-remove",
+			Description: "Disable translation reactions in a channel",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionChannel,
+					Name:        "channel",
+					Description: "Select a channel to remove from translation reactions",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-list",
+			Description: "List translation-enabled channels",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channels-clear",
+			Description: "Remove all translation-enabled channels",
+		},
 	}
 }
 

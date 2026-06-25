@@ -18,11 +18,12 @@ func WithGroupAccessCheck() command.Middleware {
 				guildID string
 				stor    *storage.Storage
 				respond func(string)
+				event   *discordgo.InteractionCreate
 			)
 
 			switch v := inv.Data.(type) {
 			case *cmdadapter.SlashInteractionContext:
-				guildID, stor = v.Event.GuildID, v.Storage
+				guildID, stor, event = v.Event.GuildID, v.Storage, v.Event
 				if v.Responder != nil {
 					respond = func(msg string) {
 						_ = v.Responder.RespondEmbedEphemeral(v.Session, v.Event, &discordgo.MessageEmbed{Description: msg})
@@ -39,7 +40,7 @@ func WithGroupAccessCheck() command.Middleware {
 				} else {
 					respond = func(_ string) {}
 				}
-				if disabledGroup(c, guildID, stor, respond) {
+				if disabledGroup(c, guildID, stor, nil, respond) {
 					return nil
 				}
 				if ch, ok := command.Root(c).(cmdadapter.ComponentInteractionHandler); ok {
@@ -65,7 +66,7 @@ func WithGroupAccessCheck() command.Middleware {
 				return c.Run(ctx, inv)
 			}
 
-			if disabledGroup(c, guildID, stor, respond) {
+			if disabledGroup(c, guildID, stor, event, respond) {
 				return nil
 			}
 			return c.Run(ctx, inv)
@@ -73,18 +74,48 @@ func WithGroupAccessCheck() command.Middleware {
 	}
 }
 
-func disabledGroup(c command.Command, guildID string, stor *storage.Storage, respond func(string)) bool {
+func disabledGroup(c command.Command, guildID string, stor *storage.Storage, event *discordgo.InteractionCreate, respond func(string)) bool {
 	meta, ok := command.Root(c).(cmdadapter.Meta)
 	if !ok || meta.Group() == "" {
 		return false
 	}
-	disabled, err := stor.IsGroupDisabled(guildID, meta.Group())
+
+	group := meta.Group()
+	if group == "core" && c.Name() == "settings" && event != nil {
+		if featureGroup := settingsFeatureGroup(event); featureGroup != "" && featureGroup != "core" {
+			group = featureGroup
+		}
+	}
+
+	disabled, err := stor.IsGroupDisabled(guildID, group)
 	if err != nil {
 		return false
 	}
 	if disabled {
-		respond("This command is disabled on this server.\nUse `/commands status` to check which commands are disabled.")
+		respond("This command is disabled on this server.\nUse `/settings commands status` to check which commands are disabled.")
 		return true
 	}
 	return false
+}
+
+func settingsFeatureGroup(event *discordgo.InteractionCreate) string {
+	if event == nil || event.Type != discordgo.InteractionApplicationCommand {
+		return ""
+	}
+	data := event.ApplicationCommandData()
+	if data.Name != "settings" || len(data.Options) == 0 {
+		return ""
+	}
+	groupOpt := data.Options[0]
+	if groupOpt.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
+		return ""
+	}
+	switch groupOpt.Name {
+	case "announce", "confess", "discipline", "media", "task", "translate":
+		return groupOpt.Name
+	case "commands":
+		return "core"
+	default:
+		return ""
+	}
 }

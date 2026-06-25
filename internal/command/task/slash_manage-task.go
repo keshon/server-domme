@@ -11,122 +11,15 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
-type ManageTaskCommand struct{}
-
-func (c *ManageTaskCommand) Name() string        { return "manage-task" }
-func (c *ManageTaskCommand) Description() string { return "Task settings" }
-func (c *ManageTaskCommand) Group() string       { return "task" }
-func (c *ManageTaskCommand) Category() string    { return "⚙️ Settings" }
-func (c *ManageTaskCommand) UserPermissions() []int64 {
-	return []int64{
-		discordgo.PermissionAdministrator,
-	}
-}
-
-func (c *ManageTaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        c.Name(),
-		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-role",
-				Description: "Set or update a Tasker role",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionRole,
-						Name:        "role",
-						Description: "Select the role allowed to get tasks",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "list-role",
-				Description: "List all task-related roles",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-role",
-				Description: "Reset the Tasker role configuration",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "upload-tasks",
-				Description: "Upload a new task list for this server",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionAttachment,
-						Name:        "file",
-						Description: "JSON file (.json) containing the task list",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "download-tasks",
-				Description: "Download the current task list for this server",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-tasks",
-				Description: "Reset the task list to default for this server",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-cooldown",
-				Description: "Set task cooldown duration for this server",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "duration",
-						Description: "Cooldown after completing/failing a task (e.g. 30m, 3h, 1d)",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "list-cooldowns",
-				Description: "Show guild cooldown setting and active user cooldowns",
-			},
-		},
-	}
-}
-
-func (c *ManageTaskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	s := context.Session
-	e := context.Event
-	st := context.Storage
-	data := e.ApplicationCommandData()
-
-	if len(data.Options) == 0 {
-		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	opt := data.Options[0]
-	return c.runManage(s, e, st, opt)
-}
-
-func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.InteractionCreate, storage *storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-
+// RunManageTaskSettings handles task settings subcommands.
+func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate, storage *storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	switch sub.Name {
 
-	case "set-role":
+	case "role-set":
 		var roleID string
 		for _, opt := range sub.Options {
 			if opt.Name == "role" {
@@ -159,7 +52,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		})
 		return nil
 
-	case "list-role":
+	case "role-show":
 		roleID, err := storage.GetTaskRole(e.GuildID)
 		if err != nil || roleID == "" {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -177,7 +70,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		})
 		return nil
 
-	case "reset-role":
+	case "role-reset":
 		if err := storage.SetTaskRole(e.GuildID, ""); err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to reset Tasker role: %v", err),
@@ -189,7 +82,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		})
 		return nil
 
-	case "download-tasks":
+	case "tasks-download":
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -210,7 +103,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		defer file.Close()
 
 		_, err = s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
-			Content: "Here’s the task list for this server:",
+			Content: "Here's the task list for this server:",
 			Files: []*discordgo.File{
 				{
 					Name:   filepath.Base(path),
@@ -225,7 +118,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		}
 		return nil
 
-	case "upload-tasks":
+	case "tasks-upload":
 		if len(sub.Options) == 0 {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No file uploaded.",
@@ -286,7 +179,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 			Description: fmt.Sprintf("Tasks have been uploaded.\nSaved as `%s`", filepath.Base(path)),
 		})
 
-	case "reset-tasks":
+	case "tasks-reset":
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -301,10 +194,10 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		}
 
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Tasks have been reset. Use `/manage-task upload-tasks` to upload new tasks.",
+			Description: "Tasks have been reset. Use `/settings task tasks-upload` to upload new tasks.",
 		})
 
-	case "set-cooldown":
+	case "cooldown-set":
 		var durationRaw string
 		for _, opt := range sub.Options {
 			if opt.Name == "duration" {
@@ -330,7 +223,7 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		})
 		return nil
 
-	case "list-cooldowns":
+	case "cooldown-show":
 		duration, err := storage.GetTaskCooldownDuration(e.GuildID)
 		if err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -371,6 +264,76 @@ func (c *ManageTaskCommand) runManage(s *discordgo.Session, e *discordgo.Interac
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Invalid subcommand.",
 		})
+	}
+}
+
+// TaskSettingsOptions returns slash options for task settings.
+func TaskSettingsOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "role-set",
+			Description: "Configure the Tasker role",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionRole,
+					Name:        "role",
+					Description: "Select the role allowed to get tasks",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "role-show",
+			Description: "Show the configured Tasker role",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "role-reset",
+			Description: "Reset the Tasker role configuration",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "tasks-upload",
+			Description: "Upload a task list",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionAttachment,
+					Name:        "file",
+					Description: "JSON file (.json) containing the task list",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "tasks-download",
+			Description: "Download the current task list",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "tasks-reset",
+			Description: "Reset tasks to defaults",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "cooldown-set",
+			Description: "Set task cooldown duration",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "duration",
+					Description: "Cooldown after completing/failing a task (e.g. 30m, 3h, 1d)",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "cooldown-show",
+			Description: "Show cooldown settings and active cooldowns",
+		},
 	}
 }
 

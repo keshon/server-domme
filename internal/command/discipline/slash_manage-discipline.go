@@ -5,89 +5,14 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
-type ManageDisciplineCommand struct{}
-
-func (c *ManageDisciplineCommand) Name() string        { return "manage-discipline" }
-func (c *ManageDisciplineCommand) Description() string { return "Discipline settings" }
-func (c *ManageDisciplineCommand) Group() string       { return "discipline" }
-func (c *ManageDisciplineCommand) Category() string    { return "⚙️ Settings" }
-func (c *ManageDisciplineCommand) UserPermissions() []int64 {
-	return []int64{discordgo.PermissionAdministrator}
-}
-
-func (c *ManageDisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        c.Name(),
-		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-roles",
-				Description: "Set or update discipline roles",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "type",
-						Description: "Which role are you setting?",
-						Required:    true,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
-							{Name: "Punisher — can punish/release", Value: "punisher"},
-							{Name: "Victim — can be punished", Value: "victim"},
-							{Name: "Brat — punishment role", Value: "assigned"},
-						},
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionRole,
-						Name:        "role",
-						Description: "Select a role from the server",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "list-roles",
-				Description: "List all configured discipline roles",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-roles",
-				Description: "Reset all discipline role configurations",
-			},
-		},
-	}
-}
-
-func (c *ManageDisciplineCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	s := context.Session
-	e := context.Event
-	storage := context.Storage
-
-	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	sub := data.Options[0]
-	return c.runManageRoles(s, e, *storage, sub)
-}
-
-func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-
+// RunManageDisciplineRoles handles discipline role settings subcommands.
+func RunManageDisciplineRoles(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	switch sub.Name {
-	case "set-roles":
+	case "roles-set":
 		var roleType, roleID string
 		for _, opt := range sub.Options {
 			switch opt.Name {
@@ -120,7 +45,7 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 		})
 		return nil
 
-	case "list-roles":
+	case "roles-show":
 		roles := []string{"punisher", "victim", "assigned"}
 		var lines []string
 		for _, t := range roles {
@@ -136,11 +61,11 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 			}
 		}
 		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: strings.Join(lines, "\n") + "\n\nUse `/manage-discipline set-roles` to set or update roles.\n\n Punish is the role that can punish and release people.\nVictim is the role that can be punished.\nAssigned is the punishment role (that is assigned by the punisher).",
+			Description: strings.Join(lines, "\n") + "\n\nUse `/settings discipline roles-set` to set or update roles.\n\n Punish is the role that can punish and release people.\nVictim is the role that can be punished.\nAssigned is the punishment role (that is assigned by the punisher).",
 		})
 		return nil
 
-	case "reset-roles":
+	case "roles-reset":
 		if err := storage.SetPunishRole(e.GuildID, "punisher", ""); err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting punisher role: %v", err),
@@ -166,4 +91,44 @@ func (c *ManageDisciplineCommand) runManageRoles(s *discordgo.Session, e *discor
 	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Unknown subcommand.",
 	})
+}
+
+// DisciplineRolesOptions returns slash options for discipline role settings.
+func DisciplineRolesOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "roles-set",
+			Description: "Configure discipline roles",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "type",
+					Description: "Which role are you setting?",
+					Required:    true,
+					Choices: []*discordgo.ApplicationCommandOptionChoice{
+						{Name: "Punisher — can punish/release", Value: "punisher"},
+						{Name: "Victim — can be punished", Value: "victim"},
+						{Name: "Brat — punishment role", Value: "assigned"},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionRole,
+					Name:        "role",
+					Description: "Select a role from the server",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "roles-show",
+			Description: "Show configured discipline roles",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "roles-reset",
+			Description: "Reset discipline role configuration",
+		},
+	}
 }

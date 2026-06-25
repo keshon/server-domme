@@ -3,81 +3,16 @@ package confess
 import (
 	"fmt"
 
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/discordreply"
 	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-type ManageConfessCommand struct{}
-
-func (c *ManageConfessCommand) Name() string        { return "manage-confess" }
-func (c *ManageConfessCommand) Description() string { return "Confession settings" }
-func (c *ManageConfessCommand) Group() string       { return "confess" }
-func (c *ManageConfessCommand) Category() string    { return "⚙️ Settings" }
-func (c *ManageConfessCommand) UserPermissions() []int64 {
-	return []int64{discordgo.PermissionAdministrator}
-}
-
-func (c *ManageConfessCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        c.Name(),
-		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "set-channel",
-				Description: "Set the confession channel",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionChannel,
-						Name:        "channel",
-						Description: "Pick a channel from this server",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "list-channel",
-				Description: "Show the currently configured confession channel",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reset-channel",
-				Description: "Remove the confession channel",
-			},
-		},
-	}
-}
-
-func (c *ManageConfessCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	s := context.Session
-	e := context.Event
-	storage := context.Storage
-
-	data := e.ApplicationCommandData()
-
-	if len(data.Options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "No subcommand provided.",
-		})
-	}
-
-	sub := data.Options[0]
-	return c.runManageConfessionChannel(s, e, *storage, sub)
-}
-
-func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-
+// RunManageConfessionChannel handles confess channel settings subcommands.
+func RunManageConfessionChannel(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, sub *discordgo.ApplicationCommandInteractionDataOption) error {
 	switch sub.Name {
-	case "set-channel":
+	case "channel-set":
 		channelID := sub.Options[0].ChannelValue(s).ID
 		if err := storage.SetConfessChannel(e.GuildID, channelID); err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -88,7 +23,7 @@ func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, 
 			Description: fmt.Sprintf("Confession channel has been set to <#%s>.", channelID),
 		})
 
-	case "list-channel":
+	case "channel-show":
 		channelID, err := storage.GetConfessChannel(e.GuildID)
 		if err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
@@ -99,7 +34,7 @@ func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, 
 			Description: fmt.Sprintf("Current confession channel is <#%s>.", channelID),
 		})
 
-	case "reset-channel":
+	case "channel-reset":
 		if err := storage.RemoveConfessChannel(e.GuildID); err != nil {
 			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to remove confession channel: `%v`", err),
@@ -113,5 +48,34 @@ func (c *ManageConfessCommand) runManageConfessionChannel(s *discordgo.Session, 
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
+	}
+}
+
+// ConfessChannelOptions returns slash options for confess channel settings.
+func ConfessChannelOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-set",
+			Description: "Set the confession channel",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionChannel,
+					Name:        "channel",
+					Description: "Pick a channel from this server",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-show",
+			Description: "Show the current confession channel",
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "channel-reset",
+			Description: "Remove the confession channel",
+		},
 	}
 }

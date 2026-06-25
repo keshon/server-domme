@@ -17,13 +17,13 @@ import (
 	"github.com/keshon/server-domme/internal/command/ask"
 	"github.com/keshon/server-domme/internal/command/confess"
 	"github.com/keshon/server-domme/internal/command/core/about"
-	"github.com/keshon/server-domme/internal/command/core/commands"
 	"github.com/keshon/server-domme/internal/command/core/help"
 	"github.com/keshon/server-domme/internal/command/core/maintenance"
 	"github.com/keshon/server-domme/internal/command/discipline"
 	"github.com/keshon/server-domme/internal/command/media"
 	"github.com/keshon/server-domme/internal/command/purge"
 	"github.com/keshon/server-domme/internal/command/roll"
+	"github.com/keshon/server-domme/internal/command/settings"
 	"github.com/keshon/server-domme/internal/command/shortlink"
 	taskcmd "github.com/keshon/server-domme/internal/command/task"
 	"github.com/keshon/server-domme/internal/command/translate"
@@ -129,32 +129,26 @@ func registerCommands(log zerolog.Logger) {
 	mw := defaultMiddleware(log)
 	cmdadapter.Register(&about.About{}, mw...)
 	cmdadapter.Register(&help.Help{}, mw...)
-	cmdadapter.Register(&commands.Commands{}, mw...)
+	cmdadapter.Register(&settings.SettingsCommand{}, mw...)
 	cmdadapter.Register(&maintenance.Maintenance{}, mw...)
 
 	cmdadapter.Register(&announce.AnnounceCommand{}, mw...)
-	cmdadapter.Register(&announce.ManageAnnounceCommand{}, mw...)
 	cmdadapter.Register(&announce.AnnounceContextCommand{}, mw...)
 
 	cmdadapter.Register(&ask.AskCommand{}, mw...)
 
 	cmdadapter.Register(&confess.ConfessCommand{}, mw...)
-	cmdadapter.Register(&confess.ManageConfessCommand{}, mw...)
 
 	cmdadapter.Register(&discipline.DisciplineCommand{}, mw...)
-	cmdadapter.Register(&discipline.ManageDisciplineCommand{}, mw...)
 
 	cmdadapter.Register(&media.RandomMediaCommand{}, mw...)
 	cmdadapter.Register(&media.UploadMediaCommand{}, mw...)
-	cmdadapter.Register(&media.ManageMediaCommand{}, mw...)
 
 	cmdadapter.Register(&purge.PurgeCommand{}, mw...)
 	cmdadapter.Register(&roll.RollCommand{}, mw...)
 	cmdadapter.Register(&shortlink.ShortlinkCommand{}, mw...)
 
 	cmdadapter.Register(&taskcmd.TaskCommand{}, mw...)
-	cmdadapter.Register(&taskcmd.ManageTaskCommand{}, mw...)
 
-	cmdadapter.Register(&translate.ManageTranslateCommand{}, mw...)
 	cmdadapter.Register(&translate.TranslateOnReaction{}, mw...)
 }

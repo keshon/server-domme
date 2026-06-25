@@ -59,7 +59,7 @@ func (c *AnnounceCommand) runPublishMessage(s *discordgo.Session, e *discordgo.I
 	announceChannelID, _ := st.GetAnnounceChannel(e.GuildID)
 	if announceChannelID == "" {
 		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: "Announcement channel is not set. Use `/manage-announce set-channel` first.",
+			Description: "Announcement channel is not set. Use `/settings announce channel-set` first.",
 		})
 	}
 

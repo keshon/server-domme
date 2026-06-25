@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"text/template"
 
 	"github.com/keshon/command"
@@ -150,17 +151,18 @@ func renderDiscordCommand(buf *bytes.Buffer, c command.Command) {
 		return
 	}
 
-	for _, opt := range def.Options {
-		if opt.Type != discordgo.ApplicationCommandOptionSubCommand {
+	var sub strings.Builder
+	cmdadapter.AppendSlashSubcommands(&sub, def.Name, def.Options, "")
+	for _, line := range strings.Split(strings.TrimSpace(sub.String()), "\n") {
+		if line == "" {
 			continue
 		}
-
-		buf.WriteString(fmt.Sprintf(
-			"  - **/%s %s** — %s\n",
-			def.Name,
-			opt.Name,
-			opt.Description,
-		))
+		inner := strings.TrimPrefix(line, "  `")
+		inner = strings.TrimSuffix(inner, "`")
+		parts := strings.SplitN(inner, "` - ", 2)
+		if len(parts) == 2 {
+			buf.WriteString(fmt.Sprintf("  - **%s** — %s\n", parts[0], parts[1]))
+		}
 	}
 }
 

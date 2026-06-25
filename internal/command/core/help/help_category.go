@@ -46,7 +46,7 @@ func runHelpByCategory() string {
 		cmds := categoryMap[cat.Name]
 		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
 		for _, c := range cmds {
-			fmt.Fprintf(&sb, "`%s` - %s\n", c.Name(), c.Description())
+			sb.WriteString(cmdadapter.FormatCommandWithSubcommands(c))
 		}
 		sb.WriteString("\n")
 	}

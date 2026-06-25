@@ -25,6 +25,10 @@ func (s *Storage) SetDeletionJob(guildID, channelID, mode string, delayUntil tim
 		job.OlderThan = olderThan[0]
 	}
 
+	if record.PurgeJobs == nil {
+		record.PurgeJobs = make(map[string]st.PurgeJob)
+	}
+
 	record.PurgeJobs[channelID] = job
 	return s.ds.Set(guildID, record)
 }
