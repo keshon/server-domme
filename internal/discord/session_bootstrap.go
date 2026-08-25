@@ -17,6 +17,7 @@ func NewBot(cfg *config.Config, storage *storage.Storage, log zerolog.Logger) *B
 		storage:   storage,
 		log:       log,
 		slashCmds: make(map[string][]*discordgo.ApplicationCommand),
+		ready:     make(chan struct{}),
 	}
 	b.sessionCtx.Store(&sessionCtxHolder{ctx: context.Background()})
 	b.cmdGuard.Store(&cmdGuardHolder{g: disabledGuard})

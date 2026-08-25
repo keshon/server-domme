@@ -4,114 +4,88 @@ import (
 	"fmt"
 	"time"
 
-	st "github.com/keshon/server-domme/internal/domain"
+	"github.com/keshon/datastore"
 )
 
+// AddShortLink stores a new redirect.
+//
+// Short ids are global, not per-guild: the redirect server resolves an incoming
+// path with no guild in hand. A collision would silently repoint someone else's
+// link, so this refuses one rather than overwriting.
 func (s *Storage) AddShortLink(guildID, userID, original, shortID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return fmt.Errorf("failed to load guild record: %w", err)
+	if _, exists := s.shortLink.Get(shortID); exists {
+		return fmt.Errorf("short link with ID '%s' already exists", shortID)
 	}
-
-	newLink := st.ShortLink{
+	return s.shortLink.Put(&ShortLink{
 		ShortID:  shortID,
+		GuildID:  guildID,
 		Original: original,
 		UserID:   userID,
 		Clicks:   0,
 		Created:  time.Now(),
-	}
-
-	record.ShortLinks = append(record.ShortLinks, newLink)
-	return s.ds.Set(guildID, record)
+	})
 }
 
-func (s *Storage) GetUserShortLinks(guildID, userID string) ([]st.ShortLink, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load guild record: %w", err)
-	}
-
-	var userLinks []st.ShortLink
-	for _, link := range record.ShortLinks {
-		if link.UserID == userID {
-			userLinks = append(userLinks, link)
+// GetUserShortLinks lists one member's links in a guild.
+func (s *Storage) GetUserShortLinks(guildID, userID string) ([]ShortLink, error) {
+	var links []ShortLink
+	for _, l := range s.shortLinkByGuild.Find(guildID) {
+		if l.UserID == userID {
+			links = append(links, *l)
 		}
 	}
-	return userLinks, nil
+	return links, nil
 }
 
 // ClearUserShortLinks deletes all short links belonging to a specific user.
 func (s *Storage) ClearUserShortLinks(guildID, userID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return fmt.Errorf("failed to load guild record: %w", err)
-	}
-
-	filtered := make([]st.ShortLink, 0, len(record.ShortLinks))
-	for _, link := range record.ShortLinks {
-		if link.UserID != userID {
-			filtered = append(filtered, link)
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.shortLink)
+		for _, l := range datastore.InIndex(tx, s.shortLinkByGuild).Find(guildID) {
+			if l.UserID != userID {
+				continue
+			}
+			if err := col.Delete(l.Key()); err != nil {
+				return err
+			}
 		}
-	}
-
-	record.ShortLinks = filtered
-	return s.ds.Set(guildID, record)
+		return nil
+	})
 }
 
 // DeleteShortLink removes a single short link by its shortID for the specified user.
 func (s *Storage) DeleteShortLink(guildID, userID, shortID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return fmt.Errorf("failed to load guild record: %w", err)
-	}
-
-	found := false
-	filtered := make([]st.ShortLink, 0, len(record.ShortLinks))
-	for _, link := range record.ShortLinks {
-		if link.UserID == userID && link.ShortID == shortID {
-			found = true
-			continue // skip this one (delete it)
-		}
-		filtered = append(filtered, link)
-	}
-
-	if !found {
+	link, ok := s.shortLink.Get(shortID)
+	// Match on owner and guild as well as id: the id alone addresses every
+	// link in the store, and a bare lookup would let one member delete another's.
+	if !ok || link.UserID != userID || link.GuildID != guildID {
 		return fmt.Errorf("short link with ID '%s' not found", shortID)
 	}
-
-	record.ShortLinks = filtered
-	return s.ds.Set(guildID, record)
+	return s.shortLink.Delete(shortID)
 }
 
 // IncrementClicks increments the click count for a specific short link.
+//
+// The read and the write share a transaction because the redirect server
+// handles requests concurrently, and a plain read-modify-write would lose
+// counts whenever two hits on the same link overlap.
 func (s *Storage) IncrementClicks(guildID, shortID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return fmt.Errorf("failed to load guild record: %w", err)
-	}
-
-	for i, link := range record.ShortLinks {
-		if link.ShortID == shortID {
-			record.ShortLinks[i].Clicks++
-			return s.ds.Set(guildID, record)
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.shortLink)
+		link, ok := col.Get(shortID)
+		if !ok || link.GuildID != guildID {
+			return fmt.Errorf("short link with ID '%s' not found", shortID)
 		}
-	}
-
-	return fmt.Errorf("short link with ID '%s' not found", shortID)
+		link.Clicks++
+		return col.Put(link)
+	})
 }
 
-// FindLinkByID searches all guild records for a link with the given shortID.
-// Returns (guildID, *ShortLink, error)
-func (s *Storage) FindLinkByID(shortID string) (string, *st.ShortLink, error) {
-	records := s.Records()
-
-	for guildID, record := range records {
-		for _, link := range record.ShortLinks {
-			if link.ShortID == shortID {
-				return guildID, &link, nil
-			}
-		}
+// FindLinkByID resolves a short id to its guild and link.
+func (s *Storage) FindLinkByID(shortID string) (string, *ShortLink, error) {
+	link, ok := s.shortLink.Get(shortID)
+	if !ok {
+		return "", nil, fmt.Errorf("short link with ID '%s' not found", shortID)
 	}
-
-	return "", nil, fmt.Errorf("short link with ID '%s' not found", shortID)
+	return link.GuildID, link, nil
 }

@@ -2,7 +2,6 @@ package settings
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/command/announce"
@@ -13,7 +12,7 @@ import (
 	"github.com/keshon/server-domme/internal/command/task"
 	"github.com/keshon/server-domme/internal/command/translate"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
@@ -90,14 +89,14 @@ func (c *SettingsCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No settings group provided.",
 		})
 	}
 
 	group := data.Options[0]
 	if len(group.Options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -112,8 +111,8 @@ func (c *SettingsCommand) Run(ctx interface{}) error {
 	case "discipline":
 		return discipline.RunManageDisciplineRoles(s, e, *st, sub)
 	case "media":
-		if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
-			log.Printf("[ERROR] Failed to defer settings media interaction: %v", err)
+		if err := reply.RespondDeferredEphemeral(s, e); err != nil {
+			context.AppLog.Error().Err(err).Msg("settings_media_defer_failed")
 			return err
 		}
 		return media.RunManageMediaSettings(s, e, *st, e.GuildID, sub)
@@ -124,7 +123,7 @@ func (c *SettingsCommand) Run(ctx interface{}) error {
 	case "commands":
 		return runCommandsSettings(s, e, *st, context.Syncer, sub)
 	default:
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown settings group: %s", group.Name),
 		})
 	}
@@ -141,7 +140,7 @@ func runCommandsSettings(s *discordgo.Session, e *discordgo.InteractionCreate, s
 	case "disable":
 		return commands.RunCmdDisable(s, e, st, syncer, sub)
 	default:
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}

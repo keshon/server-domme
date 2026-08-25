@@ -2,107 +2,125 @@ package purge
 
 import (
 	"context"
-	"encoding/json"
-	"log"
-
 	"time"
 
 	"github.com/keshon/server-domme/internal/command/purge"
-	st "github.com/keshon/server-domme/internal/domain"
 	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog"
 )
 
-// RunScheduler starts scheduled purge jobs (delayed and recurring). Call from the Discord lifecycle.
-func RunScheduler(ctx context.Context, store *storage.Storage, session *discordgo.Session) {
-	log.Printf("[INFO] Starting purge scheduler...")
-	records := store.Records()
+// SessionFunc yields the gateway session in use right now.
+//
+// The scheduler's goroutines outlive any single session — RunSession builds a
+// fresh one on every restart — so they resolve the session per purge instead of
+// closing over one pointer, which would keep writing to a closed connection.
+type SessionFunc func() *discordgo.Session
 
-	for _, data := range records {
-		jsonData, _ := json.Marshal(data)
-		var record st.Record
-		err := json.Unmarshal(jsonData, &record)
-		if err != nil {
-			log.Printf("[ERR] Error unmarshalling to *Record: %v", err)
-			continue
-		}
+// RunScheduler replays the stored purge jobs (delayed and recurring) and keeps
+// the recurring ones ticking until ctx is cancelled. It returns once every job
+// has been scheduled; the work itself continues in the background.
+func RunScheduler(ctx context.Context, store *storage.Storage, session SessionFunc, log zerolog.Logger) {
+	log.Info().Msg("purge_scheduler_starting")
 
-		for _, job := range record.PurgeJobs {
-			log.Printf("[INFO] Found purge job — Mode: %s | Guild: %s | Channel: %s", job.Mode, job.GuildID, job.ChannelID)
+	for _, job := range store.AllPurgeJobs() {
+		jobLog := log.With().
+			Str("guild_id", job.GuildID).
+			Str("channel_id", job.ChannelID).
+			Str("mode", job.Mode).
+			Logger()
 
-			switch job.Mode {
-			case "delayed":
-				dur := time.Until(job.DelayUntil)
-
-				if dur <= 0 {
-					log.Printf("[INFO] DelayUntil is in the past — executing delayed purge immediately for channel %s", job.ChannelID)
-					purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
-
-					err := store.ClearDeletionJob(job.GuildID, job.ChannelID)
-					if err != nil {
-						log.Printf("[ERR] Failed to delete purge job for channel %s: %v", job.ChannelID, err)
-					}
-				} else {
-					log.Printf("[INFO] Scheduling delayed purge in %v for channel %s", dur, job.ChannelID)
-					go func(job st.PurgeJob) {
-						timer := time.NewTimer(dur)
-						defer timer.Stop()
-						select {
-						case <-ctx.Done():
-							return
-						case <-timer.C:
-						}
-						log.Printf("[INFO] Executing delayed purge for channel %s", job.ChannelID)
-						purge.DeleteMessages(session, job.ChannelID, nil, nil, nil)
-
-						err := store.ClearDeletionJob(job.GuildID, job.ChannelID)
-						if err != nil {
-							log.Printf("[ERR] Failed to delete purge job for channel %s: %v", job.ChannelID, err)
-						} else {
-							log.Printf("[INFO] Delayed purge complete and removed for channel %s", job.ChannelID)
-						}
-					}(job)
-				}
-
-			case "recurring":
-				dur, err := time.ParseDuration(job.OlderThan)
-				if err != nil {
-					log.Printf("[ERR] Failed to parse OlderThan duration '%s' for channel %s: %v", job.OlderThan, job.ChannelID, err)
-					continue
-				}
-
-				stopChan := make(chan struct{})
-				purge.ActiveDeletionsMu.Lock()
-				purge.ActiveDeletions[job.ChannelID] = stopChan
-				purge.ActiveDeletionsMu.Unlock()
-
-				log.Printf("[INFO] Starting recurring purge for channel %s every 30s (older than %v)", job.ChannelID, dur)
-
-				go func(job st.PurgeJob, d time.Duration) {
-					ticker := time.NewTicker(30 * time.Second)
-					defer ticker.Stop()
-
-					for {
-						select {
-						case <-stopChan:
-							log.Printf("[INFO] Stopping recurring purge for channel %s", job.ChannelID)
-							return
-						case <-ctx.Done():
-							log.Printf("[INFO] Stopping recurring purge for channel %s (shutdown)", job.ChannelID)
-							return
-						case <-ticker.C:
-							start := time.Now().Add(-d)
-							now := time.Now()
-							log.Printf("[INFO] Recurring purge triggered for channel %s", job.ChannelID)
-							purge.DeleteMessages(session, job.ChannelID, &start, &now, stopChan)
-						}
-					}
-				}(job, dur)
-
-			default:
-				log.Printf("[ERR] Unknown purge mode '%s' for channel %s", job.Mode, job.ChannelID)
-			}
+		switch job.Mode {
+		case "delayed":
+			scheduleDelayed(ctx, store, session, jobLog, job)
+		case "recurring":
+			scheduleRecurring(ctx, session, jobLog, job)
+		default:
+			jobLog.Error().Msg("purge_job_mode_unknown")
 		}
 	}
 }
+
+func scheduleDelayed(ctx context.Context, store *storage.Storage, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
+	dur := time.Until(job.DelayUntil)
+	if dur <= 0 {
+		log.Info().Msg("purge_delayed_overdue")
+		runDelayed(store, session, log, job)
+		return
+	}
+
+	log.Info().Dur("delay", dur).Msg("purge_delayed_scheduled")
+	go func() {
+		timer := time.NewTimer(dur)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		runDelayed(store, session, log, job)
+	}()
+}
+
+func runDelayed(store *storage.Storage, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
+	s := session()
+	if s == nil {
+		log.Warn().Msg("purge_skipped_no_session")
+		return
+	}
+	log.Info().Msg("purge_delayed_running")
+	purge.DeleteMessages(s, job.ChannelID, nil, nil, nil)
+
+	if err := store.ClearDeletionJob(job.GuildID, job.ChannelID); err != nil {
+		log.Error().Err(err).Msg("purge_job_clear_failed")
+		return
+	}
+	log.Info().Msg("purge_delayed_done")
+}
+
+func scheduleRecurring(ctx context.Context, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
+	dur, err := time.ParseDuration(job.OlderThan)
+	if err != nil {
+		log.Error().Str("older_than", job.OlderThan).Err(err).Msg("purge_older_than_invalid")
+		return
+	}
+
+	stopChan := make(chan struct{})
+	purge.ActiveDeletionsMu.Lock()
+	purge.ActiveDeletions[job.ChannelID] = stopChan
+	purge.ActiveDeletionsMu.Unlock()
+
+	log.Info().Dur("older_than", dur).Dur("interval", recurringInterval).Msg("purge_recurring_started")
+
+	go func() {
+		ticker := time.NewTicker(recurringInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-stopChan:
+				log.Info().Msg("purge_recurring_stopped")
+				return
+			case <-ctx.Done():
+				log.Info().Msg("purge_recurring_stopped_shutdown")
+				return
+			case <-ticker.C:
+				s := session()
+				if s == nil {
+					log.Warn().Msg("purge_skipped_no_session")
+					continue
+				}
+				start := time.Now().Add(-dur)
+				now := time.Now()
+				log.Debug().Msg("purge_recurring_tick")
+				purge.DeleteMessages(s, job.ChannelID, &start, &now, stopChan)
+			}
+		}
+	}()
+}
+
+// recurringInterval is how often a recurring job re-checks its channel. It is
+// deliberately much shorter than any sensible OlderThan window, so a message
+// crossing the age threshold is removed promptly rather than at the next window.
+const recurringInterval = 30 * time.Second

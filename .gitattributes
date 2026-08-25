@@ -1,0 +1,23 @@
+# Keep the working tree LF on every platform.
+#
+# Without this, core.autocrlf=true hands Windows checkouts CRLF, and
+# golangci-lint's gofmt formatter reports those files as unformatted while the
+# gofmt CLI does not — so local lint disagrees with CI for reasons that have
+# nothing to do with the code.
+*.go            text eol=lf
+*.mod           text eol=lf
+*.sum           text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.json          text eol=lf
+*.md            text eol=lf
+.env.example    text eol=lf
+Dockerfile      text eol=lf
+*.sh            text eol=lf
+
+# Windows-only scripts keep CRLF; cmd.exe is unreliable with LF-only batch files.
+*.bat           text eol=crlf
+
+*.webp          binary
+*.png           binary
+*.jpg           binary

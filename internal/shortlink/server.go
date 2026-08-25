@@ -2,29 +2,67 @@ package shortlink
 
 import (
 	"context"
-	"log"
+	"errors"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/storage"
+	"github.com/rs/zerolog"
 )
 
-// RunServer starts a lightweight HTTP server that resolves short links to their original URLs.
-// It blocks until the server exits or ctx is cancelled; run in a goroutine.
-func RunServer(store *storage.Storage, cfg *config.Config) {
-	RunServerWithContext(context.Background(), store, cfg)
-}
+// shutdownGrace bounds how long in-flight redirects may finish once shutdown
+// starts. A redirect is a single write with no upstream call behind it, so this
+// only has to cover the write itself — a longer grace would just delay exit.
+const shutdownGrace = 5 * time.Second
 
-// RunServerWithContext starts the shortlink HTTP server and respects ctx for graceful shutdown.
-func RunServerWithContext(ctx context.Context, store *storage.Storage, cfg *config.Config) {
-	log.Printf("[INFO] Starting shortlink redirect server...")
-
+// RunServer serves short-link redirects until ctx is cancelled, then drains and
+// returns. It blocks, so run it in a goroutine.
+//
+// A failure here is logged and returned rather than fatal: the redirect server
+// is a side channel, and losing it should not take the Discord bot down with it.
+func RunServer(ctx context.Context, store *storage.Storage, cfg *config.Config, log zerolog.Logger) error {
 	mux := http.NewServeMux()
 	if cfg != nil && cfg.HealthCheckPath != "" {
 		registerHealthCheck(mux, cfg.HealthCheckPath)
 	}
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		id := r.URL.Path[1:] // remove leading "/"
+	mux.HandleFunc("/", redirectHandler(store, log))
+
+	addr := cfg.ShortLinkAddr
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		<-ctx.Done()
+		log.Info().Msg("shortlink_server_stopping")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Warn().Err(err).Msg("shortlink_server_shutdown_failed")
+		}
+	}()
+
+	log.Info().Str("addr", addr).Msg("shortlink_server_listening")
+	err := srv.ListenAndServe()
+	<-shutdownDone
+
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Error().Err(err).Msg("shortlink_server_exited")
+		return err
+	}
+	log.Info().Msg("shortlink_server_stopped")
+	return nil
+}
+
+func redirectHandler(store *storage.Storage, log zerolog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/")
 		if id == "" {
 			http.NotFound(w, r)
 			return
@@ -37,26 +75,15 @@ func RunServerWithContext(ctx context.Context, store *storage.Storage, cfg *conf
 		}
 
 		if err := store.IncrementClicks(guildID, id); err != nil {
-			log.Printf("[WARN] Failed to increment clicks for %s: %v", id, err)
+			log.Warn().Str("short_id", id).Err(err).Msg("shortlink_click_count_failed")
 		}
 
-		log.Printf("[INFO] Redirected short link %s → %s (guild=%s)", id, link.Original, guildID)
+		log.Info().
+			Str("short_id", id).
+			Str("guild_id", guildID).
+			Str("target", link.Original).
+			Msg("shortlink_redirected")
 		http.Redirect(w, r, link.Original, http.StatusSeeOther)
-	})
-
-	addr := ":8787"
-	srv := &http.Server{Addr: addr, Handler: mux}
-
-	go func() {
-		<-ctx.Done()
-		log.Println("[INFO] Shutting down shortlink server...")
-		srv.Shutdown(context.Background()) //nolint:errcheck
-	}()
-
-	log.Printf("[INFO] Shortlink redirect server listening on %s\n", addr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		// Log the error but do NOT call log.Fatal — that would kill the whole process.
-		log.Printf("[ERR] Shortlink server exited: %v", err)
 	}
 }
 

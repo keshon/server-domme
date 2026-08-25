@@ -8,7 +8,7 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_GUILD_BLACKLIST=${DISCORD_GUILD_BLACKLIST}
-      - STORAGE_PATH=${STORAGE_PATH:-/usr/project/data/datastore.json}
+      - STORAGE_PATH=${STORAGE_PATH:-/usr/project/data/store}
       - INIT_SLASH_COMMANDS=${INIT_SLASH_COMMANDS}
       - DEVELOPER_ID=${DEVELOPER_ID}
       - WS_SILENCE_TIMEOUT=${WS_SILENCE_TIMEOUT:-2m}
@@ -25,6 +25,7 @@ services:
       - TASKS_PATH=${TASKS_PATH}
       - PROTECTED_USERS=${PROTECTED_USERS}
       - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
+      - SHORTLINK_ADDR=${SHORTLINK_ADDR:-:8787}
       - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
     entrypoint: /usr/project/app
     networks:

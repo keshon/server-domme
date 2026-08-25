@@ -3,12 +3,12 @@ package ask
 import (
 	"fmt"
 
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
-
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
+	"github.com/rs/zerolog"
 )
 
 type AskCommand struct{}
@@ -80,7 +80,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 
 	askerID := event.Member.User.ID
 	if targetUser == nil || targetUser.ID == askerID {
-		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You can't ask for permission to contact yourself.",
 		})
 		return nil
@@ -89,7 +89,7 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	embed := &discordgo.MessageEmbed{
 		Title:       strings.ToUpper(consentType),
 		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetUser.ID, formatReason(reason)),
-		Color:       discordreply.EmbedColor,
+		Color:       reply.EmbedColor,
 	}
 
 	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetUser.ID, consentType)
@@ -111,11 +111,11 @@ func (c *AskCommand) Run(ctx interface{}) error {
 	}
 
 	dm := fmt.Sprintf(
-		"<@%s> wants to **%s** with you.\nhttps://discordreply.com/channels/%s/%s/%s",
+		"<@%s> wants to **%s** with you.\nhttps://discord.com/channels/%s/%s/%s",
 		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
 	)
 
-	discordreply.Message(session, dmChannel(session, targetUser.ID), dm)
+	dmUser(context.AppLog, session, targetUser.ID, dm)
 
 	return nil
 }
@@ -126,7 +126,7 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 	parts := strings.Split(customID, ":")
 
 	if len(parts) != 5 || parts[0] != "ask" {
-		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Something smells off about this button.",
 		})
 		return nil
@@ -136,7 +136,7 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 	clickerID := event.Member.User.ID
 
 	if clickerID != askerID && clickerID != targetID {
-		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "This ain't your party. Button's not meant for you.",
 		})
 		return nil
@@ -145,21 +145,21 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 	embed := event.Message.Embeds[0]
 	desc := embed.Description
 	reason := extractReason(desc)
-	msgLink := fmt.Sprintf("https://discordreply.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
+	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
 
 	alreadyAnswered := strings.Contains(desc, "**accepted**") || strings.Contains(desc, "**declined**")
 
 	if action == "revoke" {
 		if alreadyAnswered {
 			if clickerID != targetID {
-				discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "That decision's already been made. Only the other party can undo it now.",
 				})
 				return nil
 			}
 		} else {
 			if clickerID != askerID {
-				discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 					Description: "Only the requester can withdraw this offer before it's answered. Once accepted, you may revoke your agreement instead.",
 				})
 				return nil
@@ -169,7 +169,7 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 
 	if action == "accept" || action == "deny" {
 		if clickerID != targetID {
-			discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 				Description: "Only the recipient of this request can respond. If you're the sender, you can still revoke it before they decide.",
 			})
 			return nil
@@ -189,7 +189,7 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 			status = fmt.Sprintf("<@%s> **revoked** their **%s** request to <@%s>.", askerID, consentType, targetID)
 		}
 	default:
-		discordreply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Unknown action. Not touching that.",
 		})
 		return nil
@@ -198,7 +198,7 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 	updated := &discordgo.MessageEmbed{
 		Title:       embed.Title,
 		Description: fmt.Sprintf("%s\n\n%s", status, reason),
-		Color:       discordreply.EmbedColor,
+		Color:       reply.EmbedColor,
 	}
 
 	var components []discordgo.MessageComponent
@@ -227,7 +227,7 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 		return fmt.Errorf("ask: failed to update message: %w", err)
 	}
 
-	notifyParticipants(session, action, askerID, targetID, clickerID, consentType, msgLink)
+	notifyParticipants(ctx.AppLog, session, action, askerID, targetID, clickerID, consentType, msgLink)
 
 	return nil
 }
@@ -247,39 +247,46 @@ func extractReason(desc string) string {
 	return fmt.Sprintf("Reason was:\n`%s`", strings.TrimSpace(desc[idx+len("Reason:"):]))
 }
 
-func notifyParticipants(session *discordgo.Session, action, askerID, targetID, clickerID, consentType, link string) {
+func notifyParticipants(log zerolog.Logger, session *discordgo.Session, action, askerID, targetID, clickerID, consentType, link string) {
 	switch action {
 	case "accept":
-		session.ChannelMessageSend(dmChannel(session, askerID),
+		dmUser(log, session, askerID,
 			fmt.Sprintf("<@%s> accepted your **%s** request.\n%s", targetID, consentType, link))
-		session.ChannelMessageSend(dmChannel(session, targetID),
+		dmUser(log, session, targetID,
 			fmt.Sprintf("You accepted <@%s>'s **%s** request.\n%s", askerID, consentType, link))
 
 	case "deny":
-		session.ChannelMessageSend(dmChannel(session, askerID),
+		dmUser(log, session, askerID,
 			fmt.Sprintf("<@%s> denied your **%s** request.\n%s", targetID, consentType, link))
-		session.ChannelMessageSend(dmChannel(session, targetID),
+		dmUser(log, session, targetID,
 			fmt.Sprintf("You denied <@%s>'s **%s** request.\n%s", askerID, consentType, link))
 
 	case "revoke":
 		if clickerID == askerID {
-			session.ChannelMessageSend(dmChannel(session, askerID),
+			dmUser(log, session, askerID,
 				fmt.Sprintf("You revoked your **%s** request to <@%s>.\n%s", consentType, targetID, link))
-			session.ChannelMessageSend(dmChannel(session, targetID),
+			dmUser(log, session, targetID,
 				fmt.Sprintf("<@%s> revoked their **%s** request to you.\n%s", askerID, consentType, link))
 		} else {
-			session.ChannelMessageSend(dmChannel(session, askerID),
+			dmUser(log, session, askerID,
 				fmt.Sprintf("<@%s> revoked their agreement with you.\n%s", targetID, link))
-			session.ChannelMessageSend(dmChannel(session, targetID),
+			dmUser(log, session, targetID,
 				fmt.Sprintf("You revoked your agreement with <@%s>.\n%s", askerID, link))
 		}
 	}
 }
 
-func dmChannel(s *discordgo.Session, userID string) string {
+// dmUser opens the user's DM channel and sends one message, logging rather than
+// failing on either step. A member who has DMs closed is the common case here,
+// not an error worth failing the interaction over — the consent record has
+// already been updated by the time this runs.
+func dmUser(log zerolog.Logger, s *discordgo.Session, userID, content string) {
 	ch, err := s.UserChannelCreate(userID)
 	if err != nil {
-		return ""
+		log.Debug().Str("user_id", userID).Err(err).Msg("ask_dm_channel_failed")
+		return
 	}
-	return ch.ID
+	if _, err := s.ChannelMessageSend(ch.ID, content); err != nil {
+		log.Debug().Str("user_id", userID).Err(err).Msg("ask_dm_send_failed")
+	}
 }

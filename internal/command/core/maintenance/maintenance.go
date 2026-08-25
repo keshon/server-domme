@@ -5,7 +5,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type Maintenance struct{}
@@ -60,7 +60,7 @@ func (c *Maintenance) Run(ctx interface{}) error {
 	options := e.ApplicationCommandData().Options
 
 	if len(options) == 0 {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No subcommand provided.",
 		})
 	}
@@ -76,7 +76,7 @@ func (c *Maintenance) Run(ctx interface{}) error {
 	case "sync":
 		return runSync(s, e, context.Syncer)
 	default:
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}

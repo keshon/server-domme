@@ -1,14 +1,40 @@
 @echo off
+setlocal
 
-rem
-rem BUILD
-rem
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-rem Get Go version
-for /f "tokens=3" %%i in ('go version') do set GO_VERSION=%%i
+set "MAIN_PKG=%SCRIPT_DIR%\cmd\discord"
+set "OUTPUT=%SCRIPT_DIR%\server-domme-discord.exe"
+set "DESC=Discord bot for server management, roleplay tasks, confessions and scheduled channel cleanup."
 
-rem Get the build date
-for /f "tokens=*" %%a in ('powershell -command "Get-Date -UFormat '%%Y-%%m-%%dT%%H:%%M:%%SZ'"') do set BUILD_DATE=%%a
+if not exist "%MAIN_PKG%\main.go" (
+    echo ERROR: main.go not found in %MAIN_PKG%
+    exit /b 1
+)
 
-rem Build command
-go build -o server-domme-discord.exe -ldflags "-X server-domme/internal/version.BuildDate=%BUILD_DATE% -X server-domme/internal/version.GoVersion=%GO_VERSION%" cmd\discord\main.go && server-domme-discord.exe
+echo [1/3] Gathering build info...
+
+for /f "tokens=*" %%a in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-ddTHH-mm-ssZ"') do set "BUILD_DATE=%%a"
+
+for /f "tokens=*" %%c in ('git -C "%SCRIPT_DIR%" rev-parse --short HEAD 2^>nul') do set "GIT_COMMIT=%%c"
+if "%GIT_COMMIT%"=="" set "GIT_COMMIT=none"
+
+set "LD=-X github.com/keshon/buildinfo.Version=dev"
+set "LD=%LD% -X github.com/keshon/buildinfo.Commit=%GIT_COMMIT%"
+set "LD=%LD% -X github.com/keshon/buildinfo.BuildTime=%BUILD_DATE%"
+set "LD=%LD% -X 'github.com/keshon/buildinfo.Project=Server Domme'"
+set "LD=%LD% -X 'github.com/keshon/buildinfo.Description=%DESC%'"
+
+echo [2/3] Building %OUTPUT%...
+
+go build -o "%OUTPUT%" -ldflags "%LD%" "%MAIN_PKG%"
+if errorlevel 1 (
+    echo Build failed!
+    exit /b 1
+)
+
+echo [3/3] Running %OUTPUT%...
+
+"%OUTPUT%"
+exit /b %errorlevel%

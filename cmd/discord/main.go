@@ -1,8 +1,9 @@
-// cmd/discord/main.go
+// cmd/discord/main.go — Discord server-management bot.
 package main
 
 import (
 	"context"
+	"flag"
 	"math/rand/v2"
 	"os"
 	"os/signal"
@@ -31,12 +32,29 @@ import (
 	"github.com/keshon/server-domme/internal/discord"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/middleware"
+	purgesvc "github.com/keshon/server-domme/internal/purge"
+	"github.com/keshon/server-domme/internal/readme"
+	shortlinksvc "github.com/keshon/server-domme/internal/shortlink"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
 
 func main() {
 	info := buildinfo.Get()
+
+	// -readme regenerates README.md from the command registry as a dev step
+	// (run from the repo root); the bot never writes files at runtime.
+	genReadme := flag.Bool("readme", false, "regenerate README.md from the command registry and exit")
+	flag.Parse()
+	if *genReadme {
+		log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
+		registerCommands(log)
+		if err := readme.UpdateReadme(command.DefaultRegistry, config.CategoryWeights, log); err != nil {
+			log.Error().Err(err).Msg("readme_update_failed")
+			os.Exit(1)
+		}
+		return
+	}
 
 	// Root context cancels on SIGINT/SIGTERM.
 	rootCtx, stopSignal := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -55,50 +73,53 @@ func main() {
 		log.Fatal().Msg("config_missing_token")
 	}
 
-	store, err := storage.NewStorage(rootCtx, cfg.StoragePath, log)
+	store, err := storage.NewStorage(cfg.StoragePath, log)
 	if err != nil {
-		log.Fatal().Err(err).Msg("storage_init_failed")
+		log.Fatal().Err(err).Str("dir", cfg.StoragePath).Msg("storage_init_failed")
 	}
 
-	if err := taskcmd.InitFromConfig(cfg); err != nil {
+	if err := taskcmd.InitFromConfig(cfg, log); err != nil {
 		log.Fatal().Err(err).Msg("task_init_failed")
 	}
-	log.Println("[INFO] Tasks initialized")
-	go storage.RunCooldownCleaner(rootCtx, store)
-	log.Println("[INFO] Cooldown cleaner started")
+	log.Info().Str("path", cfg.TasksPath).Msg("tasks_initialized")
 
 	bot := discord.NewBot(cfg, store, log)
 
 	registerCommands(log)
 
 	var wg sync.WaitGroup
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for {
-			var lastErr error
-			if err := bot.RunSession(rootCtx); err != nil {
-				lastErr = err
-				log.Error().Err(err).Msg("discord_session_end")
-			}
+		runSessionLoop(rootCtx, bot, log)
+	}()
 
-			select {
-			case <-rootCtx.Done():
-				return
-			default:
-				delay := 5 * time.Second
-				if discord.IsSessionUnhealthyError(lastErr) {
-					delay = time.Duration(rand.IntN(200)) * time.Millisecond
-				}
-				log.Warn().Dur("delay", delay).Msg("discord_session_restart")
-				timer := time.NewTimer(delay)
-				select {
-				case <-rootCtx.Done():
-					timer.Stop()
-					return
-				case <-timer.C:
-				}
-			}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		storage.RunCooldownCleaner(rootCtx, store, log)
+	}()
+
+	// The purge scheduler replays stored jobs against the gateway, so it cannot
+	// run before the first connect. It resolves the session per purge (see
+	// purge.SessionFunc) and therefore survives every later reconnect.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		select {
+		case <-rootCtx.Done():
+			return
+		case <-bot.Ready():
+		}
+		purgesvc.RunScheduler(rootCtx, store, bot.Session, log)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := shortlinksvc.RunServer(rootCtx, store, cfg, log); err != nil {
+			log.Error().Err(err).Msg("shortlink_server_failed")
 		}
 	}()
 
@@ -107,13 +128,43 @@ func main() {
 
 	wg.Wait()
 
-	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelClose()
-	if err := store.Close(closeCtx); err != nil {
+	if err := store.Close(); err != nil {
 		log.Error().Err(err).Msg("storage_close_failed")
 	}
 
 	log.Info().Msg("bot_exit")
+}
+
+// runSessionLoop keeps one Discord session alive, reconnecting until ctx ends.
+// An unhealthy session is retried almost immediately (the connection is known
+// bad, so waiting buys nothing); any other failure backs off, and the jitter
+// keeps a fleet of bots from reconnecting in lockstep after an outage.
+func runSessionLoop(ctx context.Context, bot *discord.Bot, log zerolog.Logger) {
+	for {
+		var lastErr error
+		if err := bot.RunSession(ctx); err != nil {
+			lastErr = err
+			log.Error().Err(err).Msg("discord_session_end")
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			delay := 5 * time.Second
+			if discord.IsSessionUnhealthyError(lastErr) {
+				delay = time.Duration(rand.IntN(200)) * time.Millisecond
+			}
+			log.Warn().Dur("delay", delay).Msg("discord_session_restart")
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+		}
+	}
 }
 
 func defaultMiddleware(log zerolog.Logger) []command.Middleware {

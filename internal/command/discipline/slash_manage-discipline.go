@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
@@ -24,13 +24,13 @@ func RunManageDisciplineRoles(s *discordgo.Session, e *discordgo.InteractionCrea
 		}
 
 		if roleType == "" || roleID == "" {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Missing required options.",
 			})
 		}
 
 		if err := storage.SetPunishRole(e.GuildID, roleType, roleID); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set %s role: %v", roleType, err),
 			})
 		}
@@ -40,7 +40,7 @@ func RunManageDisciplineRoles(s *discordgo.Session, e *discordgo.InteractionCrea
 			roleName = rName
 		}
 
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Set %s role to **%s**.", roleType, roleName),
 		})
 		return nil
@@ -60,35 +60,35 @@ func RunManageDisciplineRoles(s *discordgo.Session, e *discordgo.InteractionCrea
 				lines = append(lines, fmt.Sprintf("**%s** role not set", t))
 			}
 		}
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: strings.Join(lines, "\n") + "\n\nUse `/settings discipline roles-set` to set or update roles.\n\n Punish is the role that can punish and release people.\nVictim is the role that can be punished.\nAssigned is the punishment role (that is assigned by the punisher).",
 		})
 		return nil
 
 	case "roles-reset":
 		if err := storage.SetPunishRole(e.GuildID, "punisher", ""); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting punisher role: %v", err),
 			})
 		}
 		if err := storage.SetPunishRole(e.GuildID, "victim", ""); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting victim role: %v", err),
 			})
 		}
 		if err := storage.SetPunishRole(e.GuildID, "assigned", ""); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed resetting assigned role: %v", err),
 			})
 		}
 
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "All roles have been reset.",
 		})
 		return nil
 	}
 
-	return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Description: "Unknown subcommand.",
 	})
 }

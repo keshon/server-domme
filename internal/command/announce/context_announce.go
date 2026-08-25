@@ -4,18 +4,21 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
-
-	"github.com/keshon/server-domme/internal/discord/discordreply"
-
 	"strings"
-
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
+	"github.com/rs/zerolog"
 )
+
+// attachmentFetchTimeout bounds one attachment download. Discord's CDN is the
+// only host reached here, and a stalled fetch would otherwise hold a command
+// slot open for as long as the connection stays half-open.
+const attachmentFetchTimeout = 30 * time.Second
 
 type AnnounceContextCommand struct{}
 
@@ -51,9 +54,11 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	guildID := e.GuildID
 	channelID := e.ChannelID
 
+	log := context.AppLog
+
 	// Deferred ephemeral reply
-	if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
-		log.Println("Failed to send deferred response:", err)
+	if err := reply.RespondDeferredEphemeral(s, e); err != nil {
+		log.Warn().Err(err).Msg("announce_defer_failed")
 		return nil
 	}
 
@@ -61,40 +66,33 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	targetID := e.ApplicationCommandData().TargetID
 	msg, err := s.ChannelMessage(channelID, targetID)
 	if err != nil {
-		discordreply.EditResponse(s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
+		editResponse(log, s, e, fmt.Sprintf("Couldn't fetch the message: `%v`", err))
 		return nil
 	}
 
 	// Validation
 	if msg.Author == nil {
-		discordreply.EditResponse(s, e, "I won't announce ghost messages.")
+		editResponse(log, s, e, "I won't announce ghost messages.")
 		return nil
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
-		discordreply.EditResponse(s, e, "Empty? I'm not announcing tumbleweeds.")
+		editResponse(log, s, e, "Empty? I'm not announcing tumbleweeds.")
 		return nil
 	}
 
 	// Fetch announcement channel
 	announceChannelID, err := storage.GetAnnounceChannel(guildID)
 	if err != nil || announceChannelID == "" {
-		discordreply.EditResponse(s, e, "No announcement channel configured. Bother the admin.")
+		editResponse(log, s, e, "No announcement channel configured. Bother the admin.")
 		return nil
 	}
 
 	// Download attachments
 	var files []*discordgo.File
 	for _, att := range msg.Attachments {
-		resp, err := http.Get(att.URL)
+		data, err := fetchAttachment(att.URL)
 		if err != nil {
-			log.Printf("Failed to download attachment %s: %v", att.URL, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Failed to read attachment %s: %v", att.URL, err)
+			log.Warn().Str("url", att.URL).Err(err).Msg("announce_attachment_fetch_failed")
 			continue
 		}
 
@@ -112,12 +110,42 @@ func (c *AnnounceContextCommand) Run(ctx interface{}) error {
 	}
 
 	if _, err := s.ChannelMessageSendComplex(announceChannelID, message); err != nil {
-		discordreply.EditResponse(s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
+		editResponse(log, s, e, fmt.Sprintf("Couldn't announce it: `%v`", err))
 		return nil
 	}
 
-	discordreply.EditResponse(s, e, "Announced. Everyone’s watching now.")
+	editResponse(log, s, e, "Announced. Everyone’s watching now.")
 	return nil
+}
+
+// editResponse replaces the deferred reply, logging rather than propagating a
+// failure. By this point the announcement has already happened or already
+// failed, so a lost edit only costs the user the confirmation — surfacing it as
+// a command error would report the wrong outcome.
+func editResponse(log zerolog.Logger, s *discordgo.Session, e *discordgo.InteractionCreate, content string) {
+	if err := reply.EditResponse(s, e, content); err != nil {
+		log.Warn().Err(err).Msg("announce_edit_response_failed")
+	}
+}
+
+// fetchAttachment downloads one attachment in full.
+//
+// It reads the body into memory rather than streaming it onward because the
+// re-send needs an io.Reader it can replay, and it closes per call: the loop
+// that calls this used to `defer` inside itself, holding every response body
+// open until the whole command returned.
+func fetchAttachment(url string) ([]byte, error) {
+	client := &http.Client{Timeout: attachmentFetchTimeout}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("attachment fetch: unexpected status %s", resp.Status)
+	}
+	return io.ReadAll(resp.Body)
 }
 
 var mentionRegex = regexp.MustCompile(`@(\S+)`)

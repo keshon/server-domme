@@ -205,13 +205,15 @@ func runPurgeAuto(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applic
 	})
 
 	if notifyAll {
-		session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
+		if _, err := session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
 			Title:       "☢️ Recurring Nuke Detonation",
 			Description: fmt.Sprintf("All messages older than `%s` will be **systematically erased**.", dur.String()),
 			Color:       embedColor,
 			Image:       &discordgo.MessageEmbedImage{URL: "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp"},
 			Footer:      &discordgo.MessageEmbedFooter{Text: "History has a half-life."},
-		})
+		}); err != nil {
+			announceFailed(ctx, err)
+		}
 	}
 
 	go func() {
@@ -281,13 +283,15 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 	})
 
 	if notifyAll {
-		session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
+		if _, err := session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
 			Title:       "☢️ Upcoming Nuke Detonation",
 			Description: "Countdown initiated — all messages will be purged in `" + dur.String() + "`.",
 			Color:       embedColor,
 			Image:       &discordgo.MessageEmbedImage{URL: "https://c.tenor.com/qDvLEFO5bAkAAAAd/tenor.gif"},
 			Footer:      &discordgo.MessageEmbedFooter{Text: "May your sins be incinerated."},
-		})
+		}); err != nil {
+			announceFailed(ctx, err)
+		}
 	}
 
 	go func() {
@@ -302,7 +306,12 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 		ActiveDeletionsMu.Lock()
 		delete(ActiveDeletions, event.ChannelID)
 		ActiveDeletionsMu.Unlock()
-		storage.ClearDeletionJob(event.GuildID, event.ChannelID)
+		if err := storage.ClearDeletionJob(event.GuildID, event.ChannelID); err != nil {
+			ctx.AppLog.Error().
+				Str("channel_id", event.ChannelID).
+				Err(err).
+				Msg("purge_job_clear_failed")
+		}
 	}()
 	return nil
 }
@@ -447,4 +456,13 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 	}
 }
 
-
+// announceFailed logs a channel-wide purge warning that could not be posted,
+// instead of propagating it. The purge itself is already scheduled by this
+// point, so a missing warning must not read back to the invoker as "the purge
+// did not start".
+func announceFailed(ctx *cmdadapter.SlashInteractionContext, err error) {
+	ctx.AppLog.Warn().
+		Str("channel_id", ctx.Event.ChannelID).
+		Err(err).
+		Msg("purge_announce_failed")
+}

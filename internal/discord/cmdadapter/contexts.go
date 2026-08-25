@@ -39,6 +39,7 @@ type MessageReactionContext struct {
 	Storage *storage.Storage
 	Config  *config.Config
 	Logger  Logger
+	AppLog  zerolog.Logger
 }
 
 type MessageApplicationCommandContext struct {
@@ -57,4 +58,5 @@ type MessageContext struct {
 	Event   *discordgo.MessageCreate
 	Storage *storage.Storage
 	Config  *config.Config
+	AppLog  zerolog.Logger
 }

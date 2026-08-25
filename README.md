@@ -26,7 +26,7 @@ It’s designed to be practical for server management while providing light, int
 
 - **/about** — Discover the origin of this bot
 - **/help** — Get a list of available commands
-  - **`/help category** — View commands grouped by category
+  - **/help category** — View commands grouped by category
   - **/help group** — View commands grouped by group
   - **/help flat** — View all commands as a flat list
 
@@ -35,7 +35,7 @@ It’s designed to be practical for server management while providing light, int
 - **Announce (context command)** — Send a message on bot's behalf
 - **/announce** — Send a message on bot's behalf
 - **/shortlink** — Shorten URLs and manage your links
-  - **`/shortlink create** — Shorten a URL
+  - **/shortlink create** — Shorten a URL
   - **/shortlink list** — List your shortened URLs
   - **/shortlink delete** — Delete a specific shortened URL
   - **/shortlink clear** — Clear all your shortened URLs
@@ -50,7 +50,7 @@ It’s designed to be practical for server management while providing light, int
 - **/ask** — Ask for permission to contact another member
 - **/confess** — Send an anonymous confession
 - **/discipline** — Punish or release a brat
-  - **`/discipline punish** — Assign the brat role
+  - **/discipline punish** — Assign the brat role
   - **/discipline release** — Remove the brat role
 - **/task** — Assign yourself a new random task
 
@@ -62,7 +62,7 @@ It’s designed to be practical for server management while providing light, int
 ### 🧹 Cleanup
 
 - **/purge** — Manage message purges
-  - **`/purge auto** — Regularly purge old messages in this channel
+  - **/purge auto** — Regularly purge old messages in this channel
   - **/purge now** — Schedule or perform an immediate purge
   - **/purge jobs** — List all active purge jobs
   - **/purge stop** — Stop ongoing purge in this channel
@@ -70,7 +70,7 @@ It’s designed to be practical for server management while providing light, int
 ### ⚙️ Settings
 
 - **/settings** — Server settings
-  - **`/settings announce channel-set** — Set the announcement channel
+  - **/settings announce channel-set** — Set the announcement channel
   - **/settings announce channel-show** — Show the current announcement channel
   - **/settings announce channel-reset** — Remove the announcement channel
   - **/settings confess channel-set** — Set the confession channel
@@ -105,7 +105,7 @@ It’s designed to be practical for server management while providing light, int
 ### 🛠️ Maintenance
 
 - **/maintenance** — Bot maintenance commands
-  - **`/maintenance ping** — Check bot latency
+  - **/maintenance ping** — Check bot latency
   - **/maintenance export-data** — Export the current server database as JSON
   - **/maintenance status** — Retrieve guild statistics
   - **/maintenance sync** — Re-register slash commands

@@ -2,76 +2,47 @@ package storage
 
 import (
 	"fmt"
+	"slices"
 )
 
+// AddTranslateChannel opts a channel into reaction-triggered translation.
 func (s *Storage) AddTranslateChannel(guildID string, channelID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
+	g := s.guildSettings(guildID)
+	if slices.Contains(g.TranslateChannels, channelID) {
+		return fmt.Errorf("channel already in translate list")
 	}
-
-	if record.TranslateChannels == nil {
-		record.TranslateChannels = []string{}
-	}
-
-	// Check if channel already exists
-	for _, ch := range record.TranslateChannels {
-		if ch == channelID {
-			return fmt.Errorf("channel already in translate list")
-		}
-	}
-
-	record.TranslateChannels = append(record.TranslateChannels, channelID)
-	return s.ds.Set(guildID, record)
+	g.TranslateChannels = append(g.TranslateChannels, channelID)
+	return s.settings.Put(g)
 }
 
+// RemoveTranslateChannel opts a channel back out.
 func (s *Storage) RemoveTranslateChannel(guildID string, channelID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	if len(record.TranslateChannels) == 0 {
+	g := s.guildSettings(guildID)
+	if len(g.TranslateChannels) == 0 {
 		return fmt.Errorf("no translate channels configured")
 	}
-
-	newList := []string{}
-	found := false
-	for _, ch := range record.TranslateChannels {
-		if ch != channelID {
-			newList = append(newList, ch)
-		} else {
-			found = true
-		}
-	}
-
-	if !found {
+	updated := slices.DeleteFunc(g.TranslateChannels, func(c string) bool {
+		return c == channelID
+	})
+	if len(updated) == len(g.TranslateChannels) {
 		return fmt.Errorf("channel not found in translate list")
 	}
-
-	record.TranslateChannels = newList
-	return s.ds.Set(guildID, record)
+	g.TranslateChannels = updated
+	return s.settings.Put(g)
 }
 
+// GetTranslateChannels lists the guild's translation channels, never nil.
 func (s *Storage) GetTranslateChannels(guildID string) ([]string, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return nil, err
-	}
-
-	if record.TranslateChannels == nil {
+	channels := s.guildSettings(guildID).TranslateChannels
+	if channels == nil {
 		return []string{}, nil
 	}
-
-	return record.TranslateChannels, nil
+	return channels, nil
 }
 
+// ResetTranslateChannels clears every translation channel for the guild.
 func (s *Storage) ResetTranslateChannels(guildID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	record.TranslateChannels = []string{}
-	return s.ds.Set(guildID, record)
+	g := s.guildSettings(guildID)
+	g.TranslateChannels = nil
+	return s.settings.Put(g)
 }

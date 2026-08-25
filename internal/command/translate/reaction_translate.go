@@ -98,12 +98,19 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 	}
 
 	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, toFlag, translated, link)
-	s.ChannelMessageSend(dm.ID, content)
+	if _, err := s.ChannelMessageSend(dm.ID, content); err != nil {
+		context.AppLog.Warn().Str("user_id", e.UserID).Err(err).Msg("translate_dm_failed")
+		// Leave the reaction in place: it is the only cue the user gets that
+		// nothing arrived, and removing it would look like the work succeeded.
+		return nil
+	}
 
 	// Remove reaction if we have permissions
 	perms, err := s.State.UserChannelPermissions(s.State.User.ID, e.ChannelID)
 	if err == nil && perms&discordgo.PermissionManageMessages != 0 {
-		s.MessageReactionRemove(e.ChannelID, e.MessageID, e.Emoji.Name, e.UserID)
+		if err := s.MessageReactionRemove(e.ChannelID, e.MessageID, e.Emoji.Name, e.UserID); err != nil {
+			context.AppLog.Debug().Str("channel_id", e.ChannelID).Err(err).Msg("translate_reaction_remove_failed")
+		}
 	}
 
 	return nil

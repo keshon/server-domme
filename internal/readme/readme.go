@@ -82,7 +82,7 @@ func UpdateReadme(registry *command.Registry, categoryWeights map[string]int, lo
 				buf.WriteString("\n")
 			}
 			currentCategory = cat
-			buf.WriteString(fmt.Sprintf("### %s\n\n", currentCategory))
+			fmt.Fprintf(&buf, "### %s\n\n", currentCategory)
 		}
 
 		renderDiscordCommand(&buf, root)
@@ -131,15 +131,11 @@ func UpdateReadme(registry *command.Registry, categoryWeights map[string]int, lo
 func renderDiscordCommand(buf *bytes.Buffer, c command.Command) {
 	name := c.Name()
 	display := name
-	if !(hasSpace(name) || startsWithUpper(name)) {
+	if !hasSpace(name) && !startsWithUpper(name) {
 		display = "/" + display
 	}
 
-	buf.WriteString(fmt.Sprintf(
-		"- **%s** — %s\n",
-		display,
-		c.Description(),
-	))
+	fmt.Fprintf(buf, "- **%s** — %s\n", display, c.Description())
 
 	sp, ok := c.(cmdadapter.SlashProvider)
 	if !ok {
@@ -153,15 +149,16 @@ func renderDiscordCommand(buf *bytes.Buffer, c command.Command) {
 
 	var sub strings.Builder
 	cmdadapter.AppendSlashSubcommands(&sub, def.Name, def.Options, "")
-	for _, line := range strings.Split(strings.TrimSpace(sub.String()), "\n") {
+	for _, line := range strings.Split(sub.String(), "\n") {
+		// Lines look like:  `/help category` - description
+		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		inner := strings.TrimPrefix(line, "  `")
-		inner = strings.TrimSuffix(inner, "`")
-		parts := strings.SplitN(inner, "` - ", 2)
+		line = strings.TrimPrefix(line, "`")
+		parts := strings.SplitN(line, "` - ", 2)
 		if len(parts) == 2 {
-			buf.WriteString(fmt.Sprintf("  - **%s** — %s\n", parts[0], parts[1]))
+			fmt.Fprintf(buf, "  - **%s** — %s\n", parts[0], parts[1])
 		}
 	}
 }

@@ -3,7 +3,6 @@ package media
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,7 +10,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type UploadMediaCommand struct{}
@@ -110,15 +109,15 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 	e := context.Event
 	guildID := e.GuildID
 
-	if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
-		log.Printf("[ERROR] Failed to defer interaction: %v", err)
+	if err := reply.RespondDeferredEphemeral(s, e); err != nil {
+		context.AppLog.Error().Err(err).Msg("media_upload_defer_failed")
 		return err
 	}
 
 	data := e.ApplicationCommandData()
 	options := data.Options
 
-	var category string = "uncategorized"
+	category := "uncategorized"
 	files := []*discordgo.MessageAttachment{}
 
 	// Extract category + attachments
@@ -136,7 +135,7 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 	}
 
 	if len(files) == 0 {
-		return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No files uploaded.",
 		})
 	}
@@ -146,14 +145,14 @@ func (c *UploadMediaCommand) Run(ctx interface{}) error {
 
 	for _, file := range files {
 		if err := saveUploadedFile(file, guildID, category); err != nil {
-			log.Printf("[ERROR] Failed to save uploaded file %s: %v", file.Filename, err)
+			context.AppLog.Error().Str("filename", file.Filename).Err(err).Msg("media_upload_save_failed")
 			failed++
 			continue
 		}
 		saved++
 	}
 
-	return discordreply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return reply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 		Title: "📥 Media Upload",
 		Description: fmt.Sprintf(
 			"Saved **%d** file(s) to category `%s` (%d failed)",

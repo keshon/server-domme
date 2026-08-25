@@ -9,7 +9,6 @@ WORKDIR /usr/project
 
 # Cache dependencies layer
 COPY src/go.mod src/go.sum ./
-COPY src/pkg ./pkg
 RUN go mod download
 
 # Copy rest of the source
@@ -24,8 +23,8 @@ RUN BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ") && \
             -X github.com/keshon/buildinfo.Version=dev \
             -X github.com/keshon/buildinfo.Commit=${GIT_COMMIT} \
             -X github.com/keshon/buildinfo.BuildTime=${BUILD_DATE} \
-            -X github.com/keshon/buildinfo.Project=ServerDomme \
-            -X 'github.com/keshon/buildinfo.Description=Server Domme'" \
+            -X 'github.com/keshon/buildinfo.Project=Server Domme' \
+            -X 'github.com/keshon/buildinfo.Description=Discord bot for server management, roleplay tasks, confessions and scheduled channel cleanup.'" \
         ./cmd/discord/
 
 # ---- Stage 2: Runtime ----
@@ -36,6 +35,8 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /usr/project
 COPY --from=builder /usr/project/app ./app
 
-RUN mkdir -p data && touch data/datastore.json
+# The datastore creates and owns its directory; it must not be pre-seeded
+# with files, only mounted.
+RUN mkdir -p data
 
 ENTRYPOINT ["/usr/project/app"]

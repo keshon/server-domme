@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
@@ -31,13 +31,13 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 		}
 
 		if roleID == "" {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Missing required options.",
 			})
 		}
 
 		if err := storage.SetTaskRole(e.GuildID, roleID); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set Tasker role: %v", err),
 			})
 		}
@@ -47,7 +47,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 			roleName = rName
 		}
 
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Tasker role set to **%s**.", roleName),
 		})
 		return nil
@@ -55,7 +55,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 	case "role-show":
 		roleID, err := storage.GetTaskRole(e.GuildID)
 		if err != nil || roleID == "" {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No Tasker role set.",
 			})
 		}
@@ -65,19 +65,19 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 			roleName = rName
 		}
 
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Tasker role set to **%s**.", roleName),
 		})
 		return nil
 
 	case "role-reset":
 		if err := storage.SetTaskRole(e.GuildID, ""); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to reset Tasker role: %v", err),
 			})
 		}
 
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Tasker role reset.",
 		})
 		return nil
@@ -85,18 +85,18 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 	case "tasks-download":
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No tasks file found for this server.",
 			})
 		}
 
-		if err := discordreply.RespondDeferredEphemeral(s, e); err != nil {
+		if err := reply.RespondDeferredEphemeral(s, e); err != nil {
 			return fmt.Errorf("failed to defer interaction: %w", err)
 		}
 
 		file, err := os.Open(path)
 		if err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to open tasks file: %v", err),
 			})
 		}
@@ -112,7 +112,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 			},
 		})
 		if err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to send tasks file: %v", err),
 			})
 		}
@@ -120,7 +120,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 
 	case "tasks-upload":
 		if len(sub.Options) == 0 {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No file uploaded.",
 			})
 		}
@@ -128,21 +128,21 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 		attachmentOption := sub.Options[0]
 		attachmentID, ok := attachmentOption.Value.(string)
 		if !ok {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to retrieve attachment ID.",
 			})
 		}
 
 		attachment, exists := e.ApplicationCommandData().Resolved.Attachments[attachmentID]
 		if !exists {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to get the uploaded file.",
 			})
 		}
 
 		resp, err := http.Get(attachment.URL)
 		if err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to download the uploaded file.",
 			})
 		}
@@ -150,50 +150,50 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil || len(body) == 0 {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Failed to read the uploaded file or file is empty.",
 			})
 		}
 
 		var tasks []map[string]interface{}
 		if err := json.Unmarshal(body, &tasks); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Invalid JSON file.",
 			})
 		}
 
 		if err := os.MkdirAll("data", 0755); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to create data directory: %v", err),
 			})
 		}
 
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if err := os.WriteFile(path, body, 0644); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to write tasks file: %v", err),
 			})
 		}
 
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Tasks have been uploaded.\nSaved as `%s`", filepath.Base(path)),
 		})
 
 	case "tasks-reset":
 		path := filepath.Join("data", fmt.Sprintf("%s_task.list.json", e.GuildID))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No tasks file found for this server.",
 			})
 		}
 
 		if err := os.Remove(path); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to remove tasks file: %v", err),
 			})
 		}
 
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Tasks have been reset. Use `/settings task tasks-upload` to upload new tasks.",
 		})
 
@@ -206,19 +206,19 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 		}
 
 		if durationRaw == "" {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Missing required options.",
 			})
 		}
 
 		if err := storage.SetTaskCooldownDuration(e.GuildID, durationRaw); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Invalid duration: %v\nUse `30m`, `3h`, `1d`, etc.", err),
 			})
 		}
 
 		duration, _ := storage.GetTaskCooldownDuration(e.GuildID)
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Task cooldown set to **%s**.", humanDuration(duration)),
 		})
 		return nil
@@ -226,7 +226,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 	case "cooldown-show":
 		duration, err := storage.GetTaskCooldownDuration(e.GuildID)
 		if err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to read cooldown setting: %v", err),
 			})
 		}
@@ -239,7 +239,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 
 		active, err := storage.ListActiveTaskCooldowns(e.GuildID)
 		if err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to list cooldowns: %v", err),
 			})
 		}
@@ -255,13 +255,13 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 			activeSection = "**Active cooldowns:**\n" + strings.Join(cooldownLines, "\n")
 		}
 
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: guildLine + "\n\n" + activeSection,
 		})
 		return nil
 
 	default:
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Invalid subcommand.",
 		})
 	}

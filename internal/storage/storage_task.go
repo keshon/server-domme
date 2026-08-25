@@ -3,14 +3,14 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"time"
 
-	st "github.com/keshon/server-domme/internal/domain"
+	"github.com/keshon/datastore"
 )
 
+// DefaultTaskCooldownDuration applies to any guild that has not set its own.
 const DefaultTaskCooldownDuration = 3 * time.Hour
 
 var taskCooldownDurationPattern = regexp.MustCompile(`(?i)(\d+)([smhdw])`)
@@ -46,205 +46,124 @@ func parseTaskCooldownDuration(input string) (time.Duration, error) {
 	return total, nil
 }
 
+// SetTaskRole sets the role whose members may draw tasks.
 func (s *Storage) SetTaskRole(guildID, roleID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	record.TaskRole = roleID
-	return s.ds.Set(guildID, record)
+	g := s.guildSettings(guildID)
+	g.TaskRole = roleID
+	return s.settings.Put(g)
 }
 
+// GetTaskRole returns the guild's task role, or an error when unset.
 func (s *Storage) GetTaskRole(guildID string) (string, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return "", err
-	}
-
-	if record.TaskRole == "" {
+	roleID := s.guildSettings(guildID).TaskRole
+	if roleID == "" {
 		return "", fmt.Errorf("no tasker role set")
 	}
-	return record.TaskRole, nil
+	return roleID, nil
 }
 
-func (s *Storage) SetTask(guildID string, userID string, task st.Task) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	if record.TaskList == nil {
-		record.TaskList = make(map[string]st.Task)
-	}
-
-	record.TaskList[userID] = task
-	return s.ds.Set(guildID, record)
+// SetTask records the task a member currently holds.
+func (s *Storage) SetTask(guildID string, userID string, task Task) error {
+	task.GuildID = guildID
+	task.UserID = userID
+	return s.tasks.Put(&task)
 }
 
-func (s *Storage) GetTask(guildID string, userID string) (*st.Task, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return nil, err
-	}
-
-	if record.TaskList == nil {
-		return nil, fmt.Errorf("no tasks found")
-	}
-
-	task, exists := record.TaskList[userID]
-	if !exists {
+// GetTask returns the member's current task, or an error when they hold none.
+func (s *Storage) GetTask(guildID string, userID string) (*Task, error) {
+	task, ok := s.tasks.Get(guildScopedKey(guildID, userID))
+	if !ok {
 		return nil, fmt.Errorf("no task for user %s", userID)
 	}
-
-	return &task, nil
+	return task, nil
 }
 
+// ClearTask drops the member's current task (idempotent).
 func (s *Storage) ClearTask(guildID string, userID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	if record.TaskList != nil {
-		delete(record.TaskList, userID)
-		return s.ds.Set(guildID, record)
-	}
-
-	return nil
+	return s.tasks.Delete(guildScopedKey(guildID, userID))
 }
 
+// SetCooldown blocks the member from drawing another task until cooldown.
 func (s *Storage) SetCooldown(guildID string, userID string, cooldown time.Time) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	s.ClearExpiredCooldowns()
-
-	if record.TaskCooldowns == nil {
-		record.TaskCooldowns = make(map[string]time.Time)
-	}
-
-	record.TaskCooldowns[userID] = cooldown
-	return s.ds.Set(guildID, record)
+	return s.cooldowns.Put(&TaskCooldown{
+		GuildID: guildID,
+		UserID:  userID,
+		Until:   cooldown,
+	})
 }
 
+// GetCooldown returns when the member may draw again, or an error when they are
+// not on cooldown.
 func (s *Storage) GetCooldown(guildID string, userID string) (time.Time, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	if record.TaskCooldowns == nil {
-		return time.Time{}, fmt.Errorf("no cooldown found")
-	}
-
-	cooldown, exists := record.TaskCooldowns[userID]
-	if !exists {
+	c, ok := s.cooldowns.Get(guildScopedKey(guildID, userID))
+	if !ok {
 		return time.Time{}, fmt.Errorf("no cooldown for user %s", userID)
 	}
-
-	return cooldown, nil
+	return c.Until, nil
 }
 
+// ClearCooldown lifts a member's cooldown (idempotent).
 func (s *Storage) ClearCooldown(guildID string, userID string) error {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	if record.TaskCooldowns != nil {
-		delete(record.TaskCooldowns, userID)
-		return s.ds.Set(guildID, record)
-	}
-
-	return nil
+	return s.cooldowns.Delete(guildScopedKey(guildID, userID))
 }
 
+// SetTaskCooldownDuration sets the guild's cooldown window, rejecting input the
+// parser cannot read so a typo cannot silently fall back to the default.
 func (s *Storage) SetTaskCooldownDuration(guildID, raw string) error {
 	if _, err := parseTaskCooldownDuration(raw); err != nil {
 		return err
 	}
-
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return err
-	}
-
-	record.TaskCooldownDuration = raw
-	return s.ds.Set(guildID, record)
+	g := s.guildSettings(guildID)
+	g.TaskCooldownDuration = raw
+	return s.settings.Put(g)
 }
 
+// GetTaskCooldownDuration returns the guild's cooldown window, or the default.
 func (s *Storage) GetTaskCooldownDuration(guildID string) (time.Duration, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return DefaultTaskCooldownDuration, err
-	}
-
-	if record.TaskCooldownDuration == "" {
+	raw := s.guildSettings(guildID).TaskCooldownDuration
+	if raw == "" {
 		return DefaultTaskCooldownDuration, nil
 	}
-
-	return parseTaskCooldownDuration(record.TaskCooldownDuration)
+	return parseTaskCooldownDuration(raw)
 }
 
+// IsTaskCooldownDurationDefault reports whether the guild uses the default window.
 func (s *Storage) IsTaskCooldownDurationDefault(guildID string) (bool, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return true, err
-	}
-	return record.TaskCooldownDuration == "", nil
+	return s.guildSettings(guildID).TaskCooldownDuration == "", nil
 }
 
+// ListActiveTaskCooldowns returns the guild's unexpired cooldowns by user id.
 func (s *Storage) ListActiveTaskCooldowns(guildID string) (map[string]time.Time, error) {
-	record, err := s.getOrCreateGuildRecord(guildID)
-	if err != nil {
-		return nil, err
-	}
-
-	if record.TaskCooldowns == nil {
-		return map[string]time.Time{}, nil
-	}
-
 	now := time.Now()
 	active := make(map[string]time.Time)
-	for userID, expiry := range record.TaskCooldowns {
-		if expiry.After(now) {
-			active[userID] = expiry
+	for _, c := range s.cooldownsByGuild.Find(guildID) {
+		if c.Until.After(now) {
+			active[c.UserID] = c.Until
 		}
 	}
 	return active, nil
 }
 
+// ClearExpiredCooldowns deletes every elapsed cooldown across all guilds.
+//
+// Expiry is decided by comparing Until against now on read, so this only
+// controls how long dead rows linger — never whether a cooldown is enforced.
 func (s *Storage) ClearExpiredCooldowns() error {
 	now := time.Now()
-
-	for _, guildID := range s.ds.Keys() {
-		record, err := s.getOrCreateGuildRecord(guildID)
-		if err != nil {
-			return fmt.Errorf("error fetching record for guild %s: %w", guildID, err)
-		}
-
-		if record.TaskCooldowns == nil {
-			continue
-		}
-
-		changed := false
-		for userID, cooldown := range record.TaskCooldowns {
-			if cooldown.Before(now) {
-				delete(record.TaskCooldowns, userID)
-				changed = true
-				log.Println("Expired cooldown for user", userID, "in guild", guildID)
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.cooldowns)
+		expired := 0
+		for c := range col.All() {
+			if c.Until.Before(now) {
+				if err := col.Delete(c.Key()); err != nil {
+					return err
+				}
+				expired++
 			}
 		}
-
-		if changed {
-			if err := s.ds.Set(guildID, record); err != nil {
-				return err
-			}
+		if expired > 0 {
+			s.log.Debug().Int("expired", expired).Msg("task_cooldowns_expired")
 		}
-	}
-
-	return nil
+		return nil
+	})
 }

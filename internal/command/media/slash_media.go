@@ -2,7 +2,6 @@ package media
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -12,7 +11,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
+	"github.com/rs/zerolog"
 )
 
 type RandomMediaCommand struct{}
@@ -62,17 +62,17 @@ func (c *RandomMediaCommand) Run(ctx interface{}) error {
 	if category == "" && st != nil {
 		if defCat, err := st.GetMediaDefault(guildID); err == nil && defCat != "" {
 			category = defCat
-			log.Printf("[INFO] Using default media category '%s' for guild %s", defCat, guildID)
+			context.AppLog.Debug().Str("category", defCat).Str("guild_id", guildID).Msg("media_default_category_used")
 		}
 	}
 
-	return c.sendMedia(s, e, guildID, category)
+	return c.sendMedia(context.AppLog, s, e, guildID, category)
 }
 
-func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.InteractionCreate, guildID, category string) error {
+func (c *RandomMediaCommand) sendMedia(log zerolog.Logger, s *discordgo.Session, e *discordgo.InteractionCreate, guildID, category string) error {
 	// ACK immediately to avoid "Application unavailable" on slow disks/large media sets.
-	if err := discordreply.AckDeferred(s, e); err != nil {
-		log.Printf("[WARN] media: failed to ACK deferred: %v", err)
+	if err := reply.AckDeferred(s, e); err != nil {
+		log.Warn().Err(err).Msg("media_ack_failed")
 	}
 
 	baseDir := filepath.Join("assets", "media", guildID)
@@ -84,14 +84,14 @@ func (c *RandomMediaCommand) sendMedia(s *discordgo.Session, e *discordgo.Intera
 
 	file, err := pickRandomFile(searchPath)
 	if err != nil {
-		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
 		})
 	}
 
 	f, err := os.Open(file)
 	if err != nil {
-		return discordreply.RespondEmbed(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbed(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to open media: %v", err),
 		})
 	}
@@ -130,7 +130,7 @@ func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionConte
 	guildID := e.GuildID
 
 	customID := e.MessageComponentData().CustomID
-	log.Printf("[DEBUG] Component handler called for: %s\n", customID)
+	ctx.AppLog.Debug().Str("custom_id", customID).Msg("media_component_received")
 
 	category := ""
 	if parts := strings.SplitN(customID, "|", 2); len(parts) == 2 {
@@ -140,7 +140,7 @@ func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionConte
 	if category == "" && st != nil {
 		if defCat, err := st.GetMediaDefault(guildID); err == nil && defCat != "" {
 			category = defCat
-			log.Printf("[INFO] Using default media category '%s' for follow-up in guild %s", defCat, guildID)
+			ctx.AppLog.Debug().Str("category", defCat).Str("guild_id", guildID).Msg("media_default_category_used")
 		}
 	}
 
@@ -148,7 +148,7 @@ func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionConte
 		Type: discordgo.InteractionResponseDeferredMessageUpdate,
 	})
 	if err != nil {
-		log.Println("[ERR] Failed to ACK interaction:", err)
+		ctx.AppLog.Error().Err(err).Msg("media_ack_failed")
 		return err
 	}
 
@@ -162,7 +162,7 @@ func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionConte
 		if _, ferr := s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("No media found in `%s`: %v", categoryOrDefault(category), err),
 		}); ferr != nil {
-			log.Printf("[ERR] Failed to send media followup (no media): %v", ferr)
+			ctx.AppLog.Error().Str("category", category).Err(ferr).Msg("media_followup_failed")
 		}
 		return nil
 	}
@@ -172,7 +172,7 @@ func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionConte
 		if _, ferr := s.FollowupMessageCreate(e.Interaction, false, &discordgo.WebhookParams{
 			Content: fmt.Sprintf("Failed to open media: %v", err),
 		}); ferr != nil {
-			log.Printf("[ERR] Failed to send media followup (open failed): %v", ferr)
+			ctx.AppLog.Error().Str("category", category).Err(ferr).Msg("media_followup_failed")
 		}
 		return nil
 	}
@@ -197,7 +197,7 @@ func (c *RandomMediaCommand) Component(ctx *cmdadapter.ComponentInteractionConte
 		},
 	})
 	if err != nil {
-		log.Println("[ERR] Failed to send follow-up media:", err)
+		ctx.AppLog.Error().Str("category", category).Err(err).Msg("media_send_failed")
 	}
 	return nil
 }

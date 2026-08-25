@@ -1,4 +1,7 @@
 .env
+# Any local variant (.env.local, .env.bak, ...) may hold a live token.
+.env.*
+!.env.example
 *.exe
 *.exe~
 /.VSCodeCounter
@@ -7,6 +10,15 @@
 /dist
 /tools
 datastore.json*
+
+# Datastore directories: WAL, snapshots and the lock file, wherever they live.
+# snapshot-*.json is already covered by the *.json rule above.
+/data/store/
+wal.log
+LOCK
+
+# Scratch space for dumps pulled off the production server.
+/temp/
 *.txt
 *private*
 datastore_dump.json

@@ -1,0 +1,156 @@
+name: Build
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+env:
+    PROJECT_NAME: Server Domme
+    PROJECT_DESCRIPTION: Discord bot for server management, roleplay tasks, confessions and scheduled channel cleanup.
+
+jobs:
+    test:
+        name: Vet & test (race)
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: '1.26'
+                  cache: true
+                  cache-dependency-path: go.sum
+
+            - name: Vet
+              run: go vet ./...
+
+            - name: Test (race detector)
+              run: go test -race ./...
+
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: '1.26'
+                  cache: true
+                  cache-dependency-path: go.sum
+
+            - name: golangci-lint
+              uses: golangci/golangci-lint-action@v8
+              with:
+                  version: latest
+
+    build:
+        name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
+
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - goos: linux
+                      goarch: amd64
+                      runner: ubuntu-latest
+
+                    - goos: linux
+                      goarch: arm64
+                      runner: ubuntu-24.04-arm
+
+                    - goos: windows
+                      goarch: amd64
+                      runner: ubuntu-latest
+
+                    - goos: windows
+                      goarch: arm64
+                      runner: ubuntu-latest
+
+                    - goos: darwin
+                      goarch: amd64
+                      runner: ubuntu-latest
+
+                    - goos: darwin
+                      goarch: arm64
+                      runner: ubuntu-latest
+
+        runs-on: ${{ matrix.runner }}
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: '1.26'
+                  cache: true
+                  cache-dependency-path: go.sum
+
+            - name: Set binary extension
+              id: bin
+              run: |
+                  if [ "${{ matrix.goos }}" = "windows" ]; then
+                    echo "ext=.exe" >> $GITHUB_OUTPUT
+                  else
+                    echo "ext=" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Build Discord bot
+              env:
+                  GOOS: ${{ matrix.goos }}
+                  GOARCH: ${{ matrix.goarch }}
+                  CGO_ENABLED: 0
+              run: |
+                  set -e
+
+                  BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
+                  GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none")
+
+                  mkdir -p dist
+
+                  go build -trimpath \
+                    -ldflags="-s -w \
+                      -X github.com/keshon/buildinfo.Version=dev \
+                      -X github.com/keshon/buildinfo.Commit=${GIT_COMMIT} \
+                      -X github.com/keshon/buildinfo.BuildTime=${BUILD_DATE} \
+                      -X 'github.com/keshon/buildinfo.Project=${{ env.PROJECT_NAME }}' \
+                      -X 'github.com/keshon/buildinfo.Description=${{ env.PROJECT_DESCRIPTION }}'" \
+                    -o dist/server-domme-discord${{ steps.bin.outputs.ext }} \
+                    ./cmd/discord/
+
+            - name: Prepare build bundle
+              run: |
+                  PKG_ROOT="server-domme-${{ matrix.goos }}-${{ matrix.goarch }}"
+                  mkdir -p "${PKG_ROOT}"
+
+                  cp "dist/server-domme-discord${{ steps.bin.outputs.ext }}" "${PKG_ROOT}/"
+
+                  cp README.md LICENSE "${PKG_ROOT}/"
+
+                  if [ -f .env.example ]; then
+                    cp .env.example "${PKG_ROOT}/.env"
+                  fi
+
+                  # The bot refuses to start without a task list, so ship the default one.
+                  mkdir -p "${PKG_ROOT}/data"
+                  cp data/default_task.list.json "${PKG_ROOT}/data/"
+
+                  if [ -d assets ]; then
+                    cp -R assets "${PKG_ROOT}/"
+                  fi
+
+                  zip -r "dist/${PKG_ROOT}.zip" "${PKG_ROOT}"
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: server-domme-${{ matrix.goos }}-${{ matrix.goarch }}
+                  path: dist/server-domme-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+                  retention-days: 14

@@ -30,9 +30,27 @@ type Bot struct {
 	sessionCtx atomic.Value // *sessionCtxHolder
 	cmdGuard   atomic.Value // *cmdGuardHolder
 
-	// once ensures one-time background services (e.g. /internal/readme) are not
-	// re-launched on subsequent reconnects.
-	once sync.Once
+	// ready is closed on the first successful connect and never reopened, so a
+	// caller can wait for "the bot is usable" without waking on every reconnect.
+	ready     chan struct{}
+	readyOnce sync.Once
+}
+
+// Session returns the current gateway session, or nil before the first connect.
+//
+// Long-lived services must call this per use rather than capturing the result:
+// RunSession builds a fresh *discordgo.Session on every restart, so a captured
+// pointer goes stale and its writes silently target a closed connection.
+func (b *Bot) Session() *discordgo.Session {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.dg
+}
+
+// Ready returns a channel closed once the bot has connected at least once.
+// Services that need a live session should wait on it before their first use.
+func (b *Bot) Ready() <-chan struct{} {
+	return b.ready
 }
 
 type sessionCtxHolder struct {

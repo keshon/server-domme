@@ -8,7 +8,7 @@ import (
 	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -56,7 +56,7 @@ func (c *ConfessCommand) Run(ctx interface{}) error {
 	}
 
 	if message == "" {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "No confession provided.",
 		})
 	}
@@ -74,25 +74,25 @@ func (c *ConfessCommand) runSendConfession(s *discordgo.Session, e *discordgo.In
 	embed := &discordgo.MessageEmbed{
 		Title:       "📢 Anonymous Confession",
 		Description: fmt.Sprintf("> %s", message),
-		Color:       discordreply.EmbedColor,
+		Color:       reply.EmbedColor,
 	}
 
 	// Post the confession message to the target channel (not ephemeral)
 	_, err = s.ChannelMessageSendEmbed(confessChannelID, embed)
 	if err != nil {
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Failed to send confession: %v", err),
 		})
 	}
 
 	// Notify the user privately (ephemeral)
 	if confessChannelID != e.ChannelID {
-		link := fmt.Sprintf("https://discordreply.com/channels/%s/%s", e.GuildID, confessChannelID)
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		link := fmt.Sprintf("https://discord.com/channels/%s/%s", e.GuildID, confessChannelID)
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Delivered. Nobody saw a thing.\nSee it here: %s", link),
 		})
 	} else {
-		discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Delivered. Nobody saw a thing.",
 		})
 	}

@@ -60,6 +60,21 @@ func (b *Bot) makeSessionUnhealthyNotifier(disconnected chan struct{}) func() {
 	}
 }
 
+// lastHeartbeatAck reads the session's last heartbeat ACK under the lock that
+// actually guards it.
+//
+// Do not reach for dg.HeartbeatLatency() here instead: it reads LastHeartbeatAck
+// together with LastHeartbeatSent, and upstream discordgo guards those two with
+// different locks (the Session mutex and wsMutex), so that accessor is a data
+// race. The ack alone is also the better signal — a latency is the last
+// *completed* exchange, so on a dead connection it goes stale and then negative
+// rather than growing.
+func lastHeartbeatAck(dg *discordgo.Session) time.Time {
+	dg.RLock()
+	defer dg.RUnlock()
+	return dg.LastHeartbeatAck
+}
+
 func (b *Bot) startSessionHealthWatchers(
 	sessionCtx context.Context,
 	dg *discordgo.Session,
@@ -69,16 +84,24 @@ func (b *Bot) startSessionHealthWatchers(
 	go watchdog.NewWSSilence(
 		tracker,
 		b.cfg.WSSilenceTimeout,
-		dg.HeartbeatLatency,
+		// No latency source: the only safe accessor upstream offers is the ACK
+		// timestamp below, and the watchdog decides on staleness, not latency.
+		nil,
 		func(meta watchdog.WSSilenceMeta) {
 			b.log.Warn().
 				Dur("since_last_ws", meta.SinceLastWS).
+				Dur("since_last_heartbeat_ack", meta.SinceLastHeartbeatAck).
 				Dur("timeout", meta.Timeout).
-				Dur("heartbeat_latency", meta.HeartbeatLatency).
 				Msg("gateway_silent")
 			notifyUnhealthy()
 		},
-		watchdog.WSSilenceOptions{SettleDelay: 15 * time.Second, Tick: 10 * time.Second},
+		watchdog.WSSilenceOptions{
+			SettleDelay: 15 * time.Second,
+			Tick:        10 * time.Second,
+			LastHeartbeatAck: func() time.Time {
+				return lastHeartbeatAck(dg)
+			},
+		},
 	).Run(sessionCtx)
 
 	go func() {
@@ -97,11 +120,14 @@ func (b *Bot) startSessionHealthWatchers(
 			case <-sessionCtx.Done():
 				return
 			case <-ticker.C:
-				lat := dg.HeartbeatLatency()
-				if lat < 0 {
-					b.log.Debug().Dur("heartbeat_latency", lat).Msg("heartbeat_latency_skipped")
+				ack := lastHeartbeatAck(dg)
+				if ack.IsZero() {
+					// Connected but not yet ACKed: a probe now would report a
+					// failure that says nothing about the session.
+					b.log.Debug().Msg("heartbeat_ack_pending")
 					continue
 				}
+				sinceAck := time.Since(ack)
 				if _, err := dg.User("@me"); err != nil {
 					fails++
 					b.log.Warn().Int("fails", fails).Err(err).Msg("api_probe_failed")
@@ -115,7 +141,7 @@ func (b *Bot) startSessionHealthWatchers(
 						b.log.Info().Int("fails", fails).Msg("api_probe_recovered")
 					}
 					fails = 0
-					b.log.Debug().Dur("heartbeat_latency", lat).Msg("heartbeat_latency")
+					b.log.Debug().Dur("since_last_heartbeat_ack", sinceAck).Msg("heartbeat_ack")
 				}
 			}
 		}

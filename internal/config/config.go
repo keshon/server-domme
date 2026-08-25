@@ -13,7 +13,7 @@ import (
 type Config struct {
 	DiscordToken          string   `env:"DISCORD_TOKEN,required"`
 	DiscordGuildBlacklist []string `env:"DISCORD_GUILD_BLACKLIST" envSeparator:","`
-	StoragePath           string   `env:"STORAGE_PATH" envDefault:"./data/datastore.json"`
+	StoragePath           string   `env:"STORAGE_PATH" envDefault:"./data/store"` // directory the datastore owns (WAL + snapshots)
 	DeveloperID           string   `env:"DEVELOPER_ID"`
 	InitSlashCommands     bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
 
@@ -43,9 +43,9 @@ type Config struct {
 
 	TasksPath        string   `env:"TASKS_PATH,required"`
 	ProtectedUsers   []string `env:"PROTECTED_USERS" envSeparator:","`
-	AIProvider       string   `env:"AI_PROVIDER"`
-	AIPromptPath     string   `env:"AI_PROMPT_PATH"`
 	ShortLinkBaseURL string   `env:"SHORTLINK_BASE_URL"`
+	// ShortLinkAddr is the listen address for the redirect server (host:port).
+	ShortLinkAddr string `env:"SHORTLINK_ADDR" envDefault:":8787"`
 	// HealthCheckPath registers a shallow GET/HEAD health endpoint at this path (empty = disabled).
 	HealthCheckPath string `env:"HEALTHCHECK_PATH" envDefault:"/ping"`
 }

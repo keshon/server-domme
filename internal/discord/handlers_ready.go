@@ -1,14 +1,7 @@
 package discord
 
 import (
-	"context"
-
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/command"
-	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/purge"
-	"github.com/keshon/server-domme/internal/readme"
-	"github.com/keshon/server-domme/internal/shortlink"
 )
 
 // onReady fires on every successful connect/reconnect.
@@ -34,33 +27,28 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		}
 	}
 
-	// Background services start once across all reconnects.
-	b.once.Do(func() {
-		b.log.Info().Msg("bg_services_started")
-		if err := readme.UpdateReadme(command.DefaultRegistry, config.CategoryWeights, b.log); err != nil {
-			b.log.Error().Err(err).Msg("readme_update_failed")
-		}
-		bgCtx, _ := context.WithCancel(context.Background())
-		purge.RunScheduler(bgCtx, b.storage, s)
-		go shortlink.RunServerWithContext(bgCtx, b.storage, b.cfg)
-	})
+	// Background services are owned by main, not by a gateway event: onReady
+	// fires again on every reconnect, and anything started here would either be
+	// duplicated or outlive the shutdown signal. Publishing readiness instead
+	// keeps the "wait for a live session" need without that lifecycle.
+	b.readyOnce.Do(func() { close(b.ready) })
 
 	b.log.Info().Str("username", botInfo.Username).Msg("discord_ready")
 }
 
 // onGuildCreate fires when the bot joins a new guild.
 func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
-	b.log.Info().Str("guild_id", g.Guild.ID).Str("guild_name", g.Guild.Name).Msg("guild_added")
-	if b.isGuildBlacklisted(g.Guild.ID) {
-		b.log.Info().Str("guild_id", g.Guild.ID).Msg("guild_blacklisted_leaving")
-		if err := s.GuildLeave(g.Guild.ID); err != nil {
-			b.log.Error().Str("guild_id", g.Guild.ID).Err(err).Msg("guild_leave_failed")
+	b.log.Info().Str("guild_id", g.ID).Str("guild_name", g.Name).Msg("guild_added")
+	if b.isGuildBlacklisted(g.ID) {
+		b.log.Info().Str("guild_id", g.ID).Msg("guild_blacklisted_leaving")
+		if err := s.GuildLeave(g.ID); err != nil {
+			b.log.Error().Str("guild_id", g.ID).Err(err).Msg("guild_leave_failed")
 		}
 		return
 	}
 	if b.cfg.InitSlashCommands {
-		if err := b.cmdSyncer.SyncGuildCommands(g.Guild.ID); err != nil {
-			b.log.Error().Str("guild_id", g.Guild.ID).Err(err).Msg("commands_sync_failed")
+		if err := b.cmdSyncer.SyncGuildCommands(g.ID); err != nil {
+			b.log.Error().Str("guild_id", g.ID).Err(err).Msg("commands_sync_failed")
 		}
 	}
 }

@@ -3,7 +3,7 @@ package announce
 import (
 	"fmt"
 
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/storage"
 
 	"github.com/bwmarrin/discordgo"
@@ -15,45 +15,45 @@ func RunManageAnnounceChannel(s *discordgo.Session, e *discordgo.InteractionCrea
 	case "channel-set":
 		channel := sub.Options[0].ChannelValue(s)
 		if channel == nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "Invalid channel.",
 			})
 		}
 
 		if err := st.SetAnnounceChannel(e.GuildID, channel.ID); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to set announcement channel: `%v`", err),
 			})
 		}
 
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Announcement channel updated to <#%s>.", channel.ID),
 		})
 
 	case "channel-show":
 		channelID, err := st.GetAnnounceChannel(e.GuildID)
 		if err != nil || channelID == "" {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: "No announcement channel set.",
 			})
 		}
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("Current announcement channel is <#%s>.", channelID),
 		})
 
 	case "channel-reset":
 		if err := st.SetAnnounceChannel(e.GuildID, ""); err != nil {
-			return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+			return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 				Description: fmt.Sprintf("Failed to reset announcement channel: `%v`", err),
 			})
 		}
 
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Announcement channel has been reset.",
 		})
 
 	default:
-		return discordreply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Description: "Unknown subcommand.",
 		})
 	}

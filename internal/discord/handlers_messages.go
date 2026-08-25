@@ -8,7 +8,7 @@ import (
 
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/discordreply"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // onMessageCreate handles @mention messages directed at the bot.
@@ -32,18 +32,18 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 			b.log.Warn().Str("kind", "message").Err(err).Msg("command_slot_busy")
 		},
 	}, func(cmdCtx context.Context) error {
-		inv := &command.Invocation{Data: &cmdadapter.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg}}
+		inv := &command.Invocation{Data: &cmdadapter.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg, AppLog: b.log}}
 		for _, c := range command.DefaultRegistry.GetAll() {
 			if err := c.Run(cmdCtx, inv); err != nil {
 				if cmdCtx.Err() == context.DeadlineExceeded {
 					b.log.Warn().Str("kind", "message").Err(err).Msg("command_timeout")
-					_ = discordreply.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
+					_ = reply.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
 						Description: "Timed out running command.",
 					})
 					continue
 				}
 				b.log.Error().Str("kind", "message").Err(err).Msg("command_run_error")
-				_ = discordreply.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
+				_ = reply.MessageEmbed(s, m.ChannelID, &discordgo.MessageEmbed{
 					Description: fmt.Sprintf("Error: %v", err),
 				})
 			}
@@ -65,6 +65,7 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 	}, func(cmdCtx context.Context) error {
 		inv := &command.Invocation{Data: &cmdadapter.MessageReactionContext{
 			Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: logger,
+			AppLog: b.log,
 		}}
 		for _, c := range command.DefaultRegistry.GetAll() {
 			if _, ok := command.Root(c).(cmdadapter.ReactionProvider); !ok {
@@ -76,7 +77,7 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 					continue
 				}
 				b.log.Error().Str("kind", "reaction").Err(err).Msg("command_run_error")
-				_ = discordreply.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
+				_ = reply.MessageEmbed(s, r.ChannelID, &discordgo.MessageEmbed{
 					Description: fmt.Sprintf("Error: %v", err),
 				})
 			}
