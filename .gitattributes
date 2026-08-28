@@ -15,6 +15,12 @@
 Dockerfile      text eol=lf
 *.sh            text eol=lf
 
+# The GitHub Pages site served from the repo root.
+*.html          text eol=lf
+*.txt           text eol=lf
+*.xml           text eol=lf
+CNAME           text eol=lf
+
 # Windows-only scripts keep CRLF; cmd.exe is unreliable with LF-only batch files.
 *.bat           text eol=crlf
 

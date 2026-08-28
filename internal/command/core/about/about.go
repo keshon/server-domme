@@ -41,6 +41,10 @@ func (c *About) Run(ctx interface{}) error {
 	// Info fields for embed
 	fields := []*discordgo.MessageEmbedField{
 		{
+			Name:  "Website",
+			Value: "[server-domme.keshon.ru](https://server-domme.keshon.ru) — every command, and who may run it",
+		},
+		{
 			Name:  "Developed by Señor Mega",
 			Value: "[LinkedIn](https://www.linkedin.com/in/keshon), [GitHub](https://github.com/keshon), [Homepage](https://keshon.ru)",
 		},

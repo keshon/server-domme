@@ -1,0 +1,1823 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Server Domme — Discord Bot for Server Discipline, Cleanup &amp; Roleplay</title>
+
+  <meta name="description"
+    content="Server Domme is a self-hosted Discord bot in Go: automatic message purges, consent-gated roleplay, anonymous confessions, task assignments and per-server admin controls. 58 commands, browsable by who is allowed to run them.">
+
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <meta name="theme-color" content="#140f16">
+  <meta name="author" content="keshon">
+  <meta name="keywords"
+    content="discord bot, server management bot, message purge bot, roleplay discord bot, self-hosted discord bot, go discord bot, confession bot">
+
+  <link rel="canonical" href="https://server-domme.keshon.ru/">
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236E2A78'/%3E%3Cpath d='M32 14a9 9 0 0 0-9 9v3h-4v24h26V26h-4v-3a9 9 0 0 0-9-9zm0 5a4 4 0 0 1 4 4v3h-8v-3a4 4 0 0 1 4-4zm0 17a4 4 0 0 1 2 7.5V47h-4v-3.5A4 4 0 0 1 32 36z' fill='%23F1E9F2'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="assets/avatar.webp">
+  <meta name="apple-mobile-web-app-title" content="Server Domme">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://server-domme.keshon.ru/">
+  <meta property="og:site_name" content="Server Domme">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Server Domme — She runs the server. You just live in it.">
+  <meta property="og:description"
+    content="A self-hosted Discord bot in Go. Purges, roleplay, confessions, tasks and admin controls — 58 commands, sorted by who is actually allowed to run them.">
+  <meta property="og:image" content="https://server-domme.keshon.ru/assets/about-banner.webp">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="1024">
+  <meta property="og:image:alt" content="Server Domme — a cartoon dominatrix holding a clipboard and a riding crop">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Server Domme — Discord Bot for Discipline and Cleanup">
+  <meta name="twitter:description"
+    content="Purges, roleplay, confessions and admin controls in one Go binary. 58 commands, browsable by rank.">
+  <meta name="twitter:image" content="https://server-domme.keshon.ru/assets/about-banner.webp">
+  <meta name="twitter:image:alt" content="Server Domme — a cartoon dominatrix holding a clipboard and a riding crop">
+  <meta name="twitter:site" content="@keshon_">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Server Domme",
+    "alternateName": "Server Domme Discord Bot",
+    "description": "Self-hosted Discord bot written in Go. Scheduled and immediate message purges, consent-gated roleplay, anonymous confessions, timed tasks, URL shortening, reaction translation and per-server command management.",
+    "applicationCategory": "CommunicationApplication",
+    "applicationSubCategory": "Discord Bot",
+    "operatingSystem": "Linux, Windows, macOS",
+    "license": "https://github.com/keshon/server-domme/blob/main/LICENSE",
+    "url": "https://server-domme.keshon.ru/",
+    "downloadUrl": "https://github.com/keshon/server-domme/releases/latest",
+    "codeRepository": "https://github.com/keshon/server-domme",
+    "programmingLanguage": "Go",
+    "isAccessibleForFree": true,
+    "image": "https://server-domme.keshon.ru/assets/about-banner.webp",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "keshon", "url": "https://keshon.ru" },
+    "sameAs": ["https://github.com/keshon/server-domme"]
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "I want a command that isn't here. What do I do?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Ask in the Ctrl+Z Discord server, where the bot actually runs and where requests get discussed before anyone writes code, or open an issue on GitHub if you would rather it be tracked. If you write Go, a command is one type with a handful of methods plus a single registration line in main.go — permissions, group toggles and audit logging are handled by middleware."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is there a public instance I can invite?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No, and that is deliberate. The bot reads and deletes messages, assigns roles and stores per-server configuration. Handing that to someone else's process is a trust decision you should not have to make. Build the binary, add your own token, and the data never leaves your machine."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I have to use the roleplay features?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Every command belongs to a group, and any group can be switched off per server with /settings commands disable. Turn off discipline, task, confess and ask, and what remains is a purge scheduler, a URL shortener, a translation reaction and an announcement relay."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can she delete messages she should not?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Purging is limited to the channel the command was run in, requires the Administrator permission, and requires typing the word yes into a confirm field. Scheduled jobs are listed by /purge jobs and stopped by /purge stop."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does the bot store?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Per-server settings, shortened links, active purge jobs, task state and cooldowns, and a recent command log covering every command except /confess, which is deliberately excluded so nothing records who confessed. It lives in a local datastore directory with a write-ahead log and snapshots. /maintenance export-data hands you the whole thing as JSON."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can one instance serve several Discord servers?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Settings, roles, channels, tasks and purge jobs are all keyed per guild, so servers never see each other's configuration. One process handles them all."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+  <style>
+    /*
+      Палитра снята с её собственного арта (assets/about-banner.webp): фон —
+      баклажан, корсет — почти чёрная слива, помада — оксблад. Латунь добавлена
+      как второй акцент, потому что Melodix уже занял малиновый: если взять
+      розовое, две страницы прочитаются как один шаблон.
+    */
+    :root {
+      --ground: #F5F1F6;
+      --surface: #FFFFFF;
+      --surface-2: #EBE3EC;
+      --surface-3: #E1D6E3;
+      --line: #DACEDC;
+      --line-soft: #E8DFE9;
+      --text: #1D141F;
+      --muted: #6B5570;
+      /* --faint не светлее: на --ground 4.5:1 упирается ровно сюда. */
+      --faint: #75607A;
+      --accent: #6E2A78;
+      --accent-hover: #582060;
+      --accent-bg: rgba(110, 42, 120, .08);
+      --accent-line: rgba(110, 42, 120, .28);
+      --on-accent: #FFFFFF;
+      --brass: #7E5A0E;
+      --brass-bg: rgba(126, 90, 14, .10);
+      --oxblood: #8E1F3F;
+      --oxblood-bg: rgba(142, 31, 63, .09);
+      --ok: #1F7A54;
+      --code-bg: #221726;
+      --code-text: #EFE4F0;
+      --code-dim: #9A85A0;
+      --shadow: 0 1px 2px rgba(29, 20, 31, .05), 0 12px 34px rgba(29, 20, 31, .09);
+      --shadow-lift: 0 2px 6px rgba(29, 20, 31, .07), 0 18px 48px rgba(29, 20, 31, .13);
+      --measure: 64ch;
+      --radius: 12px;
+    }
+
+    /*
+      В тёмной теме переопределяются ВСЕ токены, а не только фон и текст.
+      Забытый акцент или тень от светлой темы — самый быстрый способ получить
+      половину страницы, которая не читается.
+    */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --ground: #140F16;
+        --surface: #1D1620;
+        --surface-2: #271E2B;
+        --surface-3: #322639;
+        --line: #3B2D40;
+        --line-soft: #2C2131;
+        --text: #F1E9F2;
+        --muted: #AC98B0;
+        --faint: #9B86A0;
+        --accent: #C88ED4;
+        --accent-hover: #DAA8E2;
+        --accent-bg: rgba(200, 142, 212, .12);
+        --accent-line: rgba(200, 142, 212, .32);
+        --on-accent: #1A101C;
+        --brass: #DCAE55;
+        --brass-bg: rgba(220, 174, 85, .13);
+        --oxblood: #E8657F;
+        --oxblood-bg: rgba(232, 101, 127, .12);
+        --ok: #56C79A;
+        --code-bg: #0E0A10;
+        --code-text: #EADEEC;
+        --code-dim: #8C7692;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 34px rgba(0, 0, 0, .45);
+        --shadow-lift: 0 2px 6px rgba(0, 0, 0, .45), 0 18px 48px rgba(0, 0, 0, .55);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --ground: #140F16;
+      --surface: #1D1620;
+      --surface-2: #271E2B;
+      --surface-3: #322639;
+      --line: #3B2D40;
+      --line-soft: #2C2131;
+      --text: #F1E9F2;
+      --muted: #AC98B0;
+      --faint: #9B86A0;
+      --accent: #C88ED4;
+      --accent-hover: #DAA8E2;
+      --accent-bg: rgba(200, 142, 212, .12);
+      --accent-line: rgba(200, 142, 212, .32);
+      --on-accent: #1A101C;
+      --brass: #DCAE55;
+      --brass-bg: rgba(220, 174, 85, .13);
+      --oxblood: #E8657F;
+      --oxblood-bg: rgba(232, 101, 127, .12);
+      --ok: #56C79A;
+      --code-bg: #0E0A10;
+      --code-text: #EADEEC;
+      --code-dim: #8C7692;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 34px rgba(0, 0, 0, .45);
+      --shadow-lift: 0 2px 6px rgba(0, 0, 0, .45), 0 18px 48px rgba(0, 0, 0, .55);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    }
+
+    body {
+      margin: 0;
+      background: var(--ground);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    h1, h2, h3 {
+      font-family: Fraunces, Georgia, "Times New Roman", serif;
+      font-variation-settings: "SOFT" 20, "WONK" 1;
+      line-height: 1.08;
+      letter-spacing: -.015em;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    h1 { font-size: clamp(36px, 5.2vw, 58px); font-weight: 800; letter-spacing: -.03em; }
+    h2 { font-size: clamp(28px, 4vw, 40px); }
+    h3 { font-size: 20px; }
+
+    p { margin: 0 0 1em; }
+    a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+
+    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    code {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: .88em;
+      background: var(--accent-bg);
+      color: var(--accent);
+      padding: .1em .4em;
+      border-radius: 5px;
+    }
+
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    .narrow { max-width: var(--measure); }
+
+    .skip {
+      position: absolute; left: -9999px; top: 0; z-index: 100;
+      background: var(--accent); color: var(--on-accent); padding: 12px 18px; border-radius: 0 0 8px 0;
+    }
+    .skip:focus { left: 0; }
+
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+    /* ---------- nav ---------- */
+
+    .nav {
+      position: sticky; top: 0; z-index: 40;
+      background: color-mix(in srgb, var(--ground) 88%, transparent);
+      backdrop-filter: saturate(1.4) blur(12px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .nav-in { display: flex; align-items: center; gap: 20px; height: 62px; }
+
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); font-weight: 600; letter-spacing: -.01em; }
+    .brand img { width: 30px; height: 30px; border-radius: 8px; display: block; }
+    .brand span { font-family: Fraunces, Georgia, serif; font-size: 18px; font-variation-settings: "WONK" 1; }
+
+    .nav-links { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+      padding: 7px 11px; border-radius: 8px;
+    }
+    .nav-links a:hover { color: var(--text); background: var(--surface-2); }
+    @media (max-width: 860px) { .nav-links a.opt { display: none; } }
+
+    .icon-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 8px;
+      border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+      cursor: pointer; padding: 0;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--accent-line); }
+    .icon-btn svg { width: 17px; height: 17px; }
+    :root[data-theme="dark"] .icon-sun, .icon-moon { display: none; }
+    :root[data-theme="dark"] .icon-moon { display: block; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .icon-sun { display: none; }
+      :root:not([data-theme="light"]) .icon-moon { display: block; }
+    }
+    :root[data-theme="light"] .icon-sun { display: block; }
+    :root[data-theme="light"] .icon-moon { display: none; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; justify-content: center;
+      padding: 12px 20px; border-radius: 10px; font-size: 15px; font-weight: 600;
+      text-decoration: none; cursor: pointer; border: 1px solid transparent;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--on-accent); }
+    .btn-primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+    .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--line); }
+    .btn-ghost:hover { border-color: var(--accent-line); color: var(--text); }
+    .btn svg { width: 17px; height: 17px; }
+
+    /* ---------- section furniture ---------- */
+
+    section { padding: 92px 0; border-top: 1px solid var(--line-soft); }
+    section:first-of-type { border-top: 0; }
+
+    .kicker {
+      font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 500;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+      margin: 0 0 14px; display: flex; align-items: center; gap: 10px;
+    }
+    .kicker::before { content: ""; width: 22px; height: 1px; background: var(--accent-line); }
+
+    .lede { font-size: 19px; color: var(--muted); max-width: var(--measure); margin-top: 18px; }
+
+    /* ---------- hero ---------- */
+
+    .hero { padding: 68px 0 84px; border-top: 0; }
+    .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: center; }
+    @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+
+    .hero h1 mark { background: none; color: var(--accent); font-style: italic; }
+
+    .hero-sub { font-size: 19px; color: var(--muted); max-width: 52ch; margin-top: 22px; }
+
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+
+    .hero-meta {
+      display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 28px;
+      font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--faint);
+    }
+    .hero-meta span { display: inline-flex; align-items: center; gap: 7px; }
+    .hero-meta span::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-line); }
+
+    /* portrait + rotating seal */
+    /*
+      Размер живёт на .portrait, а не на диске: печать спозиционирована от
+      .portrait, и её calc(100% + 68px) считался от всей колонки сетки. На узких
+      экранах она из-за этого выезжала за вьюпорт. Вычитаем вылет печати (34px с
+      каждой стороны плюс запас), тогда она всегда помещается.
+    */
+    .portrait {
+      position: relative; display: grid; place-items: center;
+      width: min(340px, calc(100% - 76px)); margin: 0 auto;
+    }
+    .portrait-disc {
+      position: relative; width: 100%; aspect-ratio: 1;
+      border-radius: 50%; overflow: hidden;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+    }
+    .portrait-disc img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .seal {
+      position: absolute; inset: -34px; width: calc(100% + 68px); height: calc(100% + 68px);
+      animation: spin 44s linear infinite; pointer-events: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /*
+      Две половины надписи стоят отдельными <text> на 25% и 75% пути с
+      text-anchor:middle — ровно 180° друг от друга. Одной строкой с двойным
+      повтором они расходились: длина текста не равна длине окружности, и
+      второй повтор начинался не там, где кончался первый.
+    */
+    .seal text {
+      font-family: "JetBrains Mono", monospace; font-size: 8.4px;
+      letter-spacing: .34em; text-transform: uppercase; fill: var(--faint);
+    }
+    .seal circle { fill: var(--accent-line); }
+
+    .quip {
+      margin-top: 26px; padding: 14px 16px; border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--line);
+      font-size: 14.5px; color: var(--muted); min-height: 74px;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .quip img { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+    .quip b { color: var(--text); font-weight: 600; display: block; font-size: 13px; margin-bottom: 2px; }
+    .quip b::after {
+      content: "BOT"; margin-left: 6px; font-size: 9px; font-weight: 700; letter-spacing: .06em;
+      background: var(--accent); color: var(--on-accent); padding: 1px 5px; border-radius: 4px; vertical-align: 1px;
+    }
+
+    /* ---------- cards ---------- */
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 16px; margin-top: 44px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 22px 20px 24px;
+    }
+    .card .ic {
+      width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+      background: var(--accent-bg); color: var(--accent); margin-bottom: 14px;
+    }
+    .card .ic svg { width: 18px; height: 18px; }
+    .card h3 { font-size: 17px; margin-bottom: 8px; }
+    .card p { font-size: 14.5px; color: var(--muted); margin: 0; }
+
+    /* ---------- the register ---------- */
+
+    .reg-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+
+    .tally { text-align: right; font-family: Fraunces, Georgia, serif; }
+    .tally b { display: block; font-size: 54px; line-height: 1; font-weight: 800; color: var(--accent); letter-spacing: -.03em; }
+    .tally i {
+      font-style: normal; font-family: "JetBrains Mono", monospace; font-size: 11.5px;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+    }
+    @media (max-width: 700px) { .tally { text-align: left; } }
+
+    .lens { margin-top: 38px; }
+    .lens-label {
+      font-family: "JetBrains Mono", monospace; font-size: 11.5px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--faint); margin-bottom: 12px;
+    }
+    .lens-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /*
+      Число на плашке — не украшение: 55 · 15 · 14 · 13 · 13 показывает, что это
+      убывающая лестница, ДО первого клика. Без него механику приходилось
+      открывать методом тыка.
+    */
+    .rank {
+      display: flex; align-items: center; gap: 16px;
+      padding: 9px 14px 10px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--surface); color: var(--text);
+      font: inherit; text-align: left; transition: border-color .12s ease, background .12s ease;
+    }
+    .rank:hover { border-color: var(--accent-line); }
+    .rank-main { display: flex; flex-direction: column; gap: 1px; }
+    .rank strong { font-size: 14.5px; font-weight: 600; }
+    .rank em {
+      font-style: normal; font-family: "JetBrains Mono", monospace; font-size: 10.5px;
+      letter-spacing: .06em; color: var(--faint);
+    }
+    .rank-n {
+      font-family: "JetBrains Mono", monospace; font-size: 17px; font-weight: 500;
+      color: var(--accent); margin-left: auto;
+    }
+    .rank[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .rank[aria-pressed="true"] em { color: var(--on-accent); opacity: .72; }
+    .rank[aria-pressed="true"] .rank-n { color: var(--on-accent); }
+
+    .lens-label { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .lens-label .hint { margin-left: auto; letter-spacing: .04em; text-transform: none; opacity: .85; }
+    @media (max-width: 620px) { .lens-label .hint { margin-left: 0; } }
+
+    .lens-note {
+      margin-top: 16px; font-size: 14.5px; color: var(--muted);
+      border-left: 2px solid var(--accent-line); padding: 2px 0 2px 14px; max-width: 62ch;
+      border-radius: 0;
+    }
+
+    .reg-body { display: grid; grid-template-columns: 218px minmax(0, 1fr); gap: 28px; margin-top: 36px; align-items: start; }
+    @media (max-width: 880px) { .reg-body { grid-template-columns: 1fr; gap: 18px; } }
+
+    .rail { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 2px; }
+    @media (max-width: 880px) {
+      .rail { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 6px; gap: 6px; }
+      .rail::-webkit-scrollbar { height: 4px; }
+      .rail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+    }
+    .rail button {
+      display: flex; align-items: center; gap: 9px; width: 100%; white-space: nowrap;
+      padding: 8px 11px; border-radius: 8px; border: 1px solid transparent; background: none;
+      font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; text-align: left;
+    }
+    .rail button:hover { background: var(--surface-2); color: var(--text); }
+    .rail button[aria-pressed="true"] { background: var(--surface); border-color: var(--line); color: var(--text); font-weight: 500; }
+    .rail button .n {
+      margin-left: auto; font-family: "JetBrains Mono", monospace; font-size: 11px;
+      color: var(--faint); font-weight: 400;
+    }
+    @media (max-width: 880px) { .rail button .n { margin-left: 4px; } }
+
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+
+    .search-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .search-row svg { width: 16px; height: 16px; color: var(--faint); flex: none; }
+    .search-row input {
+      flex: 1; min-width: 0; border: 0; background: none; color: var(--text);
+      font-family: "JetBrains Mono", monospace; font-size: 14px; padding: 4px 0;
+    }
+    .search-row input:focus { outline: none; }
+    .search-row input::placeholder { color: var(--faint); }
+    .kbd {
+      font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--faint);
+      border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; flex: none;
+    }
+    .hits { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--faint); flex: none; }
+    @media (max-width: 560px) { .hits, .kbd { display: none; } }
+
+    .cat-head {
+      display: flex; align-items: center; gap: 9px; width: 100%; cursor: pointer; text-align: left;
+      padding: 13px 16px 11px; background: var(--surface-2);
+      border: 0; border-bottom: 1px solid var(--line); border-top: 1px solid var(--line);
+      font: inherit; font-family: "JetBrains Mono", monospace; font-size: 11.5px; letter-spacing: .11em;
+      text-transform: uppercase; color: var(--muted); position: sticky; top: 62px; z-index: 2;
+    }
+    .cat-head:first-child { border-top: 0; }
+    .cat-head:hover { color: var(--text); }
+    .cat-head .chev { width: 13px; height: 13px; flex: none; transition: transform .15s ease; }
+    .cat-head[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+    .cat-head .n { margin-left: auto; letter-spacing: 0; color: var(--faint); text-transform: none; }
+
+    .legend {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 5px 15px;
+      padding: 10px 16px; border-bottom: 1px solid var(--line);
+      font-size: 12.5px; color: var(--faint);
+    }
+    .legend b { font-weight: 400; display: inline-flex; align-items: center; gap: 6px; }
+
+    .row {
+      display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+      background: none; border: 0; border-bottom: 1px solid var(--line-soft);
+      padding: 11px 16px 12px 14px; border-left: 2px solid transparent;
+    }
+    .row:hover { background: var(--surface-2); border-left-color: var(--accent-line); }
+    .row[aria-expanded="true"] { background: var(--surface-2); border-left-color: var(--accent); }
+
+    .row-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .path { font-family: "JetBrains Mono", monospace; font-size: 14px; font-weight: 500; color: var(--text); }
+    .path .dim { color: var(--faint); font-weight: 400; }
+    .row-desc { font-size: 14.5px; color: var(--muted); margin-top: 2px; }
+
+    .badge {
+      font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 500;
+      letter-spacing: .07em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px;
+      white-space: nowrap; flex: none;
+    }
+    .b-admin { background: var(--oxblood-bg); color: var(--oxblood); }
+    .b-role { background: var(--brass-bg); color: var(--brass); }
+    .b-open { background: var(--accent-bg); color: var(--accent); }
+    .b-kind { background: var(--surface-3); color: var(--faint); }
+    .b-args { background: var(--surface-3); color: var(--faint); letter-spacing: 0; text-transform: none; }
+
+    .row.locked .path, .row.locked .row-desc { color: var(--faint); }
+    .row.locked .path { text-decoration: line-through; text-decoration-color: var(--line); }
+    .row.locked .row-desc { font-style: italic; }
+    .lock { width: 12px; height: 12px; vertical-align: -1px; margin-right: 5px; color: var(--faint); }
+
+    .detail { padding: 4px 16px 20px 32px; border-bottom: 1px solid var(--line-soft); background: var(--surface-2); font-size: 14.5px; }
+    .detail h4 {
+      margin: 16px 0 8px; font-family: "JetBrains Mono", monospace; font-size: 10.5px;
+      font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+    }
+    .detail h4:first-child { margin-top: 8px; }
+
+    .arg { display: grid; grid-template-columns: 168px 1fr; gap: 4px 14px; padding: 7px 0; border-top: 1px dashed var(--line); }
+    .arg:first-of-type { border-top: 0; }
+    @media (max-width: 620px) { .arg { grid-template-columns: 1fr; } }
+    .arg-name { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--text); }
+    .arg-name .t { color: var(--faint); font-size: 11px; }
+    .arg-name .req { color: var(--oxblood); font-size: 11px; }
+    .arg-desc { color: var(--muted); font-size: 14px; }
+    .choices { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+    .choices span {
+      font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px;
+    }
+
+    .says {
+      display: flex; gap: 10px; align-items: flex-start; background: var(--surface);
+      border: 1px solid var(--line); border-radius: 9px; padding: 11px 13px; margin-top: 4px;
+    }
+    .says img { width: 24px; height: 24px; border-radius: 50%; flex: none; }
+    .says div { min-width: 0; }
+    .says .who { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 1px; }
+    .says .msg { font-size: 14px; color: var(--muted); }
+
+    .empty { padding: 40px 16px; text-align: center; color: var(--faint); font-size: 15px; }
+
+    /* ---------- voice ---------- */
+
+    .voice-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; align-items: center; margin-top: 40px; }
+    @media (max-width: 880px) { .voice-grid { grid-template-columns: 1fr; gap: 32px; } }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .tabs button {
+      padding: 7px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+      font: inherit; font-size: 13.5px; color: var(--muted); cursor: pointer;
+    }
+    .tabs button:hover { color: var(--text); border-color: var(--accent-line); }
+    .tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 500; }
+
+    /*
+      Карточка тёмная в ОБЕИХ темах, поэтому у неё собственная палитра, а не
+      токены страницы. С var(--accent) в светлой теме имя бота выходило тёмным
+      баклажаном по почти-чёрному фону — примерно 1.4:1. Здесь всё считано от
+      --dc-bg и держит 8:1 и выше независимо от того, что снаружи.
+    */
+    .discord {
+      --dc-bg: #221726;
+      --dc-accent: #D69BE0;
+      --dc-on-accent: #24122A;
+      --dc-text: #EFE4F0;
+      --dc-dim: #A08CA6;
+      background: var(--dc-bg); border-radius: var(--radius); padding: 18px 18px 16px;
+      border: 1px solid var(--line);
+    }
+    .dc-msg { display: flex; gap: 12px; align-items: flex-start; }
+    .dc-msg img { width: 38px; height: 38px; border-radius: 50%; flex: none; }
+    .dc-name { font-size: 14.5px; font-weight: 600; color: var(--dc-accent); display: flex; align-items: center; gap: 7px; }
+    .dc-name .tag { font-size: 9.5px; font-weight: 700; letter-spacing: .05em; background: var(--dc-accent); color: var(--dc-on-accent); padding: 1px 5px; border-radius: 4px; }
+    .dc-name .time { font-size: 11px; font-weight: 400; color: var(--dc-dim); letter-spacing: 0; }
+    .dc-embed {
+      margin-top: 7px; border-left: 3px solid var(--dc-accent); background: rgba(255, 255, 255, .05);
+      border-radius: 0 7px 7px 0; padding: 11px 14px; color: var(--dc-text); font-size: 15px; line-height: 1.55;
+      min-height: 68px;
+    }
+    .dc-embed em { color: var(--dc-text); }
+    .dc-mention { background: rgba(214, 155, 224, .18); color: var(--dc-accent); border-radius: 4px; padding: 0 4px; }
+    .dc-foot { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+    .dc-foot .src { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--dc-dim); }
+    .shuffle {
+      display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .06);
+      color: var(--dc-text); font: inherit; font-size: 13px; cursor: pointer; margin-left: auto;
+    }
+    .shuffle:hover { background: rgba(255, 255, 255, .1); }
+    .shuffle svg { width: 14px; height: 14px; }
+
+    /* ---------- rules ---------- */
+
+    /*
+      Раньше это была бесшовная таблица: фон контейнера var(--line) просвечивал
+      в зазорах и рисовал разделители. Но когда карточек не хватало на полный
+      ряд, пустая ячейка светила тем же фоном — сиреневым прямоугольником в
+      половину секции. Отдельные карточки с собственной рамкой такого класса
+      багов не имеют вообще, сколько бы карточек ни было.
+    */
+    .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); gap: 14px; margin-top: 44px; }
+    .rule { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 22px 26px; }
+    .rule .num {
+      font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .12em;
+      color: var(--accent); margin-bottom: 10px;
+    }
+    .rule h3 { font-size: 17px; margin-bottom: 8px; }
+    .rule p { font-size: 14.5px; color: var(--muted); margin: 0; }
+    .rule p + p { margin-top: 10px; }
+
+    /* ---------- setup ---------- */
+
+    .steps { counter-reset: s; margin-top: 40px; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .step { background: var(--surface); padding: 20px 22px 22px 62px; position: relative; }
+    .step::before {
+      counter-increment: s; content: counter(s);
+      position: absolute; left: 22px; top: 21px;
+      width: 24px; height: 24px; border-radius: 50%; background: var(--accent-bg); color: var(--accent);
+      display: grid; place-items: center; font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 500;
+    }
+    .step h3 { font-size: 16.5px; margin-bottom: 6px; }
+    .step p { font-size: 14.5px; color: var(--muted); margin: 0; }
+
+    .pre {
+      position: relative; background: var(--code-bg); color: var(--code-text); border-radius: 9px;
+      padding: 14px 68px 14px 16px; margin-top: 12px; overflow-x: auto;
+      font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.75;
+      /*
+        Это <div>, а не <pre>, поэтому переводы строк схлопывались и весь блок
+        слипался в один абзац. Правый padding резервирует место под кнопку
+        копирования, чтобы она не легла поверх первой строки.
+      */
+      white-space: pre;
+    }
+    .pre .c { color: var(--code-dim); }
+    .copy {
+      position: absolute; top: 8px; right: 8px; padding: 4px 9px; border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .06);
+      color: var(--code-text); font-family: "JetBrains Mono", monospace; font-size: 11px; cursor: pointer;
+    }
+    .copy:hover { background: rgba(255, 255, 255, .12); }
+
+    .perms { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+    .perms span {
+      font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px;
+    }
+
+    /* ---------- faq ---------- */
+
+    .faq { margin-top: 40px; border-top: 1px solid var(--line); }
+    .faq details { border-bottom: 1px solid var(--line); }
+    .faq summary {
+      cursor: pointer; padding: 18px 32px 18px 0; position: relative; list-style: none;
+      font-family: Fraunces, Georgia, serif; font-size: 19px; font-weight: 600; font-variation-settings: "WONK" 1;
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: "+"; position: absolute; right: 4px; top: 15px;
+      font-family: "JetBrains Mono", monospace; font-size: 20px; color: var(--accent); font-weight: 400;
+    }
+    .faq details[open] summary::after { content: "\2212"; }
+    .faq details p { font-size: 15.5px; color: var(--muted); max-width: var(--measure); padding-right: 32px; }
+
+    /* ---------- close + footer ---------- */
+
+    .close-cta { text-align: center; }
+    .close-cta h2 { max-width: 18ch; margin: 0 auto; }
+    .close-cta p { margin: 20px auto 0; max-width: 54ch; color: var(--muted); }
+    .close-cta .hero-cta { justify-content: center; }
+
+    footer { border-top: 1px solid var(--line-soft); padding: 40px 0 56px; }
+    .foot-in { display: flex; flex-wrap: wrap; gap: 18px 32px; align-items: center; justify-content: space-between; font-size: 14px; color: var(--faint); }
+    .foot-in a { color: var(--muted); text-decoration: none; }
+    .foot-in a:hover { color: var(--accent); }
+    .foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
+    .disclaimer {
+      margin-top: 26px; font-size: 13px; color: var(--faint); max-width: 74ch; line-height: 1.6;
+      border-top: 1px solid var(--line-soft); padding-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <a class="skip" href="#register">Skip to the command register</a>
+
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="#top">
+        <img src="assets/avatar.webp" alt="" width="30" height="30">
+        <span>Server Domme</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#register">Commands</a>
+        <a href="#rules" class="opt">House rules</a>
+        <a href="#setup" class="opt">Self-host</a>
+        <a href="#faq" class="opt">FAQ</a>
+        <a href="https://github.com/keshon/server-domme">GitHub</a>
+      </nav>
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch colour theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ================= hero ================= -->
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <h1>She runs the server.<br>You just <mark>live</mark> in it.</h1>
+          <p class="hero-sub">
+            A self-hosted Discord bot in Go that schedules message purges, hands out timed tasks,
+            relays anonymous confessions and gates who may contact whom — then tells you off about it.
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="#register">
+              Read the register
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/keshon/server-domme">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 1.8 2.7 1.3 3.4 1 .1-.7.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11 11 0 0 1 6 0C17.6 4.6 18.6 5 18.6 5c.6 1.6.2 2.8.1 3.1.8.9 1.2 1.9 1.2 3.2 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z" /></svg>
+              Source on GitHub
+            </a>
+          </div>
+          <div class="hero-meta">
+            <span>Go, one binary</span>
+            <span>MIT licensed</span>
+            <span>58 commands</span>
+            <span>Self-hosted only</span>
+          </div>
+          <div class="quip">
+            <img src="assets/avatar.webp" alt="" width="26" height="26">
+            <div>
+              <b>Server Domme</b>
+              <span id="quipText">Punishment is a role assignment. Don't romanticise it.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="portrait">
+          <div class="portrait-disc">
+            <img src="assets/about-banner.webp" width="340" height="340"
+              alt="Server Domme's avatar: a cartoon woman in glasses and a corset, holding a clipboard in one hand and a riding crop in the other">
+          </div>
+          <svg class="seal" viewBox="0 0 200 200" aria-hidden="true">
+            <defs>
+              <path id="sealPath" d="M100,100 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0" />
+            </defs>
+            <text text-anchor="middle"><textPath href="#sealPath" startOffset="25%">Discipline &#183; Sass &#183; Control</textPath></text>
+            <text text-anchor="middle"><textPath href="#sealPath" startOffset="75%">Discipline &#183; Sass &#183; Control</textPath></text>
+            <circle cx="16" cy="100" r="1.6" />
+            <circle cx="184" cy="100" r="1.6" />
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= what she does ================= -->
+    <section id="does">
+      <div class="wrap">
+        <p class="kicker">the job</p>
+        <h2>Four jobs, and only one of them is a bit.</h2>
+        <p class="lede">
+          Most of what she does is unglamorous server maintenance. The roleplay sits on top of it,
+          in its own command groups, switchable off in one line.
+        </p>
+        <div class="cards">
+          <div class="card">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5" /></svg></div>
+            <h3>Cleanup</h3>
+            <p>Purge a channel now, or set it to purge anything older than a threshold on a schedule. Jobs are listed, and stoppable, per channel.</p>
+          </div>
+          <div class="card">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 14h6v6h-6zM7 10v4a3 3 0 0 0 3 3h4M14 4h6v6h-6z" /></svg></div>
+            <h3>Roleplay</h3>
+            <p>Timed tasks with reminders and a safeword, a brat role that can be handed out and taken back, anonymous confessions, and consent-gated contact requests.</p>
+          </div>
+          <div class="card">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M17 7h3M4 12h3M12 12h8M4 17h8M17 17h3" /><circle cx="14.5" cy="7" r="2.2" /><circle cx="9.5" cy="12" r="2.2" /><circle cx="14.5" cy="17" r="2.2" /></svg></div>
+            <h3>Administration</h3>
+            <p>Every feature reads its channels, roles and lists from per-server settings. Whole command groups can be enabled or disabled without redeploying.</p>
+          </div>
+          <div class="card">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg></div>
+            <h3>Utilities</h3>
+            <p>A URL shortener with its own redirect server, dice with real formula parsing, flag-emoji translation, and announcements posted on the bot's behalf.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= the register ================= -->
+    <section id="register">
+      <div class="wrap">
+        <div class="reg-head">
+          <div>
+            <p class="kicker">the register</p>
+            <h2>Not every command<br>is yours to run.</h2>
+            <p class="lede" style="margin-bottom:0">
+              Pick a rank. The register stays whole — but everything above your station
+              locks, and she explains why.
+            </p>
+          </div>
+          <div class="tally">
+            <b id="tallyN">58</b>
+            <i>permitted acts</i>
+          </div>
+        </div>
+
+        <div class="lens">
+          <p class="lens-label" id="lensLabel">
+            Who are you on this server?
+            <span class="hint">the number is how many of the 58 you may run</span>
+          </p>
+          <div class="lens-row" role="group" aria-labelledby="lensLabel" id="lensRow"></div>
+          <p class="lens-note" id="lensNote"></p>
+        </div>
+
+        <div class="reg-body">
+          <nav class="rail" id="rail" aria-label="Command categories"></nav>
+
+          <div class="panel">
+            <div class="search-row">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <label for="q" class="skip">Search commands</label>
+              <input id="q" type="search" placeholder="purge, confess, cooldown&hellip;" autocomplete="off" spellcheck="false">
+              <span class="hits" id="hits"></span>
+              <span class="kbd" aria-hidden="true">/</span>
+            </div>
+            <div class="legend">
+              <b><span class="badge b-open">open</span> anyone in the server</b>
+              <b><span class="badge b-role">role</span> needs a configured role</b>
+              <b><span class="badge b-admin">admin</span> Administrator only</b>
+            </div>
+            <div id="list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= voice ================= -->
+    <section id="voice">
+      <div class="wrap">
+        <p class="kicker">bedside manner</p>
+        <h2>She never says it the same way twice.</h2>
+        <div class="voice-grid">
+          <div>
+            <p style="color:var(--muted); font-size:15.5px">
+              Task outcomes and punishments draw from written line pools rather than a single template,
+              so a channel that runs the same command all evening does not read like a log file.
+            </p>
+            <p style="color:var(--muted); font-size:15.5px">
+              Every line below is verbatim from the source. Shuffle as long as you like — there are
+              well over a hundred more where these came from.
+            </p>
+            <div class="tabs" role="group" aria-label="Reply category" id="voiceTabs"></div>
+          </div>
+          <div class="discord">
+            <div class="dc-msg">
+              <img src="assets/avatar.webp" alt="" width="38" height="38">
+              <div style="min-width:0; flex:1">
+                <div class="dc-name">
+                  Server Domme <span class="tag">BOT</span>
+                  <span class="time">Today at 23:14</span>
+                </div>
+                <div class="dc-embed" id="voiceLine" aria-live="polite"></div>
+                <div class="dc-foot">
+                  <span class="src mono" id="voiceSrc"></span>
+                  <button class="shuffle" type="button" id="voiceShuffle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>
+                    Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= house rules ================= -->
+    <section id="rules">
+      <div class="wrap">
+        <p class="kicker">house rules</p>
+        <h2>A bot with this theme<br>needs visible brakes.</h2>
+        <p class="lede">
+          The persona is a joke. The permission model is not. Here is every place the bot
+          deliberately refuses to do what it is told.
+        </p>
+
+        <div class="rules">
+          <div class="rule">
+            <p class="num">01</p>
+            <h3>The safeword ends it</h3>
+            <p>A pending task can be closed with a safeword instead of a result. No cooldown penalty framing, no argument — the task is cancelled and she says so.</p>
+            <p style="color:var(--faint); font-style:italic">“Consent above all, darling.”</p>
+          </div>
+          <div class="rule">
+            <p class="num">02</p>
+            <h3>Contact is asked for, not taken</h3>
+            <p><code>/ask</code> posts a request the other person answers themselves. Nothing is stored: the posted message is the record, and either party can end the conversation afterwards.</p>
+          </div>
+          <div class="rule">
+            <p class="num">03</p>
+            <h3>Protected users</h3>
+            <p><code>PROTECTED_USERS</code> lists people who can never be punished or handed a task. The check guards the target, not the caller — so being protected does not quietly make you powerless.</p>
+          </div>
+          <div class="rule">
+            <p class="num">04</p>
+            <h3>Punishment is a role, and it is reversible</h3>
+            <p>Only the configured Punisher role may run <code>/discipline</code>, only holders of the Victim role can be its target, and <code>release</code> undoes it. Nothing is deleted, nobody is kicked.</p>
+          </div>
+          <div class="rule">
+            <p class="num">05</p>
+            <h3>Cooldowns, not spam</h3>
+            <p>Finishing or failing a task starts a per-user cooldown the admin sets. One task at a time; a second <code>/task</code> is refused while one is pending.</p>
+          </div>
+          <div class="rule">
+            <p class="num">06</p>
+            <h3>Any group can be switched off</h3>
+            <p><code>/settings commands disable</code> takes a whole group out of service for that server. Disable <span class="mono">discipline</span>, <span class="mono">task</span>, <span class="mono">confess</span> and <span class="mono">ask</span>, and what is left is a maintenance bot.</p>
+          </div>
+          <div class="rule">
+            <p class="num">07</p>
+            <h3>Deletion asks twice</h3>
+            <p>Purges need the Administrator permission <em>and</em> the literal word <span class="mono">yes</span> typed into a confirm field. They only ever touch the channel they were run in.</p>
+          </div>
+          <div class="rule">
+            <p class="num">08</p>
+            <h3>Your data stays yours</h3>
+            <p>There is no hosted instance to invite. You run the binary, you hold the token, and <code>/maintenance export-data</code> hands the whole per-server database back as JSON.</p>
+          </div>
+          <div class="rule">
+            <p class="num">09</p>
+            <h3>Anonymous means anonymous</h3>
+            <p>A confession is posted without its author, and <code>/confess</code> is the one command excluded from the audit log — so <code>/settings commands log</code> cannot show that you ran it either. Not even the server owner can line up a timestamp against a name.</p>
+            <p>The opt-out is declared on the command itself and covered by a test, so a future middleware cannot quietly start recording it.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= setup ================= -->
+    <section id="setup">
+      <div class="wrap">
+        <p class="kicker">self-host</p>
+        <h2>One binary, one token,<br>one machine.</h2>
+        <p class="lede">
+          There is no public instance, and that is on purpose. This bot reads messages, deletes them,
+          and assigns roles — you should not have to trust a stranger's process with that.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <h3>Build it</h3>
+            <p>Go 1.22 or newer. No system dependencies, no database server.</p>
+            <div class="pre" id="pre1"><button class="copy" type="button" data-copy="pre1">copy</button><span class="c"># clone, then</span>
+go build -o server-domme ./cmd/discord</div>
+          </div>
+          <div class="step">
+            <h3>Give her a token</h3>
+            <p>Copy <span class="mono">.env.example</span> to <span class="mono">.env</span> and fill in the two required fields. Everything else has a default.</p>
+            <div class="pre" id="pre2"><button class="copy" type="button" data-copy="pre2">copy</button>DISCORD_TOKEN=<span class="c">your-bot-token</span>
+TASKS_PATH=./data/default_task.list.json
+INIT_SLASH_COMMANDS=true
+<span class="c"># optional: nobody in this list can be punished or tasked</span>
+PROTECTED_USERS=<span class="c">your-user-id</span></div>
+          </div>
+          <div class="step">
+            <h3>Invite her with the right permissions</h3>
+            <p>She needs to read history to purge it, and manage roles to hand out the brat role. Nothing beyond that.</p>
+            <div class="perms">
+              <span>View Channel</span><span>Send Messages</span><span>Manage Messages</span>
+              <span>Manage Roles</span><span>Embed Links</span><span>Attach Files</span>
+              <span>Read Message History</span><span>Use Application Commands</span>
+            </div>
+          </div>
+          <div class="step">
+            <h3>Tell her where things live</h3>
+            <p>Nothing roleplay-related works until its channels and roles are set. Run these once, in the server, as an administrator.</p>
+            <div class="pre" id="pre3"><button class="copy" type="button" data-copy="pre3">copy</button>/settings confess channel-set #confessions
+/settings discipline roles-set punisher @Domme
+/settings discipline roles-set victim @Member
+/settings discipline roles-set assigned @Brat
+/settings task role-set @Tasker
+<span class="c"># and turn off anything you would rather not host</span>
+/settings commands disable discipline</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= faq ================= -->
+    <section id="faq">
+      <div class="wrap">
+        <p class="kicker">questions</p>
+        <h2>Asked before you ask.</h2>
+        <div class="faq">
+          <details open>
+            <summary>Is there a public instance I can invite?</summary>
+            <p>No, and that is deliberate. The bot reads and deletes messages, assigns roles, and stores per-server configuration. Handing that to someone else's process is a trust decision you should not have to make. Build the binary, add your own token, and the data never leaves your machine.</p>
+          </details>
+          <details>
+            <summary>Do I have to use the roleplay features?</summary>
+            <p>No. Every command belongs to a group, and any group can be switched off per server with <code>/settings commands disable</code>. Turn off <span class="mono">discipline</span>, <span class="mono">task</span>, <span class="mono">confess</span> and <span class="mono">ask</span>, and what remains is a purge scheduler, a URL shortener, a translation reaction and an announcement relay.</p>
+          </details>
+          <details>
+            <summary>Can she delete messages she should not?</summary>
+            <p>Purging is limited to the channel the command was run in, requires the Administrator permission, and requires typing the word <span class="mono">yes</span> into a confirm field. Scheduled jobs are listed by <code>/purge jobs</code> and stopped by <code>/purge stop</code>, so a job you forgot about is never invisible.</p>
+          </details>
+          <details>
+            <summary>What does the bot store?</summary>
+            <p>Per-server settings, shortened links, active purge jobs, task state and cooldowns, and a recent command log — every command except <code>/confess</code>, which is deliberately excluded so nothing records who confessed. It lives in a local datastore directory with a write-ahead log and snapshots, one process at a time. <code>/maintenance export-data</code> hands you the whole thing as JSON.</p>
+          </details>
+          <details>
+            <summary>Can one instance serve several Discord servers?</summary>
+            <p>Yes. Settings, roles, channels, tasks and purge jobs are all keyed per guild, so servers never see each other's configuration. One process handles them all; the limit is the machine you run it on.</p>
+          </details>
+          <details>
+            <summary>Where do the tasks come from?</summary>
+            <p>A JSON list you upload with <code>/settings task tasks-upload</code>. Each task carries a description, a duration in minutes, and optionally a list of role names allowed to receive it — so the same server can hand different tasks to different roles. <code>tasks-download</code> gives the current list back, <code>tasks-reset</code> restores the defaults.</p>
+          </details>
+          <details>
+            <summary>I want a command that isn't here. What do I do?</summary>
+            <p>Say so in the <a href="https://discord.gg/uDnTenPxAY">Ctrl+Z Discord server</a> — that is where this bot actually runs, and where a request gets argued about before anyone writes code. If you would rather it be tracked, open an issue on <a href="https://github.com/keshon/server-domme/issues">GitHub</a> instead.</p>
+            <p>If you write Go, the bar is low by design: a command is one type with a handful of methods — <span class="mono">Name</span>, <span class="mono">Description</span>, <span class="mono">Group</span>, <span class="mono">Category</span>, <span class="mono">UserPermissions</span> and <span class="mono">Run</span> — plus a slash definition, and one <span class="mono">cmdadapter.Register</span> line in <span class="mono">main.go</span>. Permissions, group toggles and audit logging come from middleware you do not have to think about.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="close-cta">
+      <div class="wrap">
+        <h2>Your server could use a firm hand.</h2>
+        <p>Clone it, build it, point it at your own token. She will take it from there.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="https://github.com/keshon/server-domme">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 1.8 2.7 1.3 3.4 1 .1-.7.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11 11 0 0 1 6 0C17.6 4.6 18.6 5 18.6 5c.6 1.6.2 2.8.1 3.1.8.9 1.2 1.9 1.2 3.2 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z" /></svg>
+            Get the source
+          </a>
+          <a class="btn btn-ghost" href="https://discord.gg/uDnTenPxAY">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.3 4.5A19.8 19.8 0 0 0 15.4 3l-.25.5a18.3 18.3 0 0 1 4.4 1.4 15.6 15.6 0 0 0-15.1 0A18.3 18.3 0 0 1 8.85 3.5L8.6 3a19.8 19.8 0 0 0-4.9 1.5C.6 9.1-.25 13.6.2 18a19.9 19.9 0 0 0 6.05 3.07l.5-.7a13 13 0 0 1-1.94-.93l.4-.31a14.2 14.2 0 0 0 12.13 0l.4.31c-.6.36-1.25.67-1.93.93l.5.7A19.9 19.9 0 0 0 23.8 18c.53-5.1-.85-9.55-3.5-13.5zM8.05 15.35c-1.18 0-2.15-1.09-2.15-2.42 0-1.34.95-2.43 2.15-2.43 1.2 0 2.17 1.1 2.15 2.43 0 1.33-.96 2.42-2.15 2.42zm7.9 0c-1.18 0-2.15-1.09-2.15-2.42 0-1.34.95-2.43 2.15-2.43 1.2 0 2.17 1.1 2.15 2.43 0 1.33-.95 2.42-2.15 2.42z" /></svg>
+            Join the Ctrl+Z server
+          </a>
+        </div>
+        <p style="font-size:14.5px">
+          That is where she lives, where feature requests get argued about,
+          and where you can watch her misbehave before hosting her yourself.
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div class="foot-in">
+        <span>&copy; <span id="yr">2026</span> Se&ntilde;or Mega &middot; MIT licensed</span>
+        <div class="foot-links">
+          <a href="https://github.com/keshon/server-domme">Repository</a>
+          <a href="https://github.com/keshon/server-domme/blob/main/docs/running.md">Running it</a>
+          <a href="https://github.com/keshon/server-domme/blob/main/docs/architecture.md">Architecture</a>
+          <a href="https://discord.gg/uDnTenPxAY">Ctrl+Z Discord</a>
+        </div>
+      </div>
+      <p class="disclaimer">
+        Server Domme contains suggestive language and power-dynamic roleplay. It is meant for adult servers
+        whose members have agreed to it, and every roleplay group can be disabled per server. Nothing here
+        is a substitute for your own moderation policy — she enforces the rules you configure, not good taste.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /* ---------- theme ---------- */
+      var root = document.documentElement;
+      try {
+        var saved = localStorage.getItem("sd-theme");
+        if (saved) root.setAttribute("data-theme", saved);
+      } catch (e) { }
+      document.getElementById("theme").addEventListener("click", function () {
+        var dark = root.getAttribute("data-theme")
+          ? root.getAttribute("data-theme") === "dark"
+          : matchMedia("(prefers-color-scheme: dark)").matches;
+        var next = dark ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("sd-theme", next); } catch (e) { }
+      });
+
+      document.getElementById("yr").textContent = new Date().getFullYear();
+
+      /* ---------- copy buttons ---------- */
+      document.querySelectorAll(".copy").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var box = document.getElementById(btn.dataset.copy).cloneNode(true);
+          var b = box.querySelector(".copy");
+          if (b) b.remove();
+          navigator.clipboard.writeText(box.textContent.trim()).then(function () {
+            btn.textContent = "copied";
+            setTimeout(function () { btn.textContent = "copy"; }, 1400);
+          });
+        });
+      });
+
+      /* =========================================================
+         COMMAND DATA
+         Mirrors SlashDefinition() in internal/command/**. When a
+         command changes there, it changes here — nothing generates
+         this file yet.
+
+         tier: open | tasker | punisher | admin
+         ========================================================= */
+
+      var CATS = [
+        { id: "info", label: "🕯️ Information" },
+        { id: "util", label: "📢 Utilities" },
+        { id: "game", label: "🎲 Gameplay" },
+        { id: "rp", label: "🎭 Roleplay" },
+        { id: "media", label: "🎞️ Media" },
+        { id: "clean", label: "🧹 Cleanup" },
+        { id: "set", label: "⚙️ Settings" },
+        { id: "maint", label: "🛠️ Maintenance" }
+      ];
+
+      function s(name, desc, req) { return { n: name, t: "text", d: desc, r: !!req }; }
+      function user(name, desc, req) { return { n: name, t: "user", d: desc, r: !!req }; }
+      function chan(name, desc, req) { return { n: name, t: "channel", d: desc, r: !!req }; }
+      function role(name, desc, req) { return { n: name, t: "role", d: desc, r: !!req }; }
+      function file(name, desc, req) { return { n: name, t: "file", d: desc, r: !!req }; }
+      function pick(name, desc, req, choices) { return { n: name, t: "choice", d: desc, r: !!req, c: choices }; }
+
+      var CMDS = [
+        /* --- Information --- */
+        { p: "/about", c: "info", tier: "open", d: "Discover the origin of this bot", g: "core" },
+        { p: "/help category", c: "info", tier: "open", d: "View commands grouped by category", g: "core" },
+        { p: "/help group", c: "info", tier: "open", d: "View commands grouped by group", g: "core" },
+        { p: "/help flat", c: "info", tier: "open", d: "View all commands as a flat list", g: "core" },
+
+        /* --- Utilities --- */
+        {
+          p: "Announce", c: "util", tier: "admin", kind: "message context menu", g: "announce",
+          d: "Send a message on the bot's behalf",
+          note: "Right-click a message → Apps → Announce. It is relayed to the channel set by /settings announce channel-set."
+        },
+        {
+          p: "/announce", c: "util", tier: "admin", g: "announce",
+          d: "Send a message on the bot's behalf",
+          a: [s("message_id", "The ID of the message to publish", true)],
+          note: "Takes a message ID rather than free text, so the announcement is always a message that already exists in the channel."
+        },
+        { p: "/shortlink create", c: "util", tier: "open", d: "Shorten a URL", g: "shortlink", a: [s("url", "The URL to shorten", true)], note: "Served by the bot's own redirect server — SHORTLINK_BASE_URL and SHORTLINK_ADDR decide where it answers." },
+        { p: "/shortlink list", c: "util", tier: "open", d: "List your shortened URLs", g: "shortlink" },
+        { p: "/shortlink delete", c: "util", tier: "open", d: "Delete a specific shortened URL", g: "shortlink", a: [s("id", "The short ID of the link to delete (e.g. abc123)", true)] },
+        { p: "/shortlink clear", c: "util", tier: "open", d: "Clear all your shortened URLs", g: "shortlink" },
+        {
+          p: "translate", c: "util", tier: "open", kind: "reaction", g: "translate",
+          d: "Translate a message when someone reacts with a flag emoji",
+          note: "Works in channels added with /settings translate channel-add. Recognised flags: 🇷🇺 🇬🇧 🇺🇸 🇫🇷 🇩🇪 🇪🇸 🇮🇹 🇯🇵 🇨🇳"
+        },
+
+        /* --- Gameplay --- */
+        { p: "/roll", c: "game", tier: "open", d: "Roll dice like 2d20+1d6-2", g: "roll", a: [s("formula", "Supports `2d6+1d4*2-3` and similar math", true)] },
+
+        /* --- Roleplay --- */
+        {
+          p: "/ask", c: "rp", tier: "open", g: "ask",
+          d: "Ask for permission to contact another member",
+          a: [
+            pick("consent_type", "What kind of consent are you begging for?", true, ["DM Request", "Friend Request", "Other Reason"]),
+            user("member", "Who are you hoping to grovel before?", true),
+            s("reason", "Be more specific about your request", false)
+          ],
+          note: "Posts a request with Accept, Deny and Revoke buttons. Accepting swaps in a Close button that either party can press."
+        },
+        {
+          p: "/confess", c: "rp", tier: "open", g: "confess",
+          d: "Send an anonymous confession",
+          a: [s("message", "What do you need to confess?", true)],
+          note: "Relayed to the channel set by /settings confess channel-set. The author is never included in the posted embed, and this is the one command kept out of the audit log — so nothing on the server records who ran it.",
+          says: "Delivered. Nobody saw a thing."
+        },
+        {
+          p: "/discipline punish", c: "rp", tier: "punisher", g: "discipline",
+          d: "Assign the brat role",
+          a: [user("target", "The brat who needs correction", true)],
+          note: "Requires the Punisher role, and the target must hold the Victim role. Users listed in PROTECTED_USERS cannot be punished at all.",
+          lock: "Nice try, sugar. You don’t wear the right collar to give punishments."
+        },
+        {
+          p: "/discipline release", c: "rp", tier: "punisher", g: "discipline",
+          d: "Remove the brat role",
+          a: [user("target", "The brat to be released", true)],
+          lock: "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner."
+        },
+        {
+          p: "/task", c: "rp", tier: "tasker", g: "task",
+          d: "Assign yourself a new random task",
+          note: "Draws from the server's task list, filtered by your roles. Reminders fire near the deadline; a safeword closes it early. One task at a time, then a cooldown.",
+          lock: "No task suits your... profile. Ask an Admin to upload tasks for your role and try again."
+        },
+
+        /* --- Media --- */
+        { p: "/media", c: "media", tier: "open", d: "Post a random media file", g: "media", a: [s("category", "Optional category to pull from (if omitted, uses default or random)", false)], note: "Recently posted files are remembered, so the same picture does not come back three times in a row." },
+        {
+          p: "/upload-media", c: "media", tier: "admin", g: "media",
+          d: "Upload one or multiple media files",
+          a: [
+            file("file1", "Upload a media file (image/video/etc)", true),
+            file("file2 … file10", "Nine more optional slots, one file each", false),
+            s("category", "Tag or category for the uploaded media (e.g. memes, cats)", false)
+          ]
+        },
+
+        /* --- Cleanup --- */
+        {
+          p: "/purge auto", c: "clean", tier: "admin", g: "purge",
+          d: "Regularly purge old messages in this channel",
+          a: [
+            s("older_than", "Purge messages older than this (e.g. 10m, 1h, 1d, 1w)", true),
+            pick("notify_all", "Post a notification message", true, ["Yes (default)", "No"]),
+            s("confirm", "Type 'yes' to confirm the action", true)
+          ],
+          note: "Runs on a schedule until stopped. Scoped to the channel it was started in."
+        },
+        {
+          p: "/purge now", c: "clean", tier: "admin", g: "purge",
+          d: "Schedule or perform an immediate purge",
+          a: [
+            pick("delay", "Delay before purge starts", true, ["Now (no delay)", "10 minutes", "30 minutes", "1 hour", "6 hours", "1 day"]),
+            pick("notify_all", "Post a notification message", true, ["Yes (default)", "No"]),
+            s("confirm", "Type 'yes' to confirm the action", true)
+          ]
+        },
+        { p: "/purge jobs", c: "clean", tier: "admin", d: "List all active purge jobs", g: "purge" },
+        { p: "/purge stop", c: "clean", tier: "admin", d: "Stop ongoing purge in this channel", g: "purge" },
+
+        /* --- Settings --- */
+        { p: "/settings announce channel-set", c: "set", tier: "admin", d: "Set the announcement channel", g: "core", a: [chan("channel", "Pick a channel from this server", true)] },
+        { p: "/settings announce channel-show", c: "set", tier: "admin", d: "Show the current announcement channel", g: "core" },
+        { p: "/settings announce channel-reset", c: "set", tier: "admin", d: "Remove the announcement channel", g: "core" },
+
+        { p: "/settings confess channel-set", c: "set", tier: "admin", d: "Set the confession channel", g: "core", a: [chan("channel", "Pick a channel from this server", true)] },
+        { p: "/settings confess channel-show", c: "set", tier: "admin", d: "Show the current confession channel", g: "core" },
+        { p: "/settings confess channel-reset", c: "set", tier: "admin", d: "Remove the confession channel", g: "core" },
+
+        {
+          p: "/settings discipline roles-set", c: "set", tier: "admin", d: "Configure discipline roles", g: "core",
+          a: [
+            pick("type", "Which role are you setting?", true, ["Punisher — can punish/release", "Victim — can be punished", "Brat — punishment role"]),
+            role("role", "Select a role from the server", true)
+          ],
+          note: "All three must be set before /discipline will do anything."
+        },
+        { p: "/settings discipline roles-show", c: "set", tier: "admin", d: "Show configured discipline roles", g: "core" },
+        { p: "/settings discipline roles-reset", c: "set", tier: "admin", d: "Reset discipline role configuration", g: "core" },
+
+        { p: "/settings media category-add", c: "set", tier: "admin", d: "Add a media category", g: "core", a: [s("name", "Category name", true)] },
+        { p: "/settings media category-list", c: "set", tier: "admin", d: "List media categories", g: "core" },
+        { p: "/settings media category-remove", c: "set", tier: "admin", d: "Remove a media category", g: "core", a: [s("name", "Category name to remove", true)] },
+        { p: "/settings media default-set", c: "set", tier: "admin", d: "Set the default media category", g: "core", a: [s("name", "Category name to set as default", true)] },
+        { p: "/settings media default-show", c: "set", tier: "admin", d: "Show the default media category", g: "core" },
+        { p: "/settings media default-reset", c: "set", tier: "admin", d: "Clear the default media category", g: "core" },
+
+        { p: "/settings task role-set", c: "set", tier: "admin", d: "Configure the Tasker role", g: "core", a: [role("role", "Select the role allowed to get tasks", true)] },
+        { p: "/settings task role-show", c: "set", tier: "admin", d: "Show the configured Tasker role", g: "core" },
+        { p: "/settings task role-reset", c: "set", tier: "admin", d: "Reset the Tasker role configuration", g: "core" },
+        { p: "/settings task tasks-upload", c: "set", tier: "admin", d: "Upload a task list", g: "core", a: [file("file", "JSON file (.json) containing the task list", true)], note: "Each entry carries a description, a duration in minutes, and optionally the role names allowed to receive it." },
+        { p: "/settings task tasks-download", c: "set", tier: "admin", d: "Download the current task list", g: "core" },
+        { p: "/settings task tasks-reset", c: "set", tier: "admin", d: "Reset tasks to defaults", g: "core" },
+        { p: "/settings task cooldown-set", c: "set", tier: "admin", d: "Set task cooldown duration", g: "core", a: [s("duration", "Cooldown after completing/failing a task (e.g. 30m, 3h, 1d)", true)] },
+        { p: "/settings task cooldown-show", c: "set", tier: "admin", d: "Show cooldown settings and active cooldowns", g: "core" },
+
+        { p: "/settings translate channel-add", c: "set", tier: "admin", d: "Enable translation reactions in a channel", g: "core", a: [chan("channel", "Select a channel to enable translation reactions", true)] },
+        { p: "/settings translate channel-remove", c: "set", tier: "admin", d: "Disable translation reactions in a channel", g: "core", a: [chan("channel", "Select a channel to remove from translation reactions", true)] },
+        { p: "/settings translate channel-list", c: "set", tier: "admin", d: "List translation-enabled channels", g: "core" },
+        { p: "/settings translate channels-clear", c: "set", tier: "admin", d: "Remove all translation-enabled channels", g: "core" },
+
+        { p: "/settings commands log", c: "set", tier: "admin", d: "Review recently used commands", g: "core" },
+        { p: "/settings commands status", c: "set", tier: "admin", d: "Show enabled and disabled command groups", g: "core" },
+        { p: "/settings commands enable", c: "set", tier: "admin", d: "Enable a command group", g: "core", a: [pick("group", "Choose command group to enable", true, ["announce", "ask", "confess", "discipline", "media", "purge", "roll", "shortlink", "task", "translate"])] },
+        { p: "/settings commands disable", c: "set", tier: "admin", d: "Disable a command group", g: "core", a: [pick("group", "Choose command group to disable", true, ["announce", "ask", "confess", "discipline", "media", "purge", "roll", "shortlink", "task", "translate"])], note: "The core group cannot be disabled — otherwise you would have no way to switch anything back on." },
+
+        /* --- Maintenance --- */
+        { p: "/maintenance ping", c: "maint", tier: "admin", d: "Check bot latency", g: "core" },
+        { p: "/maintenance export-data", c: "maint", tier: "admin", d: "Export the current server database as JSON", g: "core" },
+        { p: "/maintenance status", c: "maint", tier: "admin", d: "Retrieve guild statistics", g: "core" },
+        { p: "/maintenance sync", c: "maint", tier: "admin", d: "Re-register slash commands", g: "core" }
+      ];
+
+      /* ---------- ranks, highest first ---------- */
+
+      var RANKS = [
+        {
+          id: "admin", name: "Admin", sub: "Administrator", grants: ["open", "admin"],
+          note: "Everything configurable is yours. The three role-gated roleplay commands still need their own roles on top — being an admin does not put a collar on anyone."
+        },
+        {
+          id: "punisher", name: "Punisher", sub: "configured role", grants: ["open", "punisher"],
+          note: "The only rank that can hand out and take back the brat role. Set with <code>/settings discipline roles-set punisher</code>, and useless until Victim and Brat are set too."
+        },
+        {
+          id: "tasker", name: "Tasker", sub: "configured role", grants: ["open", "tasker"],
+          note: "May pull tasks from the server's list. Which tasks depends on your other roles — a task can name the roles allowed to receive it."
+        },
+        {
+          id: "member", name: "Member", sub: "no special roles", grants: ["open"],
+          note: "Barely a quarter of the register, and not one line of the settings. Confessions, dice, links, translation and contact requests need no rank at all — everything that changes the server needs one."
+        },
+        {
+          id: "brat", name: "Brat", sub: "punishment role", grants: ["open"],
+          note: "Technically identical to a plain member — and that is rather the point. The collar is social, not enforced in code. What actually changes is which channels your server lets you see, and which tasks she is willing to hand you."
+        }
+      ];
+
+      var LOCK_LINES = {
+        admin: [
+          "Administrator only. You are not, and pretending will not help.",
+          "That lever belongs to whoever pays for the server. Not you.",
+          "Above your pay grade, pet."
+        ],
+        punisher: [
+          "You don’t wear the right collar to give punishments.",
+          "You don’t <em>get</em> to undo what the real dommes do."
+        ],
+        tasker: [
+          "No Tasker role, no tasks. Go ask an admin nicely."
+        ]
+      };
+
+      var TIER_LABEL = { open: "open", admin: "admin", punisher: "punisher", tasker: "tasker" };
+      var TIER_CLASS = { open: "b-open", admin: "b-admin", punisher: "b-role", tasker: "b-role" };
+
+      /* ---------- helpers ---------- */
+
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      // Descriptions are copied verbatim from Go source, where `backticks` and
+      // *stars* are Discord markdown. Escape first, then re-introduce the two
+      // tags — never the other way round.
+      function fmt(t) {
+        return esc(t)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      }
+      function pathHtml(p) {
+        var parts = p.split(" ");
+        if (parts.length === 1) return esc(p);
+        return esc(parts[0]) + ' <span class="dim">' + esc(parts.slice(1).join(" ")) + "</span>";
+      }
+      function pickFrom(arr, seed) { return arr[seed % arr.length]; }
+
+      /* ---------- state ---------- */
+
+      var state = { rank: "admin", cat: "all", q: "" };
+      /*
+        Settings alone is 31 of the 58 rows — more than half the height of the
+        whole section, and the least interesting part for a first visit. It
+        starts folded so the register fits on a screen or two instead of
+        becoming something you have to scroll past to reach the rest of the page.
+      */
+      var collapsed = { set: true };
+      var listEl = document.getElementById("list");
+      var railEl = document.getElementById("rail");
+      var hitsEl = document.getElementById("hits");
+      var noteEl = document.getElementById("lensNote");
+      var openPath = null;
+
+      document.getElementById("tallyN").textContent = CMDS.length;
+
+      /* ---------- rank pills ---------- */
+
+      function reachOf(rank) {
+        return CMDS.filter(function (c) { return rank.grants.indexOf(c.tier) > -1; }).length;
+      }
+
+      var lensRow = document.getElementById("lensRow");
+      RANKS.forEach(function (r) {
+        var reach = reachOf(r);
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "rank";
+        b.setAttribute("aria-pressed", r.id === state.rank);
+        b.setAttribute("aria-label",
+          "View the register as " + r.name + ", " + r.sub + " — " + reach + " of " + CMDS.length + " commands");
+        b.dataset.rank = r.id;
+        b.innerHTML = '<span class="rank-main"><strong>' + esc(r.name) + "</strong><em>" + esc(r.sub) + "</em></span>" +
+          '<span class="rank-n">' + reach + "</span>";
+        b.addEventListener("click", function () {
+          state.rank = r.id;
+          lensRow.querySelectorAll(".rank").forEach(function (x) {
+            x.setAttribute("aria-pressed", x.dataset.rank === r.id);
+          });
+          render();
+        });
+        lensRow.appendChild(b);
+      });
+
+      /* ---------- category rail ---------- */
+
+      function buildRail() {
+        railEl.innerHTML = "";
+        var all = document.createElement("button");
+        all.type = "button";
+        all.dataset.cat = "all";
+        all.innerHTML = "All categories <span class='n'></span>";
+        railEl.appendChild(all);
+        CATS.forEach(function (c) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.dataset.cat = c.id;
+          b.innerHTML = esc(c.label) + " <span class='n'></span>";
+          railEl.appendChild(b);
+        });
+        railEl.querySelectorAll("button").forEach(function (b) {
+          b.addEventListener("click", function () {
+            state.cat = b.dataset.cat;
+            // Narrowing to a category has to open it, or picking Settings from
+            // the rail would show a folded header and nothing else.
+            if (b.dataset.cat !== "all") collapsed[b.dataset.cat] = false;
+            render();
+          });
+        });
+      }
+      buildRail();
+
+      // Rail counts are reach/total for the active rank, so the lens is visible
+      // in the navigation too: a Member sees Settings sitting at 0/31.
+      function paintRailCounts(rank) {
+        railEl.querySelectorAll("button").forEach(function (b) {
+          var id = b.dataset.cat;
+          var pool = id === "all" ? CMDS : CMDS.filter(function (c) { return c.c === id; });
+          var ok = pool.filter(function (c) { return rank.grants.indexOf(c.tier) > -1; }).length;
+          b.querySelector(".n").textContent = ok + "/" + pool.length;
+        });
+      }
+
+      /* ---------- search ---------- */
+
+      function matchesQuery(c) {
+        if (!state.q) return true;
+        var hay = (c.p + " " + c.d + " " + (c.note || "") + " " +
+          (c.a || []).map(function (a) { return a.n + " " + a.d; }).join(" ")).toLowerCase();
+        return hay.indexOf(state.q) > -1;
+      }
+
+      /*
+        A search unfolds whatever it found in, and clearing it puts the folds
+        back. Leaving them folded and merely rendering through them made the
+        chevron lie — it read "open" on a group the state still called shut, and
+        clicking it did nothing visible.
+      */
+      var foldBeforeSearch = null;
+      var qEl = document.getElementById("q");
+      function setQuery(v) {
+        var had = !!state.q;
+        state.q = v.trim().toLowerCase();
+        if (state.q) {
+          if (!had) foldBeforeSearch = Object.assign({}, collapsed);
+          CATS.forEach(function (cat) {
+            if (CMDS.some(function (c) { return c.c === cat.id && matchesQuery(c); })) collapsed[cat.id] = false;
+          });
+        } else if (foldBeforeSearch) {
+          collapsed = foldBeforeSearch;
+          foldBeforeSearch = null;
+        }
+        render();
+      }
+      qEl.addEventListener("input", function () { setQuery(qEl.value); });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "/" && document.activeElement !== qEl && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+          e.preventDefault();
+          qEl.focus();
+          qEl.select();
+        }
+        if (e.key === "Escape" && document.activeElement === qEl) { qEl.value = ""; setQuery(""); }
+      });
+
+      /* ---------- render ---------- */
+
+      function grantsOf(rankId) {
+        for (var i = 0; i < RANKS.length; i++) if (RANKS[i].id === rankId) return RANKS[i];
+        return RANKS[0];
+      }
+
+      function render() {
+        var rank = grantsOf(state.rank);
+        noteEl.innerHTML = rank.note;
+
+        railEl.querySelectorAll("button").forEach(function (b) {
+          b.setAttribute("aria-pressed", b.dataset.cat === state.cat);
+        });
+        paintRailCounts(rank);
+
+        var rows = CMDS.filter(function (c) {
+          if (state.cat !== "all" && c.c !== state.cat) return false;
+          return matchesQuery(c);
+        });
+
+        var reachable = rows.filter(function (c) { return rank.grants.indexOf(c.tier) > -1; }).length;
+        hitsEl.textContent = reachable + " of " + rows.length + " within reach";
+
+        if (!rows.length) {
+          listEl.innerHTML = '<p class="empty">Nothing by that name. She is not impressed.</p>';
+          return;
+        }
+
+        var html = "";
+        CATS.forEach(function (cat) {
+          var inCat = rows.filter(function (c) { return c.c === cat.id; });
+          if (!inCat.length) return;
+          var okCount = inCat.filter(function (c) { return rank.grants.indexOf(c.tier) > -1; }).length;
+          var open = !collapsed[cat.id];
+
+          html += '<button class="cat-head" type="button" data-cat="' + cat.id + '" aria-expanded="' + open + '">' +
+            '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>' +
+            esc(cat.label) + "<span class='n'>" + okCount + "/" + inCat.length + "</span></button>";
+
+          if (!open) return;
+
+          inCat.forEach(function (c, i) {
+            var allowed = rank.grants.indexOf(c.tier) > -1;
+            var expanded = openPath === c.p;
+            var args = c.a || [];
+
+            // Role-gated commands each carry the refusal the bot really sends,
+            // so the lock line is theirs. The admin tier has no single one —
+            // the middleware only recites the missing permission — so it draws
+            // from a pool instead, seeded per row to stay stable across renders.
+            var lockMsg = "";
+            if (!allowed) {
+              lockMsg = c.lock ? fmt(c.lock) : pickFrom(LOCK_LINES[c.tier] || LOCK_LINES.admin, i + c.p.length);
+            }
+
+            html += '<button class="row' + (allowed ? "" : " locked") + '" type="button" ' +
+              'data-path="' + esc(c.p) + '" aria-expanded="' + expanded + '">' +
+              '<span class="row-top">' +
+              '<span class="path">' + pathHtml(c.p) + "</span>" +
+              '<span class="badge ' + TIER_CLASS[c.tier] + '">' + TIER_LABEL[c.tier] + "</span>" +
+              (c.kind ? '<span class="badge b-kind">' + esc(c.kind) + "</span>" : "") +
+              (args.length ? '<span class="badge b-args">' + args.length + " arg" + (args.length > 1 ? "s" : "") + "</span>" : "") +
+              "</span>" +
+              '<span class="row-desc">' +
+              (allowed ? fmt(c.d) :
+                '<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>' + lockMsg) +
+              "</span></button>";
+
+            if (expanded) html += detailHtml(c, allowed, rank);
+          });
+        });
+
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll(".cat-head").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            collapsed[btn.dataset.cat] = !collapsed[btn.dataset.cat];
+            var y = btn.getBoundingClientRect().top;
+            render();
+            // Folding a group above the viewport would otherwise yank the page;
+            // re-anchor the header the user actually clicked.
+            var again = listEl.querySelector('.cat-head[data-cat="' + btn.dataset.cat + '"]');
+            if (again) {
+              window.scrollBy(0, again.getBoundingClientRect().top - y);
+              again.focus({ preventScroll: true });
+            }
+          });
+        });
+
+        listEl.querySelectorAll(".row").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            openPath = openPath === btn.dataset.path ? null : btn.dataset.path;
+            render();
+            if (openPath) {
+              var el = listEl.querySelector('.row[data-path="' + CSS.escape(openPath) + '"]');
+              if (el) el.focus({ preventScroll: true });
+            }
+          });
+        });
+      }
+
+      function detailHtml(c, allowed, rank) {
+        var h = '<div class="detail">';
+        var args = c.a || [];
+
+        if (args.length) {
+          h += "<h4>Arguments</h4>";
+          args.forEach(function (a) {
+            h += '<div class="arg"><div class="arg-name">' + esc(a.n) +
+              ' <span class="t">' + a.t + "</span>" +
+              (a.r ? ' <span class="req">required</span>' : "") +
+              '</div><div class="arg-desc">' + fmt(a.d);
+            if (a.c) {
+              h += '<div class="choices">';
+              a.c.forEach(function (ch) { h += "<span>" + esc(ch) + "</span>"; });
+              h += "</div>";
+            }
+            h += "</div></div>";
+          });
+        }
+
+        if (c.note) {
+          h += "<h4>Notes</h4><p style='margin:0;color:var(--muted)'>" + fmt(c.note) + "</p>";
+        }
+
+        h += "<h4>Who may run it</h4><p style='margin:0 0 4px;color:var(--muted)'>";
+        if (c.tier === "open") h += "Anyone in the server.";
+        else if (c.tier === "admin") h += "Members with the <strong>Administrator</strong> permission.";
+        else if (c.tier === "punisher") h += "Holders of the configured <strong>Punisher</strong> role.";
+        else if (c.tier === "tasker") h += "Holders of the configured <strong>Tasker</strong> role.";
+        h += " The whole <span class='mono'>" + esc(c.g) + "</span> group can also be switched off for the server.</p>";
+
+        var line = allowed
+          ? c.says
+          : (c.lock || "You need at least one of the following permissions to run this command: `Administrator`");
+        if (line) {
+          h += "<h4>" + (allowed ? "She might also say" : "What she says instead") + "</h4>" +
+            '<div class="says"><img src="assets/avatar.webp" alt="" width="24" height="24">' +
+            '<div><div class="who">Server Domme</div><div class="msg">' + fmt(line) + "</div></div></div>";
+        }
+
+        return h + "</div>";
+      }
+
+      render();
+
+      /* =========================================================
+         VOICE — verbatim line pools from internal/command/**
+         ========================================================= */
+
+      var VOICE = [
+        {
+          id: "punish", label: "Punishment", src: "punishPhrases — slash_discipline.go",
+          lines: [
+            "🔒 @brat has been sent to the Brat Corner. Someone finally found the line and crossed it.",
+            "📦 @brat has been packaged and shipped directly to the Brat Corner. No returns.",
+            "🥇 @brat won gold in the Olympic sport of testing my patience. Your medal ceremony is in the Brat Corner.",
+            "🧂 @brat was too salty to handle. Now marinating in the Brat Corner.",
+            "💅 @brat was serving attitude. Now serving time. In the Brat Corner.",
+            "🍵 @brat spilled too much tea and not enough sense. Steeping now in the Brat Corner.",
+            "📖 @brat, your brat chapter just ended. The Brat Corner is your epilogue.",
+            "🚨 @brat triggered the ‘Too Much Mouth’ alarm. Detained in the Brat Corner."
+          ]
+        },
+        {
+          id: "praise", label: "Task completed", src: "completeYesReplies — task_base.go",
+          lines: [
+            "💎 @brat actually did it? Miracles happen. Pat yourself. I won’t.",
+            "✨ @brat, for once you’re not a complete disappointment. Noted.",
+            "😈 @brat obeyed. Good. You may bask in my fleeting approval.",
+            "👑 @brat gets a crown today. Paper. Temporary.",
+            "🧠 @brat used their brain. I know, I’m shocked too.",
+            "📚 @brat followed instructions. Reading comprehension unlocked.",
+            "🎓 @brat graduated from Failure Academy. Cum less than laude.",
+            "💼 @brat completed their task. I almost care."
+          ]
+        },
+        {
+          id: "fail", label: "Task failed", src: "taskFailures — task_base.go",
+          lines: [
+            "🧹 @brat swept their chance under the rug. Pathetic.",
+            "📉 @brat failed. Again. Shock level: nonexistent.",
+            "🥀 @brat wilted under pressure. How predictably boring.",
+            "🕳️ @brat disappeared when it mattered. How very on-brand.",
+            "🐌 @brat moved at a snail’s pace and got exactly what they deserved. Nothing.",
+            "🛑 @brat didn’t even reach the line, let alone cross it.",
+            "🗑️ @brat submitted nothing. Trash takes itself out.",
+            "💤 @brat snoozed. Lost. Typical."
+          ]
+        },
+        {
+          id: "safe", label: "Safeword", src: "completeSafewordReplies — task_base.go",
+          lines: [
+            "⚠️ @brat used the safeword. Fine. I’ll let it slide... this time.",
+            "💤 @brat tapped out. Task canceled. Consent above all, darling.",
+            "🧷 @brat knew their limit and spoke up. That’s rare. And smart.",
+            "🔐 @brat closed the door on the task. Consent first. Always.",
+            "🕊️ @brat asked for peace. Fine. But don’t make it a habit.",
+            "🎗️ @brat chose self-preservation. I <em>guess</em> I’ll allow it.",
+            "🧘 @brat chose calm over chaos. Uncharacteristically wise.",
+            "📍 @brat pinned the limit. You’re learning. Slowly."
+          ]
+        }
+      ];
+
+      var vState = { pool: 0, i: 0 };
+      var vTabs = document.getElementById("voiceTabs");
+      var vLine = document.getElementById("voiceLine");
+      var vSrc = document.getElementById("voiceSrc");
+
+      VOICE.forEach(function (p, idx) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = p.label;
+        b.setAttribute("aria-pressed", idx === 0);
+        b.addEventListener("click", function () {
+          vState.pool = idx;
+          vState.i = 0;
+          vTabs.querySelectorAll("button").forEach(function (x, j) { x.setAttribute("aria-pressed", j === idx); });
+          paintVoice();
+        });
+        vTabs.appendChild(b);
+      });
+
+      function paintVoice() {
+        var p = VOICE[vState.pool];
+        var raw = p.lines[vState.i % p.lines.length];
+        // @brat is the stand-in for the <@%s> mention the bot really formats in.
+        vLine.innerHTML = fmt(raw).replace(/@brat/g, '<span class="dc-mention">@brat</span>');
+        vSrc.textContent = p.src;
+      }
+
+      document.getElementById("voiceShuffle").addEventListener("click", function () {
+        vState.i++;
+        paintVoice();
+      });
+      paintVoice();
+
+      /* ---------- hero quip ticker ---------- */
+
+      var QUIPS = [
+        "Punishment is a role assignment. Don’t romanticise it.",
+        "Yes, I delete messages. No, I won’t tell you which ones I enjoyed.",
+        "Every group here can be switched off. I’d rather you didn’t.",
+        "The safeword works. I checked. Twice.",
+        "58 commands. You will use six of them.",
+        "I run on your machine, on your token. Nowhere to hide, for either of us."
+      ];
+      var quipEl = document.getElementById("quipText");
+      var qi = 0;
+      setInterval(function () {
+        qi = (qi + 1) % QUIPS.length;
+        quipEl.style.opacity = "0";
+        setTimeout(function () {
+          quipEl.textContent = QUIPS[qi];
+          quipEl.style.opacity = "1";
+        }, 260);
+      }, 6000);
+      quipEl.style.transition = "opacity .26s ease";
+
+    })();
+  </script>
+</body>
+
+</html>
