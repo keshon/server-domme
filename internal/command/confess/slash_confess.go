@@ -19,6 +19,12 @@ func (c *ConfessCommand) Name() string        { return "confess" }
 func (c *ConfessCommand) Description() string { return "Send an anonymous confession" }
 func (c *ConfessCommand) Group() string       { return "confess" }
 func (c *ConfessCommand) Category() string    { return "🎭 Roleplay" }
+
+// Unlogged keeps this command out of the audit log. Without it the posted
+// confession stays anonymous while /settings commands log records who ran
+// /confess and when — enough to identify the author by lining the two up.
+func (c *ConfessCommand) Unlogged() {}
+
 func (c *ConfessCommand) UserPermissions() []int64 {
 	return []int64{}
 }
