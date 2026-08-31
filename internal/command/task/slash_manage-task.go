@@ -91,7 +91,7 @@ func RunManageTaskSettings(s *discordgo.Session, e *discordgo.InteractionCreate,
 		}
 
 		if err := reply.RespondDeferredEphemeral(s, e); err != nil {
-			return fmt.Errorf("failed to defer interaction: %w", err)
+			return fmt.Errorf("task: defer interaction: %w", err)
 		}
 
 		file, err := os.Open(path)
@@ -342,7 +342,7 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 	if err != nil || guild == nil {
 		guild, err = s.Guild(guildID)
 		if err != nil {
-			return "", fmt.Errorf("failed to fetch guild: %w", err)
+			return "", fmt.Errorf("task: fetch guild: %w", err)
 		}
 	}
 	for _, role := range guild.Roles {
@@ -350,5 +350,5 @@ func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, erro
 			return role.Name, nil
 		}
 	}
-	return "", fmt.Errorf("role ID %s not found in guild %s", roleID, guildID)
+	return "", fmt.Errorf("task: role ID %s not found in guild %s", roleID, guildID)
 }

@@ -90,7 +90,7 @@ func (c *TaskCommand) runSelfAssign(context *cmdadapter.SlashInteractionContext)
 	taskCancelMutex.Unlock()
 
 	existing, _ := storage.GetTask(guildID, userID)
-	if existing != nil && existing.Status == "pending" {
+	if existing != nil && existing.Status == st.TaskStatusPending {
 		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "You already have a task pending.",
 		})
@@ -179,7 +179,7 @@ func (c *TaskCommand) assignTask(log zerolog.Logger, session *discordgo.Session,
 		MessageID:  msg.ID,
 		AssignedAt: now,
 		ExpiresAt:  expiry,
-		Status:     "pending",
+		Status:     st.TaskStatusPending,
 	}
 	// Bail if the record did not land: the timers below drive off it, and an
 	// unrecorded task would leave the holder with a button and no state behind it.
@@ -218,7 +218,7 @@ func (c *TaskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) err
 		return nil
 	}
 
-	if task.Status != "pending" {
+	if task.Status != st.TaskStatusPending {
 		if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredMessageUpdate,
 		}); err != nil {
@@ -259,13 +259,13 @@ func (c *TaskCommand) handleTaskCompletion(ctx *cmdadapter.ComponentInteractionC
 	var msg string
 	switch customID {
 	case "task_complete_yes":
-		task.Status = "completed"
+		task.Status = st.TaskStatusCompleted
 		msg = "**Task Completed**\n" + fmt.Sprintf(randomLine(completeYesReplies), userID)
 	case "task_complete_no":
-		task.Status = "failed"
+		task.Status = st.TaskStatusFailed
 		msg = "**Task Failed**\n" + fmt.Sprintf(randomLine(completeNoReplies), userID)
 	case "task_complete_safeword":
-		task.Status = "safeword"
+		task.Status = st.TaskStatusSafeword
 		msg = "**Safeword**\n" + fmt.Sprintf(randomLine(completeSafewordReplies), userID)
 	}
 
@@ -299,7 +299,8 @@ func (c *TaskCommand) handleTaskCompletion(ctx *cmdadapter.ComponentInteractionC
 	}
 }
 
-// InitFromConfig loads the default task list from cfg.TasksPath. Call from main after loading config.
+// InitFromConfig loads the default task list from cfg.TasksPath. Call from main
+// after loading config.
 func InitFromConfig(cfg *config.Config, log zerolog.Logger) error {
 	if cfg == nil {
 		return nil
@@ -321,7 +322,7 @@ func handleTimers(log zerolog.Logger, session *discordgo.Session, storage *st.St
 	select {
 	case <-time.After(reminderDelay):
 		current, _ := storage.GetTask(guildID, userID)
-		if current != nil && current.Status == "pending" {
+		if current != nil && current.Status == st.TaskStatusPending {
 			if _, err := session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 				Content: "**Task Reminder**\n" + fmt.Sprintf(randomLine(taskReminders), userID, humanDuration(expiryDelay-reminderDelay)),
 				Reference: &discordgo.MessageReference{
@@ -338,7 +339,7 @@ func handleTimers(log zerolog.Logger, session *discordgo.Session, storage *st.St
 	select {
 	case <-time.After(expiryDelay - reminderDelay):
 		current, _ := storage.GetTask(guildID, userID)
-		if current != nil && current.Status == "pending" {
+		if current != nil && current.Status == st.TaskStatusPending {
 			if _, err := session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 				Content: "**Task Expired**\n" + fmt.Sprintf(randomLine(taskFailures), userID),
 				Reference: &discordgo.MessageReference{

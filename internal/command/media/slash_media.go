@@ -70,7 +70,8 @@ func (c *RandomMediaCommand) Run(ctx interface{}) error {
 }
 
 func (c *RandomMediaCommand) sendMedia(log zerolog.Logger, s *discordgo.Session, e *discordgo.InteractionCreate, guildID, category string) error {
-	// ACK immediately to avoid "Application unavailable" on slow disks/large media sets.
+	// ACK immediately to avoid "Application unavailable" on slow disks/large media
+	// sets.
 	if err := reply.AckDeferred(s, e); err != nil {
 		log.Warn().Err(err).Msg("media_ack_failed")
 	}
@@ -234,7 +235,7 @@ func pickRandomFile(root string) (string, error) {
 	}
 
 	if len(files) == 0 {
-		return "", fmt.Errorf("no files found")
+		return "", fmt.Errorf("media: no files found")
 	}
 
 	return pickWeightedRandomFile(files), nil

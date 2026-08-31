@@ -253,7 +253,7 @@ func (s *Storage) ImportGuild(e GuildExport) error {
 			link := e.ShortLinks[i]
 			link.GuildID = e.GuildID
 			if _, taken := linkCol.Get(link.ShortID); taken {
-				return fmt.Errorf("short link %q already exists", link.ShortID)
+				return fmt.Errorf("storage: short link %q already exists", link.ShortID)
 			}
 			if err := linkCol.Put(&link); err != nil {
 				return err

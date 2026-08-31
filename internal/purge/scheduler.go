@@ -32,9 +32,9 @@ func RunScheduler(ctx context.Context, store *storage.Storage, session SessionFu
 			Logger()
 
 		switch job.Mode {
-		case "delayed":
+		case storage.PurgeModeDelayed:
 			scheduleDelayed(ctx, store, session, jobLog, job)
-		case "recurring":
+		case storage.PurgeModeRecurring:
 			scheduleRecurring(ctx, session, jobLog, job)
 		default:
 			jobLog.Error().Msg("purge_job_mode_unknown")
@@ -122,5 +122,6 @@ func scheduleRecurring(ctx context.Context, session SessionFunc, log zerolog.Log
 
 // recurringInterval is how often a recurring job re-checks its channel. It is
 // deliberately much shorter than any sensible OlderThan window, so a message
-// crossing the age threshold is removed promptly rather than at the next window.
+// crossing the age threshold is removed promptly rather than at the next
+// window.
 const recurringInterval = 30 * time.Second

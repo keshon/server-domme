@@ -18,7 +18,7 @@ var taskCooldownDurationPattern = regexp.MustCompile(`(?i)(\d+)([smhdw])`)
 func parseTaskCooldownDuration(input string) (time.Duration, error) {
 	matches := taskCooldownDurationPattern.FindAllStringSubmatch(input, -1)
 	if matches == nil {
-		return 0, errors.New("invalid duration format")
+		return 0, errors.New("storage: invalid duration format")
 	}
 
 	var total time.Duration
@@ -36,12 +36,12 @@ func parseTaskCooldownDuration(input string) (time.Duration, error) {
 		case "w":
 			total += time.Duration(value) * 7 * 24 * time.Hour
 		default:
-			return 0, fmt.Errorf("unknown time unit: %s", match[2])
+			return 0, fmt.Errorf("storage: unknown time unit: %s", match[2])
 		}
 	}
 
 	if total <= 0 {
-		return 0, errors.New("duration must be greater than zero")
+		return 0, errors.New("storage: duration must be greater than zero")
 	}
 	return total, nil
 }
@@ -57,7 +57,7 @@ func (s *Storage) SetTaskRole(guildID, roleID string) error {
 func (s *Storage) GetTaskRole(guildID string) (string, error) {
 	roleID := s.guildSettings(guildID).TaskRole
 	if roleID == "" {
-		return "", fmt.Errorf("no tasker role set")
+		return "", fmt.Errorf("storage: no tasker role set")
 	}
 	return roleID, nil
 }
@@ -73,7 +73,7 @@ func (s *Storage) SetTask(guildID string, userID string, task Task) error {
 func (s *Storage) GetTask(guildID string, userID string) (*Task, error) {
 	task, ok := s.tasks.Get(guildScopedKey(guildID, userID))
 	if !ok {
-		return nil, fmt.Errorf("no task for user %s", userID)
+		return nil, fmt.Errorf("storage: no task for user %s", userID)
 	}
 	return task, nil
 }
@@ -97,7 +97,7 @@ func (s *Storage) SetCooldown(guildID string, userID string, cooldown time.Time)
 func (s *Storage) GetCooldown(guildID string, userID string) (time.Time, error) {
 	c, ok := s.cooldowns.Get(guildScopedKey(guildID, userID))
 	if !ok {
-		return time.Time{}, fmt.Errorf("no cooldown for user %s", userID)
+		return time.Time{}, fmt.Errorf("storage: no cooldown for user %s", userID)
 	}
 	return c.Until, nil
 }
@@ -127,7 +127,8 @@ func (s *Storage) GetTaskCooldownDuration(guildID string) (time.Duration, error)
 	return parseTaskCooldownDuration(raw)
 }
 
-// IsTaskCooldownDurationDefault reports whether the guild uses the default window.
+// IsTaskCooldownDurationDefault reports whether the guild uses the default
+// window.
 func (s *Storage) IsTaskCooldownDurationDefault(guildID string) (bool, error) {
 	return s.guildSettings(guildID).TaskCooldownDuration == "", nil
 }

@@ -92,7 +92,7 @@ func WithUserPermissionCheck() command.Middleware {
 
 			memberPerms, err := s.UserChannelPermissions(m.User.ID, channelID)
 			if err != nil {
-				return fmt.Errorf("failed to get user permissions: %w", err)
+				return fmt.Errorf("middleware: get user permissions: %w", err)
 			}
 			if memberPerms&discordgo.PermissionAdministrator != 0 {
 				return c.Run(ctx, inv)

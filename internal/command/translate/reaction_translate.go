@@ -146,12 +146,12 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 
 	var raw interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return "", "", fmt.Errorf("unmarshal error: %w", err)
+		return "", "", fmt.Errorf("translate: unmarshal: %w", err)
 	}
 
 	arr, ok := raw.([]interface{})
 	if !ok || len(arr) < 2 {
-		return "", "", fmt.Errorf("unexpected top-level structure")
+		return "", "", fmt.Errorf("translate: unexpected top-level structure")
 	}
 
 	// arr[0] — translated sentences
@@ -165,7 +165,7 @@ func googleTranslate(text, targetLang string) (string, string, error) {
 
 	sentences, ok := arr[0].([]interface{})
 	if !ok {
-		return "", "", fmt.Errorf("unexpected sentences structure")
+		return "", "", fmt.Errorf("translate: unexpected sentences structure")
 	}
 
 	var translated strings.Builder

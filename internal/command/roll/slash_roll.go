@@ -182,18 +182,18 @@ func evaluateToken(token string) (int, string, error) {
 		if countStr != "" {
 			n, err := strconv.Atoi(countStr)
 			if err != nil {
-				return 0, "", fmt.Errorf("invalid dice count")
+				return 0, "", fmt.Errorf("roll: invalid dice count")
 			}
 			count = n
 		}
 
 		sides, err := strconv.Atoi(sidesStr)
 		if err != nil || sides < 2 {
-			return 0, "", fmt.Errorf("invalid dice sides")
+			return 0, "", fmt.Errorf("roll: invalid dice sides")
 		}
 
 		if count > 100 || sides > 1000 {
-			return 0, "", fmt.Errorf("too big. max 100 dice, 1000 sides")
+			return 0, "", fmt.Errorf("roll: too big. max 100 dice, 1000 sides")
 		}
 
 		var sum int
@@ -208,7 +208,7 @@ func evaluateToken(token string) (int, string, error) {
 
 	num, err := strconv.Atoi(token)
 	if err != nil {
-		return 0, "", fmt.Errorf("not a number or dice")
+		return 0, "", fmt.Errorf("roll: not a number or dice")
 	}
 	return num, fmt.Sprintf("`%d`", num), nil
 }

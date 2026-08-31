@@ -12,6 +12,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	st "github.com/keshon/server-domme/internal/storage"
 )
 
 type PurgeCommand struct{}
@@ -191,7 +192,7 @@ func runPurgeAuto(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applic
 	ActiveDeletions[event.ChannelID] = stopChan
 	ActiveDeletionsMu.Unlock()
 
-	err = storage.SetDeletionJob(event.GuildID, event.ChannelID, "recurring", time.Now(), notifyAll, olderThan)
+	err = storage.SetDeletionJob(event.GuildID, event.ChannelID, st.PurgeModeRecurring, time.Now(), notifyAll, olderThan)
 	if err != nil {
 		stopDeletion(event.ChannelID)
 		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
@@ -271,7 +272,7 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 	}
 
 	delayUntil := time.Now().Add(dur)
-	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, "delayed", delayUntil, notifyAll); err != nil {
+	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, st.PurgeModeDelayed, delayUntil, notifyAll); err != nil {
 		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Failed to schedule purge: " + err.Error(),
 		})
@@ -333,14 +334,14 @@ func runPurgeJobs(ctx *cmdadapter.SlashInteractionContext) error {
 	for _, job := range jobs {
 		sb.WriteString("<#" + job.ChannelID + ">\n")
 		switch job.Mode {
-		case "delayed":
+		case st.PurgeModeDelayed:
 			eta := time.Until(job.DelayUntil).Truncate(time.Second)
 			if eta > 0 {
 				sb.WriteString("Runs in: `" + eta.String() + "`\n")
 			} else {
 				sb.WriteString("Overdue by: `" + (-eta).String() + "`\n")
 			}
-		case "recurring":
+		case st.PurgeModeRecurring:
 			sb.WriteString("Recurring purge of messages older than `" + job.OlderThan + "`\n")
 		default:
 			sb.WriteString("Unknown mode: " + job.Mode + "\n")
@@ -389,7 +390,7 @@ func stopDeletion(channelID string) {
 func parseDuration(input string) (time.Duration, error) {
 	matches := timePattern.FindAllStringSubmatch(input, -1)
 	if matches == nil {
-		return 0, errors.New("invalid duration format")
+		return 0, errors.New("purge: invalid duration format")
 	}
 
 	var total time.Duration
@@ -409,7 +410,7 @@ func parseDuration(input string) (time.Duration, error) {
 		case "w":
 			total += time.Duration(value) * 7 * 24 * time.Hour
 		default:
-			return 0, errors.New("unknown time unit: " + unit)
+			return 0, errors.New("purge: unknown time unit: " + unit)
 		}
 	}
 

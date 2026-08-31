@@ -9,7 +9,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// attachDiscordgoLogger routes discordgo internal logs through zerolog (global hook in discordgo).
+// attachDiscordgoLogger routes discordgo internal logs through zerolog (global
+// hook in discordgo).
 func attachDiscordgoLogger(log zerolog.Logger) {
 	discordgo.Logger = func(msgL, caller int, format string, a ...interface{}) {
 		raw := fmt.Sprintf(format, a...)
@@ -36,6 +37,8 @@ func attachDiscordgoLogger(log zerolog.Logger) {
 			ev.Str("at", file+":"+strconv.Itoa(line))
 		}
 
-		ev.Str("raw", raw).Msg(raw)
+		// The upstream text is a field, not the event name: it is arbitrary prose
+		// from the library and would make every line its own unsearchable event.
+		ev.Str("raw", raw).Msg("discordgo_log")
 	}
 }

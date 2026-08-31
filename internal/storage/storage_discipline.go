@@ -18,7 +18,7 @@ func (s *Storage) SetPunishRole(guildID string, roleType string, roleID string) 
 func (s *Storage) GetPunishRole(guildID string, roleType string) (string, error) {
 	roleID, exists := s.guildSettings(guildID).DisciplineRoles[roleType]
 	if !exists {
-		return "", fmt.Errorf("role type '%s' not set for this guild", roleType)
+		return "", fmt.Errorf("storage: role type '%s' not set for this guild", roleType)
 	}
 	return roleID, nil
 }

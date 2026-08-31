@@ -143,7 +143,7 @@ func fetchAttachment(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("attachment fetch: unexpected status %s", resp.Status)
+		return nil, fmt.Errorf("announce: attachment fetch: unexpected status %s", resp.Status)
 	}
 	return io.ReadAll(resp.Body)
 }

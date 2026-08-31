@@ -148,7 +148,7 @@ func TestTaskLifecycle(t *testing.T) {
 	}
 
 	expires := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
-	if err := s.SetTask(guild, user, Task{MessageID: "m1", ExpiresAt: expires, Status: "pending"}); err != nil {
+	if err := s.SetTask(guild, user, Task{MessageID: "m1", ExpiresAt: expires, Status: TaskStatusPending}); err != nil {
 		t.Fatalf("SetTask: %v", err)
 	}
 
@@ -156,7 +156,7 @@ func TestTaskLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTask: %v", err)
 	}
-	if got.MessageID != "m1" || got.Status != "pending" {
+	if got.MessageID != "m1" || got.Status != TaskStatusPending {
 		t.Errorf("task = %+v, want MessageID m1 / status pending", got)
 	}
 	// SetTask fills these from its arguments; a caller that reads them back
@@ -325,13 +325,13 @@ func TestPurgeJobs(t *testing.T) {
 	s := newTestStore(t)
 
 	until := time.Now().Add(time.Hour)
-	if err := s.SetDeletionJob("g1", "c1", "delayed", until, false); err != nil {
+	if err := s.SetDeletionJob("g1", "c1", PurgeModeDelayed, until, false); err != nil {
 		t.Fatalf("SetDeletionJob: %v", err)
 	}
-	if err := s.SetDeletionJob("g1", "c2", "recurring", time.Time{}, true, "24h"); err != nil {
+	if err := s.SetDeletionJob("g1", "c2", PurgeModeRecurring, time.Time{}, true, "24h"); err != nil {
 		t.Fatalf("SetDeletionJob: %v", err)
 	}
-	if err := s.SetDeletionJob("g2", "c3", "delayed", until, false); err != nil {
+	if err := s.SetDeletionJob("g2", "c3", PurgeModeDelayed, until, false); err != nil {
 		t.Fatalf("SetDeletionJob: %v", err)
 	}
 
@@ -534,13 +534,13 @@ func TestImportGuildPreservesVerbatim(t *testing.T) {
 			{ShortID: "abc", Original: "https://example.com/a", UserID: "u1", Created: oldTime, Clicks: 42},
 		},
 		Tasks: []Task{
-			{UserID: "u1", MessageID: "m1", AssignedAt: oldTime, ExpiresAt: oldTime.Add(time.Hour), Status: "pending"},
+			{UserID: "u1", MessageID: "m1", AssignedAt: oldTime, ExpiresAt: oldTime.Add(time.Hour), Status: TaskStatusPending},
 		},
 		TaskCooldowns: []TaskCooldown{
 			{UserID: "u2", Until: oldTime.Add(24 * time.Hour)},
 		},
 		PurgeJobs: []PurgeJob{
-			{ChannelID: "c1", Mode: "recurring", OlderThan: "24h", StartedAt: oldTime, Silent: true},
+			{ChannelID: "c1", Mode: PurgeModeRecurring, OlderThan: "24h", StartedAt: oldTime, Silent: true},
 		},
 	}
 

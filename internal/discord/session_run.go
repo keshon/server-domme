@@ -13,12 +13,13 @@ import (
 	"github.com/keshon/server-domme/internal/discord/watchdog"
 )
 
-// RunSession opens one Discord session and blocks until ctx is cancelled or the API probe
-// decides the session is unhealthy (transient gateway reconnects do not exit this function).
+// RunSession opens one Discord session and blocks until ctx is cancelled or the
+// API probe decides the session is unhealthy (transient gateway reconnects do
+// not exit this function).
 func (b *Bot) RunSession(ctx context.Context) error {
 	dg, err := discordgo.New("Bot " + b.cfg.DiscordToken)
 	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
+		return fmt.Errorf("discord: create session: %w", err)
 	}
 	dg.LogLevel = discordgo.LogInformational
 
@@ -46,7 +47,7 @@ func (b *Bot) RunSession(ctx context.Context) error {
 	}()
 
 	if err := dg.Open(); err != nil {
-		return fmt.Errorf("failed to open Discord session: %w", err)
+		return fmt.Errorf("discord: open session: %w", err)
 	}
 	defer func() {
 		b.log.Info().Msg("discord_session_close")

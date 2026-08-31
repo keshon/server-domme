@@ -5,8 +5,8 @@ import (
 	"github.com/keshon/server-domme/internal/config"
 )
 
-// IsAdministrator reports whether a member has administrator privileges in their guild,
-// or is the configured developer.
+// IsAdministrator reports whether a member has administrator privileges in
+// their guild, or is the configured developer.
 func IsAdministrator(s *discordgo.Session, member *discordgo.Member, cfg *config.Config) bool {
 	if member == nil || member.User == nil {
 		return false
@@ -42,7 +42,8 @@ func IsDeveloper(cfg *config.Config, userID string) bool {
 	return config.IsDeveloper(cfg, userID)
 }
 
-// CheckBotPermissions reports whether the bot has ManageMessages permission in a channel.
+// CheckBotPermissions reports whether the bot has ManageMessages permission in
+// a channel.
 func CheckBotPermissions(s *discordgo.Session, channelID string) bool {
 	perms, err := s.UserChannelPermissions(s.State.User.ID, channelID)
 	if err != nil {

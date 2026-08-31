@@ -14,7 +14,7 @@ func (s *Storage) SetAnnounceChannel(guildID, channelID string) error {
 func (s *Storage) GetAnnounceChannel(guildID string) (string, error) {
 	channelID := s.guildSettings(guildID).AnnounceChannel
 	if channelID == "" {
-		return "", fmt.Errorf("no announce channel set")
+		return "", fmt.Errorf("storage: no announce channel set")
 	}
 	return channelID, nil
 }

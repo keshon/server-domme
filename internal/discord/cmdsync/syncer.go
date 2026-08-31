@@ -20,12 +20,13 @@ type Syncer struct {
 	registry *command.Registry
 	log      zerolog.Logger
 
-	// perGuildLocks serializes sync operations per guild.
-	// Kept inside Syncer (not global) so multiple Syncer instances don't share state.
+	// perGuildLocks serializes sync operations per guild. Kept inside Syncer (not
+	// global) so multiple Syncer instances don't share state.
 	perGuildLocks sync.Map // map[guildID string]*sync.Mutex
 }
 
-// NewSyncer creates a command syncer with a Discord session and command registry.
+// NewSyncer creates a command syncer with a Discord session and command
+// registry.
 func NewSyncer(dg *discordgo.Session, registry *command.Registry, log zerolog.Logger) *Syncer {
 	return &Syncer{
 		dg:       dg,
@@ -34,8 +35,9 @@ func NewSyncer(dg *discordgo.Session, registry *command.Registry, log zerolog.Lo
 	}
 }
 
-// SyncGuildCommands syncs commands for a guild by comparing desired definitions (registry)
-// with actual commands in Discord, then creating, editing, and deleting as needed.
+// SyncGuildCommands syncs commands for a guild by comparing desired definitions
+// (registry) with actual commands in Discord, then creating, editing, and
+// deleting as needed.
 func (m *Syncer) SyncGuildCommands(guildID string) error {
 	mu := m.guildLock(guildID)
 	mu.Lock()
@@ -48,7 +50,7 @@ func (m *Syncer) SyncGuildCommands(guildID string) error {
 
 	existingCmds, err := m.dg.ApplicationCommands(appID, guildID)
 	if err != nil {
-		return fmt.Errorf("failed to list application commands: %w", err)
+		return fmt.Errorf("cmdsync: list application commands: %w", err)
 	}
 	desiredCmds := m.buildCommandDefinitions()
 
@@ -166,7 +168,7 @@ func (m *Syncer) appID() (string, error) {
 	}
 	u, err := m.dg.User("@me")
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch bot user: %w", err)
+		return "", fmt.Errorf("cmdsync: fetch bot user: %w", err)
 	}
 	return u.ID, nil
 }

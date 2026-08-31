@@ -21,14 +21,16 @@ type Config struct {
 	CommandTimeout time.Duration `env:"COMMAND_TIMEOUT" envDefault:"30s"`
 	// CommandParallelism limits concurrently running command handlers.
 	CommandParallelism int `env:"COMMAND_PARALLELISM" envDefault:"16"`
-	// WSSilenceTimeout triggers a session restart if no gateway messages are received.
+	// WSSilenceTimeout triggers a session restart if no gateway messages are
+	// received.
 	WSSilenceTimeout time.Duration `env:"WS_SILENCE_TIMEOUT" envDefault:"2m"`
 
-	// DiscordUnhealthyMode controls what happens when watchdogs/API probe decide the session is unhealthy.
-	// Supported: restart-session|ignore.
+	// DiscordUnhealthyMode controls what happens when watchdogs/API probe decide
+	// the session is unhealthy. Supported: restart-session|ignore.
 	DiscordUnhealthyMode string `env:"DISCORD_UNHEALTHY_MODE" envDefault:"restart-session"`
-	// DiscordUnhealthyGrace allows ignoring the first N unhealthy signals within DiscordUnhealthyWindow
-	// before triggering a session restart. Applies to mode=restart only.
+	// DiscordUnhealthyGrace allows ignoring the first N unhealthy signals within
+	// DiscordUnhealthyWindow before triggering a session restart. Applies to
+	// mode=restart only.
 	DiscordUnhealthyGrace int `env:"DISCORD_UNHEALTHY_GRACE" envDefault:"0"`
 	// DiscordUnhealthyWindow is the counting window for DiscordUnhealthyGrace.
 	DiscordUnhealthyWindow time.Duration `env:"DISCORD_UNHEALTHY_WINDOW" envDefault:"1m"`
@@ -46,11 +48,13 @@ type Config struct {
 	ShortLinkBaseURL string   `env:"SHORTLINK_BASE_URL"`
 	// ShortLinkAddr is the listen address for the redirect server (host:port).
 	ShortLinkAddr string `env:"SHORTLINK_ADDR" envDefault:":8787"`
-	// HealthCheckPath registers a shallow GET/HEAD health endpoint at this path (empty = disabled).
+	// HealthCheckPath registers a shallow GET/HEAD health endpoint at this path
+	// (empty = disabled).
 	HealthCheckPath string `env:"HEALTHCHECK_PATH" envDefault:"/ping"`
 }
 
-// IsDeveloper reports whether userID is the configured developer (avoids discord import in middleware).
+// IsDeveloper reports whether userID is the configured developer (avoids
+// discord import in middleware).
 func IsDeveloper(cfg *Config, userID string) bool {
 	return cfg != nil && cfg.DeveloperID == userID
 }

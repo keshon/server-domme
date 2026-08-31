@@ -9,7 +9,7 @@ import (
 func (s *Storage) AddTranslateChannel(guildID string, channelID string) error {
 	g := s.guildSettings(guildID)
 	if slices.Contains(g.TranslateChannels, channelID) {
-		return fmt.Errorf("channel already in translate list")
+		return fmt.Errorf("storage: channel already in translate list")
 	}
 	g.TranslateChannels = append(g.TranslateChannels, channelID)
 	return s.settings.Put(g)
@@ -19,13 +19,13 @@ func (s *Storage) AddTranslateChannel(guildID string, channelID string) error {
 func (s *Storage) RemoveTranslateChannel(guildID string, channelID string) error {
 	g := s.guildSettings(guildID)
 	if len(g.TranslateChannels) == 0 {
-		return fmt.Errorf("no translate channels configured")
+		return fmt.Errorf("storage: no translate channels configured")
 	}
 	updated := slices.DeleteFunc(g.TranslateChannels, func(c string) bool {
 		return c == channelID
 	})
 	if len(updated) == len(g.TranslateChannels) {
-		return fmt.Errorf("channel not found in translate list")
+		return fmt.Errorf("storage: channel not found in translate list")
 	}
 	g.TranslateChannels = updated
 	return s.settings.Put(g)

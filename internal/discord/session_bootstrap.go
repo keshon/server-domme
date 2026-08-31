@@ -28,7 +28,8 @@ func (b *Bot) configureIntents() {
 	b.dg.Identify.Intents = discordgo.IntentsAll
 }
 
-// IsSessionUnhealthyError reports whether an error means we should fast-restart the session.
+// IsSessionUnhealthyError reports whether an error means we should fast-restart
+// the session.
 func IsSessionUnhealthyError(err error) bool {
 	return errors.Is(err, ErrSessionUnhealthy)
 }

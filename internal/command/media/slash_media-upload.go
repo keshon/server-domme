@@ -174,28 +174,28 @@ func sanitizeCategory(cat string) string {
 func saveUploadedFile(att *discordgo.MessageAttachment, guildID, category string) error {
 	resp, err := http.Get(att.URL)
 	if err != nil {
-		return fmt.Errorf("failed to download attachment: %v", err)
+		return fmt.Errorf("media: download attachment: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad response downloading file: %v", resp.Status)
+		return fmt.Errorf("media: bad response downloading file: %v", resp.Status)
 	}
 
 	dir := filepath.Join("assets", "media", guildID, category)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create dir: %v", err)
+		return fmt.Errorf("media: create dir: %v", err)
 	}
 
 	destPath := filepath.Join(dir, att.Filename)
 	out, err := os.Create(destPath)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
+		return fmt.Errorf("media: create file: %v", err)
 	}
 	defer out.Close()
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
-		return fmt.Errorf("failed to write file: %v", err)
+		return fmt.Errorf("media: write file: %v", err)
 	}
 
 	return nil

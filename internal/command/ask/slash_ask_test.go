@@ -26,7 +26,7 @@ func TestStateOf(t *testing.T) {
 		desc string
 		want askState
 	}{
-		{"pending", pendingDesc(), statePending},
+		{"pending state", pendingDesc(), statePending},
 		{"accepted", acceptedDesc(), stateActive},
 		{"declined", declinedDesc(), stateDeclined},
 		{"revoked", revokedDesc(), stateFinished},

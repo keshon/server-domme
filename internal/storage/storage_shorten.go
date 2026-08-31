@@ -14,7 +14,7 @@ import (
 // link, so this refuses one rather than overwriting.
 func (s *Storage) AddShortLink(guildID, userID, original, shortID string) error {
 	if _, exists := s.shortLink.Get(shortID); exists {
-		return fmt.Errorf("short link with ID '%s' already exists", shortID)
+		return fmt.Errorf("storage: short link with ID '%s' already exists", shortID)
 	}
 	return s.shortLink.Put(&ShortLink{
 		ShortID:  shortID,
@@ -53,13 +53,14 @@ func (s *Storage) ClearUserShortLinks(guildID, userID string) error {
 	})
 }
 
-// DeleteShortLink removes a single short link by its shortID for the specified user.
+// DeleteShortLink removes a single short link by its shortID for the specified
+// user.
 func (s *Storage) DeleteShortLink(guildID, userID, shortID string) error {
 	link, ok := s.shortLink.Get(shortID)
 	// Match on owner and guild as well as id: the id alone addresses every
 	// link in the store, and a bare lookup would let one member delete another's.
 	if !ok || link.UserID != userID || link.GuildID != guildID {
-		return fmt.Errorf("short link with ID '%s' not found", shortID)
+		return fmt.Errorf("storage: short link with ID '%s' not found", shortID)
 	}
 	return s.shortLink.Delete(shortID)
 }
@@ -74,7 +75,7 @@ func (s *Storage) IncrementClicks(guildID, shortID string) error {
 		col := datastore.In(tx, s.shortLink)
 		link, ok := col.Get(shortID)
 		if !ok || link.GuildID != guildID {
-			return fmt.Errorf("short link with ID '%s' not found", shortID)
+			return fmt.Errorf("storage: short link with ID '%s' not found", shortID)
 		}
 		link.Clicks++
 		return col.Put(link)
@@ -85,7 +86,7 @@ func (s *Storage) IncrementClicks(guildID, shortID string) error {
 func (s *Storage) FindLinkByID(shortID string) (string, *ShortLink, error) {
 	link, ok := s.shortLink.Get(shortID)
 	if !ok {
-		return "", nil, fmt.Errorf("short link with ID '%s' not found", shortID)
+		return "", nil, fmt.Errorf("storage: short link with ID '%s' not found", shortID)
 	}
 	return link.GuildID, link, nil
 }

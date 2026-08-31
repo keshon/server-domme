@@ -63,12 +63,12 @@ func (b *Bot) makeSessionUnhealthyNotifier(disconnected chan struct{}) func() {
 // lastHeartbeatAck reads the session's last heartbeat ACK under the lock that
 // actually guards it.
 //
-// Do not reach for dg.HeartbeatLatency() here instead: it reads LastHeartbeatAck
-// together with LastHeartbeatSent, and upstream discordgo guards those two with
-// different locks (the Session mutex and wsMutex), so that accessor is a data
-// race. The ack alone is also the better signal — a latency is the last
-// *completed* exchange, so on a dead connection it goes stale and then negative
-// rather than growing.
+// Do not reach for dg.HeartbeatLatency() here instead: it reads
+// LastHeartbeatAck together with LastHeartbeatSent, and upstream discordgo
+// guards those two with different locks (the Session mutex and wsMutex), so
+// that accessor is a data race. The ack alone is also the better signal — a
+// latency is the last *completed* exchange, so on a dead connection it goes
+// stale and then negative rather than growing.
 func lastHeartbeatAck(dg *discordgo.Session) time.Time {
 	dg.RLock()
 	defer dg.RUnlock()

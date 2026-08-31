@@ -1,4 +1,3 @@
-// FILE: melodix/internal/discord/middleware/command_logger.go
 package middleware
 
 import (
@@ -18,11 +17,13 @@ type auditSkipper interface {
 }
 
 // WithCommandLogger wraps a command to log its execution after Run completes.
-// Logging is best-effort: failures are warned but never affect the command result.
+// Logging is best-effort: failures are warned but never affect the command
+// result.
 //
-// A command that opts out is returned unwrapped rather than wrapped-and-filtered:
-// there is then no code path on which its caller could be written to storage, and
-// nothing to get wrong later by editing the wrong branch.
+// A command that opts out is returned unwrapped rather than
+// wrapped-and-filtered: there is then no code path on which its caller could be
+// written to storage, and nothing to get wrong later by editing the wrong
+// branch.
 func WithCommandLogger(log zerolog.Logger) command.Middleware {
 	return func(c command.Command) command.Command {
 		if s, ok := command.Root(c).(auditSkipper); ok && s.SkipAuditLog() {
@@ -36,7 +37,8 @@ func WithCommandLogger(log zerolog.Logger) command.Middleware {
 	}
 }
 
-// logInvocation resolves the invocation context and delegates to the injected logger.
+// logInvocation resolves the invocation context and delegates to the injected
+// logger.
 func logInvocation(log zerolog.Logger, cmdName string, inv *command.Invocation) {
 	switch v := inv.Data.(type) {
 	case *cmdadapter.SlashInteractionContext:
@@ -72,7 +74,8 @@ func slashLogName(cmdName string, e *discordgo.InteractionCreate) string {
 	return cmdadapter.SlashCommandPath(data.Name, data.Options)
 }
 
-// logInteraction extracts user info from an InteractionCreate event and logs it.
+// logInteraction extracts user info from an InteractionCreate event and logs
+// it.
 func logInteraction(log zerolog.Logger, cmdName string, logger cmdadapter.Logger, s *discordgo.Session, e *discordgo.InteractionCreate) {
 	if logger == nil {
 		return

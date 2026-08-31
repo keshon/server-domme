@@ -21,7 +21,8 @@ const shutdownGrace = 5 * time.Second
 // returns. It blocks, so run it in a goroutine.
 //
 // A failure here is logged and returned rather than fatal: the redirect server
-// is a side channel, and losing it should not take the Discord bot down with it.
+// is a side channel, and losing it should not take the Discord bot down with
+// it.
 func RunServer(ctx context.Context, store *storage.Storage, cfg *config.Config, log zerolog.Logger) error {
 	mux := http.NewServeMux()
 	if cfg != nil && cfg.HealthCheckPath != "" {

@@ -92,7 +92,7 @@ func main() {
 		action, verb = runVerify, "verification_failed"
 	}
 	if err := action(*in, *out, log); err != nil {
-		log.Error().Err(err).Msg(verb)
+		log.Error().Str("action", verb).Err(err).Msg("migrate_store_failed")
 		os.Exit(1)
 	}
 }
@@ -104,16 +104,16 @@ func main() {
 func runVerify(in, out string, log zerolog.Logger) error {
 	raw, err := os.ReadFile(in)
 	if err != nil {
-		return fmt.Errorf("read legacy store: %w", err)
+		return fmt.Errorf("migrate-store: read legacy store: %w", err)
 	}
 	var records map[string]legacyRecord
 	if err := json.Unmarshal(raw, &records); err != nil {
-		return fmt.Errorf("decode legacy store: %w", err)
+		return fmt.Errorf("migrate-store: decode legacy store: %w", err)
 	}
 
 	store, err := storage.NewStorage(out, log)
 	if err != nil {
-		return fmt.Errorf("open migrated store: %w", err)
+		return fmt.Errorf("migrate-store: open migrated store: %w", err)
 	}
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -134,7 +134,7 @@ func runVerify(in, out string, log zerolog.Logger) error {
 		}
 		export, err := store.ExportGuild(guildID)
 		if err != nil {
-			return fmt.Errorf("export guild %s: %w", guildID, err)
+			return fmt.Errorf("migrate-store: export guild %s: %w", guildID, err)
 		}
 
 		if export.Settings.AnnounceChannel != rec.AnnounceChannel {
@@ -206,7 +206,7 @@ func runVerify(in, out string, log zerolog.Logger) error {
 	}
 
 	if problems > 0 {
-		return fmt.Errorf("%d mismatch(es) found", problems)
+		return fmt.Errorf("migrate-store: %d mismatch(es) found", problems)
 	}
 	log.Info().Int("guilds", len(records)).Str("store", out).Msg("verification_passed")
 	return nil
@@ -219,23 +219,23 @@ const commandHistoryLimit = 50
 func run(in, out string, log zerolog.Logger) error {
 	raw, err := os.ReadFile(in)
 	if err != nil {
-		return fmt.Errorf("read legacy store: %w", err)
+		return fmt.Errorf("migrate-store: read legacy store: %w", err)
 	}
 
 	var records map[string]legacyRecord
 	if err := json.Unmarshal(raw, &records); err != nil {
-		return fmt.Errorf("decode legacy store: %w", err)
+		return fmt.Errorf("migrate-store: decode legacy store: %w", err)
 	}
 
 	// Refuse an existing directory rather than merging into it: a second run
 	// would duplicate every command-log row, since those get fresh ids.
 	if _, err := os.Stat(out); err == nil {
-		return fmt.Errorf("output directory %s already exists — remove it first", out)
+		return fmt.Errorf("migrate-store: output directory %s already exists — remove it first", out)
 	}
 
 	store, err := storage.NewStorage(out, log)
 	if err != nil {
-		return fmt.Errorf("open new store: %w", err)
+		return fmt.Errorf("migrate-store: open new store: %w", err)
 	}
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -259,7 +259,7 @@ func run(in, out string, log zerolog.Logger) error {
 			continue
 		}
 		if err := migrateGuild(store, guildID, rec, &counts, log); err != nil {
-			return fmt.Errorf("guild %s: %w", guildID, err)
+			return fmt.Errorf("migrate-store: guild %s: %w", guildID, err)
 		}
 		counts.guilds++
 	}

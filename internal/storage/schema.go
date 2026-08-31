@@ -60,14 +60,22 @@ type CommandLogEntry struct {
 
 func (c *CommandLogEntry) Key() string { return guildRowKey(c.GuildID, c.ID) }
 
+// PurgeJob.Mode values. These are written into every job row, so they are
+// frozen the same way a key layout is: changing one orphans the jobs already on
+// disk. Add a mode, never rename one.
+const (
+	PurgeModeDelayed   = "delayed"
+	PurgeModeRecurring = "recurring"
+)
+
 // PurgeJob is a scheduled channel cleanup. One channel holds at most one job,
 // which is what makes the channel id enough to address it.
 type PurgeJob struct {
 	GuildID    string    `json:"guild_id"`
 	ChannelID  string    `json:"channel_id"`
-	Mode       string    `json:"mode"`        // "delayed" or "recurring"
-	DelayUntil time.Time `json:"delay_until"` // relevant only for "delayed"
-	OlderThan  string    `json:"older_than"`  // relevant only for "recurring"
+	Mode       string    `json:"mode"`        // one of the PurgeMode constants
+	DelayUntil time.Time `json:"delay_until"` // relevant only for PurgeModeDelayed
+	OlderThan  string    `json:"older_than"`  // relevant only for PurgeModeRecurring
 	StartedAt  time.Time `json:"started_at"`
 	Silent     bool      `json:"silent"`
 }
@@ -91,6 +99,16 @@ type ShortLink struct {
 
 func (s *ShortLink) Key() string { return s.ShortID }
 
+// Task.Status values. Written into every task row, and frozen for the same
+// reason the key layouts are: a renamed status stops matching the rows already
+// stored, and nothing reports an error — the task simply stops being found.
+const (
+	TaskStatusPending   = "pending"
+	TaskStatusCompleted = "completed"
+	TaskStatusFailed    = "failed"
+	TaskStatusSafeword  = "safeword"
+)
+
 // Task is a roleplay task currently held by one member.
 type Task struct {
 	GuildID    string    `json:"guild_id"`
@@ -98,7 +116,7 @@ type Task struct {
 	MessageID  string    `json:"task_message_id"`
 	AssignedAt time.Time `json:"assigned_at"`
 	ExpiresAt  time.Time `json:"expires_at"`
-	Status     string    `json:"status"` // "pending", "completed", "failed", "safeword"
+	Status     string    `json:"status"` // one of the TaskStatus constants
 }
 
 func (t *Task) Key() string { return guildScopedKey(t.GuildID, t.UserID) }

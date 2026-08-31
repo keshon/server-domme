@@ -14,7 +14,7 @@ func (s *Storage) SetConfessChannel(guildID, channelID string) error {
 func (s *Storage) GetConfessChannel(guildID string) (string, error) {
 	channelID := s.guildSettings(guildID).ConfessChannel
 	if channelID == "" {
-		return "", fmt.Errorf("no confession channel set")
+		return "", fmt.Errorf("storage: no confession channel set")
 	}
 	return channelID, nil
 }
