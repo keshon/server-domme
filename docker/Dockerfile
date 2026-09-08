@@ -7,8 +7,12 @@ RUN apk add --no-cache git
 
 WORKDIR /usr/project
 
-# Cache dependencies layer
+# Cache dependencies layer. pkg/ comes along because go.mod replaces discordgo
+# with the fork in it, and `go mod download` reads a local replacement's go.mod
+# to resolve the build list — without it this layer fails before any source is
+# copied. Keep it in step with melodix, whose Dockerfile does the same.
 COPY src/go.mod src/go.sum ./
+COPY src/pkg ./pkg
 RUN go mod download
 
 # Copy rest of the source
