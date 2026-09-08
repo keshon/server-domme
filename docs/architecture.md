@@ -53,11 +53,20 @@ notifier:
 `DISCORD_UNHEALTHY_GRACE` lets the first N signals inside
 `DISCORD_UNHEALTHY_WINDOW` pass before a restart actually happens.
 
-Note what is *not* used: `discordgo.Session.HeartbeatLatency()`. Upstream reads
-`LastHeartbeatAck` and `LastHeartbeatSent` together while different locks guard
-them, so it is a data race. `lastHeartbeatAck` in `session_health.go` reads the
-ACK alone, under the lock that covers it. (melodix carries a forked discordgo
-where this is fixed; this bot uses upstream and avoids the accessor instead.)
+Both watchdogs read the heartbeat ACK, and that read is the one place this
+design has already failed in production. `discordgo` holds the session write
+lock across gateway reads that carry no deadline, so a wedged session parks
+every reader — including both watchdogs, which is how one session ran 22 hours
+with a dead gateway and nothing in the log but the datastore compaction ticker.
+`lastHeartbeatAck` therefore reads with a timeout and reports the give-up as
+its own unhealthy signal (`session_lock_wedged`), and `closeSession` abandons a
+session whose close will not return, so the restart loop is never stranded on
+the same lock.
+
+Note what is *not* used: `discordgo.Session.HeartbeatLatency()`. It is race-free
+in the vendored fork, but it reports the last *completed* exchange, so on a dead
+connection it goes stale and then negative rather than growing — the wrong shape
+for a staleness check.
 
 ## Commands
 
