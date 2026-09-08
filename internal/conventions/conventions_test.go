@@ -57,7 +57,7 @@ var project = struct {
 }{
 	docPath:       []string{"docs", "conventions.md"},
 	libraryPrefix: "",
-	skipDirs:      []string{".git"},
+	skipDirs:      []string{"pkg/discordgo-fork-dev", ".git"},
 	bannedImports: []string{"log", "log/slog"},
 }
 

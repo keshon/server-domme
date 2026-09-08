@@ -7,8 +7,9 @@ reaction-triggered translation.
 It shares its Discord plumbing with [melodix](https://github.com/keshon/melodix)
 — the `internal/discord` tree, the command adapter, the middleware chain and the
 storage layer are deliberately the same shape in both, so a fix in one can be
-lifted into the other. What melodix has and this bot does not is the playback
-engine; there is no voice code here, and no vendored `discordgo` fork either.
+lifted into the other. That now includes the vendored `discordgo` fork under
+`pkg/discordgo-fork-dev`, which both bots carry byte-identical. What melodix has
+and this bot does not is the playback engine; there is no voice code here.
 
 ## Lifecycle
 

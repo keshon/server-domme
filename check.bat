@@ -5,16 +5,19 @@ cd /d "%~dp0"
 rem The full gate, in the order docs/conventions.md states it: formatting, vet,
 rem the curated linter set, then race tests - which include the convention
 rem checks, since those are an ordinary Go test. Run this before a commit.
+rem
+rem pkg\discordgo-fork-dev is not listed and must not be: it is a nested module,
+rem so ./... already skips it, and it is not ours to format.
 
 echo [1/4] gofmt...
 set "UNFORMATTED="
-for /f "delims=" %%f in ('gofmt -l cmd internal pkg\music 2^>nul') do (
+for /f "delims=" %%f in ('gofmt -l cmd internal 2^>nul') do (
     set "UNFORMATTED=1"
     echo    %%f
 )
 if defined UNFORMATTED (
     echo.
-    echo   not formatted. fix with: gofmt -w cmd internal pkg\music
+    echo   not formatted. fix with: gofmt -w cmd internal
     exit /b 1
 )
 echo    clean
