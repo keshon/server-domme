@@ -22,18 +22,20 @@ type Storage struct {
 	db  *datastore.DB
 	log zerolog.Logger
 
-	settings  *datastore.Collection[*GuildSettings]
-	cmdLog    *datastore.Collection[*CommandLogEntry]
-	purgeJobs *datastore.Collection[*PurgeJob]
-	shortLink *datastore.Collection[*ShortLink]
-	tasks     *datastore.Collection[*Task]
-	cooldowns *datastore.Collection[*TaskCooldown]
+	settings   *datastore.Collection[*GuildSettings]
+	cmdLog     *datastore.Collection[*CommandLogEntry]
+	purgeJobs  *datastore.Collection[*PurgeJob]
+	shortLink  *datastore.Collection[*ShortLink]
+	tasks      *datastore.Collection[*Task]
+	cooldowns  *datastore.Collection[*TaskCooldown]
+	mindPeople *datastore.Collection[*MindPerson]
 
-	cmdLogByGuild    *datastore.Index[*CommandLogEntry]
-	purgeJobsByGuild *datastore.Index[*PurgeJob]
-	shortLinkByGuild *datastore.Index[*ShortLink]
-	tasksByGuild     *datastore.Index[*Task]
-	cooldownsByGuild *datastore.Index[*TaskCooldown]
+	cmdLogByGuild     *datastore.Index[*CommandLogEntry]
+	purgeJobsByGuild  *datastore.Index[*PurgeJob]
+	shortLinkByGuild  *datastore.Index[*ShortLink]
+	tasksByGuild      *datastore.Index[*Task]
+	cooldownsByGuild  *datastore.Index[*TaskCooldown]
+	mindPeopleByGuild *datastore.Index[*MindPerson]
 }
 
 // NewStorage opens the database in dir, creating it if needed. The directory is
@@ -52,6 +54,7 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.shortLink = datastore.Register[*ShortLink](db, "short_links")
 	s.tasks = datastore.Register[*Task](db, "tasks")
 	s.cooldowns = datastore.Register[*TaskCooldown](db, "task_cooldowns")
+	s.mindPeople = datastore.Register[*MindPerson](db, "mind_people")
 
 	s.cmdLogByGuild = datastore.AddIndex(s.cmdLog, "guild",
 		func(c *CommandLogEntry) []string { return []string{c.GuildID} })
@@ -63,6 +66,8 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 		func(t *Task) []string { return []string{t.GuildID} })
 	s.cooldownsByGuild = datastore.AddIndex(s.cooldowns, "guild",
 		func(c *TaskCooldown) []string { return []string{c.GuildID} })
+	s.mindPeopleByGuild = datastore.AddIndex(s.mindPeople, "guild",
+		func(m *MindPerson) []string { return []string{m.GuildID} })
 
 	if err := db.Open(); err != nil {
 		return nil, err

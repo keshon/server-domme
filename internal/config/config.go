@@ -51,12 +51,69 @@ type Config struct {
 	// HealthCheckPath registers a shallow GET/HEAD health endpoint at this path
 	// (empty = disabled).
 	HealthCheckPath string `env:"HEALTHCHECK_PATH" envDefault:"/ping"`
+
+	// Chat persona. Off by default, and deliberately so: turning it on sends
+	// the contents of opted-in channels to third-party relays to produce
+	// replies, which is a different privacy posture from everything else this
+	// bot does. Channels are opted in one at a time on top of this — see
+	// /chat here.
+	ChatEnabled bool `env:"CHAT_ENABLED" envDefault:"false"`
+	// ChatNames is every spelling she answers to, comma separated, most
+	// canonical first: "ServerDomme,Server-Domme,Server Domme".
+	//
+	// A list rather than a single name because there is no one answer. The
+	// account username, the per-guild nickname and whatever an operator put
+	// here can all differ, and Discord renders a mention as the account
+	// username — so a bot told it is only "Dev" reads "@DevBot" and decides
+	// that is someone else. The names Discord reports are added to this list
+	// at runtime; see chat.Service.namesFor.
+	ChatNames []string `env:"CHAT_NAME" envSeparator:"," envDefault:"Domme"`
+	// ChatCharacterPath is the authored character file. See internal/mind.
+	ChatCharacterPath string `env:"CHAT_CHARACTER_PATH" envDefault:"./data/character.md"`
+
+	// ChatUsePollinations and ChatUseG4F select the free public backends.
+	// Pollinations is off by default because anonymously it refuses a prompt
+	// this size with 402 KEY_BUDGET_EXHAUSTED — see ai.Options. Point
+	// CHAT_BASE_URL at it with a key if you have one.
+	ChatUsePollinations bool `env:"CHAT_USE_POLLINATIONS" envDefault:"false"`
+	ChatUseG4F          bool `env:"CHAT_USE_G4F" envDefault:"true"`
+	// ChatG4FPicks is how many g4f.space models to keep in the pool. Each one
+	// is on a different donated server, so it is really a count of independent
+	// machines to fall back through.
+	ChatG4FPicks int `env:"CHAT_G4F_PICKS" envDefault:"3"`
+
+	// ChatBaseURL, ChatModel and ChatAPIKey point at any other
+	// OpenAI-compatible endpoint — a local Ollama or LM Studio, or a paid API.
+	// Set when the free relays are not good enough for the character.
+	ChatBaseURL string `env:"CHAT_BASE_URL"`
+	ChatModel   string `env:"CHAT_MODEL"`
+	ChatAPIKey  string `env:"CHAT_API_KEY"`
+
+	// Chat*Chance are the odds she answers each kind of approach, 0 to 1.
+	// Someone who answers every single time is recognisably a machine, so the
+	// defaults are short of certainty; set them to 1 to take the choice away.
+	ChatMentionChance float64 `env:"CHAT_MENTION_CHANCE" envDefault:"0.88"`
+	ChatNamedChance   float64 `env:"CHAT_NAMED_CHANCE" envDefault:"0.4"`
+	ChatReplyChance   float64 `env:"CHAT_REPLY_CHANCE" envDefault:"0.92"`
+	// ChatFollowUpChance is the odds she answers the next untagged message
+	// from whoever she is already talking to. Set it to 0 to require a tag,
+	// a name or a reply every single time.
+	ChatFollowUpChance float64 `env:"CHAT_FOLLOWUP_CHANCE" envDefault:"0.8"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids
 // discord import in middleware).
+//
+// Both ids must be non-empty. Comparing them alone is not enough: DEVELOPER_ID
+// is unset on most deployments, and an event carrying no user id would then
+// match it and be treated as the developer — which since the permission
+// middleware started honouring this is a bypass of every admin gate the bot
+// has. Fails closed when either side is missing.
 func IsDeveloper(cfg *Config, userID string) bool {
-	return cfg != nil && cfg.DeveloperID == userID
+	if cfg == nil || cfg.DeveloperID == "" || userID == "" {
+		return false
+	}
+	return cfg.DeveloperID == userID
 }
 
 // New returns a new Config.

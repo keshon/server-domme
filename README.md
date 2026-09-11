@@ -15,6 +15,7 @@ All in one bot, ready to whip your server into shape.”*
 * 🎭 Supports roleplay interactions, task management, and anonymous confessions
 * ⚙️ Offers admin tools for command and server configuration
 * 💬 Responds to mentions with context-aware interactions
+* 🗣️ Can hold a conversation in character, in channels you let her into (off by default)
 
 It’s designed to be practical for server management while providing light, interactive roleplay features. The bot can be easily expanded with new commands due to its **modular architecture**. 
 
@@ -53,6 +54,14 @@ It’s designed to be practical for server management while providing light, int
   - **/discipline punish** — Assign the brat role
   - **/discipline release** — Remove the brat role
 - **/task** — Assign yourself a new random task
+
+### 💬 Chat
+
+- **/chat** — Let the resident persona into a channel
+  - **/chat here** — Let her read and reply in this channel
+  - **/chat silence** — Stop her reading this channel
+  - **/chat brief** — Tell her what this server is, in a sentence
+  - **/chat status** — Where she is listening, and how the backends are holding up
 
 ### 🎞️ Media
 
@@ -133,6 +142,28 @@ It’s designed to be practical for server management while providing light, int
 - **Attach Files**
 - **Read Message History**
 - **Use Application Commands**
+
+## The conversational persona
+
+She can also just talk. It is **off by default** and stays off until two things
+happen: `CHAT_ENABLED=true` in the configuration, and an administrator running
+`/chat here` in a particular channel.
+
+Both gates exist because replies are produced by free, third-party relay
+services, which means everything posted in an opted-in channel is sent to them.
+That is a different privacy trade from the rest of the bot, so it is never
+acquired by accident — and never in a channel nobody named.
+
+Who she is lives in `data/character.md`: prose, hard limits, and example
+exchanges. Edit that file to change her; the examples do more for her voice
+than any amount of description. `/chat brief` tells her what your server
+actually is, which is what stops her sounding like a chatbot that could be
+anywhere.
+
+She does not answer everything, and she will sometimes reply late rather than
+not at all. Both are deliberate. See [docs/architecture.md](docs/architecture.md#the-chat-persona).
+
+---
 
 ## Disclaimer
 

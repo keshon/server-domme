@@ -33,6 +33,26 @@ type ReactionProvider interface {
 	ReactionDefinition() string
 }
 
+// MessageObserver is implemented by commands that need every message in a
+// watched channel, not only the ones that @mention the bot.
+//
+// The chat persona is why it exists: she reacts to being talked about as well
+// as to being talked to, and neither can be detected from a message she never
+// sees. An observer is handed the message inline on the gateway goroutine, so
+// it must do in-memory work and at most one storage write — anything slower
+// belongs in a service that main owns.
+type MessageObserver interface {
+	ObserveMessage(*MessageContext)
+}
+
+// MessageObserverAdapter is what message dispatch asserts on. Adapter
+// implements it for every command; the bool is what distinguishes a command
+// that actually observes, and is what stops a mention being handled twice —
+// once as an observation and again as a command.
+type MessageObserverAdapter interface {
+	ObserveMessage(*MessageContext) bool
+}
+
 // ComponentInteractionHandler is implemented by commands that handle message
 // components (buttons/selects) whose customID matches the command name.
 type ComponentInteractionHandler interface {

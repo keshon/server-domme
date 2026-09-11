@@ -52,6 +52,17 @@ func (a *Adapter) SkipAuditLog() bool {
 	return ok
 }
 
+// ObserveMessage forwards a message to the wrapped command when it observes
+// them, reporting whether it did. See MessageObserverAdapter.
+func (a *Adapter) ObserveMessage(ctx *MessageContext) bool {
+	observer, ok := a.Cmd.(MessageObserver)
+	if !ok {
+		return false
+	}
+	observer.ObserveMessage(ctx)
+	return true
+}
+
 func (a *Adapter) Component(ctx *ComponentInteractionContext) error {
 	if ch, ok := a.Cmd.(ComponentInteractionHandler); ok {
 		return ch.Component(ctx)

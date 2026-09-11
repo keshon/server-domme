@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/keshon/command"
+	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 
 	"github.com/bwmarrin/discordgo"
@@ -87,6 +88,28 @@ func WithUserPermissionCheck() command.Middleware {
 				return c.Run(ctx, inv)
 			}
 			if m.User == nil {
+				return c.Run(ctx, inv)
+			}
+
+			// DEVELOPER_ID runs everything, everywhere.
+			//
+			// It exists so the person maintaining the bot can exercise admin
+			// commands on a live server without being given a role there, or
+			// waking an admin in another timezone to grant one. perm.IsAdministrator
+			// already honours it; this check is what extends that to the
+			// UserPermissions gate every command declares, which is the one
+			// that actually refuses them.
+			//
+			// It is a total bypass of this middleware, so the id is worth
+			// treating as a credential: whoever holds it can run /purge on any
+			// guild the bot is in. It does not bypass Discord itself — the bot
+			// still needs its own permissions for anything it goes on to do.
+			//
+			// This runs before UserChannelPermissions on purpose. That call
+			// fails outright when the member or channel is not in state, and a
+			// developer locked out by a lookup error is exactly the situation
+			// this exists to avoid.
+			if config.IsDeveloper(cmdadapter.ConfigFromInvocation(inv), m.User.ID) {
 				return c.Run(ctx, inv)
 			}
 

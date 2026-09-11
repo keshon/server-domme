@@ -1,8 +1,8 @@
 # Architecture
 
 Server Domme is a Discord bot for server management: scheduled channel purges,
-roleplay tasks, anonymous confessions, announcements, short links and
-reaction-triggered translation.
+roleplay tasks, anonymous confessions, announcements, short links,
+reaction-triggered translation, and an optional conversational persona.
 
 It shares its Discord plumbing with [melodix](https://github.com/keshon/melodix)
 — the `internal/discord` tree, the command adapter, the middleware chain and the
@@ -22,7 +22,8 @@ main
  ├── runSessionLoop      RunSession, reconnecting until rootCtx ends
  ├── RunCooldownCleaner  sweeps elapsed task cooldowns
  ├── purge.RunScheduler  waits for bot.Ready(), then replays stored purge jobs
- └── shortlink.RunServer HTTP redirects + health endpoint
+ ├── shortlink.RunServer HTTP redirects + health endpoint
+ └── chat.Run            persona workers + deferred-reply retries (optional)
 ```
 
 Every one of these takes `rootCtx`, which `signal.NotifyContext` cancels on
@@ -80,6 +81,7 @@ It opts into surfaces by implementing more interfaces:
 | `ContextMenuProvider` | a right-click context entry |
 | `ReactionProvider` | reaction-triggered dispatch |
 | `ComponentInteractionHandler` | button and select handling |
+| `MessageObserver` | every message in a guild, not only mentions |
 
 `cmdadapter.Register` wraps the handler and puts it in `command.DefaultRegistry`.
 Dispatch reads that registry: `handlers_interactions.go` for slash and component
@@ -102,9 +104,160 @@ Applied in order, outermost first:
    `/settings <feature>` resolves to that *feature's* group, so disabling a
    group disables its settings subtree too.
 2. `WithGuildOnly` — no DMs.
-3. `WithUserPermissionCheck` — enforces `UserPermissions()`.
+3. `WithUserPermissionCheck` — enforces `UserPermissions()`, except for
+   `DEVELOPER_ID`, which runs everything on every guild so the maintainer can
+   exercise admin commands without holding a role. It is a total bypass of
+   this middleware, so the id is a credential; `config.IsDeveloper` fails
+   closed when either side is empty, because an unset `DEVELOPER_ID` would
+   otherwise match an event carrying no user id.
 4. `WithCommandLogger` — records the invocation, logging the full subcommand
    path (`settings commands disable`), not just the root name.
+
+## The chat persona
+
+Off unless `CHAT_ENABLED` is set, and then still silent until an admin runs
+`/chat here` in a specific channel. Two gates rather than one, because turning
+it on sends the contents of those channels to third-party relays — a different
+privacy posture from the rest of this bot, and not one to acquire by default.
+
+Three packages, split by what they need to know:
+
+| Package | Knows about | Holds |
+|---|---|---|
+| `internal/mind` | nothing but its own types | character, grounding, prompt assembly, the decision to speak |
+| `internal/chat` | Discord, storage, `internal/ai` | the running service: workers, deferrals, observation |
+| `internal/ai` | HTTP | OpenAI-compatible clients and the failover pool |
+
+`mind` is pure so that every decision about *when* she speaks is testable
+without a gateway. The premise it is built on — borrowed from the cognitum
+experiment — is that the language model is a speech cortex, not a brain: it is
+handed an assembled picture and only puts it into words.
+
+### Speaking is separate from deciding to speak
+
+`Observe` runs on the gateway handler goroutine and does only in-memory work
+plus one storage write. It never calls a backend: a free relay can take most of
+a minute, `COMMAND_TIMEOUT` is thirty seconds, and a reply generated inline
+would either be killed or hold a command slot for the duration. It classifies
+the approach, asks `mind.Decide`, and hands the rest to two workers that `main`
+owns.
+
+Four things can address her, and she answers each at different odds:
+
+| Trigger | What it is |
+|---|---|
+| `mention` | a direct `@mention` |
+| `reply` | a Discord reply to something she said |
+| `named` | her name in a message not addressed to her |
+| `follow-up` | the next thing said by whoever she is mid-conversation with |
+
+`named` is a plain string match, not a classifier — it runs on every message in
+a watched channel, and a model call there would cost a request per message.
+
+`follow-up` is what stops her answering once and then going deaf. People drop
+the tag as soon as a conversation is running; re-addressing every line is what
+you do with a machine. It fires only when she spoke **last** in the channel,
+**recently**, and the message is from the **same person** she was answering.
+All three conditions carry weight: once anyone else has spoken the thread is no
+longer hers to assume, which is what keeps her out of conversations between two
+other members.
+
+A reply is detected two ways and needs both. `ReferencedMessage` carries the
+author but discordgo documents it as best-effort — *"the backend did not
+attempt to fetch the message that was being replied to"* — and replies arriving
+without it were being silently dropped. `MessageReference` is always present
+but carries only an id, so her own sent message ids are recorded on the turn
+(`mind.Turn.MessageID`) and matched against it.
+
+Inside an open exchange, `EngagedBoost` carries a mention or a reply to
+certainty. Deliberate silence is for cold approaches: dropping a direct
+question mid-conversation does not read as reticence, it reads as a fault.
+
+She does not always answer. That is the point, and it is also the most
+dangerous behaviour here, because from outside a deliberate silence and a
+broken bot look identical. Two rails keep them apart, and neither is
+probabilistic: she always answers a first approach, and she never ignores the
+same person twice running. Every ignored approach logs `chat_approach_ignored`
+at info level, which is the only way to tell afterwards which one happened.
+
+### Failing to answer is not the same as choosing not to
+
+They produce the same silence and must never share a path. An ignored approach
+is final and is never retried. An approach that no backend would answer becomes
+a `mind.Deferred` and is retried until it succeeds or ages out — she answers
+late, the way someone who was busy does, rather than posting a machine apology
+about backend availability into a conversation.
+
+A late answer goes out as a Discord reply to the message it answers, and the
+message's age is stated in the transcript handed to the model, which is what
+makes her acknowledge the gap. Instructing her to do so in the system prompt
+did not work and neither did a trailing system message; the timestamp did. See
+the comment on `mind.labelled` and `cmd/chatprobe`, which is how that was
+measured.
+
+At most one approach is held per channel. A queue would deliver a burst of
+catch-up chatter the moment a relay recovered, which reads more like a machine
+than the silence it is making up for.
+
+### Who she thinks she is
+
+Three names can disagree, and all three are visible to her: `CHAT_NAME`, the
+account username, and a per-guild nickname. Discord expands a mention to the
+**account username**, so a bot configured as `Dev` but named `DevBot` reads
+`@DevBot test`, is told only that it is Dev, and answers *"wrong door. DevBot
+is not in here"*. That reached production.
+
+Discord is therefore authoritative. `Service.namesFor` resolves the nickname,
+display name and username per guild and puts them ahead of the configured
+names; `CHAT_NAME` is a comma-separated list of extra spellings
+(`ServerDomme,Server-Domme,Server Domme`), not the identity. The grounding
+block opens by stating what she is called here and that every spelling means
+her.
+
+Name matching is `mind.SaysName`, a plain word-boundary scan rather than a
+regex or a model call: it runs on every message in a watched channel, and a
+classifier there would cost a backend request per message. It is stateless
+because the name list is per guild and per message, so there is nothing to
+compile once or cache — an earlier version cached compiled patterns in a map
+and was a data race.
+
+### The character file
+
+`data/character.md` is authored content read at startup: prose, hard limits,
+example exchanges, and a `## Notes` section that is parsed and discarded so
+editing guidance costs nothing at runtime. Everything else in it is sent on
+every message.
+
+The assembled prompt is around 670 tokens against context windows in the
+hundreds of thousands, so length is not the constraint people expect it to be.
+What costs you is **position**. Two measurements, both made with
+`cmd/chatprobe` and both easy to undo by accident:
+
+- Folding "You are not an assistant" into the paragraph above it, rather than
+  leaving it standing alone and last, dropped refusals on an assistant-shaped
+  request from 6/6 to 2/6 over six runs of an identical prompt.
+- The instruction to acknowledge a late reply was ignored in the system
+  message and ignored again as a trailing system message. Stamping the
+  message's age into the transcript worked. See `mind.labelled`.
+
+The same shape both times: an instruction buried among others stops being
+acted on, at any length. Examples are the other half of it — they are under a
+quarter of the prompt and do more for the voice than any prose describing it,
+which is why `mind.Build` replays them as real conversation turns rather than
+quoting them inside the system message.
+
+### Backends
+
+The endpoints are donated public infrastructure with no guarantees, and they
+behave accordingly: `g4f.space` relays volunteer servers that each allow only
+their own model list and have been observed answering with a different model
+than the one requested. `ai.Pool` therefore ranks backends on what they have
+actually done and puts a failing one in cooldown rather than trusting a
+configured order. `ai.PickModels` takes at most one model per donated server,
+so the pool is not three entries on one machine.
+
+`CHAT_BASE_URL` points at any other OpenAI-compatible endpoint — a local Ollama
+or a paid API — and is tried first when set.
 
 ## Storage
 
@@ -113,7 +266,7 @@ a write-ahead log plus periodic snapshots, in a directory the process locks for
 its lifetime. A second process opening the same directory fails with
 `datastore.ErrLocked`.
 
-Six collections, each registered before `Open` so the schema is described in
+Seven collections, each registered before `Open` so the schema is described in
 exactly one place:
 
 | Collection | Key | Indexed by |
@@ -124,6 +277,7 @@ exactly one place:
 | `short_links` | `<shortID>` | guild |
 | `tasks` | `<guildID>:<userID>` | guild |
 | `task_cooldowns` | `<guildID>:<userID>` | guild |
+| `mind_people` | `<guildID>:<userID>` | guild |
 
 Two key shapes, for two reasons. Append-only rows zero-pad their id so
 lexicographic key order equals chronological order — that is what lets an index

@@ -11,11 +11,34 @@ import (
 	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
-// onMessageCreate handles @mention messages directed at the bot.
+// onMessageCreate feeds message observers and dispatches @mention commands.
 func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
+
+	msgCtx := &cmdadapter.MessageContext{
+		Session: s, Event: m, Storage: b.storage, Config: b.cfg, AppLog: b.log,
+	}
+
+	// Observers see every message rather than only the ones addressing the
+	// bot, and they run inline rather than through execguard: an observer does
+	// in-memory work and at most one storage write, so putting ordinary
+	// channel traffic through the command slots would spend all sixteen of
+	// them on messages that are not commands.
+	//
+	// A command that observed the message is then skipped below, or a mention
+	// would be handled twice — once as an observation and again as a command.
+	rest := make([]command.Command, 0, len(command.DefaultRegistry.GetAll()))
+	for _, c := range command.DefaultRegistry.GetAll() {
+		if observer, ok := command.Root(c).(cmdadapter.MessageObserverAdapter); ok {
+			if observer.ObserveMessage(msgCtx) {
+				continue
+			}
+		}
+		rest = append(rest, c)
+	}
+
 	mentioned := false
 	for _, u := range m.Mentions {
 		if u.ID == s.State.User.ID {
@@ -32,8 +55,8 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 			b.log.Warn().Str("kind", "message").Err(err).Msg("command_slot_busy")
 		},
 	}, func(cmdCtx context.Context) error {
-		inv := &command.Invocation{Data: &cmdadapter.MessageContext{Session: s, Event: m, Storage: b.storage, Config: b.cfg, AppLog: b.log}}
-		for _, c := range command.DefaultRegistry.GetAll() {
+		inv := &command.Invocation{Data: msgCtx}
+		for _, c := range rest {
 			if err := c.Run(cmdCtx, inv); err != nil {
 				if cmdCtx.Err() == context.DeadlineExceeded {
 					b.log.Warn().Str("kind", "message").Err(err).Msg("command_timeout")

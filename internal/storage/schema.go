@@ -41,6 +41,8 @@ type GuildSettings struct {
 	TaskCooldownDuration string            `json:"task_cooldown_duration,omitempty"`
 	TaskRole             string            `json:"task_role,omitempty"`
 	TranslateChannels    []string          `json:"translate_channels,omitempty"`
+	ChatChannels         []string          `json:"chat_channels,omitempty"`
+	ChatBrief            string            `json:"chat_brief,omitempty"`
 }
 
 func (g *GuildSettings) Key() string { return g.GuildID }
@@ -120,6 +122,30 @@ type Task struct {
 }
 
 func (t *Task) Key() string { return guildScopedKey(t.GuildID, t.UserID) }
+
+// MindPerson is what the chat persona has observed about one member of one
+// guild.
+//
+// It holds only things the bot counted itself — how many messages it has seen
+// from them and when — with nothing a language model inferred. That is what
+// lets this row be trusted: a summary written by a relay we do not control
+// would be an unverifiable claim about a real person, stored under their id.
+type MindPerson struct {
+	GuildID   string    `json:"guild_id"`
+	UserID    string    `json:"user_id"`
+	Username  string    `json:"username"`
+	Messages  int       `json:"messages"`
+	FirstSeen time.Time `json:"first_seen"`
+	LastSeen  time.Time `json:"last_seen"`
+	// PrevSeen is the LastSeen value this sighting replaced, which is the only
+	// way to tell an absence from an ongoing conversation: after LastSeen is
+	// stamped with now, the gap it used to describe is gone. Whether a gap is
+	// long enough to be worth remarking on is not decided here — see
+	// mind.Acquaintance.
+	PrevSeen time.Time `json:"prev_seen,omitempty"`
+}
+
+func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }
 
 // TaskCooldown blocks a member from drawing another task until Until passes.
 type TaskCooldown struct {
