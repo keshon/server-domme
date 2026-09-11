@@ -65,6 +65,7 @@ func buildChatService(
 		CustomModel:     cfg.ChatModel,
 		CustomAPIKey:    cfg.ChatAPIKey,
 		Extra:           cfg.ChatBackends,
+		Timeout:         cfg.ChatRequestTimeout,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("chat_backend_build_failed")
@@ -87,12 +88,13 @@ func buildChatService(
 	// bot.Session rather than a session value: RunSession builds a fresh one
 	// on every reconnect, and the retry loop outlives any single session.
 	return chatsvc.New(chatsvc.Deps{
-		Character: character,
-		Provider:  pool,
-		Storage:   store,
-		Session:   bot.Session,
-		Log:       log,
-		Names:     names,
-		Attention: attention,
+		Character:      character,
+		Provider:       pool,
+		Storage:        store,
+		Session:        bot.Session,
+		Log:            log,
+		Names:          names,
+		Attention:      attention,
+		RequestTimeout: cfg.ChatRequestTimeout,
 	}), ""
 }

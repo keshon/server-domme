@@ -38,9 +38,9 @@ const (
 	// does not drop the approach: it becomes a deferral, the same path a
 	// backend failure takes.
 	queueDepth = 32
-	// generateTimeout bounds one reply attempt including failover across
+	// defaultGenerateTimeout bounds one reply attempt including failover across
 	// backends.
-	generateTimeout = 90 * time.Second
+	defaultGenerateTimeout = 90 * time.Second
 	// retryInterval is how often held approaches are reconsidered.
 	retryInterval = 15 * time.Second
 )
@@ -66,6 +66,11 @@ type Deps struct {
 	// Attention overrides how readily she answers. The zero value takes the
 	// defaults.
 	Attention mind.Attention
+	// RequestTimeout is how long one backend gets. Zero keeps the default.
+	//
+	// The whole attempt is allowed twice this, so a first backend that hangs
+	// until its deadline still leaves a second one time to answer.
+	RequestTimeout time.Duration
 	// Roll supplies randomness for the speak-or-stay-quiet decision. Left nil
 	// it uses the global source; a test supplies its own.
 	Roll func() float64
@@ -81,6 +86,8 @@ type task struct {
 
 // Service is the running persona.
 type Service struct {
+	generateTimeout time.Duration
+
 	character *mind.Character
 	names     []string
 	provider  ai.Provider
@@ -114,7 +121,17 @@ func New(d Deps) *Service {
 		names = append([]string{d.Character.Name}, names...)
 	}
 
+	// Twice the per-backend deadline, so a first backend that hangs until its
+	// own timeout still leaves a second one room to answer rather than being
+	// cancelled on the way in.
+	generateTimeout := defaultGenerateTimeout
+	if d.RequestTimeout > 0 && 2*d.RequestTimeout > generateTimeout {
+		generateTimeout = 2 * d.RequestTimeout
+	}
+
 	return &Service{
+		generateTimeout: generateTimeout,
+
 		character:  d.Character,
 		names:      mind.CleanNames(names),
 		provider:   d.Provider,

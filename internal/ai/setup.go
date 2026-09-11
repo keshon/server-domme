@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -55,6 +56,14 @@ type Options struct {
 	CustomBaseURL string
 	CustomModel   string
 	CustomAPIKey  string
+
+	// Timeout bounds one backend call. Zero means DefaultTimeout.
+	//
+	// Configurable because a backend on the other end of a home connection is
+	// a different animal from a relay: a model running on CPU can spend most
+	// of a minute on a prompt a hosted GPU answers in two seconds, and the
+	// default is sized for the latter.
+	Timeout time.Duration
 
 	// Extra holds additional backends as "name|baseURL|model|key" specs, most
 	// preferred first. See ParseBackendSpec.
@@ -117,6 +126,12 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 	if opts.UsePollinations {
 		clients = append(clients, NewClient("pollinations",
 			PollinationsBaseURL, PollinationsModel, ""))
+	}
+
+	if opts.Timeout > 0 {
+		for _, c := range clients {
+			c.HTTP.Timeout = opts.Timeout
+		}
 	}
 
 	pool := NewPool(log, clients...)

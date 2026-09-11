@@ -103,6 +103,12 @@ type Config struct {
 	// can edit outlives any set of providers compiled in.
 	ChatBackends []string `env:"CHAT_BACKENDS" envSeparator:","`
 
+	// ChatRequestTimeout is how long one backend gets to answer. Raise it for
+	// a model running on CPU, which can spend most of a minute on a prompt a
+	// hosted GPU answers in two seconds. The whole attempt is allowed twice
+	// this, so failover still has room.
+	ChatRequestTimeout time.Duration `env:"CHAT_REQUEST_TIMEOUT" envDefault:"45s"`
+
 	// Chat*Chance are the odds she answers each kind of approach, 0 to 1.
 	// Someone who answers every single time is recognisably a machine, so the
 	// defaults are short of certainty; set them to 1 to take the choice away.

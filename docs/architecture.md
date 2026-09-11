@@ -294,6 +294,31 @@ also means automating a service whose terms forbid it. An endpoint qualifies
 here only if it answers `POST {base}/chat/completions` with an OpenAI-shaped
 body.
 
+### Reaching a model on someone's own machine
+
+`koboldcpp` and `llama.cpp`'s `llama-server` both serve the same
+OpenAI-compatible route the relays do, so pointing at one is a `CHAT_BACKENDS`
+entry and nothing more. The work is networking, not code: the bot is on a
+public host and the model usually is not.
+
+A private network between the two — Tailscale, or plain WireGuard — is the
+arrangement that survives contact with a home connection. It needs no inbound
+port, no static address, and exposes nothing publicly; a reverse SSH tunnel
+does the same job with no new software. Port-forwarding an inference server to
+the internet does not belong on this list: these servers authenticate weakly if
+at all, and anyone who finds one owns the GPU behind it.
+
+Two settings exist because of this case. `CHAT_REQUEST_TIMEOUT` raises the
+per-backend deadline, since a model on CPU can spend most of a minute on a
+prompt a hosted GPU answers in two seconds, and the whole attempt is allowed
+twice that so failover still fits. The compose file sets
+`host.docker.internal` so a tunnel terminating on the host is reachable from
+inside the container, where "localhost" otherwise means the container itself.
+
+A home machine sleeps, reboots and loses power, which is the ordinary case
+rather than the failure case: keep a second entry in `CHAT_BACKENDS` and the
+pool fails over to it, then returns to the local one when it comes back.
+
 A 401, 402 or 403 is therefore treated as `ai.ErrBackendRefused`: the backend
 gets no second attempt and rests for `refusedCooldown` rather than 90 seconds,
 because nothing this process does will change the answer and each attempt

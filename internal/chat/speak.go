@@ -42,7 +42,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 	grounding := s.ground(sess, t)
 	messages := mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget)
 
-	genCtx, cancel := context.WithTimeout(ctx, generateTimeout)
+	genCtx, cancel := context.WithTimeout(ctx, s.generateTimeout)
 	defer cancel()
 
 	reply, err := s.provider.Generate(genCtx, messages)

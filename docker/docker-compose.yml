@@ -44,10 +44,16 @@ services:
       - CHAT_MODEL=${CHAT_MODEL}
       - CHAT_API_KEY=${CHAT_API_KEY}
       - CHAT_BACKENDS=${CHAT_BACKENDS}
+      - CHAT_REQUEST_TIMEOUT=${CHAT_REQUEST_TIMEOUT:-45s}
       - CHAT_MENTION_CHANCE=${CHAT_MENTION_CHANCE:-0.88}
       - CHAT_NAMED_CHANCE=${CHAT_NAMED_CHANCE:-0.4}
       - CHAT_REPLY_CHANCE=${CHAT_REPLY_CHANCE:-0.92}
       - CHAT_FOLLOWUP_CHANCE=${CHAT_FOLLOWUP_CHANCE:-0.8}
+    # Lets the container reach a service listening on the host — an SSH
+    # tunnel forwarding a home machine's LLM, for instance. Without it
+    # "localhost" inside the container is the container, not the host.
+    extra_hosts:
+      - host.docker.internal:host-gateway
     entrypoint: /usr/project/app
     networks:
       - proxy

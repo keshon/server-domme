@@ -625,3 +625,31 @@ func TestHoldKeepsAnApproachWithAttemptsLeft(t *testing.T) {
 		t.Errorf("a fresh approach was dropped: %d held", svc.deferrals.Len())
 	}
 }
+
+// A first backend that hangs until its own deadline must still leave the
+// second one room to answer, rather than being cancelled on the way in.
+func TestGenerateTimeoutLeavesRoomForFailover(t *testing.T) {
+	slow := New(Deps{
+		Character:      &mind.Character{Name: "X", Persona: "someone"},
+		Storage:        testStore(t),
+		Session:        func() *discordgo.Session { return nil },
+		Log:            zerolog.Nop(),
+		RequestTimeout: 120 * time.Second,
+	})
+	if slow.generateTimeout < 2*120*time.Second {
+		t.Errorf("generateTimeout = %v, want at least two backend deadlines", slow.generateTimeout)
+	}
+
+	// A short per-request timeout must not shrink the overall budget below
+	// the default.
+	quick := New(Deps{
+		Character:      &mind.Character{Name: "X", Persona: "someone"},
+		Storage:        testStore(t),
+		Session:        func() *discordgo.Session { return nil },
+		Log:            zerolog.Nop(),
+		RequestTimeout: 5 * time.Second,
+	})
+	if quick.generateTimeout != defaultGenerateTimeout {
+		t.Errorf("generateTimeout = %v, want the default %v", quick.generateTimeout, defaultGenerateTimeout)
+	}
+}
