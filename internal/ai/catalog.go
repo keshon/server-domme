@@ -40,7 +40,7 @@ type catalogResponse struct {
 }
 
 // FetchCatalog reads the model list from an OpenAI-compatible relay.
-func FetchCatalog(ctx context.Context, baseURL string) ([]CatalogEntry, error) {
+func FetchCatalog(ctx context.Context, baseURL, apiKey string) ([]CatalogEntry, error) {
 	ctx, cancel := context.WithTimeout(ctx, catalogTimeout)
 	defer cancel()
 
@@ -48,6 +48,10 @@ func FetchCatalog(ctx context.Context, baseURL string) ([]CatalogEntry, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ai: build catalog request: %w", err)
+	}
+
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
 	resp, err := http.DefaultClient.Do(req)

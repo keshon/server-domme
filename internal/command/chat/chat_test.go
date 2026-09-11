@@ -33,3 +33,17 @@ func TestUnavailableMessageCarriesTheReasonVerbatim(t *testing.T) {
 		t.Errorf("the reason is not carried through intact:\n%s", got)
 	}
 }
+
+func TestTrimForEmbedFlattensAndCuts(t *testing.T) {
+	got := trimForEmbed("line one\n  line two\ttabbed")
+	if got != "line one line two tabbed" {
+		t.Errorf("trimForEmbed = %q, want it flattened onto one line", got)
+	}
+
+	// A relay can answer with a whole HTML error page from a proxy in front of
+	// it, which Discord would refuse as an embed.
+	long := trimForEmbed(strings.Repeat("x", maxBackendErrorChars*3))
+	if len(long) > maxBackendErrorChars+len("…") {
+		t.Errorf("trimForEmbed left %d chars, want it cut to %d", len(long), maxBackendErrorChars)
+	}
+}

@@ -108,6 +108,10 @@ func (c *Client) Generate(ctx context.Context, messages []Message) (string, erro
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		if refusesUntilChanged(resp.StatusCode) {
+			return "", fmt.Errorf("ai: %s returned %d (%w): %s",
+				c.Name, resp.StatusCode, ErrBackendRefused, snippet(raw))
+		}
 		return "", fmt.Errorf("ai: %s returned %d: %s", c.Name, resp.StatusCode, snippet(raw))
 	}
 
@@ -176,6 +180,21 @@ func parseReply(name string, raw []byte) (string, error) {
 	}
 
 	return Clean(assembled.String()), nil
+}
+
+// refusesUntilChanged reports whether a status means the backend will answer
+// the same way until credentials or credit change.
+//
+// 429 is deliberately absent: rate limiting is the transient case this exists
+// to be distinguished from, and a backend that is merely busy should come back
+// on the ordinary cooldown.
+func refusesUntilChanged(status int) bool {
+	switch status {
+	case http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusForbidden:
+		return true
+	default:
+		return false
+	}
 }
 
 // snippet trims a response body down to something a log line can carry.

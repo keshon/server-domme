@@ -211,3 +211,88 @@ func TestBuildRejectsAnEmptyPool(t *testing.T) {
 		t.Fatalf("Build err = %v, want ErrNoBackend when nothing is enabled", err)
 	}
 }
+
+// refusingServer answers the way g4f.space did from a server IP: a 402 saying
+// the anonymous allowance has to be earned elsewhere.
+func refusingServer(t *testing.T, hits *atomic.Int64) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusPaymentRequired)
+		_, _ = io.WriteString(w, `{"error":{"message":"No cake credits.","type":"insufficient_credits"}}`)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestClientMarksPaymentAndAuthFailuresAsRefusals(t *testing.T) {
+	for _, status := range []int{
+		http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusForbidden,
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+		}))
+		c := NewClient("test", srv.URL, "m", "")
+		_, err := c.Generate(context.Background(), nil)
+		if !errors.Is(err, ErrBackendRefused) {
+			t.Errorf("status %d: err = %v, want it to wrap ErrBackendRefused", status, err)
+		}
+		srv.Close()
+	}
+}
+
+// Rate limiting is the transient case a refusal has to be distinguished from:
+// a backend that is merely busy should come back on the ordinary cooldown.
+func TestClientDoesNotTreatRateLimitingAsARefusal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	c := NewClient("test", srv.URL, "m", "")
+	_, err := c.Generate(context.Background(), nil)
+	if errors.Is(err, ErrBackendRefused) {
+		t.Errorf("429 was treated as a lasting refusal: %v", err)
+	}
+}
+
+// Asking again only spends another request to hear the same answer.
+func TestPoolDoesNotRetryARefusingBackend(t *testing.T) {
+	var refusedHits, liveHits atomic.Int64
+	refusing := refusingServer(t, &refusedHits)
+	live := okServer(t, "ok", &liveHits)
+
+	pool := NewPool(testLogger(),
+		NewClient("refusing", refusing.URL, "m", ""),
+		NewClient("live", live.URL, "m", ""),
+	)
+
+	if _, err := pool.Generate(context.Background(), nil); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if refusedHits.Load() != 1 {
+		t.Errorf("refusing backend was called %d times, want 1 — a refusal does not get a second attempt",
+			refusedHits.Load())
+	}
+}
+
+// Nothing this process does will change the answer, so a refused backend rests
+// far longer than a flaky one.
+func TestPoolRestsARefusingBackendForLonger(t *testing.T) {
+	var hits atomic.Int64
+	refusing := refusingServer(t, &hits)
+
+	pool := NewPool(testLogger(), NewClient("refusing", refusing.URL, "m", ""))
+	if _, err := pool.Generate(context.Background(), nil); err == nil {
+		t.Fatal("Generate should have failed")
+	}
+
+	stats := pool.Stats()
+	if len(stats) != 1 {
+		t.Fatalf("got %d backends", len(stats))
+	}
+	if stats[0].CooledFor < backendCooldown {
+		t.Errorf("CooledFor = %v, want at least the refusal cooldown of %v",
+			stats[0].CooledFor, refusedCooldown)
+	}
+}

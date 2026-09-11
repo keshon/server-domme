@@ -167,3 +167,50 @@ func TestDeferralsAreSafeUnderConcurrentUse(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// The TTL alone let an unanswerable message come round every DeferralRetry for
+// a quarter of an hour, showing a typing indicator each pass.
+func TestDeferralsGiveUpAfterEnoughAttempts(t *testing.T) {
+	d := NewDeferrals()
+	now := time.Now()
+
+	item := held("c1", now)
+	for i := 0; i < MaxDeferralAttempts; i++ {
+		if !d.Hold(item, now) {
+			t.Fatalf("attempt %d was refused too early", i+1)
+		}
+		due := d.Due(now.Add(time.Duration(i+1) * (DeferralRetry + time.Second)))
+		if len(due) != 1 {
+			t.Fatalf("attempt %d: Due returned %d items", i+1, len(due))
+		}
+		item = due[0]
+	}
+
+	if d.Hold(item, now) {
+		t.Errorf("kept an approach past %d attempts", MaxDeferralAttempts)
+	}
+	if d.Len() != 0 {
+		t.Errorf("abandoned approach is still held: %d", d.Len())
+	}
+}
+
+func TestDeferralsRefuseToHoldSomethingAlreadyStale(t *testing.T) {
+	d := NewDeferrals()
+	now := time.Now()
+
+	item := held("c1", now.Add(-2*DeferralTTL))
+	if d.Hold(item, now) {
+		t.Error("held an approach that had already outlived its TTL")
+	}
+	if d.Len() != 0 {
+		t.Errorf("stale approach is held: %d", d.Len())
+	}
+}
+
+func TestDeferralsStillHoldAFreshApproach(t *testing.T) {
+	d := NewDeferrals()
+	now := time.Now()
+	if !d.Hold(held("c1", now), now) {
+		t.Error("refused a fresh approach")
+	}
+}

@@ -590,3 +590,38 @@ func TestObserveDoesNotFollowUpAfterTheExchangeWentCold(t *testing.T) {
 		t.Error("followed up on an exchange that had gone cold")
 	}
 }
+
+// Once an approach is abandoned it must leave nothing behind, or the retry
+// loop keeps finding it and the channel keeps seeing her start to type.
+func TestHoldAbandonsAnApproachThatHasHadEnoughAttempts(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+
+	spent := mind.Deferred{
+		GuildID:   testGuild,
+		ChannelID: testChannel,
+		MessageID: "m1",
+		FormedAt:  time.Now(),
+		Attempts:  mind.MaxDeferralAttempts,
+	}
+	svc.hold(task{item: spent}, "generate failed")
+
+	if svc.deferrals.Len() != 0 {
+		t.Errorf("a spent approach was put back: %d held", svc.deferrals.Len())
+	}
+}
+
+func TestHoldKeepsAnApproachWithAttemptsLeft(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+
+	fresh := mind.Deferred{
+		GuildID:   testGuild,
+		ChannelID: testChannel,
+		MessageID: "m1",
+		FormedAt:  time.Now(),
+	}
+	svc.hold(task{item: fresh}, "generate failed")
+
+	if svc.deferrals.Len() != 1 {
+		t.Errorf("a fresh approach was dropped: %d held", svc.deferrals.Len())
+	}
+}

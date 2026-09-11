@@ -23,6 +23,11 @@ const (
 	scoreFloor      = -20.0
 	scoreCeiling    = 20.0
 	backendCooldown = 90 * time.Second
+	// refusedCooldown rests a backend that answered with no credit, no key or
+	// not allowed. Long, because nothing this process does will change the
+	// answer, and every attempt in the meantime costs a request. See
+	// ErrBackendRefused.
+	refusedCooldown = 30 * time.Minute
 	attemptsPerTry  = 2
 )
 
@@ -95,10 +100,13 @@ func (p *Pool) Generate(ctx context.Context, messages []Message) (string, error)
 
 			lastErr = err
 			cooled := p.recordFailure(b, err, attempt, time.Now())
+			refused := errors.Is(err, ErrBackendRefused)
+
 			p.log.Debug().
 				Str("backend", b.client.Name).
 				Int("attempt", attempt).
 				Bool("cooled_down", cooled).
+				Bool("refused", refused).
 				Err(err).
 				Msg("ai_generate_failed")
 
@@ -107,6 +115,12 @@ func (p *Pool) Generate(ctx context.Context, messages []Message) (string, error)
 			// deadline the caller set.
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return "", err
+			}
+
+			// Move to the next backend rather than spending the second attempt
+			// on an answer that will not change.
+			if refused {
+				break
 			}
 		}
 	}
@@ -164,6 +178,13 @@ func (p *Pool) recordFailure(b *backend, err error, attempt int, now time.Time) 
 	b.failures++
 	b.lastErr = err.Error()
 	b.score = clampScore(b.score + scoreOnFailure)
+
+	// A refusal does not get a second attempt: the answer is already known,
+	// and asking again only spends another request to hear it.
+	if errors.Is(err, ErrBackendRefused) {
+		b.cooldownUntil = now.Add(refusedCooldown)
+		return true
+	}
 
 	if attempt >= attemptsPerTry {
 		b.cooldownUntil = now.Add(backendCooldown)

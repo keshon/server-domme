@@ -60,6 +60,7 @@ func buildChatService(
 		UsePollinations: cfg.ChatUsePollinations,
 		UseG4F:          cfg.ChatUseG4F,
 		G4FPicks:        cfg.ChatG4FPicks,
+		G4FAPIKey:       cfg.ChatG4FAPIKey,
 		CustomBaseURL:   cfg.ChatBaseURL,
 		CustomModel:     cfg.ChatModel,
 		CustomAPIKey:    cfg.ChatAPIKey,

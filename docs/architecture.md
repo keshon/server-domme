@@ -199,6 +199,15 @@ At most one approach is held per channel. A queue would deliver a burst of
 catch-up chatter the moment a relay recovered, which reads more like a machine
 than the silence it is making up for.
 
+Retries are bounded by `mind.MaxDeferralAttempts` as well as by the TTL, and
+the typing indicator is shown on the first attempt only. Both exist because of
+the same production failure: with every backend refusing, one unanswerable
+message came round every `DeferralRetry` for the whole fifteen-minute TTL and
+showed a typing indicator each pass, so the bot appeared to be typing, on and
+off, for a quarter of an hour. On a retry the indicator is a lie — the last
+attempt failed and this one may too — and past a few attempts silence is the
+honest outcome.
+
 ### Who she thinks she is
 
 Three names can disagree, and all three are visible to her: `CHAT_NAME`, the
@@ -258,6 +267,22 @@ so the pool is not three entries on one machine.
 
 `CHAT_BASE_URL` points at any other OpenAI-compatible endpoint — a local Ollama
 or a paid API — and is tried first when set.
+
+**The free tiers do not survive a move to a server.** g4f.space grants its
+anonymous allowance as proof-of-work "cakes" baked in a browser and credited,
+in its own words, *to the IP that baked it*; a host nobody browses from has
+none, and every call returns 402. Pollinations refuses a prompt of this size
+anonymously for the same sort of reason. Both work from a desktop and neither
+works from a VPS, which is a difference that will not show up in testing.
+`CHAT_G4F_API_KEY` sends an account token instead, which is bound to the
+account rather than the address; a real deployment is better off pointing
+`CHAT_BASE_URL` at something it controls.
+
+A 401, 402 or 403 is therefore treated as `ai.ErrBackendRefused`: the backend
+gets no second attempt and rests for `refusedCooldown` rather than 90 seconds,
+because nothing this process does will change the answer and each attempt
+spends a request to hear it again. 429 is deliberately excluded — a backend
+that is merely busy should come back quickly.
 
 ## Storage
 

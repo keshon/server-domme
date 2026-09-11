@@ -16,6 +16,14 @@ const (
 	// holds its own per-backend cooldowns, so a retry that arrives too early
 	// costs a map lookup rather than a request.
 	DeferralRetry = 30 * time.Second
+	// MaxDeferralAttempts caps how many times one approach is retried.
+	//
+	// The TTL alone is not enough. When every backend is refusing, a held
+	// approach comes round every DeferralRetry for the whole TTL, and each
+	// pass shows a typing indicator in the channel — so a single unanswerable
+	// message had the bot appearing to type, on and off, for a quarter of an
+	// hour. Observed in production against a relay answering 402.
+	MaxDeferralAttempts = 3
 	// maxDeferredChannels bounds the map, the same way Conversations is
 	// bounded.
 	maxDeferredChannels = 256
@@ -65,11 +73,21 @@ func NewDeferrals() *Deferrals {
 	return &Deferrals{byChannel: make(map[string]Deferred)}
 }
 
-// Hold records an approach to answer once a backend is reachable.
-func (d *Deferrals) Hold(item Deferred, now time.Time) {
+// Hold records an approach to answer once a backend is reachable, reporting
+// whether it was kept. It is refused once the approach has been tried
+// MaxDeferralAttempts times or has outlived DeferralTTL: at that point silence
+// is the honest outcome, and continuing to try is visible in the channel.
+func (d *Deferrals) Hold(item Deferred, now time.Time) bool {
 	if item.ChannelID == "" {
-		return
+		return false
 	}
+	if item.Attempts >= MaxDeferralAttempts {
+		return false
+	}
+	if !item.FormedAt.IsZero() && now.Sub(item.FormedAt) >= DeferralTTL {
+		return false
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -83,6 +101,7 @@ func (d *Deferrals) Hold(item Deferred, now time.Time) {
 	item.Attempts++
 	item.nextTry = now.Add(DeferralRetry)
 	d.byChannel[item.ChannelID] = item
+	return true
 }
 
 // Due returns the approaches worth retrying now, removing them from the set.

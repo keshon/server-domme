@@ -39,6 +39,13 @@ type Options struct {
 	// G4FPicks caps how many g4f.space models to add. Zero means
 	// DefaultG4FPicks.
 	G4FPicks int
+	// G4FAPIKey authenticates to the relay.
+	//
+	// Worth having: the anonymous allowance is proof-of-work earned per IP in
+	// a browser, so a server never has any and every call comes back 402. A
+	// key from the relay's own members page is what makes it usable from a
+	// host nobody browses from.
+	G4FAPIKey string
 
 	// CustomBaseURL points at any other OpenAI-compatible endpoint — a local
 	// Ollama or LM Studio, or a paid API. Set it when the free relays are not
@@ -69,12 +76,12 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 		if picks <= 0 {
 			picks = DefaultG4FPicks
 		}
-		entries, err := FetchCatalog(ctx, G4FBaseURL)
+		entries, err := FetchCatalog(ctx, G4FBaseURL, opts.G4FAPIKey)
 		if err != nil {
 			log.Warn().Err(err).Msg("ai_catalog_fetch_failed")
 		} else {
 			for _, e := range PickModels(entries, picks) {
-				clients = append(clients, NewClient("g4f:"+e.OwnedBy, G4FBaseURL, e.ID, ""))
+				clients = append(clients, NewClient("g4f:"+e.OwnedBy, G4FBaseURL, e.ID, opts.G4FAPIKey))
 				log.Debug().
 					Str("model", e.ID).
 					Str("owned_by", e.OwnedBy).

@@ -81,6 +81,10 @@ type Config struct {
 	// is on a different donated server, so it is really a count of independent
 	// machines to fall back through.
 	ChatG4FPicks int `env:"CHAT_G4F_PICKS" envDefault:"3"`
+	// ChatG4FAPIKey authenticates to the g4f relay. Without one its anonymous
+	// allowance is proof-of-work earned per IP in a browser, which a server
+	// never has — every call then comes back 402 insufficient_credits.
+	ChatG4FAPIKey string `env:"CHAT_G4F_API_KEY"`
 
 	// ChatBaseURL, ChatModel and ChatAPIKey point at any other
 	// OpenAI-compatible endpoint — a local Ollama or LM Studio, or a paid API.

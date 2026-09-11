@@ -202,10 +202,32 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 				fmt.Fprintf(&b, ", resting %s", backend.CooledFor)
 			}
 			b.WriteString("\n")
+			// Quoted only when nothing has ever worked. A backend that is
+			// answering does not need its last hiccup shown to an
+			// administrator; one that has never answered is the entire reason
+			// they are looking at this.
+			if backend.Successes == 0 && backend.LastError != "" {
+				fmt.Fprintf(&b, "> %s\n", trimForEmbed(backend.LastError))
+			}
 		}
 	}
 
 	return respond(s, e, b.String())
+}
+
+// maxBackendErrorChars caps a quoted backend error. Discord refuses an embed
+// over its own limit, and a relay can answer with an HTML error page from a
+// proxy in front of it rather than one tidy JSON line.
+const maxBackendErrorChars = 240
+
+// trimForEmbed flattens an error onto one line and cuts it to something an
+// embed will accept.
+func trimForEmbed(msg string) string {
+	msg = strings.Join(strings.Fields(msg), " ")
+	if len(msg) > maxBackendErrorChars {
+		return msg[:maxBackendErrorChars] + "…"
+	}
+	return msg
 }
 
 // unavailableMessage explains why there is nobody to let in.

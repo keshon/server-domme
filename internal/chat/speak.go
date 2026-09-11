@@ -26,10 +26,17 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
-	// The typing indicator is the honest signal that something is coming, and
-	// it costs nothing when the reply then takes twenty seconds.
-	if err := sess.ChannelTyping(t.item.ChannelID); err != nil {
-		s.log.Debug().Err(err).Str("channel_id", t.item.ChannelID).Msg("chat_typing_failed")
+	// Typing shows on the first attempt only.
+	//
+	// It is an honest signal that something is coming, and costs nothing when
+	// the reply then takes twenty seconds. On a retry it is a lie: the last
+	// attempt failed and this one may too. Shown every time, a single
+	// unanswerable message had the bot appearing to type on and off for the
+	// whole deferral window, which is how an outage reads as a haunting.
+	if !t.late {
+		if err := sess.ChannelTyping(t.item.ChannelID); err != nil {
+			s.log.Debug().Err(err).Str("channel_id", t.item.ChannelID).Msg("chat_typing_failed")
+		}
 	}
 
 	grounding := s.ground(sess, t)
@@ -92,17 +99,21 @@ func (s *Service) speak(ctx context.Context, t task) {
 		Msg("chat_replied")
 }
 
-// hold puts an approach back for a later attempt.
+// hold puts an approach back for a later attempt, or gives up on it.
+//
+// Giving up quietly is the point: she simply never answers, which is a thing
+// people do. The alternative — telling the channel that a backend is
+// unavailable — breaks character to report plumbing nobody there can fix.
 func (s *Service) hold(t task, reason string) {
-	now := time.Now()
-	if t.item.Age(now) >= mind.DeferralTTL {
-		s.log.Info().
-			Str("guild_id", t.item.GuildID).
-			Str("reason", reason).
-			Msg("chat_approach_expired")
+	if s.deferrals.Hold(t.item, time.Now()) {
 		return
 	}
-	s.deferrals.Hold(t.item, now)
+	s.log.Info().
+		Str("guild_id", t.item.GuildID).
+		Str("channel_id", t.item.ChannelID).
+		Int("attempts", t.item.Attempts).
+		Str("reason", reason).
+		Msg("chat_approach_abandoned")
 }
 
 // send posts the reply, anchored to the message it answers.
