@@ -64,6 +64,7 @@ func buildChatService(
 		CustomBaseURL:   cfg.ChatBaseURL,
 		CustomModel:     cfg.ChatModel,
 		CustomAPIKey:    cfg.ChatAPIKey,
+		Extra:           cfg.ChatBackends,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("chat_backend_build_failed")

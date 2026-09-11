@@ -93,6 +93,16 @@ type Config struct {
 	ChatModel   string `env:"CHAT_MODEL"`
 	ChatAPIKey  string `env:"CHAT_API_KEY"`
 
+	// ChatBackends adds any number of further OpenAI-compatible endpoints,
+	// each "name|baseURL|model|key" with the key optional, comma separated
+	// and most preferred first.
+	//
+	// Resilience here is a question of how many independent endpoints answer,
+	// and which ones those are goes stale faster than a release cycle: the
+	// free relays that worked last month answer 403 today. A list an operator
+	// can edit outlives any set of providers compiled in.
+	ChatBackends []string `env:"CHAT_BACKENDS" envSeparator:","`
+
 	// Chat*Chance are the odds she answers each kind of approach, 0 to 1.
 	// Someone who answers every single time is recognisably a machine, so the
 	// defaults are short of certainty; set them to 1 to take the choice away.

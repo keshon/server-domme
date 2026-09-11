@@ -278,6 +278,22 @@ works from a VPS, which is a difference that will not show up in testing.
 account rather than the address; a real deployment is better off pointing
 `CHAT_BASE_URL` at something it controls.
 
+`CHAT_BACKENDS` adds any number of further endpoints as
+`name|baseURL|model|key` specs. More independent endpoints is the whole of the
+resilience story here, and which ones are worth having goes stale faster than a
+release: a list an operator can edit outlives any set compiled in.
+
+What does **not** belong in it is most of what circulates as "free AI provider"
+lists. Those are overwhelmingly web UIs rather than APIs — measured, one
+evening: Cloudflare challenges on `chat.ai365vip.com` and `heck.ai`, a
+client-computed request signature on `free2gpt` (`401 Invalid signature`),
+plain 403s behind the redirects from `free.netfly.top` and `freegpt.es`, and no
+such endpoint at all on `sur.pollinations.ai`. Reaching them means a
+per-site scraper of the kind that breaks weekly, and for the large vendors it
+also means automating a service whose terms forbid it. An endpoint qualifies
+here only if it answers `POST {base}/chat/completions` with an OpenAI-shaped
+body.
+
 A 401, 402 or 403 is therefore treated as `ai.ErrBackendRefused`: the backend
 gets no second attempt and rests for `refusedCooldown` rather than 90 seconds,
 because nothing this process does will change the answer and each attempt

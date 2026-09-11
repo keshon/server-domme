@@ -55,6 +55,16 @@ type Options struct {
 	CustomBaseURL string
 	CustomModel   string
 	CustomAPIKey  string
+
+	// Extra holds additional backends as "name|baseURL|model|key" specs, most
+	// preferred first. See ParseBackendSpec.
+	//
+	// A list rather than more named fields because resilience here is a
+	// question of how many independent endpoints answer, and which ones those
+	// are changes faster than this code does. The free relays that worked
+	// last month answer 403 today; an operator can add whatever replaced them,
+	// or a second machine running Ollama, without waiting for a release.
+	Extra []string
 }
 
 // Build assembles a Pool from opts, discovering g4f.space models if asked.
@@ -69,6 +79,19 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 	if opts.CustomBaseURL != "" {
 		clients = append(clients, NewClient("custom",
 			opts.CustomBaseURL, opts.CustomModel, opts.CustomAPIKey))
+	}
+
+	for _, spec := range opts.Extra {
+		client, err := ParseBackendSpec(spec)
+		if err != nil {
+			// Logged and skipped rather than fatal: one malformed entry in a
+			// list should not take out the backends either side of it, nor
+			// stop a bot whose other features are fine.
+			log.Error().Err(err).Msg("ai_backend_spec_invalid")
+			continue
+		}
+		clients = append(clients, client)
+		log.Debug().Str("backend", client.Name).Str("model", client.Model).Msg("ai_backend_added")
 	}
 
 	if opts.UseG4F {
