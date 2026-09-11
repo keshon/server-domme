@@ -18,6 +18,7 @@ services:
       - COMMAND_TIMEOUT=${COMMAND_TIMEOUT:-30s}
       - COMMAND_PARALLELISM=${COMMAND_PARALLELISM:-16}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FILE=${LOG_FILE}
       - LOG_MAX_SIZE_MB=${LOG_MAX_SIZE_MB:-10}
       - LOG_MAX_BACKUPS=${LOG_MAX_BACKUPS:-3}
       - LOG_MAX_AGE_DAYS=${LOG_MAX_AGE_DAYS:-0}
@@ -27,6 +28,24 @@ services:
       - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
       - SHORTLINK_ADDR=${SHORTLINK_ADDR:-:8787}
       - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
+      # Chat persona. Off unless CHAT_ENABLED is true, and then still silent
+      # until an admin runs /chat here. CHAT_CHARACTER_PATH points inside the
+      # mounted volume, so data/character.md has to exist on the host next to
+      # this file — without it the persona logs chat_character_load_failed and
+      # stays off.
+      - CHAT_ENABLED=${CHAT_ENABLED:-false}
+      - CHAT_NAME=${CHAT_NAME:-Domme}
+      - CHAT_CHARACTER_PATH=${CHAT_CHARACTER_PATH:-./data/character.md}
+      - CHAT_USE_G4F=${CHAT_USE_G4F:-true}
+      - CHAT_USE_POLLINATIONS=${CHAT_USE_POLLINATIONS:-false}
+      - CHAT_G4F_PICKS=${CHAT_G4F_PICKS:-3}
+      - CHAT_BASE_URL=${CHAT_BASE_URL}
+      - CHAT_MODEL=${CHAT_MODEL}
+      - CHAT_API_KEY=${CHAT_API_KEY}
+      - CHAT_MENTION_CHANCE=${CHAT_MENTION_CHANCE:-0.88}
+      - CHAT_NAMED_CHANCE=${CHAT_NAMED_CHANCE:-0.4}
+      - CHAT_REPLY_CHANCE=${CHAT_REPLY_CHANCE:-0.92}
+      - CHAT_FOLLOWUP_CHANCE=${CHAT_FOLLOWUP_CHANCE:-0.8}
     entrypoint: /usr/project/app
     networks:
       - proxy

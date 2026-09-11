@@ -23,6 +23,12 @@ Copy `.env.example` to `.env` in this directory and set at least:
 
 Other variables (e.g. `STORAGE_PATH`, `INIT_SLASH_COMMANDS`, `DEVELOPER_ID`, `DISCORD_GUILD_BLACKLIST`, `WS_SILENCE_TIMEOUT`, `DISCORD_UNHEALTHY_MODE`, `DISCORD_UNHEALTHY_GRACE`, `DISCORD_UNHEALTHY_WINDOW`, `COMMAND_TIMEOUT`, `COMMAND_PARALLELISM`) are optional and match the main app config.
 
+`docker-compose.yml` passes an explicit list of variables to the container, so
+a setting that is not named there cannot be set from `.env` at all — it will
+silently use its default. `TestEveryConfigVarIsPassedThroughDockerCompose`
+keeps that list in step with the app config; if you add a setting, add it to
+the compose file too.
+
 Notes on recovery modes:
 
 - `DISCORD_UNHEALTHY_MODE=restart-session` restarts the Discord gateway session when watchdogs or API probes mark it unhealthy.
@@ -47,3 +53,22 @@ docker compose -f docker-compose.yml up -d
 ```
 
 Data is persisted in `./data` (mounted at `/usr/project/data` in the container).
+
+## The chat persona
+
+Optional and off by default. To turn it on, set `CHAT_ENABLED=true` and make
+sure `./data/character.md` exists next to this file — it is read from the
+mounted volume, not baked into the image, so it can be edited and the container
+restarted without a rebuild.
+
+A missing character file is not fatal: the bot logs `chat_character_load_failed`
+and starts without the persona, which looks exactly like the feature being off.
+If `/chat` answers "No chat backend is configured on this bot" while
+`CHAT_ENABLED=true`, that log line is the first thing to look for — the other
+cause is `chat_backend_build_failed`, meaning no relay could be reached at
+startup.
+
+Enabling it is only the first of two gates — she stays silent until an
+administrator runs `/chat here` in a specific channel. That second gate matters,
+because replies are produced by third-party relay services, so every message in
+an opted-in channel is sent to them.
