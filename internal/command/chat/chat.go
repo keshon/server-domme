@@ -33,6 +33,13 @@ type ChatCommand struct {
 	// the ordinary state for an operator who has not opted in. Every path
 	// here has to tolerate that rather than assume it away.
 	Service *chatsvc.Service
+	// Unavailable explains why Service is nil when the persona was switched on
+	// and failed to start. Empty means it was simply never switched on.
+	//
+	// It is surfaced to the administrator rather than only logged: they are
+	// standing in Discord holding the answer to "why isn't this working", and
+	// the container logs are somewhere else entirely.
+	Unavailable string
 }
 
 func (c *ChatCommand) Name() string        { return "chat" }
@@ -106,9 +113,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	sub := data.Options[0]
 
 	if c.Service == nil {
-		return respond(s, e,
-			"No chat backend is configured on this bot, so there is nobody to let in. "+
-				"See `CHAT_ENABLED` in the deployment settings.")
+		return respond(s, e, unavailableMessage(c.Unavailable))
 	}
 
 	switch sub.Name {
@@ -201,6 +206,21 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 	}
 
 	return respond(s, e, b.String())
+}
+
+// unavailableMessage explains why there is nobody to let in.
+//
+// Two genuinely different situations, and telling them apart is the whole
+// point: the persona was never switched on, or it was switched on and could
+// not start. Reporting the first when it is the second is what sent an
+// operator to check a setting they had already set.
+func unavailableMessage(reason string) string {
+	if reason == "" {
+		return "The persona is switched off on this bot, so there is nobody to let in. " +
+			"Set `CHAT_ENABLED=true` in the deployment settings and restart."
+	}
+	return "The persona is switched on but could not start, so there is nobody to " +
+		"let in yet.\n\n" + reason
 }
 
 func respond(s *discordgo.Session, e *discordgo.InteractionCreate, msg string) error {

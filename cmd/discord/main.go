@@ -50,7 +50,7 @@ func main() {
 	flag.Parse()
 	if *genReadme {
 		log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
-		registerCommands(log, nil)
+		registerCommands(log, nil, "")
 		if err := readme.UpdateReadme(command.DefaultRegistry, config.CategoryWeights, log); err != nil {
 			log.Error().Err(err).Msg("readme_update_failed")
 			os.Exit(1)
@@ -90,9 +90,9 @@ func main() {
 	// The persona is built before the commands so the one that feeds it
 	// messages can hold it. A nil service is the ordinary state when
 	// CHAT_ENABLED is off, and every command path tolerates it.
-	chatService := buildChatService(rootCtx, cfg, store, bot, log)
+	chatService, chatUnavailable := buildChatService(rootCtx, cfg, store, bot, log)
 
-	registerCommands(log, chatService)
+	registerCommands(log, chatService, chatUnavailable)
 
 	var wg sync.WaitGroup
 
@@ -191,7 +191,7 @@ func defaultMiddleware(log zerolog.Logger) []command.Middleware {
 	}
 }
 
-func registerCommands(log zerolog.Logger, chat *chatsvc.Service) {
+func registerCommands(log zerolog.Logger, chat *chatsvc.Service, chatUnavailable string) {
 	mw := defaultMiddleware(log)
 	cmdadapter.Register(&about.About{}, mw...)
 	cmdadapter.Register(&help.Help{}, mw...)
@@ -203,7 +203,7 @@ func registerCommands(log zerolog.Logger, chat *chatsvc.Service) {
 
 	cmdadapter.Register(&ask.AskCommand{}, mw...)
 
-	cmdadapter.Register(&chatcmd.ChatCommand{Service: chat}, mw...)
+	cmdadapter.Register(&chatcmd.ChatCommand{Service: chat, Unavailable: chatUnavailable}, mw...)
 
 	cmdadapter.Register(&confess.ConfessCommand{}, mw...)
 

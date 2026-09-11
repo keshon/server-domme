@@ -25,6 +25,26 @@ else
     fi
 fi
 
+# Step 2b: Seed data files the container reads from the mounted volume.
+#
+# ./data is mounted over /usr/project/data, so anything baked into the image at
+# that path is hidden by the mount — a default has to land on the host instead.
+# Only missing files are copied: these are meant to be edited in place, and
+# overwriting an operator's character file on every deploy would silently throw
+# their work away.
+echo "2b. Seeding missing data files..."
+mkdir -p ./data
+for f in character.md default_task.list.json; do
+    if [ -f "./data/$f" ]; then
+        echo "   keeping existing data/$f"
+    elif [ -f "./src/data/$f" ]; then
+        cp "./src/data/$f" "./data/$f"
+        echo "   seeded data/$f from source"
+    else
+        echo "   WARNING: ./src/data/$f not found, nothing to seed"
+    fi
+done
+
 # Step 3: Bring down running containers
 echo "3. Stopping containers..."
 docker compose down --remove-orphans
