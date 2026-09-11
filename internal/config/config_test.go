@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"regexp"
 	"testing"
+
+	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
 )
 
 // Every place a new setting has to be repeated by hand. Adding a field to
@@ -131,5 +134,54 @@ func repoRoot(t *testing.T) string {
 			t.Fatal("no go.mod above the test directory")
 		}
 		dir = parent
+	}
+}
+
+// The example files are parsed with the real parser, not grepped.
+//
+// An earlier version of this file only checked that each variable name
+// appeared somewhere, and passed happily on
+// `CHAT_REQUEST_TIMEOUT=45sollama|http://localhost:11434/v1|...` — a botched
+// edit that spliced one setting into the middle of another's example. The name
+// was present, so the check was satisfied, and the file it was guarding was
+// nonsense. A value that cannot be parsed is the failure worth catching:
+// durations, ints, bools and floats all go through the same tags here.
+func TestEnvExamplesParseIntoAValidConfig(t *testing.T) {
+	for _, path := range []string{rootEnvPath, dockerEnvPath} {
+		t.Run(path, func(t *testing.T) {
+			values, err := godotenv.Read(filepath.Join(repoRoot(t), filepath.FromSlash(path)))
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+
+			// Required fields are deliberately blank in an example file; give
+			// them a value so the parse exercises every other field rather
+			// than stopping at the first required one.
+			for _, name := range []string{"DISCORD_TOKEN", "TASKS_PATH"} {
+				if values[name] == "" {
+					values[name] = "placeholder"
+				}
+			}
+
+			var cfg Config
+			if err := env.ParseWithOptions(&cfg, env.Options{Environment: values}); err != nil {
+				t.Errorf("%s does not parse: %v", path, err)
+			}
+		})
+	}
+}
+
+// The control: the check above is only worth having if a bad value actually
+// fails it.
+func TestEnvExampleParsingRejectsABadValue(t *testing.T) {
+	values := map[string]string{
+		"DISCORD_TOKEN":        "placeholder",
+		"TASKS_PATH":           "placeholder",
+		"CHAT_REQUEST_TIMEOUT": "45sollama|http://localhost:11434/v1|llama3.1",
+	}
+
+	var cfg Config
+	if err := env.ParseWithOptions(&cfg, env.Options{Environment: values}); err == nil {
+		t.Error("a spliced duration parsed cleanly; this check would not have caught the real thing")
 	}
 }
