@@ -18,7 +18,7 @@ import (
 const (
 	DefaultMaxGroundingChars = 1200
 	DefaultMaxHistoryChars   = 3000
-	DefaultMaxExamples       = 6
+	DefaultMaxExamples       = 7
 )
 
 // Budget caps the assembled prompt. The persona is deliberately not on this

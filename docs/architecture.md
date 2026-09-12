@@ -272,8 +272,19 @@ What costs you is **position**. Two measurements, both made with
   message and ignored again as a trailing system message. Stamping the
   message's age into the transcript worked. See `mind.labelled`.
 
-The same shape both times: an instruction buried among others stops being
-acted on, at any length. Examples are the other half of it — they are under a
+The same shape a third time: "you never explain your own workings" sat as the
+fourth clause of the anti-assistant paragraph, and under a question it could
+not answer the character explained its own memory architecture in four runs out
+of four. Its own paragraph fixed it.
+
+The shape is consistent: an instruction buried among others stops being acted
+on, at any length.
+
+Measuring any of this needs care. The relay hands out a different donated
+server per session, so two runs a day apart are two different models, and some
+backends answer an identical prompt with a byte-identical reply — which makes
+`-repeat` print one sample several times and look like agreement. `cmd/chatprobe`
+names the answering backend and flags a repeated reply for exactly that reason. Examples are the other half of it — they are under a
 quarter of the prompt and do more for the voice than any prose describing it,
 which is why `mind.Build` replays them as real conversation turns rather than
 quoting them inside the system message.

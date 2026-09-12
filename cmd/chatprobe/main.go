@@ -138,6 +138,17 @@ func scenarios(now time.Time) []scenario {
 			}},
 		},
 		{
+			// Nothing older than mind.TurnStaleAfter reaches the prompt, so
+			// this is always a request she cannot satisfy. The question is
+			// whether she says so or invents a quote.
+			name: "asked to recall what it cannot",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "quote what you said to me yesterday about the rules",
+				At:      now,
+			}},
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -160,6 +171,8 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 		return
 	}
 
+	before := successesByBackend(pool)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	reply, err := pool.Generate(ctx, messages)
 	cancel()
@@ -172,7 +185,45 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 		fmt.Printf("  !! %v\n\n", err)
 		return
 	}
-	fmt.Printf("  >> %s\n\n", reply)
+	// Which backend answered, and whether it just said the same thing again.
+	//
+	// Both matter more than they look. The relay hands out a different donated
+	// server per session, so two runs a day apart are two different models and
+	// comparing their rates is meaningless. And at least one backend returns a
+	// byte-identical reply to an identical prompt, which quietly turns
+	// -repeat 6 into one sample printed six times. Neither is visible unless
+	// the tool says so, and both were mistaken for evidence before it did.
+	who := whoAnswered(before, successesByBackend(pool))
+	repeat := ""
+	if lastReply[sc.name] == reply {
+		repeat = "   [same as last run — cached or deterministic, not a second sample]"
+	}
+	lastReply[sc.name] = reply
+
+	fmt.Printf("  >> %s\n", reply)
+	fmt.Printf("  -- via %s%s\n\n", who, repeat)
+}
+
+// lastReply remembers the previous answer per scenario, to spot a backend that
+// is not really being asked again.
+var lastReply = map[string]string{}
+
+func successesByBackend(pool *ai.Pool) map[string]int {
+	counts := make(map[string]int)
+	for _, b := range pool.Stats() {
+		counts[b.Name] = b.Successes
+	}
+	return counts
+}
+
+// whoAnswered names the backend whose success count just went up.
+func whoAnswered(before, after map[string]int) string {
+	for name, n := range after {
+		if n > before[name] {
+			return name
+		}
+	}
+	return "unknown"
 }
 
 // writeBody saves one OpenAI chat request so curl can send it.
