@@ -173,7 +173,7 @@ func TestObserveClassifiesHowSheWasAddressed(t *testing.T) {
 		{
 			name:   "talked about, not to",
 			build:  func() *discordgo.MessageCreate { return message("domme would hate that", false) },
-			want:   mind.TriggerNamed,
+			want:   mind.TriggerAbout,
 			queued: true,
 		},
 		{
@@ -379,15 +379,17 @@ func TestObserveAnswersToItsDiscordNameNotOnlyItsConfiguredOne(t *testing.T) {
 	sess := discordNamedSession(t, "DevBot", "")
 
 	// No @mention: this is the name-drop path, which is the one that reads the
-	// text rather than the mention list.
+	// text rather than the mention list. "DevBot is being quiet today" is a
+	// remark to the room, so it should route to TriggerAbout — what is being
+	// tested here is that the name was recognised at all.
 	svc.Observe(sess, message("DevBot is being quiet today", false))
 
 	got, ok := queued(svc)
 	if !ok {
 		t.Fatal("did not recognise its own Discord name")
 	}
-	if got.item.Trigger != mind.TriggerNamed {
-		t.Errorf("trigger = %q, want %q", got.item.Trigger, mind.TriggerNamed)
+	if got.item.Trigger != mind.TriggerAbout {
+		t.Errorf("trigger = %q, want %q", got.item.Trigger, mind.TriggerAbout)
 	}
 }
 
@@ -734,5 +736,39 @@ func TestBackfillDoesNothingOnceAttempted(t *testing.T) {
 
 	if svc.conv.NeedsSeed(testChannel) {
 		t.Error("channel still wants seeding")
+	}
+}
+
+// The whole point of the split: the same name, two intentions, two sets of
+// odds.
+func TestObserveSeparatesBeingAddressedFromBeingDiscussed(t *testing.T) {
+	cases := map[string]struct {
+		text string
+		want mind.Trigger
+	}{
+		"spoken to by name":   {"Domme, what do you make of this", mind.TriggerNamed},
+		"question naming her": {"is Domme around?", mind.TriggerNamed},
+		"remarked upon":       {"Domme would hate this", mind.TriggerAbout},
+		"discussed":           {"i swear Domme has been quiet all week", mind.TriggerAbout},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			store := testStore(t)
+			if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+				t.Fatalf("AddChatChannel: %v", err)
+			}
+			svc := newTestService(t, store, 0)
+
+			svc.Observe(testSession(), message(tc.text, false))
+
+			got, ok := queued(svc)
+			if !ok {
+				t.Fatalf("%q produced no approach at all", tc.text)
+			}
+			if got.item.Trigger != tc.want {
+				t.Errorf("%q = %q, want %q", tc.text, got.item.Trigger, tc.want)
+			}
+		})
 	}
 }

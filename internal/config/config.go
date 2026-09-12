@@ -120,8 +120,14 @@ type Config struct {
 	// Someone who answers every single time is recognisably a machine, so the
 	// defaults are short of certainty; set them to 1 to take the choice away.
 	ChatMentionChance float64 `env:"CHAT_MENTION_CHANCE" envDefault:"0.88"`
-	ChatNamedChance   float64 `env:"CHAT_NAMED_CHANCE" envDefault:"0.4"`
-	ChatReplyChance   float64 `env:"CHAT_REPLY_CHANCE" envDefault:"0.92"`
+	ChatNamedChance   float64 `env:"CHAT_NAMED_CHANCE" envDefault:"0.65"`
+	// ChatAboutChance is the odds of chiming in when she is talked about
+	// rather than to. Separate from CHAT_NAMED_CHANCE because the two used to
+	// share one number and should not: being named while someone speaks to
+	// her is a question in all but punctuation, and being mentioned in
+	// passing is not an invitation.
+	ChatAboutChance float64 `env:"CHAT_ABOUT_CHANCE" envDefault:"0.25"`
+	ChatReplyChance float64 `env:"CHAT_REPLY_CHANCE" envDefault:"0.92"`
 	// ChatFollowUpChance is the odds she answers the next untagged message
 	// from whoever she is already talking to. Set it to 0 to require a tag,
 	// a name or a reply every single time.

@@ -103,6 +103,7 @@ func buildChatService(
 	attention := mind.DefaultAttention()
 	attention.MentionChance = cfg.ChatMentionChance
 	attention.NamedChance = cfg.ChatNamedChance
+	attention.AboutChance = cfg.ChatAboutChance
 	attention.ReplyChance = cfg.ChatReplyChance
 	attention.FollowUpChance = cfg.ChatFollowUpChance
 

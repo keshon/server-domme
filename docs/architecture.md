@@ -148,11 +148,28 @@ Four things can address her, and she answers each at different odds:
 |---|---|
 | `mention` | a direct `@mention` |
 | `reply` | a Discord reply to something she said |
-| `named` | her name in a message not addressed to her |
+| `named` | her name in a message spoken **to** her, without an `@` |
+| `about` | her name in a message spoken **about** her, to the room |
 | `follow-up` | the next thing said by whoever she is mid-conversation with |
 
-`named` is a plain string match, not a classifier — it runs on every message in
-a watched channel, and a model call there would cost a request per message.
+`named` and `about` both start from a plain string match, not a classifier —
+this runs on every message in a watched channel, and a model call there would
+cost a request per *message* rather than per *reply*, which is the difference
+between affordable and not on free relays.
+
+Telling them apart is `mind.ClassifyAddress`, a word-list heuristic: a name
+used as a vocative ("Domme, what do you reckon"), second-person pronouns, or a
+question mark read as being spoken to; a third-person verb after the name
+("Domme would hate this") or third-person pronouns read as being spoken about.
+Ambiguity resolves to `about`, because overhearing is much the commoner case
+and the wrong answer there is silence rather than an interruption. It handles
+English and Russian, being the two languages this bot is spoken to in.
+
+The split exists because one number could not serve both. Being named while
+someone speaks to you is a question in all but punctuation and is answered
+readily (0.65); being mentioned in passing is not an invitation at all (0.25).
+Merged, she either barged into conversations about her or ignored people
+addressing her by name.
 
 `follow-up` is what stops her answering once and then going deaf. People drop
 the tag as soon as a conversation is running; re-addressing every line is what

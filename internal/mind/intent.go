@@ -38,6 +38,11 @@ type Attention struct {
 	// she does not answer every passing use of her name in a conversation she
 	// is already part of.
 	CrowdingPenalty float64
+	// AboutChance is the odds of chiming in when she is talked about rather
+	// than to. Low: being mentioned in passing is not an invitation, and a
+	// character who answers every remark about herself is a character with
+	// nothing better to do.
+	AboutChance float64
 	// FollowUpChance is the odds of answering the next thing said by whoever
 	// she is mid-conversation with, untagged. High, but short of certain: an
 	// open exchange is strong evidence a message is for her, not proof.
@@ -49,7 +54,12 @@ type Attention struct {
 func DefaultAttention() Attention {
 	return Attention{
 		MentionChance: 0.88,
-		NamedChance:   0.40,
+		// Higher than it was when this trigger also covered being talked
+		// about. Someone using her name and speaking to her is asking a
+		// question in all but punctuation; the passing remarks that used to
+		// share this number are now TriggerAbout.
+		NamedChance:   0.65,
+		AboutChance:   0.25,
 		ReplyChance:   0.92,
 		EngagedWindow: 3 * time.Minute,
 		// Enough to carry a mention or a reply to certainty inside an open
@@ -73,6 +83,10 @@ const (
 	TriggerNamed Trigger = "named"
 	// TriggerReply is a Discord reply to a message of hers.
 	TriggerReply Trigger = "reply"
+	// TriggerAbout is her name coming up in a message aimed at the room
+	// rather than at her. Overheard, not asked — answered least readily of
+	// anything that reaches her at all.
+	TriggerAbout Trigger = "about"
 	// TriggerFollowUp is the next thing said by the person she is already
 	// talking to, in a channel where she spoke last.
 	//
@@ -140,6 +154,12 @@ func Decide(a Attention, s Situation, roll float64) Outcome {
 		}
 	case TriggerNamed:
 		chance = a.NamedChance
+		if engaged {
+			chance -= a.CrowdingPenalty
+		}
+		chance += s.Drives.Nudge()
+	case TriggerAbout:
+		chance = a.AboutChance
 		if engaged {
 			chance -= a.CrowdingPenalty
 		}

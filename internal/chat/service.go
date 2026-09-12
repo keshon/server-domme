@@ -321,8 +321,14 @@ func (s *Service) triggerFor(sess *discordgo.Session, m *discordgo.MessageCreate
 		return mind.TriggerReply, true
 	}
 
-	if mind.SaysName(content, s.namesFor(sess, m.GuildID)) {
-		return mind.TriggerNamed, true
+	if names := s.namesFor(sess, m.GuildID); mind.SaysName(content, names) {
+		// Being spoken to by name and being talked about both put her name in
+		// the text, and they deserve very different odds: one is a question in
+		// all but punctuation, the other is not an invitation at all.
+		if mind.ClassifyAddress(content, names) == mind.AddressedToHer {
+			return mind.TriggerNamed, true
+		}
+		return mind.TriggerAbout, true
 	}
 
 	if followsUp {
