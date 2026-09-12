@@ -522,3 +522,21 @@ func (s *Service) guildOf(channelID string) string {
 	defer s.guildMu.RUnlock()
 	return s.guilds[channelID]
 }
+
+// Forget drops what she is holding about a channel.
+//
+// Called when a channel is silenced. Being told to stop reading a channel has
+// to take the conversation with it: the turns already in memory would
+// otherwise still be summarised into a memory, and summarising sends them to a
+// relay — the one thing opting out is supposed to prevent.
+func (s *Service) Forget(channelID string) {
+	if channelID == "" {
+		return
+	}
+	s.conv.Forget(channelID)
+	s.deferrals.Drop(channelID)
+
+	s.guildMu.Lock()
+	delete(s.guilds, channelID)
+	s.guildMu.Unlock()
+}

@@ -62,6 +62,14 @@ func (s *Service) rememberSettled(ctx context.Context) {
 		if guildID == "" {
 			continue
 		}
+		// Checked here and not only in Observe. Summarising sends the channel's
+		// contents to a third-party relay, which is the exact thing the opt-in
+		// governs, and the conversation outlives the opt-in: silencing a
+		// channel leaves its turns in the buffer, where this sweep would still
+		// find them.
+		if !s.store.IsChatChannel(guildID, channelID) {
+			continue
+		}
 
 		turns := s.conv.All(channelID)
 		if len(turns) < worthRemembering || !mind.Settled(turns, now, settleFor) {

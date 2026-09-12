@@ -809,8 +809,19 @@ func conversation(n int, at time.Time) []mind.Turn {
 	return turns
 }
 
+// optIn lets the channel into the persona. Every memory-writing test needs it
+// explicitly: without it the opt-in guard skips the channel, and a test that
+// expects nothing to be written would pass for the wrong reason.
+func optIn(t *testing.T, store *storage.Storage) {
+	t.Helper()
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+}
+
 func TestRememberSettledWritesAMemory(t *testing.T) {
 	store := testStore(t)
+	optIn(t, store)
 	svc := rememberingService(t, store,
 		"GIST: an argument about pins\nDETAIL: it ran long and nobody conceded.", nil)
 
@@ -836,6 +847,7 @@ func TestRememberSettledWritesAMemory(t *testing.T) {
 // Summarising mid-conversation produces a memory of half an argument.
 func TestRememberSkipsAConversationStillInProgress(t *testing.T) {
 	store := testStore(t)
+	optIn(t, store)
 	svc := rememberingService(t, store, "GIST: too early\n", nil)
 
 	svc.noteGuild(testGuild, testChannel)
@@ -852,6 +864,7 @@ func TestRememberSkipsAConversationStillInProgress(t *testing.T) {
 
 func TestRememberSkipsAPassingExchange(t *testing.T) {
 	store := testStore(t)
+	optIn(t, store)
 	svc := rememberingService(t, store, "GIST: not worth it\n", nil)
 
 	svc.noteGuild(testGuild, testChannel)
@@ -870,6 +883,7 @@ func TestRememberSkipsAPassingExchange(t *testing.T) {
 // what stops a restart paying for the same memory twice.
 func TestRememberDoesNotWriteTheSameConversationTwice(t *testing.T) {
 	store := testStore(t)
+	optIn(t, store)
 	svc := rememberingService(t, store, "GIST: the same thing\n", nil)
 
 	svc.noteGuild(testGuild, testChannel)
@@ -888,6 +902,7 @@ func TestRememberDoesNotWriteTheSameConversationTwice(t *testing.T) {
 // A memory nobody can read is not an error. Nobody is waiting on it.
 func TestRememberSurvivesAnUnreadableReply(t *testing.T) {
 	store := testStore(t)
+	optIn(t, store)
 	svc := rememberingService(t, store, "I'm sorry, I can't help with that.", nil)
 
 	svc.noteGuild(testGuild, testChannel)
@@ -904,6 +919,7 @@ func TestRememberSurvivesAnUnreadableReply(t *testing.T) {
 
 func TestRememberSurvivesABackendFailure(t *testing.T) {
 	store := testStore(t)
+	optIn(t, store)
 	svc := rememberingService(t, store, "", ai.ErrNoBackend)
 
 	svc.noteGuild(testGuild, testChannel)
@@ -932,5 +948,61 @@ func TestRememberSkipsChannelsWithNoKnownGuild(t *testing.T) {
 
 	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
 		t.Errorf("filed a memory under a guild it could not know: %+v", got)
+	}
+}
+
+// Summarising sends a channel's contents to a third-party relay, which is the
+// exact thing the opt-in governs — and the conversation outlives the opt-in,
+// because silencing a channel leaves its turns in the buffer.
+func TestRememberIgnoresAChannelThatIsNoLongerOptedIn(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "GIST: should never be written\n", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	// Never opted in at all: the store has no record of this channel.
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
+		t.Errorf("summarised a channel it was not let into: %+v", got)
+	}
+}
+
+func TestRememberWritesOnceTheChannelIsOptedIn(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := rememberingService(t, store, "GIST: a real conversation\n", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 1 {
+		t.Errorf("stored %d memories, want 1", len(got))
+	}
+}
+
+// Being told to stop reading a channel has to take the conversation with it.
+func TestForgetDropsTheConversationAndTheGuildMapping(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+
+	svc.noteGuild(testGuild, testChannel)
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "cass", Content: "hi", At: time.Now()})
+
+	svc.Forget(testChannel)
+
+	if got := svc.conv.Recent(testChannel); len(got) != 0 {
+		t.Errorf("still holding %d turns after being silenced", len(got))
+	}
+	if got := svc.guildOf(testChannel); got != "" {
+		t.Errorf("still maps the channel to guild %q", got)
 	}
 }

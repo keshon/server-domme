@@ -130,6 +130,10 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		if err := store.RemoveChatChannel(e.GuildID, e.ChannelID); err != nil {
 			return respond(s, e, "She was not listening here to begin with.")
 		}
+		// Drop what she is still holding, not just her permission to read on.
+		// The conversation in memory would otherwise still be summarised, and
+		// that sends it to a relay.
+		c.Service.Forget(e.ChannelID)
 		return respond(s, e, fmt.Sprintf("She has stopped reading <#%s>.", e.ChannelID))
 
 	case subBrief:

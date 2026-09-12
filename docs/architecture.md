@@ -280,6 +280,14 @@ Whether a conversation has already been remembered is derived from the stored
 memories rather than from a marker in memory, so a restart cannot pay for the
 same memory twice.
 
+The sweep checks the opt-in itself rather than trusting that `Observe` did.
+Summarising sends a channel's contents to a relay, which is precisely what
+`/chat here` governs, and the conversation outlives the permission: silencing a
+channel leaves its turns in the buffer where the sweep would still find them.
+`/chat silence` now also drops what she is holding, because being told to stop
+reading a channel has to take the conversation with it and not just the right
+to read on.
+
 The summary is asked for as two labelled lines, `GIST:` and `DETAIL:`, not as
 JSON. The experiment this design came from asked for JSON and failed to parse
 37% of the replies against a local model it controlled; these backends are
