@@ -152,6 +152,27 @@ character, because answering "say OK" proves almost nothing: pollinations
 served a two-word prompt and refused a real one with 402. Only what carries a
 full prompt reaches the printed `CHAT_BACKENDS` line.
 
+Expect a lot of `HTTP 500 Request execution failed` in that output, and do not
+read it as a fault in the deployment. It is the API's catch-all for any
+exception that is not ModelNotFound, ProviderNotFound or MissingAuth — and the
+slim image contains no browser at all, while a large share of g4f's providers
+need one to clear Cloudflare or to use a logged-in session. `401
+MissingAuthError` is the separate, honest "needs credentials" case.
+
+The generic message is only what goes over HTTP; the real traceback is logged.
+To see what is actually failing, and how often:
+
+```bash
+docker compose logs g4f 2>&1 | grep -hoE "^[A-Za-z][A-Za-z0-9_.]*(Error|Exception)"     | sort | uniq -c | sort -rn | head
+```
+
+The full image (`hlohaus789/g4f:latest`, built `FROM selenium/node-chrome`)
+does carry a browser, and unlocks some of those providers. It costs 1.4 GB
+against slim's 399 MB, wants `shm_size: 2gb`, and runs Chrome continuously —
+and it does not help with providers that also want an account, nor reliably
+with Cloudflare on a datacentre address. Worth it only after the slim image has
+been shown to have nothing usable.
+
 `/chat status` quotes the last error from any backend that has never succeeded,
 which is the faster way to see what a provider is actually saying. The startup
 log names the pool — `ai_pool_ready backends=4 names=g4f,g4f:openrouter.ai,…` —
