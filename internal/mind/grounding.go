@@ -115,8 +115,9 @@ type Grounding struct {
 	// so the rendered text is reproducible in tests.
 	Now time.Time
 	// Drives is how she is doing: the hour, how long she has been alone, how
-	// busy the room is. Rendered as one plain phrase and never as numbers —
-	// see Drives.Phrase.
+	// busy the room is. Not rendered here — Build turns it into instructions
+	// at the end of the prompt, because rendered here as a statement of mood
+	// it changed nothing. See Drives.Directives.
 	Drives Drives
 	// Remembers is what she still recalls of this channel, already selected
 	// and ordered by Recall. Rendered at whatever detail each one has left.
@@ -170,14 +171,12 @@ func (g Grounding) Render() string {
 		b.WriteString(people)
 	}
 
-	// Last, and on its own line. It is the one part of the grounding that is
-	// about her rather than about the room, and burying it among the
-	// surroundings is the mistake this file has now made three times.
-	if mood := g.Drives.Phrase(); mood != "" {
-		b.WriteString("\n")
-		b.WriteString(mood)
-		b.WriteString("\n")
-	}
+	// The mood is deliberately not rendered here. It was, as a fact among the
+	// surroundings — "Right now: it is the dead of night and you are running
+	// on fumes" — and it changed nothing measurable: at 3am the character
+	// wrote the longest and liveliest reply of the set. Build emits it as
+	// instructions at the very end of the prompt instead. See
+	// Drives.Directives.
 
 	return b.String()
 }

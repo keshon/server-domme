@@ -185,3 +185,36 @@ func TestBuildOmitsTheLateNoteForAPromptReply(t *testing.T) {
 		}
 	}
 }
+
+// The mood is the only part of the prompt that says how to write this message
+// differently from the last, so it takes the strongest position: last, alone,
+// and as instructions.
+func TestBuildPutsTheMoodLastAndAsInstructions(t *testing.T) {
+	c := &Character{Name: "X", Persona: "someone who lives here"}
+	g := Grounding{
+		Now:    time.Now(),
+		Drives: Drives{Social: 0.9, Energy: 0.1, Interest: 0.2},
+	}
+
+	system := Build(c, g, nil, DefaultBudget())[0].Content
+
+	idx := strings.Index(system, "Right now, in particular:")
+	if idx < 0 {
+		t.Fatalf("the mood never reached the prompt:\n%s", system)
+	}
+	if idx < strings.Index(system, "How to answer:") {
+		t.Error("the mood is above the output rules; it should be the last thing read")
+	}
+	if !strings.Contains(system[idx:], "few words") {
+		t.Errorf("the mood block does not instruct:\n%s", system[idx:])
+	}
+}
+
+func TestBuildOmitsTheMoodBlockWhenThereIsNothingToSay(t *testing.T) {
+	c := &Character{Name: "X", Persona: "someone"}
+	system := Build(c, Grounding{Now: time.Now()}, nil, DefaultBudget())[0].Content
+
+	if strings.Contains(system, "Right now, in particular") {
+		t.Error("an unset mood still produced a block")
+	}
+}

@@ -78,30 +78,6 @@ func TestInterestNeedsSomethingToBeInterestedIn(t *testing.T) {
 	}
 }
 
-// The character file forbids her describing her own state, so this line exists
-// to colour a reply rather than to be read out.
-func TestPhraseStaysShortAndNumberless(t *testing.T) {
-	worst := Drives{Social: 1, Energy: 0, Interest: 1}
-	got := worst.Phrase()
-
-	if strings.ContainsAny(got, "0123456789") {
-		t.Errorf("phrase leaks numbers: %q", got)
-	}
-	if strings.Count(got, ",") > 1 {
-		t.Errorf("phrase has more than two clauses: %q", got)
-	}
-	if got == "" {
-		t.Error("the worst possible state produced no phrase at all")
-	}
-}
-
-func TestPhraseIsEmptyWhenThereIsNothingToSay(t *testing.T) {
-	ordinary := Drives{Social: 0.1, Energy: 0.6, Interest: 0.2}
-	if got := ordinary.Phrase(); got != "" {
-		t.Errorf("an unremarkable mood should say nothing, got %q", got)
-	}
-}
-
 func TestDeriveDrivesUsesEveryInput(t *testing.T) {
 	now := at(3)
 	d := DeriveDrives(MoodInput{
@@ -177,5 +153,38 @@ func TestNudgeIsBounded(t *testing.T) {
 func TestNudgeTreatsTheZeroValueAsNeutral(t *testing.T) {
 	if got := (Drives{}).Nudge(); got != 0 {
 		t.Errorf("zero Drives nudged by %.2f, want 0 — an unset mood is not a bad one", got)
+	}
+}
+
+// Instructions, not descriptions. Stated as a mood in the grounding this
+// changed nothing measurable: at 3am the character wrote the longest and
+// liveliest reply of the set.
+func TestDirectivesTellHerHowToWriteNotHowSheFeels(t *testing.T) {
+	exhausted := Drives{Social: 0.9, Energy: 0.12, Interest: 0.2}.Directives()
+	if len(exhausted) == 0 {
+		t.Fatal("a wrung-out character was given no instruction at all")
+	}
+
+	joined := strings.Join(exhausted, " ")
+	if !strings.Contains(joined, "few words") && !strings.Contains(joined, "shorter") {
+		t.Errorf("nothing here says how to write:\n%q", joined)
+	}
+}
+
+func TestDirectivesSayNothingAboutAnUnremarkableMood(t *testing.T) {
+	if got := (Drives{Social: 0.2, Energy: 0.6, Interest: 0.3}).Directives(); len(got) != 0 {
+		t.Errorf("an ordinary mood produced instructions: %q", got)
+	}
+	if got := (Drives{}).Directives(); len(got) != 0 {
+		t.Errorf("an unset mood produced instructions: %q", got)
+	}
+}
+
+// A list of qualifications on every reply is how a strong instruction becomes
+// a weak one, which this prompt has demonstrated three times.
+func TestDirectivesStayShort(t *testing.T) {
+	everything := Drives{Social: 1, Energy: 0, Interest: 1}
+	if got := everything.Directives(); len(got) > 2 {
+		t.Errorf("gave %d instructions at once: %q", len(got), got)
 	}
 }

@@ -1,7 +1,6 @@
 package mind
 
 import (
-	"strings"
 	"time"
 )
 
@@ -156,43 +155,43 @@ func (d Drives) Nudge() float64 {
 	return nudge
 }
 
-// Phrase renders the drives as something a person would say about themselves,
-// or the empty string when there is nothing worth remarking on.
+// Directives turn the drives into instructions about how to write, rather than
+// statements about how she feels.
 //
-// No numbers, and never more than two clauses. The character file's own rule is
-// that she does not describe her internal state; the point of this line is to
-// colour how she answers, not to give her something to announce. Anything
-// longer starts being reported rather than felt — the cognitum identity file
-// hit the same wall and answered it the same way, with "never expose internal
-// metrics".
-func (d Drives) Phrase() string {
-	var parts []string
+// The difference is the whole thing. An earlier version put "Right now: it is
+// the dead of night and you are running on fumes" in the grounding, as a fact
+// among the furniture, and measured no effect at all: at 3am the character
+// produced the longest and most energetic reply of the set, while the
+// wide-awake run answered "which film?". Stating a mood asks the model to infer
+// a writing style from it, and it does not — the same inference that failed
+// twice over the late-reply note.
+//
+// At most two, and only when the state is pronounced. A list of qualifications
+// on every reply is how a strong instruction becomes a weak one, which this
+// prompt has now demonstrated three times.
+func (d Drives) Directives() []string {
+	if d == (Drives{}) {
+		return nil
+	}
+
+	var out []string
 
 	switch {
 	case d.Energy < 0.25:
-		parts = append(parts, "it is the dead of night and you are running on fumes")
+		out = append(out, "You are exhausted. Answer in as few words as will do, and do not elaborate or ask follow-up questions.")
 	case d.Energy < 0.45:
-		parts = append(parts, "you are low on energy")
-	case d.Energy > 0.8:
-		parts = append(parts, "you are wide awake")
+		out = append(out, "You are tired. Keep it shorter than usual.")
 	}
 
 	switch {
 	case d.Social > 0.8:
-		parts = append(parts, "nobody has spoken to you in a long time")
-	case d.Social > 0.5:
-		parts = append(parts, "it has been quiet for a while")
+		out = append(out, "You have had nobody to talk to for a long time. Engage with this rather than brushing it off.")
+	case d.Interest > 0.75:
+		out = append(out, "This has your attention. Say something with content in it rather than a one-liner.")
 	}
 
-	if len(parts) < 2 && d.Interest > 0.7 {
-		parts = append(parts, "the room is busy and a fair bit of it is aimed at you")
+	if len(out) > 2 {
+		out = out[:2]
 	}
-
-	if len(parts) == 0 {
-		return ""
-	}
-	if len(parts) > 2 {
-		parts = parts[:2]
-	}
-	return "Right now: " + strings.Join(parts, ", ") + "."
+	return out
 }

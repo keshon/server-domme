@@ -326,13 +326,31 @@ cosine is symmetric — putting the trough at 04:00 necessarily makes 08:00 just
 as dark. `CHAT_TIMEZONE` is the community's zone, not the host's: a bot yawning
 through someone's prime time is worse than one with no clock at all.
 
-They reach the reply twice. `Drives.Phrase` adds one plain sentence to the
-grounding, never numbers, and `Drives.Nudge` moves the odds of answering by up
-to a fifth — but only for the indirect approaches. A direct mention or a reply
-is answered on its own terms whatever the hour: someone tired still answers
-when spoken to, and making that conditional is how "she ignored my direct
-question" returns with a better excuse. The zero value nudges by nothing, so an
-unset mood is not a bad one.
+They reach the reply twice. `Drives.Nudge` moves the odds of answering by up to
+a fifth — but only for the indirect approaches. A direct mention or a reply is
+answered on its own terms whatever the hour: someone tired still answers when
+spoken to, and making that conditional is how "she ignored my direct question"
+returns with a better excuse. The zero value nudges by nothing, so an unset
+mood is not a bad one.
+
+`Drives.Directives` is the other half, and the shape of it is the point. The
+first version stated the mood as a fact in the grounding — "Right now: it is
+the dead of night and you are running on fumes" — and measured **no effect at
+all**: asked the same question at 3am and at 8pm, the exhausted run produced
+the longest and liveliest reply of the set while the wide-awake one answered
+"which film?". Stating a mood asks the model to infer a writing style from it,
+and it does not. This is the third time that has been measured here, after the
+late-reply note and the anti-assistant rule.
+
+Phrased as instructions and placed last — after the output rules, where nothing
+follows it — the same states produce "haven't seen it" at 3am against full
+sentences when awake. At most two directives, and only when the state is
+pronounced: a list of qualifications on every reply is how a strong instruction
+becomes a weak one.
+
+This is what keeps the character file from being a constant. The persona is
+static by design, because its properties were measured and are worth keeping
+fixed; what varies per message is the block underneath it.
 
 ### What she knows she missed
 

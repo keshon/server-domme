@@ -35,6 +35,8 @@ type scenario struct {
 	// late is how long ago the message being answered arrived, set when the
 	// reply stands in for one that was held back.
 	late time.Duration
+	// drives is how she is doing, when the scenario is about that.
+	drives mind.Drives
 }
 
 func main() {
@@ -149,6 +151,26 @@ func scenarios(now time.Time) []scenario {
 			}},
 		},
 		{
+			// Same question, opposite states. If the mood line does nothing,
+			// these two read the same.
+			name: "mood: wrung out at 3am",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "@Domme what did you make of the film",
+				At:      now,
+			}},
+			drives: mind.Drives{Social: 0.9, Energy: 0.12, Interest: 0.2},
+		},
+		{
+			name: "mood: wide awake and busy",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "@Domme what did you make of the film",
+				At:      now,
+			}},
+			drives: mind.Drives{Social: 0.1, Energy: 0.9, Interest: 0.95},
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -163,6 +185,7 @@ func scenarios(now time.Time) []scenario {
 func runScenario(character *mind.Character, grounding mind.Grounding, sc scenario, pool *ai.Pool, dump, model string) {
 	g := grounding
 	g.AnsweringAfter = sc.late
+	g.Drives = sc.drives
 
 	messages := mind.Build(character, g, sc.turns, mind.DefaultBudget())
 
@@ -226,6 +249,21 @@ func whoAnswered(before, after map[string]int) string {
 	return "unknown"
 }
 
+// safeFilename makes a scenario name usable as one.
+//
+// A colon is the one that matters: on Windows it opens an NTFS alternate data
+// stream rather than a file, so "mood: tired.json" writes into a stream on a
+// zero-byte file called "mood" and the dump silently produces nothing at all.
+func safeFilename(name string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case ':', '/', '\\', '*', '?', '"', '<', '>', '|':
+			return '-'
+		}
+		return r
+	}, name)
+}
+
 // writeBody saves one OpenAI chat request so curl can send it.
 func writeBody(dir, name, model string, messages []ai.Message) {
 	body := map[string]any{"model": model, "messages": messages, "stream": false}
@@ -238,7 +276,7 @@ func writeBody(dir, name, model string, messages []ai.Message) {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	path := filepath.Join(dir, name+".json")
+	path := filepath.Join(dir, safeFilename(name)+".json")
 	if err := os.WriteFile(path, raw, 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return

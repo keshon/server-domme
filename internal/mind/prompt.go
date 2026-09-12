@@ -124,6 +124,18 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 	sb.WriteString("\n")
 	sb.WriteString(outputRules)
 
+	// Last, alone, and phrased as instructions. Everything above is either who
+	// she is or where she is; this is the only part of the prompt that tells
+	// her to write this message differently from the last one, and it earns
+	// the strongest position for the same reason the anti-assistant paragraph
+	// does. See Drives.Directives for what stating it as a fact achieved.
+	if directives := g.Drives.Directives(); len(directives) > 0 {
+		sb.WriteString("\n\nRight now, in particular:\n")
+		for _, line := range directives {
+			sb.WriteString("- " + line + "\n")
+		}
+	}
+
 	return sb.String()
 }
 
