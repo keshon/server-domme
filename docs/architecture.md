@@ -249,6 +249,18 @@ guarantee a first approach and a second-in-a-row are always answered — a
 character who simply stops responding reads as a broken bot rather than an
 irritated person, which is the failure this whole layer keeps having to avoid.
 
+When irritation first crosses into mattering, the episode is written to the
+ordinary memory store as a deterministic memory — no backend call, because the
+bot watched it happen and knows who did what. That is what gives the feeling a
+cause: irritation on its own is a number, and asked what is wrong she would
+have had nothing to point at. The directive only fires while that person is in
+the room, and the memory outlives their leaving it.
+
+Going through `mind.Memory` rather than a field of its own means it decays on
+the same curve as everything else, resurfaces when that person returns or the
+subject comes up, and needs no special case in recall. Once per episode rather
+than once per push, or the store fills with the same sentence.
+
 `/chat state` shows all of it: the drives as bars, what they are nudging, who
 she is short with, and both sets of directives verbatim.
 

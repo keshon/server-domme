@@ -81,6 +81,36 @@ func IrritationDirective(name string, level float64) string {
 	}
 }
 
+// IrritationNoticeable reports whether irritation has reached the point of
+// changing how she behaves, which is the point at which it is worth
+// remembering why.
+func IrritationNoticeable(level float64) bool {
+	return level > coolAbove
+}
+
+// IrritationMemory describes an episode of someone pushing, as a memory.
+//
+// Written in Go with no backend call, because nothing about it needs
+// summarising: the bot watched it happen and knows who did what. It exists so
+// the feeling has a cause attached — irritation on its own is a number, and a
+// character who is short with people for a reason she cannot name is not a
+// character, it is a bug with a mood.
+//
+// Going through the ordinary memory path rather than a field of its own means
+// it decays on the same curve, surfaces when that person is in the room or the
+// subject comes up, and needs no special case anywhere in recall.
+func IrritationMemory(name, userID string, at time.Time) Memory {
+	return Memory{
+		At:     at,
+		Gist:   name + " kept pushing after being left alone",
+		Detail: name + " carried on at you after you had already passed them over once.",
+		// Middling. Being needled is memorable for an evening, not for a
+		// fortnight, and Weight is what decides which of those it gets.
+		Weight: 0.4,
+		People: []string{userID},
+	}
+}
+
 // IrritationNudge is how much irritation lowers the odds of answering this
 // person, as a negative number.
 //

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -1062,5 +1063,54 @@ func TestIrritationFadesWithoutBeingTouched(t *testing.T) {
 
 	if got := svc.irritationWith(testGuild, "u1", time.Now()); got != 0 {
 		t.Errorf("still annoyed a day later at %.2f", got)
+	}
+}
+
+// Irritation on its own is a number. Asked what is wrong, she needs something
+// to point at.
+func TestIrritationLeavesARememberedCause(t *testing.T) {
+	store := testStore(t)
+	optIn(t, store)
+	svc := newTestService(t, store, 1)
+
+	svc.Observe(testSession(), message("@Domme hello", true))
+	queued(svc)
+	svc.Observe(testSession(), message("@Domme still there", true))
+	queued(svc)
+	svc.Observe(testSession(), message("@Domme answer me", true))
+	queued(svc)
+
+	memories := store.MindMemories(testGuild, testChannel)
+	if len(memories) == 0 {
+		t.Fatal("she is annoyed and remembers nothing about why")
+	}
+	if !strings.Contains(memories[0].Gist, "pushing") {
+		t.Errorf("the memory does not describe what happened: %q", memories[0].Gist)
+	}
+	if len(memories[0].People) == 0 || memories[0].People[0] != "u1" {
+		t.Errorf("the memory is not attributed to anyone: %+v", memories[0].People)
+	}
+}
+
+// One episode, one memory — not one per push, which would fill the store with
+// the same sentence.
+func TestIrritationRemembersTheEpisodeOnce(t *testing.T) {
+	store := testStore(t)
+	optIn(t, store)
+	svc := newTestService(t, store, 1)
+
+	for i := 0; i < 6; i++ {
+		svc.Observe(testSession(), message("@Domme answer me", true))
+		queued(svc)
+	}
+
+	var pushes int
+	for _, m := range store.MindMemories(testGuild, testChannel) {
+		if strings.Contains(m.Gist, "pushing") {
+			pushes++
+		}
+	}
+	if pushes != 1 {
+		t.Errorf("recorded %d memories for one episode", pushes)
 	}
 }

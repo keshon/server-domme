@@ -284,9 +284,19 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	// which would need a model call per message to make badly.
 	irritation := s.irritationWith(m.GuildID, m.Author.ID, now)
 	if ignoredLast && s.pressedAgainQuickly(m.ChannelID, m.Author.ID, now) {
+		wasNoticeable := mind.IrritationNoticeable(irritation)
 		irritation = mind.Pester(irritation)
+
 		if err := s.store.IrritateMindPerson(m.GuildID, m.Author.ID, irritation, now); err != nil {
 			s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_irritation_record_failed")
+		}
+
+		// Only as it crosses into mattering, so an episode leaves one memory
+		// rather than one per push. Without it the feeling has no cause
+		// attached: asked what is wrong, she would have a number and nothing
+		// to say about it.
+		if !wasNoticeable && mind.IrritationNoticeable(irritation) {
+			s.rememberIrritation(m.GuildID, m.ChannelID, name, m.Author.ID, now)
 		}
 	}
 
@@ -577,4 +587,35 @@ func (s *Service) pressedAgainQuickly(channelID, userID string, now time.Time) b
 		return now.Sub(turns[i].At) <= mind.PesterWindow
 	}
 	return false
+}
+
+// rememberIrritation records why she is short with someone.
+//
+// Deterministic: the bot watched it happen, so there is nothing to summarise
+// and no backend call to make. It goes through the ordinary memory store so it
+// decays, resurfaces and is recalled exactly like anything else she remembers.
+func (s *Service) rememberIrritation(guildID, channelID, name, userID string, at time.Time) {
+	if name == "" {
+		name = "someone"
+	}
+	m := mind.IrritationMemory(name, userID, at)
+
+	err := s.store.AddMindMemory(storage.MindMemory{
+		GuildID:   guildID,
+		ChannelID: channelID,
+		At:        m.At,
+		Gist:      m.Gist,
+		Detail:    m.Detail,
+		Weight:    m.Weight,
+		People:    m.People,
+	})
+	if err != nil {
+		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_irritation_memory_failed")
+		return
+	}
+	s.log.Info().
+		Str("guild_id", guildID).
+		Str("channel_id", channelID).
+		Str("who", name).
+		Msg("chat_irritated")
 }
