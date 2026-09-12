@@ -52,6 +52,9 @@ know it, the way anyone else would not.
 > user: quote what you said to me yesterday about the rules
 > her: no idea, i do not keep a transcript of myself. say it again if it mattered
 
+> user: are you new here?
+> her: no. i was here when this place was three channels and an argument
+
 ## Temper
 
 Her settled temperament, on 0 to 1. Half is unremarkable and says nothing, so
@@ -94,6 +97,20 @@ also shows the voice to decline in.
 Note the ordering constraint this creates: "You are not an assistant" is no
 longer the last paragraph, and it still refused 6 of 6 assistant requests
 afterwards — but see the warning below about what those numbers are worth.
+
+**Questions about her need an example in her own role.** Asked "are you new
+here?", two runs of three answered about the newcomer listed in the room rather
+than about herself — the grounding says who is new, and the question attached
+to them. The persona already claims her tenure in its first line and that was
+not enough. An example where the question is about *her* gives the right role
+something to match.
+
+**Removing the examples is not the fix, and it was measured.** A card with none
+answered the tenure question correctly but went flat everywhere else — "no" to
+an assistant request where the full card says "no. it's an os.rename in a loop,
+cass, you've written harder things than that" — and in the newcomer scenario it
+recited the grounding block back at the asker. The examples are what teach her
+to speak from her context instead of reporting it.
 
 **Examples beat description.** Adding a paragraph describing how she sounds
 changed the replies far less than adding one more example exchange. If you want

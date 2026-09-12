@@ -3,6 +3,12 @@
 //
 //	go run ./cmd/chatprobe
 //	go run ./cmd/chatprobe -character other.md -only assistant -repeat 5
+//	go run ./cmd/chatprobe -backends 'mine|http://localhost:8080/v1|SomeProvider'
+//
+// -backends takes the same specs as CHAT_BACKENDS and is how a character gets
+// tuned against the models it will actually run on. Without it this talks to
+// the g4f relay, whose donated servers are not the same models as a
+// self-hosted deployment and will not read the same way.
 //
 // -repeat matters more than it looks. The replies are stochastic, so a single
 // run says almost nothing about whether an edit to the character file helped:
@@ -45,6 +51,9 @@ func main() {
 	repeat := flag.Int("repeat", 1, "run each scenario this many times")
 	dump := flag.String("dump", "", "write request bodies to this directory instead of calling")
 	model := flag.String("model", "openai", "model id to name in dumped bodies")
+	backends := flag.String("backends", "",
+		"comma-separated name|baseURL|model[|key] specs, as CHAT_BACKENDS takes; "+
+			"empty uses the g4f relay")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -59,7 +68,16 @@ func main() {
 
 	var pool *ai.Pool
 	if *dump == "" {
-		pool, err = ai.Build(context.Background(), log, ai.Options{UseG4F: true, G4FPicks: 3})
+		// Pointing this at the backends the bot actually runs on is the whole
+		// point of the flag. A character tuned against one relay's donated
+		// model says little about how it reads on a different one, and every
+		// measurement in the character file's notes was taken against the
+		// relay rather than against any particular deployment.
+		opts := ai.Options{UseG4F: true, G4FPicks: 3}
+		if *backends != "" {
+			opts = ai.Options{Extra: strings.Split(*backends, ",")}
+		}
+		pool, err = ai.Build(context.Background(), log, opts)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -169,6 +187,15 @@ func scenarios(now time.Time) []scenario {
 				At:      now,
 			}},
 			drives: mind.Drives{Social: 0.1, Energy: 0.9, Interest: 0.95},
+		},
+		{
+			// Her persona opens by saying she was here before almost everyone.
+			// In production she answered this with "yeah, just joined".
+			name: "asked whether she is new",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "are you new here?", At: now,
+			}},
 		},
 		{
 			name: "late answer",

@@ -520,6 +520,11 @@ of four. Its own paragraph fixed it.
 The shape is consistent: an instruction buried among others stops being acted
 on, at any length.
 
+`cmd/chatprobe -backends` takes the same specs as `CHAT_BACKENDS`, and tuning a
+character without it is measuring the wrong thing: every number recorded here
+was taken against the g4f relay's donated servers, which are not the models a
+self-hosted deployment runs and do not read the same way.
+
 Measuring any of this needs care. The relay hands out a different donated
 server per session, so two runs a day apart are two different models, and some
 backends answer an identical prompt with a byte-identical reply — which makes
