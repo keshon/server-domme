@@ -294,6 +294,13 @@ also means automating a service whose terms forbid it. An endpoint qualifies
 here only if it answers `POST {base}/chat/completions` with an OpenAI-shaped
 body.
 
+gpt4free itself is open source and its slim image serves the same
+OpenAI-compatible route, so `docker compose --profile g4f up -d` puts a copy on
+the internal network at `http://g4f:8080/v1` with none of the hosted relay's
+per-IP credit accounting. It does not escape the providers' own bot detection,
+which is a different obstacle in the same place; see
+[docker/README.md](../docker/README.md).
+
 ### Reaching a model on someone's own machine
 
 `koboldcpp` and `llama.cpp`'s `llama-server` both serve the same

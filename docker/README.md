@@ -72,3 +72,45 @@ Enabling it is only the first of two gates — she stays silent until an
 administrator runs `/chat here` in a specific channel. That second gate matters,
 because replies are produced by third-party relay services, so every message in
 an opted-in channel is sent to them.
+
+### Running gpt4free alongside the bot
+
+The hosted g4f relay grants its free allowance as proof-of-work credited to the
+IP that earned it, so a server has none and every call returns 402. The same
+project self-hosted has no such accounting: it talks to the upstream providers
+directly.
+
+```bash
+docker compose --profile g4f up -d
+```
+
+Then point the bot at it — note **port 8080**, not the 1337 in the g4f docs,
+which is a host-side mapping that does not apply inside the compose network:
+
+```
+CHAT_BACKENDS=g4f|http://g4f:8080/v1|gpt-4o-mini
+```
+
+The container publishes no ports and carries no traefik labels, and that is not
+an oversight. It speaks the OpenAI API with no authentication of its own, so
+anything able to reach it can spend whatever quota the providers behind it
+allow; people scan for exactly this. Keep it on the internal `chat` network.
+
+What this does **not** solve is whether those providers answer from your host.
+They are the same sites that challenge datacenter addresses — self-hosting
+moves the request out of the relay's credit system, not out of Cloudflare's
+view. Some providers will work and some will not, and which is which can only
+be learned on the machine itself:
+
+```bash
+docker compose exec app wget -qO- http://g4f:8080/v1/models | head -c 400
+```
+
+`/chat status` quotes the last error from any backend that has never succeeded,
+which is the faster way to see what a provider is actually saying. Keep a second
+entry in `CHAT_BACKENDS` so she has somewhere to fall back to.
+
+Cookies and routing config live in `./data/g4f/har_and_cookies`, owned by uid
+1000 because that is who the container runs as. `build-n-deploy.sh` creates it.
+A `config.yaml` there defines named models with provider fallback — see
+[config-yaml-routing.md](https://github.com/xtekky/gpt4free/blob/main/docs/config-yaml-routing.md).

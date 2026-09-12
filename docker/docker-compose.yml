@@ -57,6 +57,7 @@ services:
     entrypoint: /usr/project/app
     networks:
       - proxy
+      - chat
     ports:
       - 8787
     labels:
@@ -75,6 +76,34 @@ services:
       # Middleware for redirecting HTTP to HTTPS
       - traefik.http.middlewares.${ALIAS}-to-https.redirectscheme.scheme=https
 
+  # Self-hosted gpt4free, reached only by the bot over the chat network.
+  #
+  # Started with `--profile g4f`, so an operator who does not want it runs
+  # nothing extra. It is the same project behind the g4f.space relay, but run
+  # here it talks to the upstream providers directly and has none of the
+  # relay's per-IP credit accounting — which is what made that relay useless
+  # from a server. Whether the providers themselves answer from this host is a
+  # separate question, and the reason /chat status quotes backend errors.
+  g4f:
+    profiles: [g4f]
+    container_name: ${ALIAS}-g4f
+    image: hlohaus789/g4f:latest-slim
+    restart: always
+    volumes:
+      - ./data/g4f/har_and_cookies:/app/har_and_cookies
+      - ./data/g4f/generated_media:/app/generated_media
+    networks:
+      - chat
+    # Deliberately no ports and no traefik labels. This speaks the OpenAI API
+    # with no authentication of its own, so anything that can reach it can
+    # spend whatever quota the providers behind it allow. It stays on an
+    # internal network, reachable from the bot and nothing else.
+
 networks:
   proxy:
-    external: true      
+    external: true
+  # A plain bridge rather than `internal: true`: g4f needs outbound access to
+  # reach the providers it front-ends, and an internal network would leave it
+  # able to answer the bot and unable to answer anything.
+  chat:
+    driver: bridge      

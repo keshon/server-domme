@@ -34,6 +34,11 @@ fi
 # their work away.
 echo "2b. Seeding missing data files..."
 mkdir -p ./data
+# g4f runs as uid 1000 inside its container and writes cookies and routing
+# config here. Created up front because Docker would otherwise make them
+# root-owned on first start and the container could not write to them.
+mkdir -p ./data/g4f/har_and_cookies ./data/g4f/generated_media
+chown -R 1000:1000 ./data/g4f 2>/dev/null ||     echo "   note: could not chown data/g4f — do it by hand if g4f cannot write"
 for f in character.md default_task.list.json; do
     if [ -f "./data/$f" ]; then
         echo "   keeping existing data/$f"
