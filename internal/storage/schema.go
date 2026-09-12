@@ -143,6 +143,16 @@ type MindPerson struct {
 	// long enough to be worth remarking on is not decided here — see
 	// mind.Acquaintance.
 	PrevSeen time.Time `json:"prev_seen,omitempty"`
+	// Irritation is how much this person has got on her nerves, 0..1, as it
+	// stood at IrritatedAt. It is stored undecayed and decayed on read, so
+	// there is nothing to sweep and a restart loses nothing — see
+	// mind.IrritationNow.
+	//
+	// Per person rather than per guild on purpose: being short with one member
+	// and perfectly ordinary with the next is the thing that separates someone
+	// annoyed from a bot in a bad mode.
+	Irritation  float64   `json:"irritation,omitempty"`
+	IrritatedAt time.Time `json:"irritated_at,omitempty"`
 }
 
 func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }

@@ -125,6 +125,9 @@ type Situation struct {
 	// Drives is how she is doing. It moves the odds on the indirect
 	// approaches only — see Drives.Nudge.
 	Drives Drives
+	// Irritation is how much this particular person has got on her nerves,
+	// already decayed. It lowers their odds and nobody else's.
+	Irritation float64
 }
 
 // Decide reports whether to answer. roll is a value in [0,1) from the caller's
@@ -172,6 +175,13 @@ func Decide(a Attention, s Situation, roll float64) Outcome {
 	default:
 		return OutcomeIgnore
 	}
+
+	// Applied to every trigger, including a direct one, and unlike the mood.
+	// Being shorter with someone who is pushing is the whole point of holding
+	// this per person, and the rails above still guarantee that a first
+	// approach and a second-in-a-row are always answered — so this can never
+	// turn into the silence that reads as a broken bot.
+	chance += IrritationNudge(s.Irritation)
 
 	if roll < clamp01(chance) {
 		return OutcomeSpeak

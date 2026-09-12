@@ -282,6 +282,7 @@ func (s *Service) present(guildID, channelID string) []mind.Acquaintance {
 			who.FirstSeen = known.FirstSeen
 			who.LastSeen = known.LastSeen
 			who.PrevSeen = known.PrevSeen
+			who.Irritation = mind.IrritationNow(known.Irritation, known.IrritatedAt, time.Now())
 			if known.Username != "" {
 				who.Username = known.Username
 			}

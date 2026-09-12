@@ -225,6 +225,33 @@ off, for a quarter of an hour. On a retry the indicator is a lie — the last
 attempt failed and this one may too — and past a few attempts silence is the
 honest outcome.
 
+### Being annoyed with someone
+
+Irritation is held **per person**, not per guild, because that is the whole
+difference between someone annoyed and a bot in a bad mode: being short with
+one member and perfectly ordinary with the next is what a person does. The mood
+is the guild-wide layer; this sits under it and applies to one name.
+
+It rises on countable behaviour — pressing again inside `PesterWindow` after
+being passed over — and not on tone. Deciding whether a message was rude needs
+a model call per message, which is not affordable, and the experiment this
+design came from showed small models answering that kind of question
+confidently and arbitrarily. Pushing is observable in any language with no
+interpretation at all.
+
+Stored undecayed with a timestamp and decayed on read, like everything else
+here, with a 90-minute half-life: coming back an hour later still finds her
+cool, and by the next day it is gone.
+
+It lowers that person's odds of an answer by at most a fifth, and adds one
+named directive to their reply. Deliberately small, and the rails still
+guarantee a first approach and a second-in-a-row are always answered — a
+character who simply stops responding reads as a broken bot rather than an
+irritated person, which is the failure this whole layer keeps having to avoid.
+
+`/chat state` shows all of it: the drives as bars, what they are nudging, who
+she is short with, and both sets of directives verbatim.
+
 ### What she remembers
 
 `mind.Memory` is one thing that happened in a channel, written once and never

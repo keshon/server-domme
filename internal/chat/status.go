@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"sort"
 	"time"
 
 	"github.com/keshon/server-domme/internal/ai"
@@ -72,6 +73,16 @@ type State struct {
 	// Nudge is how much the mood is moving the odds of answering an indirect
 	// approach, positive or negative.
 	Nudge float64
+	// Irritated lists anyone in the conversation she has something against,
+	// worst first. Held per person: being short with one member and ordinary
+	// with the next is the thing being modelled.
+	Irritated []Annoyance
+}
+
+// Annoyance is one person and how much they have got on her nerves.
+type Annoyance struct {
+	Username string
+	Level    float64
 }
 
 // StateIn reports what she is like in one channel.
@@ -93,8 +104,18 @@ func (s *Service) StateIn(guildID, channelID string) State {
 		st.LastSpokeAt = guild.LastSpokeAt
 	}
 
-	_, recalled := s.remember(guildID, channelID, s.present(guildID, channelID), now)
+	present := s.present(guildID, channelID)
+	_, recalled := s.remember(guildID, channelID, present, now)
 	st.Recalled = len(recalled)
+
+	for _, p := range present {
+		if p.Irritation > 0 {
+			st.Irritated = append(st.Irritated, Annoyance{Username: p.Username, Level: p.Irritation})
+		}
+	}
+	sort.SliceStable(st.Irritated, func(i, j int) bool {
+		return st.Irritated[i].Level > st.Irritated[j].Level
+	})
 
 	return st
 }

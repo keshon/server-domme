@@ -1006,3 +1006,61 @@ func TestForgetDropsTheConversationAndTheGuildMapping(t *testing.T) {
 		t.Errorf("still maps the channel to guild %q", got)
 	}
 }
+
+// Pushing again straight after being passed over is what raises irritation —
+// countable behaviour, not a judgement about tone.
+func TestIrritationRisesWhenSomeonePressesAfterBeingIgnored(t *testing.T) {
+	store := testStore(t)
+	optIn(t, store)
+
+	// Roll of 1 means every chance fails, so the first approach is ignored by
+	// the odds and not by a rail.
+	svc := newTestService(t, store, 1)
+
+	// First approach is always answered by the rail, so it takes two to get
+	// into the ignored state the pester check needs.
+	svc.Observe(testSession(), message("@Domme hello", true))
+	queued(svc) // clear the slot so the next approach is not queue-blocked
+	svc.Observe(testSession(), message("@Domme still there", true))
+	queued(svc) // clear the slot so the next approach is not queue-blocked
+	svc.Observe(testSession(), message("@Domme answer me", true))
+	queued(svc) // clear the slot so the next approach is not queue-blocked
+
+	person := store.GetMindPerson(testGuild, "u1")
+	if person == nil {
+		t.Fatal("nobody was recorded at all")
+	}
+	if person.Irritation <= 0 {
+		t.Errorf("pushing after being ignored left irritation at %.2f", person.Irritation)
+	}
+}
+
+// Someone else speaking to her while she is short with one member should find
+// her ordinary.
+func TestIrritationIsHeldAgainstThePersonNotTheRoom(t *testing.T) {
+	store := testStore(t)
+	if err := store.IrritateMindPerson(testGuild, "u1", 0.9, time.Now()); err != nil {
+		t.Fatalf("IrritateMindPerson: %v", err)
+	}
+	svc := newTestService(t, store, 0)
+
+	if got := svc.irritationWith(testGuild, "u1", time.Now()); got < 0.5 {
+		t.Errorf("irritation with the person who caused it = %.2f", got)
+	}
+	if got := svc.irritationWith(testGuild, "u2", time.Now()); got != 0 {
+		t.Errorf("a bystander inherited %.2f of it", got)
+	}
+}
+
+func TestIrritationFadesWithoutBeingTouched(t *testing.T) {
+	store := testStore(t)
+	long := time.Now().Add(-24 * time.Hour)
+	if err := store.IrritateMindPerson(testGuild, "u1", 0.9, long); err != nil {
+		t.Fatalf("IrritateMindPerson: %v", err)
+	}
+	svc := newTestService(t, store, 0)
+
+	if got := svc.irritationWith(testGuild, "u1", time.Now()); got != 0 {
+		t.Errorf("still annoyed a day later at %.2f", got)
+	}
+}

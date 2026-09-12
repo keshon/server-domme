@@ -279,6 +279,17 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	key := encounterKey(m.GuildID, m.ChannelID, m.Author.ID)
 	first, ignoredLast := s.encounters.Approach(key)
 
+	// Pressing again straight after being passed over is what raises
+	// irritation. Countable behaviour rather than a judgement about tone,
+	// which would need a model call per message to make badly.
+	irritation := s.irritationWith(m.GuildID, m.Author.ID, now)
+	if ignoredLast && s.pressedAgainQuickly(m.ChannelID, m.Author.ID, now) {
+		irritation = mind.Pester(irritation)
+		if err := s.store.IrritateMindPerson(m.GuildID, m.Author.ID, irritation, now); err != nil {
+			s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_irritation_record_failed")
+		}
+	}
+
 	outcome := mind.Decide(s.attention, mind.Situation{
 		Trigger:       trigger,
 		Now:           now,
@@ -286,6 +297,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		IgnoredLast:   ignoredLast,
 		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
 		Drives:        s.drives(m.GuildID, m.ChannelID, now),
+		Irritation:    irritation,
 	}, s.roll())
 	s.encounters.Record(key, outcome)
 
@@ -539,4 +551,30 @@ func (s *Service) Forget(channelID string) {
 	s.guildMu.Lock()
 	delete(s.guilds, channelID)
 	s.guildMu.Unlock()
+}
+
+// irritationWith is how much this person has got on her nerves right now,
+// decayed from what was stored.
+func (s *Service) irritationWith(guildID, userID string, now time.Time) float64 {
+	person := s.store.GetMindPerson(guildID, userID)
+	if person == nil {
+		return 0
+	}
+	return mind.IrritationNow(person.Irritation, person.IrritatedAt, now)
+}
+
+// pressedAgainQuickly reports whether this person spoke again within the
+// pester window, which is what distinguishes pushing from starting a new
+// conversation later.
+func (s *Service) pressedAgainQuickly(channelID, userID string, now time.Time) bool {
+	turns := s.conv.Recent(channelID)
+
+	// Walk back past the message being handled, which is already recorded.
+	for i := len(turns) - 2; i >= 0; i-- {
+		if turns[i].UserID != userID {
+			continue
+		}
+		return now.Sub(turns[i].At) <= mind.PesterWindow
+	}
+	return false
 }

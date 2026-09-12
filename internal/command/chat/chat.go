@@ -288,6 +288,13 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 
 	// The directives verbatim, because they are the part that actually reaches
 	// the model. The numbers above are how they were arrived at.
+	if len(st.Irritated) > 0 {
+		b.WriteString("\n**Short with**\n")
+		for _, a := range st.Irritated {
+			fmt.Fprintf(&b, "%s %s  `%.2f`\n", a.Username, meter(a.Level), a.Level)
+		}
+	}
+
 	if len(st.StyleDirective) > 0 {
 		b.WriteString("\n**How she sounds** (from the character file)\n")
 		for _, line := range st.StyleDirective {

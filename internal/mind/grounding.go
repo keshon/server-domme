@@ -49,6 +49,8 @@ type Acquaintance struct {
 	// someone mid-conversation; LastSeen alone cannot, because it is stamped
 	// with the present the moment they speak.
 	PrevSeen time.Time
+	// Irritation is how much they have got on her nerves, already decayed.
+	Irritation float64
 }
 
 // Familiarity reports how well she knows this person.
@@ -302,4 +304,21 @@ func (g Grounding) presentIDs() []string {
 		}
 	}
 	return ids
+}
+
+// mostIrritating is whoever present has most got on her nerves.
+//
+// One name rather than a list. Two instructions about two people in one reply
+// is a paragraph about her feelings, which is both more prompt than this
+// deserves and the thing the character file forbids her discussing.
+func (g Grounding) mostIrritating() (string, float64) {
+	var who string
+	var worst float64
+
+	for _, p := range g.Present {
+		if p.Irritation > worst {
+			who, worst = p.Username, p.Irritation
+		}
+	}
+	return who, worst
 }

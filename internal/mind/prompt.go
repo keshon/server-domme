@@ -136,6 +136,15 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 		}
 	}
 
+	// The person in front of her, before the general mood: being short with
+	// someone specific is more particular than being tired, and the more
+	// particular instruction goes later.
+	if who, level := g.mostIrritating(); who != "" {
+		if line := IrritationDirective(who, level); line != "" {
+			sb.WriteString("\n\n" + line + "\n")
+		}
+	}
+
 	// Last, alone, and phrased as instructions. Everything above is either who
 	// she is or where she is; this is the only part of the prompt that tells
 	// her to write this message differently from the last one, and it earns

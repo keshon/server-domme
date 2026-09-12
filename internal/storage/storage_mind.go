@@ -195,3 +195,26 @@ func (s *Storage) MindMemories(guildID, channelID string) []MindMemory {
 	}
 	return out
 }
+
+// IrritateMindPerson raises how much someone has got on her nerves.
+//
+// Takes the already-decayed current level from the caller rather than decaying
+// here, because the decay needs the same clock the prompt was built with and
+// storage has no business knowing the half-life.
+func (s *Storage) IrritateMindPerson(guildID, userID string, level float64, at time.Time) error {
+	if guildID == "" || userID == "" {
+		return fmt.Errorf("storage: irritation needs a guild and a user")
+	}
+
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.mindPeople)
+
+		person, ok := col.Get(guildScopedKey(guildID, userID))
+		if !ok {
+			person = &MindPerson{GuildID: guildID, UserID: userID, FirstSeen: at}
+		}
+		person.Irritation = level
+		person.IrritatedAt = at
+		return col.Put(person)
+	})
+}
