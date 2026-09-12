@@ -94,8 +94,13 @@ IP that earned it, so a server has none and every call returns 402. The same
 project self-hosted has no such accounting: it talks to the upstream providers
 directly.
 
-```bash
-docker compose --profile g4f up -d
+That service sits behind a compose profile, so set it in `.env` before
+deploying — `build-n-deploy.sh` exports this, and it has to be set for
+`compose down` as well as `up`: a service whose profile is inactive is not
+stopped by `down`, it is an *orphan*, and `--remove-orphans` deletes it.
+
+```
+COMPOSE_PROFILES=g4f
 ```
 
 Then point the bot at it — note **port 8080**, not the 1337 in the g4f docs,
@@ -121,7 +126,14 @@ docker compose exec app wget -qO- http://g4f:8080/v1/models | head -c 400
 ```
 
 `/chat status` quotes the last error from any backend that has never succeeded,
-which is the faster way to see what a provider is actually saying. Keep a second
+which is the faster way to see what a provider is actually saying. The startup
+log names the pool — `ai_pool_ready backends=4 names=g4f,g4f:openrouter.ai,…` —
+which is how to tell a backend that was dropped for a malformed spec from one
+that was never configured.
+
+Turn `CHAT_USE_G4F` off once the local one works. Leaving it on keeps three
+hosted relay backends in the pool that will answer 402 from a server, and their
+errors are what fills the log. Keep a second
 entry in `CHAT_BACKENDS` so she has somewhere to fall back to.
 
 Cookies and routing config live in `./data/g4f/har_and_cookies`, owned by uid

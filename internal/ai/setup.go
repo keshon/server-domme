@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -139,6 +140,18 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 		return nil, ErrNoBackend
 	}
 
-	log.Info().Int("backends", pool.Len()).Msg("ai_pool_ready")
+	// Named, not just counted. A count cannot answer the only question asked of
+	// this line in practice — did my backend make it into the pool — and an
+	// entry dropped for a malformed spec looks identical to one that was never
+	// configured.
+	names := make([]string, 0, len(clients))
+	for _, c := range clients {
+		names = append(names, c.Name)
+	}
+	log.Info().
+		Int("backends", pool.Len()).
+		Str("names", strings.Join(names, ",")).
+		Msg("ai_pool_ready")
+
 	return pool, nil
 }
