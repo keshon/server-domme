@@ -95,6 +95,11 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Name:        subStatus,
 				Description: "Where she is listening, and how the backends are holding up",
 			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subState,
+				Description: "How she is doing right now, and what that is telling her",
+			},
 		},
 	}
 }

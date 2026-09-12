@@ -62,6 +62,7 @@ It’s designed to be practical for server management while providing light, int
   - **/chat silence** — Stop her reading this channel
   - **/chat brief** — Tell her what this server is, in a sentence
   - **/chat status** — Where she is listening, and how the backends are holding up
+  - **/chat state** — How she is doing right now, and what that is telling her
 
 ### 🎞️ Media
 

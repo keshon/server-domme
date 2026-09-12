@@ -71,3 +71,34 @@ func TestMeterDrawsTheRangeAndClampsOutsideIt(t *testing.T) {
 		}
 	}
 }
+
+// A subcommand needs an entry in SlashDefinition and a case in Run, and
+// nothing connects the two. `state` shipped with only the case: Discord never
+// offered it, so the branch was unreachable and the feature was invisible
+// while looking finished from the code.
+func TestEverySubcommandIsOfferedToDiscord(t *testing.T) {
+	offered := make(map[string]bool)
+	for _, opt := range (&ChatCommand{}).SlashDefinition().Options {
+		offered[opt.Name] = true
+	}
+
+	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState} {
+		if !offered[name] {
+			t.Errorf("%q is handled in Run but never offered in SlashDefinition, so nobody can run it", name)
+		}
+	}
+	if len(offered) != 5 {
+		t.Errorf("SlashDefinition offers %d subcommands, want 5 — an unhandled one fails closed", len(offered))
+	}
+}
+
+// Every offered subcommand needs a description: Discord refuses a command
+// definition without one, and the refusal arrives at sync time as a 400 with
+// no indication which entry was at fault.
+func TestEverySubcommandIsDescribed(t *testing.T) {
+	for _, opt := range (&ChatCommand{}).SlashDefinition().Options {
+		if strings.TrimSpace(opt.Description) == "" {
+			t.Errorf("subcommand %q has no description", opt.Name)
+		}
+	}
+}
