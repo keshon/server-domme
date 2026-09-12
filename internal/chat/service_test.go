@@ -653,3 +653,86 @@ func TestGenerateTimeoutLeavesRoomForFailover(t *testing.T) {
 		t.Errorf("generateTimeout = %v, want the default %v", quick.generateTimeout, defaultGenerateTimeout)
 	}
 }
+
+func historyMessage(id, userID, name, content string, at time.Time, bot bool) *discordgo.Message {
+	return &discordgo.Message{
+		ID:        id,
+		ChannelID: testChannel,
+		GuildID:   testGuild,
+		Content:   content,
+		Timestamp: at,
+		Author:    &discordgo.User{ID: userID, Username: name, Bot: bot},
+	}
+}
+
+// Discord returns newest first; the prompt reads oldest first.
+func TestHistoryToTurnsReversesIntoChronologicalOrder(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+	now := time.Now()
+
+	turns := svc.historyToTurns(testSession(), []*discordgo.Message{
+		historyMessage("m3", "u1", "cass", "third", now, false),
+		historyMessage("m2", "u1", "cass", "second", now.Add(-time.Minute), false),
+		historyMessage("m1", "u1", "cass", "first", now.Add(-2*time.Minute), false),
+	})
+
+	want := []string{"first", "second", "third"}
+	if len(turns) != len(want) {
+		t.Fatalf("got %d turns, want %d", len(turns), len(want))
+	}
+	for i := range want {
+		if turns[i].Content != want[i] {
+			t.Errorf("turn %d = %q, want %q", i, turns[i].Content, want[i])
+		}
+	}
+}
+
+// Her own past messages are context; another bot's output is noise, and
+// answering it is how two bots talk to each other forever.
+func TestHistoryToTurnsKeepsItsOwnMessagesAndDropsOtherBots(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+	now := time.Now()
+
+	turns := svc.historyToTurns(testSession(), []*discordgo.Message{
+		historyMessage("m3", "other-bot", "MEE6", "level up!", now, true),
+		historyMessage("m2", selfUserID, "Domme", "unfortunately", now.Add(-time.Minute), true),
+		historyMessage("m1", "u1", "cass", "you up", now.Add(-2*time.Minute), false),
+	})
+
+	if len(turns) != 2 {
+		t.Fatalf("got %d turns, want 2 (the other bot dropped):\n%+v", len(turns), turns)
+	}
+	if turns[0].Content != "you up" || turns[0].FromBot {
+		t.Errorf("first turn should be the human's: %+v", turns[0])
+	}
+	if turns[1].Content != "unfortunately" || !turns[1].FromBot {
+		t.Errorf("second turn should be her own, marked FromBot: %+v", turns[1])
+	}
+}
+
+// An attachment or sticker with no text has nothing in it for a language
+// model to read.
+func TestHistoryToTurnsDropsEmptyMessages(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+
+	turns := svc.historyToTurns(testSession(), []*discordgo.Message{
+		historyMessage("m1", "u1", "cass", "", time.Now(), false),
+	})
+
+	if len(turns) != 0 {
+		t.Errorf("kept a message with no text: %+v", turns)
+	}
+}
+
+func TestBackfillDoesNothingOnceAttempted(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+
+	// A nil session is the cheapest way to prove no fetch happens: a real
+	// attempt would dereference it.
+	svc.conv.Seed(testChannel, nil)
+	svc.backfill(nil, testChannel)
+
+	if svc.conv.NeedsSeed(testChannel) {
+		t.Error("channel still wants seeding")
+	}
+}

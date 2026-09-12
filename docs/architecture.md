@@ -208,6 +208,29 @@ off, for a quarter of an hour. On a retry the indicator is a lie — the last
 attempt failed and this one may too — and past a few attempts silence is the
 honest outcome.
 
+### What she knows she missed
+
+The conversation buffer is in memory and starts empty, so on its own she knows
+only what has been said since the process came up. That is wrong twice over: a
+redeploy mid-conversation leaves her answering a question whose subject she
+never saw, and being tagged into a discussion that has been running twenty
+minutes shows her the tag and nothing else. Everyone else in the channel can
+scroll up.
+
+`chat.Service.backfill` reads the channel's own history from Discord the first
+time she speaks there — one REST call per channel per process, and no model
+call at all. That ratio is why it comes before any other memory work: every
+other way of giving her context spends a backend request she may not get.
+
+It runs on the worker rather than in `Observe`, which is on the gateway
+goroutine and may not block on the network. The triggering message is therefore
+already recorded when the fetch returns, and is also in what Discord sends
+back, so `mind.Conversations.Seed` merges on message id rather than appending —
+otherwise the message she is answering appears twice, once as itself and once
+as its own echo. A channel that cannot be read is marked attempted anyway: a
+missing `READ_MESSAGE_HISTORY` fails identically every time, and retrying would
+spend a request per reply to keep learning it.
+
 ### Who she thinks she is
 
 Three names can disagree, and all three are visible to her: `CHAT_NAME`, the

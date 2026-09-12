@@ -455,14 +455,25 @@ func selfID(sess *discordgo.Session) string {
 // displayName prefers the per-guild nickname, which is what everyone else in
 // the channel sees and therefore what she should call them.
 func displayName(m *discordgo.MessageCreate) string {
-	if m.Member != nil && m.Member.Nick != "" {
-		return m.Member.Nick
+	return displayNameOf(m.Author, m.Member)
+}
+
+// displayNameOf resolves the name to show for a message author: the guild
+// nickname, then the display name, then the account name.
+//
+// Shared with the history backfill, which has the same author and member but
+// not a MessageCreate to hand. Two copies of this would drift, and the drift
+// would show up as the same person appearing under two names in one
+// transcript.
+func displayNameOf(author *discordgo.User, member *discordgo.Member) string {
+	if member != nil && member.Nick != "" {
+		return member.Nick
 	}
-	if m.Author == nil {
+	if author == nil {
 		return ""
 	}
-	if m.Author.GlobalName != "" {
-		return m.Author.GlobalName
+	if author.GlobalName != "" {
+		return author.GlobalName
 	}
-	return m.Author.Username
+	return author.Username
 }

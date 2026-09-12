@@ -2,6 +2,7 @@ package mind
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -115,4 +116,98 @@ func TestConversationsAreSafeUnderConcurrentUse(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func seedTurn(id, user, content string, at time.Time) Turn {
+	return Turn{UserID: user, Username: user, Content: content, At: at, MessageID: id}
+}
+
+// The message that triggered the reply is already recorded by the time the
+// backfill runs, and it is also in the history Discord returns. Without
+// deduplication it appears twice, once as itself and once as its own echo.
+func TestSeedDoesNotDuplicateTheTriggeringMessage(t *testing.T) {
+	c := NewConversations()
+	now := time.Now()
+
+	live := seedTurn("m3", "cass", "so what do you think", now)
+	c.Record("c1", live)
+
+	c.Seed("c1", []Turn{
+		seedTurn("m1", "cass", "anyone around", now.Add(-2*time.Minute)),
+		seedTurn("m2", "newbie", "just got here", now.Add(-time.Minute)),
+		live,
+	})
+
+	got := c.Recent("c1")
+	if len(got) != 3 {
+		t.Fatalf("got %d turns, want 3:\n%+v", len(got), got)
+	}
+	for i, want := range []string{"anyone around", "just got here", "so what do you think"} {
+		if got[i].Content != want {
+			t.Errorf("turn %d = %q, want %q", i, got[i].Content, want)
+		}
+	}
+}
+
+// Discord returns newest first; the buffer and the prompt both read oldest
+// first.
+func TestSeedKeepsChronologicalOrder(t *testing.T) {
+	c := NewConversations()
+	now := time.Now()
+
+	c.Seed("c1", []Turn{
+		seedTurn("m1", "a", "first", now.Add(-3*time.Minute)),
+		seedTurn("m2", "b", "second", now.Add(-2*time.Minute)),
+		seedTurn("m3", "c", "third", now.Add(-time.Minute)),
+	})
+
+	got := c.Recent("c1")
+	for i := 1; i < len(got); i++ {
+		if got[i].At.Before(got[i-1].At) {
+			t.Fatalf("turn %d is older than the one before it:\n%+v", i, got)
+		}
+	}
+}
+
+func TestSeedTrimsToTheBufferCap(t *testing.T) {
+	c := NewConversations()
+	now := time.Now()
+
+	var many []Turn
+	for i := 0; i < maxTurnsPerChannel*2; i++ {
+		many = append(many, seedTurn(
+			"m"+strconv.Itoa(i), "a", "line", now.Add(-time.Duration(i)*time.Second)))
+	}
+	c.Seed("c1", many)
+
+	if got := len(c.Recent("c1")); got > maxTurnsPerChannel {
+		t.Errorf("kept %d turns, want at most %d", got, maxTurnsPerChannel)
+	}
+}
+
+// A channel the bot cannot read history in fails identically every time, so
+// one attempt is recorded either way.
+func TestSeedIsAttemptedOnlyOnce(t *testing.T) {
+	c := NewConversations()
+
+	if !c.NeedsSeed("c1") {
+		t.Fatal("a fresh channel should want seeding")
+	}
+	c.Seed("c1", nil)
+	if c.NeedsSeed("c1") {
+		t.Error("still wants seeding after a failed attempt; every reply would re-fetch")
+	}
+}
+
+// Forgetting a channel and then refusing to read its history again would leave
+// her permanently blank there.
+func TestForgetAllowsSeedingAgain(t *testing.T) {
+	c := NewConversations()
+	c.Seed("c1", []Turn{seedTurn("m1", "a", "hello", time.Now())})
+
+	c.Forget("c1")
+
+	if !c.NeedsSeed("c1") {
+		t.Error("a forgotten channel refuses to be re-seeded")
+	}
 }

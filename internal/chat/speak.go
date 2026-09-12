@@ -39,6 +39,11 @@ func (s *Service) speak(ctx context.Context, t task) {
 		}
 	}
 
+	// Read the channel's own history the first time she speaks here, so the
+	// reply answers the conversation rather than the one line that triggered
+	// it. Costs one REST call per channel per process; see backfill.
+	s.backfill(sess, t.item.ChannelID)
+
 	grounding := s.ground(sess, t)
 	messages := mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget)
 
