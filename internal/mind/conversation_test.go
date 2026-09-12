@@ -252,3 +252,64 @@ func TestForgetAllowsSeedingAgain(t *testing.T) {
 		t.Error("a forgotten channel refuses to be re-seeded")
 	}
 }
+
+func anchorTurn(id, user, content string, at time.Time) Turn {
+	return Turn{MessageID: id, UserID: user, Username: user, Content: content, At: at}
+}
+
+// Formally quoting every line in a quiet two-person exchange is the machine
+// tell this whole design keeps removing.
+func TestNeedsAnchorLeavesAQuietExchangeAlone(t *testing.T) {
+	now := time.Now()
+	turns := []Turn{
+		anchorTurn("m1", "u1", "you around", now.Add(-2*time.Minute)),
+		{Content: "here", At: now.Add(-time.Minute), FromBot: true},
+		anchorTurn("m2", "u1", "what do you make of it", now),
+	}
+
+	if NeedsAnchor(turns, "m2", "u1") {
+		t.Error("anchored a reply nobody could mistake")
+	}
+}
+
+// The case that prompted this: a busy channel where a bare message gives no
+// sign who it answers.
+func TestNeedsAnchorWhenSomebodyElseHasSpokenSince(t *testing.T) {
+	now := time.Now()
+	turns := []Turn{
+		anchorTurn("m1", "u1", "domme what do you think", now.Add(-2*time.Minute)),
+		anchorTurn("m2", "u2", "unrelated thing", now.Add(-time.Minute)),
+		anchorTurn("m3", "u3", "another unrelated thing", now),
+	}
+
+	if !NeedsAnchor(turns, "m1", "u1") {
+		t.Error("left a reply dangling in a busy channel")
+	}
+}
+
+// The same person carrying on is still the same conversation.
+func TestNeedsAnchorIgnoresTheSamePersonAndHerself(t *testing.T) {
+	now := time.Now()
+	turns := []Turn{
+		anchorTurn("m1", "u1", "domme", now.Add(-2*time.Minute)),
+		anchorTurn("m2", "u1", "you there", now.Add(-time.Minute)),
+		{Content: "a moment", At: now, FromBot: true},
+	}
+
+	if NeedsAnchor(turns, "m1", "u1") {
+		t.Error("anchored because the same person spoke twice")
+	}
+}
+
+// Aged out of the buffer means time has passed, which is exactly when an
+// unanchored reply lands with nothing around it.
+func TestNeedsAnchorWhenTheMessageIsNoLongerInTheBuffer(t *testing.T) {
+	turns := []Turn{anchorTurn("m9", "u1", "something else", time.Now())}
+
+	if !NeedsAnchor(turns, "m1", "u1") {
+		t.Error("did not anchor a reply to something it can no longer see")
+	}
+	if NeedsAnchor(turns, "", "u1") {
+		t.Error("anchored to nothing at all")
+	}
+}

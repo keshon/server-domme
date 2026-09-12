@@ -463,6 +463,26 @@ This is what keeps the character file from being a constant. The persona is
 static by design, because its properties were measured and are worth keeping
 fixed; what varies per message is the block underneath it.
 
+### Making it clear who she is answering
+
+A reply is sent as a Discord reply when a bare message would leave people
+guessing: a held answer, an answer to someone who replied to her, or a channel
+where somebody else has spoken since the line she is answering.
+
+Not otherwise, and that restraint is the point. Anchoring every reply is
+unambiguous and wrong — in a quiet two-person exchange, formally quoting each
+line is exactly the machine tell the rest of this design keeps removing. People
+reach for the reply affordance when the thread has moved on and simply talk
+when it is obvious who they mean. `mind.NeedsAnchor` is that rule.
+
+A message that has aged out of the buffer counts as needing one: it is gone
+because time passed, which is when an unanchored reply lands with nothing
+around it to explain what it answers.
+
+She does not @mention the person either. Her allowed-mentions are empty so it
+would not ping, and an inline mention reads like a bot addressing a ticket
+where the reply anchor shows the same thing without touching what she says.
+
 ### How much of the conversation counts as live
 
 `Conversations.Recent` bounds the live context two ways and takes whichever

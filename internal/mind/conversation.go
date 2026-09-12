@@ -266,3 +266,39 @@ func (c *Conversations) All(channelID string) []Turn {
 	copy(out, turns)
 	return out
 }
+
+// NeedsAnchor reports whether a reply to messageID would be ambiguous without
+// Discord's reply anchor — that is, whether anyone else has spoken since.
+//
+// Anchoring every reply would be unambiguous and wrong. In a quiet two-person
+// exchange, formally quoting each line is the machine tell this design keeps
+// removing: people use the reply affordance when the thread has moved on and
+// simply talk when it is obvious who they mean. This is that rule, and it is
+// the same question either way — has anything come between.
+//
+// A message no longer in the buffer counts as needing one. It has aged out,
+// which means time has passed, which is exactly when an unanchored reply
+// arrives with nothing around it to explain what it answers.
+func NeedsAnchor(turns []Turn, messageID, userID string) bool {
+	if messageID == "" {
+		return false
+	}
+
+	var found bool
+	for _, t := range turns {
+		if t.MessageID == messageID {
+			found = true
+			continue
+		}
+		if !found {
+			continue
+		}
+		// Her own lines do not confuse anyone about who she is answering, and
+		// the same person carrying on is still the same conversation.
+		if t.FromBot || t.UserID == "" || t.UserID == userID {
+			continue
+		}
+		return true
+	}
+	return !found
+}

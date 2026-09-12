@@ -267,7 +267,12 @@ func (s *Service) send(sess *discordgo.Session, t task, content string) (*discor
 		},
 	}
 
-	if t.late || t.item.Trigger == mind.TriggerReply {
+	// Anchored when a bare message would leave people guessing: a held reply,
+	// an answer to someone who replied to her, or a channel where somebody
+	// else has spoken since the line she is answering. Not otherwise — see
+	// mind.NeedsAnchor.
+	if t.late || t.item.Trigger == mind.TriggerReply ||
+		mind.NeedsAnchor(s.conv.Recent(t.item.ChannelID), t.item.MessageID, t.item.UserID) {
 		msg.Reference = &discordgo.MessageReference{
 			MessageID: t.item.MessageID,
 			ChannelID: t.item.ChannelID,
