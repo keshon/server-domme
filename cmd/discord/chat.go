@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/keshon/server-domme/internal/ai"
@@ -69,6 +70,17 @@ func buildChatService(
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("chat_backend_build_failed")
+		// Two different mistakes with one symptom. Build does not probe
+		// anything, so an empty pool means nothing was configured at all —
+		// telling that operator their backends are unreachable sends them to
+		// check a network that is working fine.
+		if errors.Is(err, ai.ErrNoBackend) {
+			return nil, "no backend is configured, so there is nothing to speak " +
+				"through. Set `CHAT_BACKENDS` to an OpenAI-compatible endpoint, " +
+				"or turn a hosted relay back on with `CHAT_USE_G4F`. Note those " +
+				"are separate: switching the relay off does not enable the " +
+				"self-hosted one."
+		}
 		return nil, "no chat backend could be reached at startup. The relays are " +
 			"free public services and go down; check the host can reach them, " +
 			"then restart."

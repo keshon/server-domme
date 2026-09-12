@@ -228,3 +228,35 @@ func firstDifference(want, got string) string {
 	return fmt.Sprintf("one file is longer: root has %d lines, docker's bot section has %d",
 		len(wantLines), len(gotLines))
 }
+
+// composeVar matches ${NAME} and ${NAME:-default} in the compose file.
+var composeVar = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)`)
+
+// The inverse of TestEveryConfigVarIsPassedThroughDockerCompose: compose also
+// reads settings the bot knows nothing about, and those have to be documented
+// too.
+//
+// HOST went undocumented for the life of this deployment. It fills the Host()
+// rule on both traefik routers, so unset it produced Host(“), which matches
+// nothing — the shortlink domain simply 404ed while compose said only "The
+// HOST variable is not set", a warning that reads like housekeeping.
+func TestEveryComposeVarIsDocumentedInTheDockerEnvExample(t *testing.T) {
+	compose := readRepoFile(t, composePath)
+	example := readRepoFile(t, dockerEnvPath)
+
+	seen := make(map[string]bool)
+	for _, m := range composeVar.FindAllStringSubmatch(compose, -1) {
+		name := m[1]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+
+		if !regexp.MustCompile(`(?m)^#?\s*` + name + `=`).MatchString(example) {
+			t.Errorf("%s is read by %s but documented nowhere in %s", name, composePath, dockerEnvPath)
+		}
+	}
+	if len(seen) == 0 {
+		t.Fatal("no variables found in the compose file; this test would pass vacuously")
+	}
+}
