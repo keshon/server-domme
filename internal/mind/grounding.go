@@ -118,6 +118,12 @@ type Grounding struct {
 	// busy the room is. Rendered as one plain phrase and never as numbers —
 	// see Drives.Phrase.
 	Drives Drives
+	// Remembers is what she still recalls of this channel, already selected
+	// and ordered by Recall. Rendered at whatever detail each one has left.
+	Remembers []Memory
+	// Topic is the text the room is currently on, used to decide which
+	// memories are close enough to the subject to surface.
+	Topic string
 	// AnsweringAfter is how long ago the message being answered was sent,
 	// set only when a reply was held back because no backend would answer.
 	// Telling her the gap is what lets her acknowledge it in her own words;
@@ -152,6 +158,11 @@ func (g Grounding) Render() string {
 	}
 	if clock := timeOfDay(g.Now); clock != "" {
 		fmt.Fprintf(&b, "- It is %s.\n", clock)
+	}
+
+	if memories := Render(g.Remembers, g.Now, g.topicWords(), g.presentIDs()); memories != "" {
+		b.WriteString("\n")
+		b.WriteString(memories)
 	}
 
 	if people := g.renderPeople(); people != "" {
@@ -274,4 +285,22 @@ func roughDuration(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%d days", days)
 	}
+}
+
+// topicWords is what the room is talking about, as keywords, for deciding
+// which memories surface.
+func (g Grounding) topicWords() []string {
+	return Keywords(g.Topic)
+}
+
+// presentIDs is who is here, for the same purpose. A memory can come back
+// because of who is in the room rather than what is being said.
+func (g Grounding) presentIDs() []string {
+	ids := make([]string, 0, len(g.Present))
+	for _, p := range g.Present {
+		if p.UserID != "" {
+			ids = append(ids, p.UserID)
+		}
+	}
+	return ids
 }

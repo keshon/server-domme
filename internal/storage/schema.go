@@ -164,6 +164,29 @@ type MindGuild struct {
 
 func (m *MindGuild) Key() string { return m.GuildID }
 
+// MindMemory is one thing the character remembers happening in a channel.
+//
+// Append-only, so the key zero-pads its id and lexicographic order is
+// chronological — the same shape as the command log, and for the same reason.
+// Records are never rewritten: what fades is how much of one is rendered, not
+// what is stored. See mind.Memory.
+type MindMemory struct {
+	ID        uint64    `json:"id"`
+	GuildID   string    `json:"guild_id"`
+	ChannelID string    `json:"channel_id"`
+	At        time.Time `json:"at"`
+	Gist      string    `json:"gist"`
+	Detail    string    `json:"detail,omitempty"`
+	// Weight is how much the moment mattered, 0..1. It slows the memory's
+	// decay rather than raising its brightness.
+	Weight float64 `json:"weight,omitempty"`
+	// People are the user ids who were there, which is what lets a memory
+	// return because of who is in the room rather than what is being said.
+	People []string `json:"people,omitempty"`
+}
+
+func (m *MindMemory) Key() string { return guildRowKey(m.GuildID, m.ID) }
+
 // TaskCooldown blocks a member from drawing another task until Until passes.
 type TaskCooldown struct {
 	GuildID string    `json:"guild_id"`

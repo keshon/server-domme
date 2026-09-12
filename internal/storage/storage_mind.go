@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/keshon/datastore"
@@ -144,4 +145,53 @@ func (s *Storage) GetMindGuild(guildID string) *MindGuild {
 		return nil
 	}
 	return got
+}
+
+// mindMemoryLimit is how many memories a guild keeps. Generous, because a row
+// is two sentences and the read path already drops anything too dim to be
+// worth rendering — this only stops the collection growing without bound over
+// years.
+const mindMemoryLimit = 500
+
+// AddMindMemory records something worth remembering.
+//
+// Append-and-trim in one transaction, the same shape as SetCommand: the index
+// is read inside the transaction so the rows trimmed against are the rows the
+// commit sees.
+func (s *Storage) AddMindMemory(m MindMemory) error {
+	if m.GuildID == "" || strings.TrimSpace(m.Gist) == "" {
+		return fmt.Errorf("storage: mind memory needs a guild and a gist")
+	}
+	if m.At.IsZero() {
+		m.At = time.Now()
+	}
+
+	entry := &m
+	return s.db.Update(func(tx *datastore.Tx) error {
+		entry.ID = tx.NextID("mindmem:" + entry.GuildID)
+		col := datastore.In(tx, s.mindMemories)
+		if err := col.Put(entry); err != nil {
+			return err
+		}
+		existing := datastore.InIndex(tx, s.mindMemoriesByGuild).Find(entry.GuildID)
+		return trimOldest(col, existing, mindMemoryLimit)
+	})
+}
+
+// MindMemories returns a channel's memories, oldest first.
+//
+// Filtered by channel in Go rather than by a second index: a guild holds at
+// most mindMemoryLimit rows, and an index per channel would cost a write on
+// every message to save a scan of a few hundred records on a read that only
+// happens when she is about to speak.
+func (s *Storage) MindMemories(guildID, channelID string) []MindMemory {
+	rows := s.mindMemoriesByGuild.Find(guildID)
+	out := make([]MindMemory, 0, len(rows))
+	for _, r := range rows {
+		if channelID != "" && r.ChannelID != channelID {
+			continue
+		}
+		out = append(out, *r)
+	}
+	return out
 }

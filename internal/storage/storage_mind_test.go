@@ -169,3 +169,89 @@ func TestChatBriefRoundTrip(t *testing.T) {
 		t.Errorf("brief leaked into another guild: %q", got)
 	}
 }
+
+func TestAddMindMemoryKeepsThemOldestFirst(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Now()
+
+	for i, gist := range []string{"first thing", "second thing", "third thing"} {
+		err := store.AddMindMemory(MindMemory{
+			GuildID:   "g1",
+			ChannelID: "c1",
+			At:        now.Add(time.Duration(i) * time.Minute),
+			Gist:      gist,
+		})
+		if err != nil {
+			t.Fatalf("AddMindMemory: %v", err)
+		}
+	}
+
+	got := store.MindMemories("g1", "c1")
+	if len(got) != 3 {
+		t.Fatalf("got %d memories, want 3", len(got))
+	}
+	for i, want := range []string{"first thing", "second thing", "third thing"} {
+		if got[i].Gist != want {
+			t.Errorf("memory %d = %q, want %q", i, got[i].Gist, want)
+		}
+	}
+}
+
+func TestMindMemoriesAreScopedToTheirChannelAndGuild(t *testing.T) {
+	store := newTestStore(t)
+
+	for _, m := range []MindMemory{
+		{GuildID: "g1", ChannelID: "c1", Gist: "in c1"},
+		{GuildID: "g1", ChannelID: "c2", Gist: "in c2"},
+		{GuildID: "g2", ChannelID: "c1", Gist: "another guild"},
+	} {
+		if err := store.AddMindMemory(m); err != nil {
+			t.Fatalf("AddMindMemory: %v", err)
+		}
+	}
+
+	got := store.MindMemories("g1", "c1")
+	if len(got) != 1 || got[0].Gist != "in c1" {
+		t.Errorf("channel scoping leaked: %+v", got)
+	}
+	if all := store.MindMemories("g1", ""); len(all) != 2 {
+		t.Errorf("guild-wide read returned %d, want 2", len(all))
+	}
+}
+
+// A memory with nothing to remember is not a memory.
+func TestAddMindMemoryRefusesAnEmptyGist(t *testing.T) {
+	store := newTestStore(t)
+
+	if err := store.AddMindMemory(MindMemory{GuildID: "g1", Gist: "   "}); err == nil {
+		t.Error("accepted a memory with a blank gist")
+	}
+	if err := store.AddMindMemory(MindMemory{Gist: "something"}); err == nil {
+		t.Error("accepted a memory with no guild")
+	}
+}
+
+func TestMindMemoryWeightAndPeopleSurviveARoundTrip(t *testing.T) {
+	store := newTestStore(t)
+
+	err := store.AddMindMemory(MindMemory{
+		GuildID: "g1", ChannelID: "c1",
+		Gist:   "the row",
+		Weight: 0.8,
+		People: []string{"u1", "u2"},
+	})
+	if err != nil {
+		t.Fatalf("AddMindMemory: %v", err)
+	}
+
+	got := store.MindMemories("g1", "c1")
+	if len(got) != 1 {
+		t.Fatalf("got %d memories", len(got))
+	}
+	if got[0].Weight != 0.8 {
+		t.Errorf("Weight = %v, want 0.8", got[0].Weight)
+	}
+	if len(got[0].People) != 2 {
+		t.Errorf("People = %v, want two of them", got[0].People)
+	}
+}

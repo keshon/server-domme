@@ -22,21 +22,23 @@ type Storage struct {
 	db  *datastore.DB
 	log zerolog.Logger
 
-	settings   *datastore.Collection[*GuildSettings]
-	cmdLog     *datastore.Collection[*CommandLogEntry]
-	purgeJobs  *datastore.Collection[*PurgeJob]
-	shortLink  *datastore.Collection[*ShortLink]
-	tasks      *datastore.Collection[*Task]
-	cooldowns  *datastore.Collection[*TaskCooldown]
-	mindPeople *datastore.Collection[*MindPerson]
-	mindGuilds *datastore.Collection[*MindGuild]
+	settings     *datastore.Collection[*GuildSettings]
+	cmdLog       *datastore.Collection[*CommandLogEntry]
+	purgeJobs    *datastore.Collection[*PurgeJob]
+	shortLink    *datastore.Collection[*ShortLink]
+	tasks        *datastore.Collection[*Task]
+	cooldowns    *datastore.Collection[*TaskCooldown]
+	mindPeople   *datastore.Collection[*MindPerson]
+	mindGuilds   *datastore.Collection[*MindGuild]
+	mindMemories *datastore.Collection[*MindMemory]
 
-	cmdLogByGuild     *datastore.Index[*CommandLogEntry]
-	purgeJobsByGuild  *datastore.Index[*PurgeJob]
-	shortLinkByGuild  *datastore.Index[*ShortLink]
-	tasksByGuild      *datastore.Index[*Task]
-	cooldownsByGuild  *datastore.Index[*TaskCooldown]
-	mindPeopleByGuild *datastore.Index[*MindPerson]
+	cmdLogByGuild       *datastore.Index[*CommandLogEntry]
+	purgeJobsByGuild    *datastore.Index[*PurgeJob]
+	shortLinkByGuild    *datastore.Index[*ShortLink]
+	tasksByGuild        *datastore.Index[*Task]
+	cooldownsByGuild    *datastore.Index[*TaskCooldown]
+	mindPeopleByGuild   *datastore.Index[*MindPerson]
+	mindMemoriesByGuild *datastore.Index[*MindMemory]
 }
 
 // NewStorage opens the database in dir, creating it if needed. The directory is
@@ -57,6 +59,7 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.cooldowns = datastore.Register[*TaskCooldown](db, "task_cooldowns")
 	s.mindPeople = datastore.Register[*MindPerson](db, "mind_people")
 	s.mindGuilds = datastore.Register[*MindGuild](db, "mind_guilds")
+	s.mindMemories = datastore.Register[*MindMemory](db, "mind_memories")
 
 	s.cmdLogByGuild = datastore.AddIndex(s.cmdLog, "guild",
 		func(c *CommandLogEntry) []string { return []string{c.GuildID} })
@@ -70,6 +73,8 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 		func(c *TaskCooldown) []string { return []string{c.GuildID} })
 	s.mindPeopleByGuild = datastore.AddIndex(s.mindPeople, "guild",
 		func(m *MindPerson) []string { return []string{m.GuildID} })
+	s.mindMemoriesByGuild = datastore.AddIndex(s.mindMemories, "guild",
+		func(m *MindMemory) []string { return []string{m.GuildID} })
 
 	if err := db.Open(); err != nil {
 		return nil, err

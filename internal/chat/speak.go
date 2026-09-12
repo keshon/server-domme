@@ -132,6 +132,51 @@ func (s *Service) drives(guildID, channelID string, now time.Time) mind.Drives {
 	return mind.DeriveDrives(in)
 }
 
+// maxRecalled is how many memories go in front of her at once.
+//
+// Small on purpose. The point of recall is that something relevant surfaces,
+// not that she arrives holding a dossier; a character who lists everything she
+// remembers about a room is doing something no person does.
+const maxRecalled = 3
+
+// remember returns what the room is currently talking about and what she still
+// recalls of it.
+//
+// The topic is the live conversation's own words, which is what decides whether
+// an old memory is close enough to the subject to come back — cognitum's P6,
+// done with set overlap rather than embeddings because embeddings would need a
+// model call per memory per message.
+func (s *Service) remember(guildID, channelID string, present []mind.Acquaintance, now time.Time) (string, []mind.Memory) {
+	var topic strings.Builder
+	for _, turn := range s.conv.Recent(channelID) {
+		topic.WriteString(turn.Content)
+		topic.WriteString(" ")
+	}
+
+	stored := s.store.MindMemories(guildID, channelID)
+	if len(stored) == 0 {
+		return topic.String(), nil
+	}
+
+	memories := make([]mind.Memory, 0, len(stored))
+	for _, m := range stored {
+		memories = append(memories, mind.Memory{
+			At:     m.At,
+			Gist:   m.Gist,
+			Detail: m.Detail,
+			Weight: m.Weight,
+			People: m.People,
+		})
+	}
+
+	here := make([]string, 0, len(present))
+	for _, p := range present {
+		here = append(here, p.UserID)
+	}
+
+	return topic.String(), mind.Recall(memories, now, mind.Keywords(topic.String()), here, maxRecalled)
+}
+
 // hold puts an approach back for a later attempt, or gives up on it.
 //
 // Giving up quietly is the point: she simply never answers, which is a thing
@@ -216,6 +261,7 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 
 	g.Present = s.present(t.item.GuildID, t.item.ChannelID)
 	g.Drives = s.drives(t.item.GuildID, t.item.ChannelID, now)
+	g.Topic, g.Remembers = s.remember(t.item.GuildID, t.item.ChannelID, g.Present, now)
 	return g
 }
 

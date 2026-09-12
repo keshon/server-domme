@@ -225,6 +225,49 @@ off, for a quarter of an hour. On a retry the indicator is a lie — the last
 attempt failed and this one may too — and past a few attempts silence is the
 honest outcome.
 
+### What she remembers
+
+`mind.Memory` is one thing that happened in a channel, written once and never
+rewritten. The obvious design — re-summarising a memory shorter as it ages, so
+the stored text shrinks — costs a model call per memory per age bracket and
+drifts: summarising a summary pulls towards the blandest available reading
+every time, which is visible in the cognitum logs as one observation
+reappearing in three slightly different wordings. Storing it once and rendering
+less of it gives the same gradient for one call, and what comes back is what
+went in.
+
+Brightness is computed on read, never stored:
+
+```
+brightness = 0.5 ^ (age / halflife)          halflife grows with Weight
+           + topicBoost    when its words overlap what is being said now
+           + presenceBoost when someone who was there is here again
+```
+
+Two different things decay, and both are wanted: how *likely* a memory is to
+come back at all, and how *much* of it does. Above 0.6 it renders with its full
+detail; above 0.3 the detail is clipped; below that only the gist survives, and
+without a timestamp — someone who barely remembers a thing does not know
+exactly when it was. Under `brightnessFloor` it is not rendered at all.
+
+`Weight` slows the fade rather than raising the level, which is cognitum §5.6's
+"emotional peak decays more slowly". A charged day still registers a fortnight
+later while the small talk around it has gone, but it never reads as more
+present than something that just happened.
+
+The boosts are cognitum's P6 — "old thoughts can return when a trigger matches
+their topic" — with `People` added, so a memory can also surface because of who
+is in the room. Matching is keyword-set overlap rather than embeddings, which
+would need a model call per memory per message and somewhere to keep the
+vectors. It matches words rather than meanings, so a memory about "the purge
+rules" will not surface for "channel cleanup": a worse recall than a real one
+and a much better one than none.
+
+Nothing writes memories yet. The read path is complete and tested first
+deliberately — if the background call that writes them never works on these
+relays, everything else still holds and the feature degrades to remembering
+nothing new rather than breaking.
+
 ### How she is doing
 
 `mind.Drives` is three numbers — Social, Energy, Interest — derived on read
