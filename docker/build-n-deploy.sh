@@ -4,12 +4,32 @@ set -euo pipefail
 
 DOCKER_COMPOSE_COMMAND="docker compose -f docker-compose.yml up -d"
 
-# Step 1: Load .env
+# Step 1: Load the few settings this script needs.
+#
+# Read, not sourced. `source .env` executes every line as shell, so a value
+# containing a pipe is parsed as a pipeline: CHAT_BACKENDS entries are
+# name|url|model by design, and sourcing one produced "http://g4f:8080/v1: No
+# such file or directory" and killed the deploy. Docker Compose reads this same
+# file literally, and so does this.
+#
+# Only ALIAS, GIT and GIT_URL are needed here. Everything else in .env is for
+# the container, and compose passes it through itself.
 echo "1. Loading env..."
-if [ -f .env ]; then
-    source .env
-else
+if [ ! -f .env ]; then
     echo "ERROR: .env file not found!"
+    exit 1
+fi
+
+read_env() {
+    sed -n "s/^[[:space:]]*$1=//p" .env | tail -n 1 | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//"
+}
+
+ALIAS=$(read_env ALIAS)
+GIT=$(read_env GIT)
+GIT_URL=$(read_env GIT_URL)
+
+if [ -z "$ALIAS" ]; then
+    echo "ERROR: ALIAS is not set in .env — it names the image and the container."
     exit 1
 fi
 

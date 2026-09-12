@@ -1,10 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/caarlos0/env/v11"
@@ -184,4 +186,45 @@ func TestEnvExampleParsingRejectsABadValue(t *testing.T) {
 	if err := env.ParseWithOptions(&cfg, env.Options{Environment: values}); err == nil {
 		t.Error("a spliced duration parsed cleanly; this check would not have caught the real thing")
 	}
+}
+
+// botSettingsMarker ends the deploy-only preamble in the Docker env example.
+// Everything after it is the bot's own configuration.
+const botSettingsMarker = "#=========================== BOT SETTINGS BELOW =============================\n\n"
+
+// The Docker example is the root example with a deploy preamble in front, and
+// the two halves have to stay identical.
+//
+// They drifted almost immediately once they were maintained by hand: the same
+// setting acquired different explanations in each file, one gained a paragraph
+// the other never got, and the copy an operator actually deploys from was the
+// stale one. Whichever file a change lands in, it has to land in both.
+func TestEnvExamplesShareTheirBotSettings(t *testing.T) {
+	root := readRepoFile(t, rootEnvPath)
+	docker := readRepoFile(t, dockerEnvPath)
+
+	_, botSettings, found := strings.Cut(docker, botSettingsMarker)
+	if !found {
+		t.Fatalf("%s has no deploy/bot divider; expected the line %q", dockerEnvPath, strings.TrimSpace(botSettingsMarker))
+	}
+
+	if botSettings != root {
+		t.Errorf("the bot half of %s has drifted from %s.\n"+
+			"Regenerate it: deploy preamble, the divider, then %s verbatim.\n%s",
+			dockerEnvPath, rootEnvPath, rootEnvPath, firstDifference(root, botSettings))
+	}
+}
+
+// firstDifference reports where two versions of the file diverge, because a
+// diff of two 170-line files is unreadable in a test failure.
+func firstDifference(want, got string) string {
+	wantLines, gotLines := strings.Split(want, "\n"), strings.Split(got, "\n")
+	for i := 0; i < len(wantLines) && i < len(gotLines); i++ {
+		if wantLines[i] != gotLines[i] {
+			return fmt.Sprintf("first difference at line %d of the bot section:\n  root:   %q\n  docker: %q",
+				i+1, wantLines[i], gotLines[i])
+		}
+	}
+	return fmt.Sprintf("one file is longer: root has %d lines, docker's bot section has %d",
+		len(wantLines), len(gotLines))
 }

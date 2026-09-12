@@ -15,6 +15,20 @@ The deployment uses Docker Compose. The build expects the project source either 
 
 ## Configuration
 
+`.env.example` here is in two parts, divided by a `BOT SETTINGS BELOW` line.
+Above it is deploy-only — `ALIAS`, `GIT`, `GIT_URL` — which configures
+`build-n-deploy.sh` and `docker-compose.yml` and never reaches the bot. Below it
+is byte-identical to `.env.example` in the repository root, and a test keeps it
+that way, so **edit the root file** and regenerate this one rather than changing
+the copy.
+
+Values are read literally, not evaluated. `build-n-deploy.sh` reads the three
+settings it needs rather than sourcing the file, because sourcing executes every
+line as shell: a `CHAT_BACKENDS` value contains pipes and was parsed as a
+pipeline, and a token containing `$(...)` would have been run. Quote any value
+containing `|`, `$` or spaces anyway — anything else that reads this file may
+not be as careful.
+
 Copy `.env.example` to `.env` in this directory and set at least:
 
 - `DISCORD_TOKEN` — your bot token (required)
