@@ -89,6 +89,16 @@ services:
     container_name: ${ALIAS}-g4f
     image: hlohaus789/g4f:latest-slim
     restart: always
+    # The image's own default is `python -m g4f --port 8080`, which its CLI no
+    # longer accepts: --port moved under the `api` subcommand, so the bare 8080
+    # is read as the mode, fails the choice check, and the exception handler
+    # falls back to *tray* mode — which then dies on "Bad display name" looking
+    # for an X server in a headless container. Naming the mode explicitly fixes
+    # that and keeps working if upstream repairs its Dockerfile.
+    #
+    # Binding 0.0.0.0 rather than localhost is what lets the bot's container
+    # reach it across the chat network.
+    command: ["python", "-m", "g4f", "api", "--bind", "0.0.0.0:8080"]
     volumes:
       - ./data/g4f/har_and_cookies:/app/har_and_cookies
       - ./data/g4f/generated_media:/app/generated_media

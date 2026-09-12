@@ -136,6 +136,15 @@ hosted relay backends in the pool that will answer 402 from a server, and their
 errors are what fills the log. Keep a second
 entry in `CHAT_BACKENDS` so she has somewhere to fall back to.
 
+The compose file overrides the image's command. Its own default is
+`python -m g4f --port 8080`, which the current CLI rejects — `--port` moved
+under the `api` subcommand, so the bare `8080` is read as the *mode*, fails,
+and the fallback path starts **tray** mode, which dies looking for an X server
+with `Xlib.error.DisplayNameError: Bad display name ""`. The traceback names
+pystray and Xlib and looks nothing like an argument error, so it is worth
+knowing what it really is. Naming the mode explicitly avoids it, and keeps
+working if upstream repairs its Dockerfile.
+
 Cookies and routing config live in `./data/g4f/har_and_cookies`, owned by uid
 1000 because that is who the container runs as. `build-n-deploy.sh` creates it.
 A `config.yaml` there defines named models with provider fallback — see
