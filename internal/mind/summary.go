@@ -11,6 +11,7 @@ import (
 const (
 	gistPrefix   = "gist:"
 	detailPrefix = "detail:"
+	tonePrefix   = "tone:"
 	// maxGistChars and maxDetailChars bound what is stored. A model told to
 	// write one clause sometimes writes a paragraph, and this is the only
 	// place that text is ever read back.
@@ -29,10 +30,11 @@ const (
 // backends are weaker and flakier than that. Two prefixed lines split on a
 // colon, survive surrounding chatter, and degrade to "no memory this time"
 // rather than to a parse error.
-const summaryInstruction = `You are keeping a private note of what just happened in this channel, for your own memory later. Write exactly two lines and nothing else:
+const summaryInstruction = `You are keeping a private note of what just happened in this channel, for your own memory later. Write exactly three lines and nothing else:
 
 GIST: a single short clause naming what happened, under a dozen words
 DETAIL: one or two sentences with the specifics worth remembering
+TONE: one word — warm, ordinary, tense or hostile — for how it felt to be in
 
 Write it as a note to yourself, not as a report to anyone. No preamble, no commentary, no quotation marks.`
 
@@ -73,7 +75,9 @@ func SummaryPrompt(turns []Turn) []ai.Message {
 // or with the model's own preamble above them. Only a missing gist is a
 // failure, and the failure is silence rather than an error — a memory that
 // cannot be read is simply not remembered.
-func ParseSummary(reply string) (gist, detail string, ok bool) {
+func ParseSummary(reply string) (gist, detail string, tone Tone, ok bool) {
+	tone = ToneOrdinary
+
 	for _, line := range strings.Split(reply, "\n") {
 		clean := strings.TrimSpace(line)
 		clean = strings.Trim(clean, "*_`#-> ")
@@ -84,13 +88,88 @@ func ParseSummary(reply string) (gist, detail string, ok bool) {
 			gist = tidySummary(clean[len(gistPrefix):])
 		case strings.HasPrefix(lower, detailPrefix) && detail == "":
 			detail = tidySummary(clean[len(detailPrefix):])
+		case strings.HasPrefix(lower, tonePrefix):
+			tone = ParseTone(tidySummary(clean[len(tonePrefix):]))
 		}
 	}
 
+	// A missing tone is not a failure. Asking for a third line makes a
+	// malformed reply marginally likelier, and losing the whole memory over
+	// the one optional field would be the wrong trade.
 	if gist == "" {
-		return "", "", false
+		return "", "", ToneOrdinary, false
 	}
-	return trimTo(gist, maxGistChars), trimTo(detail, maxDetailChars), true
+	return trimTo(gist, maxGistChars), trimTo(detail, maxDetailChars), tone, true
+}
+
+// Tone is how a conversation felt, as the summariser read it.
+//
+// A closed vocabulary rather than free text, because this is acted on rather
+// than displayed: four words map onto numbers, and anything a model invents
+// outside them maps onto ToneOrdinary and changes nothing. It is the only
+// judgement in this design a model is asked to make, and it is asked once per
+// conversation rather than once per message — which is the difference between
+// affordable and not.
+type Tone string
+
+const (
+	ToneOrdinary Tone = "ordinary"
+	ToneWarm     Tone = "warm"
+	ToneTense    Tone = "tense"
+	ToneHostile  Tone = "hostile"
+)
+
+// ParseTone maps a reported tone onto the vocabulary, defaulting to ordinary.
+//
+// Unrecognised input is not an error. A tone nobody can read means the
+// conversation is remembered as unremarkable, which is the safe direction: the
+// alternative is a misread word moving a dial nobody can trace.
+func ParseTone(s string) Tone {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case string(ToneWarm):
+		return ToneWarm
+	case string(ToneTense):
+		return ToneTense
+	case string(ToneHostile):
+		return ToneHostile
+	default:
+		return ToneOrdinary
+	}
+}
+
+// WeighTone adjusts a computed weight by how the conversation felt.
+//
+// Length and headcount miss the short brutal exchange entirely, which is
+// exactly the kind a person remembers longest. A charged conversation is more
+// memorable whichever direction it was charged in, so warm raises it too.
+func WeighTone(weight float64, tone Tone) float64 {
+	switch tone {
+	case ToneHostile:
+		return clamp01(weight + 0.35)
+	case ToneTense:
+		return clamp01(weight + 0.15)
+	case ToneWarm:
+		return clamp01(weight + 0.10)
+	default:
+		return weight
+	}
+}
+
+// ToneIrritation is how much an unpleasant conversation adds to how she feels
+// about the person who was in it.
+//
+// Whether there is anyone to apply it to is the caller's problem, and it is
+// the hard half: a conversation between four people that went badly does not
+// say who made it go badly. See chat.rememberSettled, which refuses to guess.
+func ToneIrritation(tone Tone) float64 {
+	switch tone {
+	case ToneHostile:
+		return 0.4
+	case ToneTense:
+		return 0.2
+	default:
+		return 0
+	}
 }
 
 // tidySummary strips the punctuation a model wraps around a labelled value.

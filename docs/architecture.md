@@ -333,8 +333,27 @@ JSON. The experiment this design came from asked for JSON and failed to parse
 weaker. Prefixed lines split on a colon, survive a model's preamble and
 markdown, and degrade to "no memory this time" rather than to an error.
 
-`Weight` and the participants are computed in Go from the transcript, not asked
-of the model. Asking costs another line to parse and "rate the emotional weight
+The summariser also reports a `TONE` — one of warm, ordinary, tense or hostile.
+It is the only judgement in this design a model is asked to make, and it is
+affordable because it is asked once per conversation rather than once per
+message, and it rides along with a call that was being made anyway. A closed
+vocabulary because it is acted on rather than displayed; anything outside it
+reads as ordinary and changes nothing, which is the safe direction when the
+alternative is a misread word moving a dial nobody can trace.
+
+Tone does two things. It adjusts the memory's weight, because length and
+headcount miss the short brutal exchange entirely and that is the kind a person
+remembers longest — and a warm conversation is charged too, so it lengthens as
+well. And when the tone was unpleasant **and exactly one other person was
+there**, it carries into how she feels about them.
+
+That condition is the whole of the attribution problem. A four-way row that
+went badly does not say who made it go badly, and a model asked "who was
+unpleasant" answers that worse than not asking. With company it moves nothing
+and the conversation is merely remembered as a heavy one.
+
+`Weight` and the participants are otherwise computed in Go from the transcript,
+not asked of the model. Asking costs another line to parse and "rate the emotional weight
 of this conversation" is exactly the question a small model answers confidently
 and arbitrarily; length, how many people were drawn in and how much was aimed
 at her are observable and about as predictive.

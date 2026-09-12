@@ -1114,3 +1114,68 @@ func TestIrritationRemembersTheEpisodeOnce(t *testing.T) {
 		t.Errorf("recorded %d memories for one episode", pushes)
 	}
 }
+
+// A four-way row that went badly does not say who made it go badly, and a
+// model asked "who was unpleasant" answers that worse than not asking.
+func TestToneOnlyBecomesPersonalWithOnePersonInTheRoom(t *testing.T) {
+	now := time.Now()
+
+	t.Run("one person", func(t *testing.T) {
+		store := testStore(t)
+		svc := newTestService(t, store, 0)
+
+		svc.takeItPersonally(testGuild, []string{"u1"}, mind.ToneHostile, now)
+
+		if got := svc.irritationWith(testGuild, "u1", now); got <= 0 {
+			t.Errorf("a hostile one-to-one left irritation at %.2f", got)
+		}
+	})
+
+	t.Run("a crowd", func(t *testing.T) {
+		store := testStore(t)
+		svc := newTestService(t, store, 0)
+
+		svc.takeItPersonally(testGuild, []string{"u1", "u2", "u3"}, mind.ToneHostile, now)
+
+		for _, id := range []string{"u1", "u2", "u3"} {
+			if got := svc.irritationWith(testGuild, id, now); got != 0 {
+				t.Errorf("%s was blamed for a group row: %.2f", id, got)
+			}
+		}
+	})
+
+	t.Run("a pleasant conversation", func(t *testing.T) {
+		store := testStore(t)
+		svc := newTestService(t, store, 0)
+
+		svc.takeItPersonally(testGuild, []string{"u1"}, mind.ToneWarm, now)
+
+		if got := svc.irritationWith(testGuild, "u1", now); got != 0 {
+			t.Errorf("a warm conversation made her cross: %.2f", got)
+		}
+	})
+}
+
+func TestRememberedToneLengthensTheMemory(t *testing.T) {
+	store := testStore(t)
+	optIn(t, store)
+	svc := rememberingService(t, store,
+		"GIST: the row\nDETAIL: it went badly.\nTONE: hostile", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+	svc.rememberSettled(context.Background())
+
+	got := store.MindMemories(testGuild, testChannel)
+	if len(got) != 1 {
+		t.Fatalf("stored %d memories", len(got))
+	}
+
+	plain := mind.WeighMoment(conversation(worthRemembering, time.Now()))
+	if got[0].Weight <= plain {
+		t.Errorf("a hostile conversation weighed %.2f, no more than an ordinary %.2f",
+			got[0].Weight, plain)
+	}
+}

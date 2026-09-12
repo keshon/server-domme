@@ -14,7 +14,7 @@ func turn(user, name, content string, at time.Time) Turn {
 // failed to parse a third of its structured replies against a model it
 // controlled.
 func TestParseSummaryReadsTheLabelledLines(t *testing.T) {
-	gist, detail, ok := ParseSummary(
+	gist, detail, _, ok := ParseSummary(
 		"GIST: argument about the purge rules\nDETAIL: cass and newbie went at it for an hour.")
 	if !ok {
 		t.Fatal("failed to parse a well-formed reply")
@@ -37,7 +37,7 @@ func TestParseSummaryToleratesDecoration(t *testing.T) {
 		"bulleted":      "- GIST: the rules row\n- DETAIL: it ran late.",
 	} {
 		t.Run(name, func(t *testing.T) {
-			gist, _, ok := ParseSummary(reply)
+			gist, _, _, ok := ParseSummary(reply)
 			if !ok {
 				t.Fatalf("failed to parse: %q", reply)
 			}
@@ -56,7 +56,7 @@ func TestParseSummaryFailsQuietlyWithoutAGist(t *testing.T) {
 		"DETAIL: plenty of detail and nothing to call it",
 		"{\"gist\": \"json instead\"}",
 	} {
-		if _, _, ok := ParseSummary(reply); ok {
+		if _, _, _, ok := ParseSummary(reply); ok {
 			t.Errorf("claimed to parse %q", reply)
 		}
 	}
@@ -64,7 +64,7 @@ func TestParseSummaryFailsQuietlyWithoutAGist(t *testing.T) {
 
 func TestParseSummaryBoundsWhatItStores(t *testing.T) {
 	long := strings.Repeat("x", maxDetailChars*3)
-	gist, detail, ok := ParseSummary("GIST: " + long + "\nDETAIL: " + long)
+	gist, detail, _, ok := ParseSummary("GIST: " + long + "\nDETAIL: " + long)
 	if !ok {
 		t.Fatal("failed to parse")
 	}
@@ -147,5 +147,68 @@ func TestSummaryPromptCarriesTheTranscriptAndNotTheCharacter(t *testing.T) {
 	}
 	if !strings.Contains(msgs[1].Content, "you: leave them") {
 		t.Errorf("her own turns should be attributed to her: %q", msgs[1].Content)
+	}
+}
+
+func TestParseSummaryReadsTheTone(t *testing.T) {
+	for word, want := range map[string]Tone{
+		"warm":       ToneWarm,
+		"TENSE":      ToneTense,
+		"  hostile ": ToneHostile,
+		"ordinary":   ToneOrdinary,
+	} {
+		_, _, got, ok := ParseSummary("GIST: a thing\nTONE: " + word)
+		if !ok {
+			t.Fatalf("failed to parse with tone %q", word)
+		}
+		if got != want {
+			t.Errorf("tone %q = %q, want %q", word, got, want)
+		}
+	}
+}
+
+// A tone nobody can read means the conversation was unremarkable, which is the
+// safe direction — the alternative is a misread word moving a dial nobody can
+// trace.
+func TestParseSummaryFallsBackToOrdinaryTone(t *testing.T) {
+	for _, reply := range []string{
+		"GIST: a thing",
+		"GIST: a thing\nTONE: incandescent",
+		"GIST: a thing\nTONE:",
+	} {
+		_, _, tone, ok := ParseSummary(reply)
+		if !ok {
+			t.Fatalf("a missing or odd tone lost the whole memory: %q", reply)
+		}
+		if tone != ToneOrdinary {
+			t.Errorf("%q gave tone %q", reply, tone)
+		}
+	}
+}
+
+// Length and headcount miss the short brutal exchange, which is the kind a
+// person remembers longest.
+func TestWeighToneLengthensAChargedConversation(t *testing.T) {
+	base := 0.2
+	if WeighTone(base, ToneOrdinary) != base {
+		t.Error("an ordinary conversation was reweighted")
+	}
+	if WeighTone(base, ToneHostile) <= base {
+		t.Error("a hostile conversation was not made more memorable")
+	}
+	if WeighTone(base, ToneWarm) <= base {
+		t.Error("a warm conversation was not made more memorable")
+	}
+	if got := WeighTone(0.95, ToneHostile); got > 1 {
+		t.Errorf("weight ran past 1: %.2f", got)
+	}
+}
+
+func TestToneIrritationOnlyForTheUnpleasantOnes(t *testing.T) {
+	if ToneIrritation(ToneOrdinary) != 0 || ToneIrritation(ToneWarm) != 0 {
+		t.Error("a pleasant conversation made her cross")
+	}
+	if ToneIrritation(ToneHostile) <= ToneIrritation(ToneTense) {
+		t.Error("hostile should count for more than tense")
 	}
 }

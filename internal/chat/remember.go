@@ -120,7 +120,7 @@ func (s *Service) remembered(ctx context.Context, guildID, channelID string, tur
 		return
 	}
 
-	gist, detail, ok := mind.ParseSummary(reply)
+	gist, detail, tone, ok := mind.ParseSummary(reply)
 	if !ok {
 		s.log.Debug().
 			Str("guild_id", guildID).
@@ -130,13 +130,14 @@ func (s *Service) remembered(ctx context.Context, guildID, channelID string, tur
 		return
 	}
 
+	at := turns[len(turns)-1].At
 	memory := storage.MindMemory{
 		GuildID:   guildID,
 		ChannelID: channelID,
-		At:        turns[len(turns)-1].At,
+		At:        at,
 		Gist:      gist,
 		Detail:    detail,
-		Weight:    mind.WeighMoment(turns),
+		Weight:    mind.WeighTone(mind.WeighMoment(turns), tone),
 		People:    mind.Participants(turns),
 	}
 	if err := s.store.AddMindMemory(memory); err != nil {
@@ -149,8 +150,39 @@ func (s *Service) remembered(ctx context.Context, guildID, channelID string, tur
 		Str("channel_id", channelID).
 		Int("turns", len(turns)).
 		Float64("weight", memory.Weight).
+		Str("tone", string(tone)).
 		Str("gist", gist).
 		Msg("chat_remembered")
+
+	s.takeItPersonally(guildID, memory.People, tone, at)
+}
+
+// takeItPersonally carries an unpleasant conversation into how she feels about
+// the person who was in it.
+//
+// Only when exactly one other person was there. A four-way row that went badly
+// does not say who made it go badly, and a model asked "who was unpleasant"
+// answers that worse than not asking — so with company it moves nothing and
+// the conversation is merely remembered as a heavy one. Attribution is the
+// hard half of this, and guessing it wrong means someone is treated coldly for
+// something they did not do.
+func (s *Service) takeItPersonally(guildID string, people []string, tone mind.Tone, at time.Time) {
+	step := mind.ToneIrritation(tone)
+	if step == 0 || len(people) != 1 {
+		return
+	}
+
+	userID := people[0]
+	level := s.irritationWith(guildID, userID, at) + step
+	if err := s.store.IrritateMindPerson(guildID, userID, level, at); err != nil {
+		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_irritation_record_failed")
+		return
+	}
+	s.log.Info().
+		Str("guild_id", guildID).
+		Str("user_id", userID).
+		Str("tone", string(tone)).
+		Msg("chat_took_it_personally")
 }
 
 // maxLoggedReply caps an unreadable summary in the log. A backend that answers
