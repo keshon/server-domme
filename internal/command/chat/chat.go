@@ -25,6 +25,11 @@ const (
 	subBrief   = "brief"
 	subStatus  = "status"
 	subState   = "state"
+	subForget  = "forget"
+	// optConfirm is the word an administrator has to type out. A button would
+	// be one click from the same mistake, and this is not undoable.
+	optConfirm    = "confirm"
+	confirmPhrase = "yes"
 )
 
 // ChatCommand configures the persona and feeds her every message in the
@@ -100,6 +105,19 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Name:        subState,
 				Description: "How she is doing right now, and what that is telling her",
 			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subForget,
+				Description: "Wipe everything she remembers about this server",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        optConfirm,
+						Description: `Type "yes" — this cannot be undone`,
+						Required:    true,
+					},
+				},
+			},
 		},
 	}
 }
@@ -114,7 +132,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status` or `state`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -150,6 +168,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subState:
 		return c.runState(context)
+
+	case subForget:
+		return c.runForget(context, sub)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -277,9 +298,15 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	var b strings.Builder
 	fmt.Fprintf(&b, "**How she is in <#%s>**\n\n", e.ChannelID)
 
-	fmt.Fprintf(&b, "Energy %s  `%.2f`\n", meter(st.Drives.Energy), st.Drives.Energy)
-	fmt.Fprintf(&b, "Alone %s  `%.2f`\n", meter(st.Drives.Social), st.Drives.Social)
-	fmt.Fprintf(&b, "Interest %s  `%.2f`\n", meter(st.Drives.Interest), st.Drives.Interest)
+	// One fenced block rather than a line each. Discord renders labels in a
+	// proportional font, so "Energy" and "Interest" are different widths and
+	// the bars after them do not line up; inside a code block every column
+	// does.
+	b.WriteString("```\n")
+	fmt.Fprintf(&b, "%s\n", gauge("Energy", st.Drives.Energy))
+	fmt.Fprintf(&b, "%s\n", gauge("Alone", st.Drives.Social))
+	fmt.Fprintf(&b, "%s\n", gauge("Interest", st.Drives.Interest))
+	b.WriteString("```\n")
 
 	if st.LastSpokeAt.IsZero() {
 		b.WriteString("\nShe has never spoken in this server.\n")
@@ -294,10 +321,11 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	// The directives verbatim, because they are the part that actually reaches
 	// the model. The numbers above are how they were arrived at.
 	if len(st.Irritated) > 0 {
-		b.WriteString("\n**Short with**\n")
+		b.WriteString("\n**Short with**\n```\n")
 		for _, a := range st.Irritated {
-			fmt.Fprintf(&b, "%s %s  `%.2f`\n", a.Username, meter(a.Level), a.Level)
+			fmt.Fprintf(&b, "%s\n", gauge(a.Username, a.Level))
 		}
+		b.WriteString("```\n")
 	}
 
 	if len(st.StyleDirective) > 0 {
@@ -321,8 +349,23 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 // meterWidth is how many blocks a full bar draws.
 const meterWidth = 10
 
-// meter draws a 0..1 value as a bar, because a column of bare decimals is
-// harder to read at a glance than the shape of them.
+// labelWidth is what every gauge label is padded to, so the bars all start in
+// the same column.
+const labelWidth = 9
+
+// gauge draws one labelled 0..1 value, for use inside a code block.
+//
+// The label is padded rather than left where it falls: a column of bare
+// decimals is harder to read at a glance than the shape of them, and that only
+// holds if the shapes are in a column.
+func gauge(label string, v float64) string {
+	if len([]rune(label)) > labelWidth {
+		label = string([]rune(label)[:labelWidth])
+	}
+	return fmt.Sprintf("%-*s %s  %.2f", labelWidth, label, meter(v), v)
+}
+
+// meter draws a 0..1 value as a bar.
 func meter(v float64) string {
 	filled := int(v*meterWidth + 0.5)
 	if filled < 0 {
@@ -331,5 +374,42 @@ func meter(v float64) string {
 	if filled > meterWidth {
 		filled = meterWidth
 	}
-	return "`" + strings.Repeat("█", filled) + strings.Repeat("░", meterWidth-filled) + "`"
+	return strings.Repeat("█", filled) + strings.Repeat("░", meterWidth-filled)
+}
+
+// runForget wipes what she remembers about this server.
+//
+// The confirmation is a typed word rather than a button because this cannot be
+// undone and there is no copy: a button is one misclick from erasing weeks of
+// a character's history, and an administrator who has typed "yes" has at least
+// read the sentence above it.
+func (c *ChatCommand) runForget(
+	context *cmdadapter.SlashInteractionContext,
+	sub *discordgo.ApplicationCommandInteractionDataOption,
+) error {
+	s, e, store := context.Session, context.Event, context.Storage
+
+	var confirm string
+	for _, opt := range sub.Options {
+		if opt.Name == optConfirm {
+			confirm = strings.TrimSpace(strings.ToLower(opt.StringValue()))
+		}
+	}
+	if confirm != confirmPhrase {
+		return respond(s, e, fmt.Sprintf(
+			"Nothing was touched. To wipe what she remembers about this server, "+
+				"run `/chat forget confirm:%s` — it cannot be undone.", confirmPhrase))
+	}
+
+	forgotten, err := store.ForgetMindMemories(e.GuildID)
+	if err != nil {
+		return fmt.Errorf("chat: forget memories: %w", err)
+	}
+
+	return respond(s, e, fmt.Sprintf(
+		"Forgotten: %d things she remembered about this server, and anything she "+
+			"was holding against anyone in it.\n\n"+
+			"She still knows who is a regular and who is new — that is counted from "+
+			"messages, not remembered, and wiping it would turn everyone here into a "+
+			"stranger.", forgotten))
 }

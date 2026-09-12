@@ -218,3 +218,50 @@ func (s *Storage) IrritateMindPerson(guildID, userID string, level float64, at t
 		return col.Put(person)
 	})
 }
+
+// ForgetMindMemories deletes everything she remembers about a guild, and
+// clears what she holds against the people in it. It reports how many memories
+// went.
+//
+// Irritation goes with the memories deliberately. Clearing one without the
+// other leaves her short with someone for a reason she can no longer name,
+// which is the exact failure the irritation memory was added to prevent — a
+// feeling with no cause attached.
+//
+// Message counts and first-seen stamps survive. Those are how she knows a
+// regular from a stranger, and wiping them turns everyone in the server into a
+// newcomer, which is a much larger thing than an administrator asking her to
+// forget what happened.
+func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
+	if guildID == "" {
+		return 0, fmt.Errorf("storage: forget memories needs a guild")
+	}
+
+	var forgotten int
+	err := s.db.Update(func(tx *datastore.Tx) error {
+		memories := datastore.In(tx, s.mindMemories)
+		for _, m := range datastore.InIndex(tx, s.mindMemoriesByGuild).Find(guildID) {
+			if err := memories.Delete(m.Key()); err != nil {
+				return err
+			}
+			forgotten++
+		}
+
+		people := datastore.In(tx, s.mindPeople)
+		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
+			if p.Irritation == 0 && p.IrritatedAt.IsZero() {
+				continue
+			}
+			p.Irritation = 0
+			p.IrritatedAt = time.Time{}
+			if err := people.Put(p); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("storage: forget memories: %w", err)
+	}
+	return forgotten, nil
+}

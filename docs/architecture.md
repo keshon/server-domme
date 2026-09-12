@@ -262,7 +262,20 @@ subject comes up, and needs no special case in recall. Once per episode rather
 than once per push, or the store fills with the same sentence.
 
 `/chat state` shows all of it: the drives as bars, what they are nudging, who
-she is short with, and both sets of directives verbatim.
+she is short with, and both sets of directives verbatim. The bars go inside a
+fenced block because Discord renders labels proportionally, so "Energy" and
+"Interest" are different widths and the columns after them do not line up
+otherwise.
+
+`/chat forget confirm:yes` wipes what she remembers about a guild, and what she
+holds against the people in it. Irritation goes with the memories rather than
+outliving them: clearing one and not the other leaves her short with someone
+for a reason she can no longer name, which is the failure the irritation memory
+was added to prevent. Message counts survive, because they are how she knows a
+regular from a stranger and wiping them makes everyone in the server new — a
+much larger thing than being asked to forget what happened. The confirmation is
+a typed word rather than a button, because this cannot be undone and there is
+no copy.
 
 ### What she remembers
 

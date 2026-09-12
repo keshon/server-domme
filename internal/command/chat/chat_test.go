@@ -3,6 +3,8 @@ package chat
 import (
 	"strings"
 	"testing"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 // Being switched off and failing to start produce the same silence in a
@@ -82,13 +84,13 @@ func TestEverySubcommandIsOfferedToDiscord(t *testing.T) {
 		offered[opt.Name] = true
 	}
 
-	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState} {
+	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState, subForget} {
 		if !offered[name] {
 			t.Errorf("%q is handled in Run but never offered in SlashDefinition, so nobody can run it", name)
 		}
 	}
-	if len(offered) != 5 {
-		t.Errorf("SlashDefinition offers %d subcommands, want 5 — an unhandled one fails closed", len(offered))
+	if len(offered) != 6 {
+		t.Errorf("SlashDefinition offers %d subcommands, want 6 — an unhandled one fails closed", len(offered))
 	}
 }
 
@@ -100,5 +102,51 @@ func TestEverySubcommandIsDescribed(t *testing.T) {
 		if strings.TrimSpace(opt.Description) == "" {
 			t.Errorf("subcommand %q has no description", opt.Name)
 		}
+	}
+}
+
+func TestGaugesLineUp(t *testing.T) {
+	lines := []string{
+		gauge("Energy", 0.81),
+		gauge("Alone", 0.04),
+		gauge("Interest", 0),
+		gauge("SomebodyWithALongName", 0.5),
+	}
+
+	want := strings.Index(lines[0], "█")
+	if want < 0 {
+		want = strings.Index(lines[0], "░")
+	}
+	for _, line := range lines[1:] {
+		at := strings.IndexAny(line, "█░")
+		if at != want {
+			t.Errorf("bar starts at column %d, want %d:\n%s", at, want, line)
+		}
+	}
+}
+
+// Wiping a character's history cannot be undone and there is no copy, so it
+// takes a typed word rather than a click.
+func TestForgetIsGuardedByATypedWord(t *testing.T) {
+	var confirmOpt *discordgo.ApplicationCommandOption
+	for _, opt := range (&ChatCommand{}).SlashDefinition().Options {
+		if opt.Name != subForget {
+			continue
+		}
+		for _, inner := range opt.Options {
+			if inner.Name == optConfirm {
+				confirmOpt = inner
+			}
+		}
+	}
+
+	if confirmOpt == nil {
+		t.Fatal("forget has no confirm option, so a stray click wipes the lot")
+	}
+	if !confirmOpt.Required {
+		t.Error("the confirmation is optional, which makes it decoration")
+	}
+	if confirmOpt.Type != discordgo.ApplicationCommandOptionString {
+		t.Errorf("confirm is a %v, want a string the admin has to type", confirmOpt.Type)
 	}
 }

@@ -255,3 +255,75 @@ func TestMindMemoryWeightAndPeopleSurviveARoundTrip(t *testing.T) {
 		t.Errorf("People = %v, want two of them", got[0].People)
 	}
 }
+
+func TestForgetMindMemoriesClearsMemoriesAndIrritation(t *testing.T) {
+	store := newTestStore(t)
+
+	for _, gist := range []string{"one", "two"} {
+		if err := store.AddMindMemory(MindMemory{GuildID: "g1", ChannelID: "c1", Gist: gist}); err != nil {
+			t.Fatalf("AddMindMemory: %v", err)
+		}
+	}
+	if err := store.IrritateMindPerson("g1", "u1", 0.8, time.Now()); err != nil {
+		t.Fatalf("IrritateMindPerson: %v", err)
+	}
+
+	forgotten, err := store.ForgetMindMemories("g1")
+	if err != nil {
+		t.Fatalf("ForgetMindMemories: %v", err)
+	}
+	if forgotten != 2 {
+		t.Errorf("reported %d forgotten, want 2", forgotten)
+	}
+	if got := store.MindMemories("g1", "c1"); len(got) != 0 {
+		t.Errorf("still remembers %d things", len(got))
+	}
+
+	// A feeling with no cause attached is the thing this avoids.
+	person := store.GetMindPerson("g1", "u1")
+	if person == nil {
+		t.Fatal("the person record went too")
+	}
+	if person.Irritation != 0 {
+		t.Errorf("still annoyed at %.2f with nothing to point at", person.Irritation)
+	}
+}
+
+// How she knows a regular from a stranger is not something an administrator
+// asking her to forget an argument meant to erase.
+func TestForgetMindMemoriesKeepsWhoPeopleAre(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Now()
+
+	for i := 0; i < 5; i++ {
+		if _, err := store.SeeMindPerson("g1", "u1", "cass", now); err != nil {
+			t.Fatalf("SeeMindPerson: %v", err)
+		}
+	}
+
+	if _, err := store.ForgetMindMemories("g1"); err != nil {
+		t.Fatalf("ForgetMindMemories: %v", err)
+	}
+
+	person := store.GetMindPerson("g1", "u1")
+	if person == nil || person.Messages != 5 {
+		t.Errorf("lost how well she knows them: %+v", person)
+	}
+}
+
+func TestForgetMindMemoriesLeavesOtherGuildsAlone(t *testing.T) {
+	store := newTestStore(t)
+
+	for _, guild := range []string{"g1", "g2"} {
+		if err := store.AddMindMemory(MindMemory{GuildID: guild, ChannelID: "c1", Gist: "a thing"}); err != nil {
+			t.Fatalf("AddMindMemory: %v", err)
+		}
+	}
+
+	if _, err := store.ForgetMindMemories("g1"); err != nil {
+		t.Fatalf("ForgetMindMemories: %v", err)
+	}
+	if got := store.MindMemories("g2", "c1"); len(got) != 1 {
+		t.Errorf("reached into another guild: %d memories left", len(got))
+	}
+}
