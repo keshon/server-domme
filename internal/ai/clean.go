@@ -68,6 +68,13 @@ var quotePairs = [][2]string{
 // prompt, where the model can act on it, not in a regex that silently mangles
 // a reply the character meant to give.
 func Clean(reply string) string {
+	// Checked first. The speaker-prefix strip below removes a one-word label
+	// and its colon, so by the time it has run "Moderation: ok" is just "ok"
+	// and indistinguishable from speech.
+	if isControlArtifact(reply) {
+		return ""
+	}
+
 	reply = thinkBlock.ReplaceAllString(reply, "")
 	reply = unclosedThink.ReplaceAllString(reply, "")
 	reply = strings.TrimSpace(reply)
@@ -79,6 +86,23 @@ func Clean(reply string) string {
 	reply = stripWrappingQuotes(reply)
 
 	return truncate(reply, MaxReplyChars)
+}
+
+// controlArtifact matches a relay leaking its own moderation scaffolding as a
+// reply — "User Safety: safe" — which arrives as a perfectly well-formed HTTP
+// 200 and reaches the channel verbatim. Observed repeatedly from one backend
+// while testing the character.
+//
+// Matched on the known vocabulary rather than on the shape. The first attempt
+// matched any short "Label: value" and threw away "the answer is: no", which
+// is a real thing to say; a false positive here is silence with no explanation,
+// so the guard is narrow and lets an unknown artifact through rather than
+// risking that.
+var controlArtifact = regexp.MustCompile(
+	`(?i)^\s*(user\s+)?(safety|moderation|content\s+filter|policy|compliance|flagged)\s*:\s*[\w-]+\s*$`)
+
+func isControlArtifact(reply string) bool {
+	return controlArtifact.MatchString(strings.TrimSpace(reply))
 }
 
 // stripWrappingQuotes removes one matched pair enclosing the whole reply. A

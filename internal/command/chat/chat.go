@@ -24,6 +24,7 @@ const (
 	subSilence = "silence"
 	subBrief   = "brief"
 	subStatus  = "status"
+	subState   = "state"
 )
 
 // ChatCommand configures the persona and feeds her every message in the
@@ -108,7 +109,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief` or `status`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status` or `state`.")
 	}
 	sub := data.Options[0]
 
@@ -141,6 +142,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subStatus:
 		return c.runStatus(context)
+
+	case subState:
+		return c.runState(context)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -254,4 +258,66 @@ func respond(s *discordgo.Session, e *discordgo.InteractionCreate, msg string) e
 		Description: msg,
 		Color:       reply.EmbedColor,
 	})
+}
+
+// runState reports the character's current inner state.
+//
+// Every number here is derived at the moment it is asked for, from the same
+// call the prompt uses, so what an administrator reads is what the model was
+// told rather than a second copy that can drift from it.
+func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) error {
+	s, e := context.Session, context.Event
+	st := c.Service.StateIn(e.GuildID, e.ChannelID)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "**How she is in <#%s>**\n\n", e.ChannelID)
+
+	fmt.Fprintf(&b, "Energy %s  `%.2f`\n", meter(st.Drives.Energy), st.Drives.Energy)
+	fmt.Fprintf(&b, "Alone %s  `%.2f`\n", meter(st.Drives.Social), st.Drives.Social)
+	fmt.Fprintf(&b, "Interest %s  `%.2f`\n", meter(st.Drives.Interest), st.Drives.Interest)
+
+	if st.LastSpokeAt.IsZero() {
+		b.WriteString("\nShe has never spoken in this server.\n")
+	} else {
+		fmt.Fprintf(&b, "\nLast spoke here: <t:%d:R>\n", st.LastSpokeAt.Unix())
+	}
+
+	fmt.Fprintf(&b, "Odds of answering an indirect approach: %+.0f%%\n", st.Nudge*100)
+	fmt.Fprintf(&b, "Remembers %d things here, %d bright enough to come up now\n",
+		st.Memories, st.Recalled)
+
+	// The directives verbatim, because they are the part that actually reaches
+	// the model. The numbers above are how they were arrived at.
+	if len(st.StyleDirective) > 0 {
+		b.WriteString("\n**How she sounds** (from the character file)\n")
+		for _, line := range st.StyleDirective {
+			b.WriteString("- " + line + "\n")
+		}
+	}
+	if len(st.Directives) > 0 {
+		b.WriteString("\n**Right now** (computed, changes on its own)\n")
+		for _, line := range st.Directives {
+			b.WriteString("- " + line + "\n")
+		}
+	} else {
+		b.WriteString("\nNothing about her mood is pronounced enough to be worth telling her.\n")
+	}
+
+	return respond(s, e, b.String())
+}
+
+// meterWidth is how many blocks a full bar draws.
+const meterWidth = 10
+
+// meter draws a 0..1 value as a bar, because a column of bare decimals is
+// harder to read at a glance than the shape of them.
+func meter(v float64) string {
+	filled := int(v*meterWidth + 0.5)
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > meterWidth {
+		filled = meterWidth
+	}
+	return "`" + strings.Repeat("█", filled) + strings.Repeat("░", meterWidth-filled) + "`"
 }

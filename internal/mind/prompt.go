@@ -124,6 +124,18 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 	sb.WriteString("\n")
 	sb.WriteString(outputRules)
 
+	// Temperament above mood: what she is like generally, then what she is
+	// like today. The more transient thing takes the later and stronger
+	// position, because it is the one that should win when they disagree.
+	if c != nil {
+		if style := c.Style.Directives(); len(style) > 0 {
+			sb.WriteString("\n\nHow you sound:\n")
+			for _, line := range style {
+				sb.WriteString("- " + line + "\n")
+			}
+		}
+	}
+
 	// Last, alone, and phrased as instructions. Everything above is either who
 	// she is or where she is; this is the only part of the prompt that tells
 	// her to write this message differently from the last one, and it earns

@@ -348,6 +348,21 @@ sentences when awake. At most two directives, and only when the state is
 pronounced: a list of qualifications on every reply is how a strong instruction
 becomes a weak one.
 
+Above the mood sits `mind.SpeechStyle`, the settled temperament, read from the
+character file's `## Temper` section as dials on 0..1. Same machinery, one
+layer up and one layer more stable: temperament is what she is like generally,
+mood is what she is like today, and the more transient of the two takes the
+later and stronger position so it wins when they disagree.
+
+Dials rather than a named reference. "Write like <famous person>" is a large
+prior in very few tokens, which is its whole appeal, but it composes badly —
+set against a mood directive the model picks whichever prior is stronger
+instead of combining them — and it imports everything else about that person,
+which here would contradict a character whose first paragraph is that she is
+not a performer. A dial is tunable; a name is a coin flip on which version of
+them the model has in mind. Only dials set away from the middle produce a line,
+so a file that configures two of them costs two lines rather than five.
+
 This is what keeps the character file from being a constant. The persona is
 static by design, because its properties were measured and are worth keeping
 fixed; what varies per message is the block underneath it.

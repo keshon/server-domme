@@ -47,3 +47,27 @@ func TestTrimForEmbedFlattensAndCuts(t *testing.T) {
 		t.Errorf("trimForEmbed left %d chars, want it cut to %d", len(long), maxBackendErrorChars)
 	}
 }
+
+func TestMeterDrawsTheRangeAndClampsOutsideIt(t *testing.T) {
+	empty := meter(0)
+	half := meter(0.5)
+	full := meter(1)
+
+	if strings.Count(empty, "█") != 0 {
+		t.Errorf("meter(0) = %s, want no blocks", empty)
+	}
+	if strings.Count(full, "█") != meterWidth {
+		t.Errorf("meter(1) = %s, want a full bar", full)
+	}
+	if n := strings.Count(half, "█"); n != meterWidth/2 {
+		t.Errorf("meter(0.5) drew %d of %d blocks", n, meterWidth)
+	}
+
+	// A drive should never be outside 0..1, but a bar that panics on one
+	// would take the command down with it.
+	for _, v := range []float64{-5, 5} {
+		if got := strings.Count(meter(v), "█"); got < 0 || got > meterWidth {
+			t.Errorf("meter(%v) drew %d blocks", v, got)
+		}
+	}
+}

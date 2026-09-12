@@ -106,3 +106,32 @@ func TestCleanDoesNotEmptyASelfLabelledReply(t *testing.T) {
 		t.Errorf("Clean = %q, want %q", got, "still here")
 	}
 }
+
+// One backend answers a perfectly good HTTP 200 with its own moderation
+// scaffolding. Without a guard it reaches the channel verbatim.
+func TestCleanDropsLeakedControlFields(t *testing.T) {
+	for _, reply := range []string{
+		"User Safety: safe",
+		"Content Filter: passed",
+		"  Moderation: ok  ",
+	} {
+		if got := Clean(reply); got != "" {
+			t.Errorf("Clean(%q) = %q, want it dropped", reply, got)
+		}
+	}
+}
+
+// The guard has to be narrow enough that real speech with a colon survives.
+func TestCleanKeepsSpeechThatHappensToUseAColon(t *testing.T) {
+	for _, reply := range []string{
+		"rule one: read the pins before you ask",
+		"here: https://example.com",
+		"the answer is: no",
+		"no",
+		"unfortunately",
+	} {
+		if got := Clean(reply); got == "" {
+			t.Errorf("Clean(%q) dropped a real reply", reply)
+		}
+	}
+}
