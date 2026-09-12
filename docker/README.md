@@ -125,6 +125,21 @@ be learned on the machine itself:
 docker compose exec app wget -qO- http://g4f:8080/v1/models | head -c 400
 ```
 
+`probe-providers.sh` answers which of them work here:
+
+```bash
+./probe-providers.sh          # every provider, one request each
+./probe-providers.sh all      # named models too
+```
+
+Two things it exploits. `/v1/models` returns provider names as well as model
+names, flagged `"provider": true`, and a provider name is itself valid as a
+`model` — it resolves to that provider's own default. That is the way past a
+model name like `gpt-4o-mini` that turns out to be paywalled at whoever serves
+it. And g4f lists what it *believes* works, which is not what answers from this
+host today, so the script asks rather than reads. It prints a ready-made
+`CHAT_BACKENDS` line from whatever replied.
+
 `/chat status` quotes the last error from any backend that has never succeeded,
 which is the faster way to see what a provider is actually saying. The startup
 log names the pool — `ai_pool_ready backends=4 names=g4f,g4f:openrouter.ai,…` —
