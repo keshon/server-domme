@@ -263,10 +263,38 @@ vectors. It matches words rather than meanings, so a memory about "the purge
 rules" will not surface for "channel cleanup": a worse recall than a real one
 and a much better one than none.
 
-Nothing writes memories yet. The read path is complete and tested first
-deliberately — if the background call that writes them never works on these
-relays, everything else still holds and the feature degrades to remembering
-nothing new rather than breaking.
+`chat.Service.rememberLoop` writes them, on its own goroutine under the
+service's context and never on the path of a reply. Every five minutes it looks
+for channels whose conversation has been quiet for six and runs to at least a
+few turns, and asks one backend to summarise it. Everything about it is
+best-effort: a failed summary means one conversation goes unremembered, which
+nobody can see, where a summary that delayed an answer would be obvious to the
+whole channel. Failures are not held or retried — a deferral exists so a person
+gets their answer late rather than never, and nobody is waiting on a memory.
+
+Waiting for the pause matters. Summarising a conversation still in progress
+produces a memory of half an argument, and then a second memory of the other
+half when it finishes.
+
+Whether a conversation has already been remembered is derived from the stored
+memories rather than from a marker in memory, so a restart cannot pay for the
+same memory twice.
+
+The summary is asked for as two labelled lines, `GIST:` and `DETAIL:`, not as
+JSON. The experiment this design came from asked for JSON and failed to parse
+37% of the replies against a local model it controlled; these backends are
+weaker. Prefixed lines split on a colon, survive a model's preamble and
+markdown, and degrade to "no memory this time" rather than to an error.
+
+`Weight` and the participants are computed in Go from the transcript, not asked
+of the model. Asking costs another line to parse and "rate the emotional weight
+of this conversation" is exactly the question a small model answers confidently
+and arbitrarily; length, how many people were drawn in and how much was aimed
+at her are observable and about as predictive.
+
+The summariser is not given the character file. This is a note being taken, not
+her speaking, and a persona in that prompt produces a memory that is
+entertaining and vague rather than one that is useful weeks later.
 
 ### How she is doing
 

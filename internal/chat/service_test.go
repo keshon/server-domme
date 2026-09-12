@@ -1,10 +1,12 @@
 package chat
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/ai"
 	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
@@ -770,5 +772,165 @@ func TestObserveSeparatesBeingAddressedFromBeingDiscussed(t *testing.T) {
 				t.Errorf("%q = %q, want %q", tc.text, got.item.Trigger, tc.want)
 			}
 		})
+	}
+}
+
+// rememberingService wires a service to a provider that answers summaries with
+// a fixed reply, so the writer can be driven without a backend.
+func rememberingService(t *testing.T, store *storage.Storage, reply string, err error) *Service {
+	t.Helper()
+	return New(Deps{
+		Character: &mind.Character{Name: "Domme", Persona: "someone"},
+		Provider:  stubProvider{reply: reply, err: err},
+		Storage:   store,
+		Session:   func() *discordgo.Session { return nil },
+		Log:       zerolog.Nop(),
+		Roll:      func() float64 { return 0 },
+	})
+}
+
+type stubProvider struct {
+	reply string
+	err   error
+}
+
+func (p stubProvider) Generate(context.Context, []ai.Message) (string, error) {
+	return p.reply, p.err
+}
+
+func conversation(n int, at time.Time) []mind.Turn {
+	turns := make([]mind.Turn, 0, n)
+	for i := 0; i < n; i++ {
+		turns = append(turns, mind.Turn{
+			UserID: "u1", Username: "cass", Content: "something said",
+			At: at.Add(time.Duration(i) * time.Second),
+		})
+	}
+	return turns
+}
+
+func TestRememberSettledWritesAMemory(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store,
+		"GIST: an argument about pins\nDETAIL: it ran long and nobody conceded.", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	got := store.MindMemories(testGuild, testChannel)
+	if len(got) != 1 {
+		t.Fatalf("stored %d memories, want 1", len(got))
+	}
+	if got[0].Gist != "an argument about pins" {
+		t.Errorf("gist = %q", got[0].Gist)
+	}
+	if len(got[0].People) == 0 {
+		t.Error("nobody was recorded as having been there")
+	}
+}
+
+// Summarising mid-conversation produces a memory of half an argument.
+func TestRememberSkipsAConversationStillInProgress(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "GIST: too early\n", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now()) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
+		t.Errorf("remembered a live conversation: %+v", got)
+	}
+}
+
+func TestRememberSkipsAPassingExchange(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "GIST: not worth it\n", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(2, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
+		t.Errorf("remembered two lines of small talk: %+v", got)
+	}
+}
+
+// Deriving this from what is stored rather than from a marker in memory is
+// what stops a restart paying for the same memory twice.
+func TestRememberDoesNotWriteTheSameConversationTwice(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "GIST: the same thing\n", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 1 {
+		t.Errorf("stored %d memories for one conversation", len(got))
+	}
+}
+
+// A memory nobody can read is not an error. Nobody is waiting on it.
+func TestRememberSurvivesAnUnreadableReply(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "I'm sorry, I can't help with that.", nil)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
+		t.Errorf("stored something from an unparseable reply: %+v", got)
+	}
+}
+
+func TestRememberSurvivesABackendFailure(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "", ai.ErrNoBackend)
+
+	svc.noteGuild(testGuild, testChannel)
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
+		t.Errorf("stored a memory despite the backend failing: %+v", got)
+	}
+}
+
+// A channel the bot has not seen a message in this run has no guild to file
+// the memory under.
+func TestRememberSkipsChannelsWithNoKnownGuild(t *testing.T) {
+	store := testStore(t)
+	svc := rememberingService(t, store, "GIST: orphaned\n", nil)
+
+	for _, turn := range conversation(worthRemembering, time.Now().Add(-settleFor-time.Minute)) {
+		svc.conv.Record(testChannel, turn)
+	}
+
+	svc.rememberSettled(context.Background())
+
+	if got := store.MindMemories(testGuild, testChannel); len(got) != 0 {
+		t.Errorf("filed a memory under a guild it could not know: %+v", got)
 	}
 }

@@ -102,6 +102,12 @@ type Service struct {
 	location  *time.Location
 	roll      func() float64
 
+	// guilds maps a channel to the guild it is in, so the memory writer can
+	// store what it finds. The conversation buffer is keyed by channel alone,
+	// and a sweep over it has no other way to know where a channel lives.
+	guildMu sync.RWMutex
+	guilds  map[string]string
+
 	conv       *mind.Conversations
 	deferrals  *mind.Deferrals
 	encounters *mind.Encounters
@@ -146,6 +152,7 @@ func New(d Deps) *Service {
 		budget:     mind.DefaultBudget(),
 		location:   d.Location,
 		roll:       roll,
+		guilds:     make(map[string]string),
 		conv:       mind.NewConversations(),
 		deferrals:  mind.NewDeferrals(),
 		encounters: mind.NewEncounters(),
@@ -169,6 +176,12 @@ func (s *Service) Run(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		s.retryLoop(ctx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.rememberLoop(ctx)
 	}()
 
 	s.log.Info().Int("workers", workers).Msg("chat_service_started")
@@ -231,6 +244,8 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	if !s.store.IsChatChannel(m.GuildID, m.ChannelID) {
 		return
 	}
+
+	s.noteGuild(m.GuildID, m.ChannelID)
 
 	now := time.Now()
 	content := strings.TrimSpace(m.ContentWithMentionsReplaced())
@@ -488,4 +503,22 @@ func displayNameOf(author *discordgo.User, member *discordgo.Member) string {
 		return author.GlobalName
 	}
 	return author.Username
+}
+
+// noteGuild records which guild a channel belongs to.
+func (s *Service) noteGuild(guildID, channelID string) {
+	if guildID == "" || channelID == "" {
+		return
+	}
+	s.guildMu.Lock()
+	s.guilds[channelID] = guildID
+	s.guildMu.Unlock()
+}
+
+// guildOf returns the guild a channel is in, or "" if the bot has not seen a
+// message there this run.
+func (s *Service) guildOf(channelID string) string {
+	s.guildMu.RLock()
+	defer s.guildMu.RUnlock()
+	return s.guilds[channelID]
 }

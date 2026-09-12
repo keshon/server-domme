@@ -205,3 +205,35 @@ func (c *Conversations) evictColdestLocked() {
 		delete(c.seeded, coldest)
 	}
 }
+
+// Channels lists the channels with a conversation in memory.
+//
+// For the memory writer, which has to find rooms worth summarising without
+// being told about them: every channel it should consider is one that has
+// already been talked in, and this is where that is known.
+func (c *Conversations) Channels() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	out := make([]string, 0, len(c.byChanID))
+	for id := range c.byChanID {
+		out = append(out, id)
+	}
+	return out
+}
+
+// All returns a channel's turns regardless of age, oldest first.
+//
+// Recent drops anything past TurnStaleAfter because a stale turn is not live
+// context. A memory is the opposite case: it is written precisely when the
+// conversation has stopped being live, so it needs the turns Recent has
+// already discarded.
+func (c *Conversations) All(channelID string) []Turn {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	turns := c.byChanID[channelID]
+	out := make([]Turn, len(turns))
+	copy(out, turns)
+	return out
+}
