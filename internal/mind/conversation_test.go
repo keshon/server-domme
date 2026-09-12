@@ -27,11 +27,30 @@ func TestConversationsKeepsRecentTurnsInOrder(t *testing.T) {
 // A gap this long means the conversation ended. Replying into yesterday's
 // thread as though it were live is the most visible way a chat bot gets it
 // wrong.
-func TestConversationsDropsStaleTurns(t *testing.T) {
+// A quiet channel is a conversation too. Three messages across an afternoon
+// are one exchange, and cutting at thirty minutes leaves her answering a
+// single line with no idea what it is about.
+func TestConversationsKeepsAQuietChannelsContext(t *testing.T) {
 	c := NewConversations()
 	now := time.Now()
 
-	c.Record("chan", Turn{Content: "ancient history", At: now.Add(-2 * TurnStaleAfter)})
+	c.Record("chan", Turn{Content: "anyone about", At: now.Add(-4 * time.Hour)})
+	c.Record("chan", Turn{Content: "sort of", At: now.Add(-2 * time.Hour)})
+	c.Record("chan", Turn{Content: "so about that thing", At: now})
+
+	got := c.Recent("chan")
+	if len(got) != 3 {
+		t.Fatalf("got %d turns, want all three of a slow conversation: %+v", len(got), got)
+	}
+}
+
+// Past the horizon it is not context, it is history, and Memory renders
+// history.
+func TestConversationsDropsTurnsPastTheHorizon(t *testing.T) {
+	c := NewConversations()
+	now := time.Now()
+
+	c.Record("chan", Turn{Content: "before anyone remembers", At: now.Add(-3 * MaxTurnAge)})
 	c.Record("chan", Turn{Content: "still talking", At: now})
 
 	got := c.Recent("chan")
@@ -40,6 +59,28 @@ func TestConversationsDropsStaleTurns(t *testing.T) {
 	}
 	if got[0].Content != "still talking" {
 		t.Errorf("kept the wrong turn: %q", got[0].Content)
+	}
+}
+
+// In a busy channel the window is what decides, because more than the floor
+// has been said inside it.
+func TestConversationsCutsABusyChannelByTime(t *testing.T) {
+	c := NewConversations()
+	now := time.Now()
+
+	// Recorded in time order, as Record is always called. The old turn comes
+	// first, then well past the count floor of recent chatter, so the floor
+	// no longer reaches back far enough to rescue it.
+	c.Record("chan", Turn{Content: "ancient", At: now.Add(-2 * TurnStaleAfter)})
+	for i := MinLiveTurns * 2; i > 0; i-- {
+		c.Record("chan", Turn{Content: "chatter", At: now.Add(-time.Duration(i) * time.Minute)})
+	}
+	c.Record("chan", Turn{Content: "now", At: now})
+
+	for _, turn := range c.Recent("chan") {
+		if turn.Content == "ancient" {
+			t.Error("a busy channel kept something from before the window")
+		}
 	}
 }
 

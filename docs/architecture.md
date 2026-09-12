@@ -394,6 +394,29 @@ This is what keeps the character file from being a constant. The persona is
 static by design, because its properties were measured and are worth keeping
 fixed; what varies per message is the block underneath it.
 
+### How much of the conversation counts as live
+
+`Conversations.Recent` bounds the live context two ways and takes whichever
+gives more: everything within `TurnStaleAfter` of the newest turn, or the last
+`MinLiveTurns` whatever their age. A busy channel is decided by the window and
+a quiet one by the count.
+
+The time window alone described a busy channel and destroyed a quiet one. Three
+messages across an afternoon are one conversation, and cutting at thirty
+minutes left her answering a single line with nothing around it — which is
+exactly the shape of a small server, where the persona is most likely to be
+used.
+
+The floor would have been a bad idea when the window was written, and it is
+worth knowing why it is safe now. The transcript then carried no time at all,
+so every line read as equally recent and old context genuinely did make her
+answer the wrong thing. `labelled` now stamps the age into any line older than
+`StaleTurnAge`, so an old turn arrives visibly old.
+
+`MaxTurnAge` is the absolute cut. Past it a turn is not context at any count,
+and what is older belongs to `mind.Memory`, which renders it as something
+remembered rather than as something just said.
+
 ### What she knows she missed
 
 The conversation buffer is in memory and starts empty, so on its own she knows

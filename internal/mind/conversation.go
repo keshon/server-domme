@@ -13,10 +13,29 @@ const (
 	// trims again by size later; this only stops one busy channel growing
 	// without limit.
 	maxTurnsPerChannel = 40
-	// TurnStaleAfter is how long a turn stays part of "the conversation".
-	// Older messages are still in the channel, but treating a thread from
-	// yesterday as live context is what makes a bot reply to the wrong thing.
+	// TurnStaleAfter is how long a turn stays part of "the conversation" in a
+	// channel busy enough for that to mean something.
 	TurnStaleAfter = 30 * time.Minute
+	// MinLiveTurns is how many of the most recent turns are kept whatever
+	// their age.
+	//
+	// A time window alone describes a busy channel and destroys a quiet one:
+	// three messages across two days are still one conversation, and cutting
+	// at thirty minutes leaves her answering a single line with no idea what
+	// it is about. The floor is what makes the two cases the same code.
+	//
+	// This would have been a bad idea when TurnStaleAfter was written, because
+	// the transcript then carried no time at all and every line read as
+	// equally recent. labelled() now stamps the age of anything older than
+	// StaleTurnAge into the line itself, so an old turn arrives visibly old
+	// and can be treated as such.
+	MinLiveTurns = 8
+	// MaxTurnAge is the absolute horizon. Past it a turn is not context at any
+	// count: a channel with four messages in a month should not open with
+	// something from before anyone remembers. What is older than this belongs
+	// to the memory layer, which renders it as a memory rather than as
+	// something just said.
+	MaxTurnAge = 24 * time.Hour
 	// maxChannels caps how many channels are tracked at once, so a bot in
 	// many busy guilds cannot grow this map without bound.
 	maxChannels = 512
@@ -145,10 +164,14 @@ func (c *Conversations) Record(channelID string, t Turn) {
 
 // Recent returns the live turns for a channel, oldest first.
 //
-// Turns older than TurnStaleAfter relative to the newest one are dropped: a
-// gap that long means the conversation ended, and replying into yesterday's
-// thread as though it were still running is the most visible way a chat bot
-// gets it wrong.
+// Two bounds, whichever gives more: everything within TurnStaleAfter of the
+// newest turn, or the last MinLiveTurns whatever their age. A busy channel is
+// decided by the window and a quiet one by the count, which is the only way
+// one rule serves both — thirty minutes of a fast channel is a conversation,
+// and thirty minutes of a slow one is a single line with nothing around it.
+//
+// Nothing past MaxTurnAge survives either way. Older than that it is not
+// context, it is history, and mind.Memory is what renders history.
 func (c *Conversations) Recent(channelID string) []Turn {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -159,14 +182,20 @@ func (c *Conversations) Recent(channelID string) []Turn {
 	}
 
 	newest := turns[len(turns)-1].At
-	cutoff := newest.Add(-TurnStaleAfter)
+	window := newest.Add(-TurnStaleAfter)
+	horizon := newest.Add(-MaxTurnAge)
 
-	start := 0
+	start := len(turns)
 	for i := len(turns) - 1; i >= 0; i-- {
-		if turns[i].At.Before(cutoff) {
-			start = i + 1
+		if turns[i].At.Before(horizon) {
 			break
 		}
+		withinWindow := !turns[i].At.Before(window)
+		withinCount := len(turns)-i <= MinLiveTurns
+		if !withinWindow && !withinCount {
+			break
+		}
+		start = i
 	}
 
 	live := make([]Turn, len(turns)-start)
