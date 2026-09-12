@@ -265,3 +265,44 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 	}
 	return forgotten, nil
 }
+
+// SetChatRoleBias records what a role means to the persona. A zero regard with
+// no note removes the entry rather than storing a row that says nothing.
+func (s *Storage) SetChatRoleBias(guildID, roleID string, bias ChatRoleBias) error {
+	if guildID == "" || roleID == "" {
+		return fmt.Errorf("storage: role bias needs a guild and a role")
+	}
+
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.settings)
+
+		settings, ok := col.Get(guildID)
+		if !ok {
+			settings = &GuildSettings{GuildID: guildID}
+		}
+		if settings.ChatRoles == nil {
+			settings.ChatRoles = make(map[string]ChatRoleBias)
+		}
+
+		if bias.Regard == 0 && strings.TrimSpace(bias.Note) == "" {
+			delete(settings.ChatRoles, roleID)
+		} else {
+			settings.ChatRoles[roleID] = bias
+		}
+		return col.Put(settings)
+	})
+}
+
+// ChatRoleBiases returns how she regards each role in a guild.
+func (s *Storage) ChatRoleBiases(guildID string) map[string]ChatRoleBias {
+	settings, ok := s.settings.Get(guildID)
+	if !ok || settings.ChatRoles == nil {
+		return nil
+	}
+
+	out := make(map[string]ChatRoleBias, len(settings.ChatRoles))
+	for id, bias := range settings.ChatRoles {
+		out[id] = bias
+	}
+	return out
+}

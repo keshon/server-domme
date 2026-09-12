@@ -136,6 +136,13 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 		}
 	}
 
+	// What this person is on this server, before anything she feels about
+	// them: standing is the settled fact and irritation is the passing one, so
+	// the passing one goes later and wins.
+	if strings.TrimSpace(g.AboutThem) != "" {
+		sb.WriteString("\n\n" + g.AboutThem + "\n")
+	}
+
 	// The person in front of her, before the general mood: being short with
 	// someone specific is more particular than being tired, and the more
 	// particular instruction goes later.

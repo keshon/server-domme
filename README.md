@@ -63,6 +63,7 @@ It’s designed to be practical for server management while providing light, int
   - **/chat brief** — Tell her what this server is, in a sentence
   - **/chat status** — Where she is listening, and how the backends are holding up
   - **/chat state** — How she is doing right now, and what that is telling her
+  - **/chat role** — What a role means to her — how she treats anyone wearing it
   - **/chat forget** — Wipe everything she remembers about this server
 
 ### 🎞️ Media

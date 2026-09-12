@@ -84,13 +84,13 @@ func TestEverySubcommandIsOfferedToDiscord(t *testing.T) {
 		offered[opt.Name] = true
 	}
 
-	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState, subForget} {
+	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState, subForget, subRole} {
 		if !offered[name] {
 			t.Errorf("%q is handled in Run but never offered in SlashDefinition, so nobody can run it", name)
 		}
 	}
-	if len(offered) != 6 {
-		t.Errorf("SlashDefinition offers %d subcommands, want 6 — an unhandled one fails closed", len(offered))
+	if len(offered) != 7 {
+		t.Errorf("SlashDefinition offers %d subcommands, want 7 — an unhandled one fails closed", len(offered))
 	}
 }
 

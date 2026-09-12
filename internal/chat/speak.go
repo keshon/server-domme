@@ -177,6 +177,60 @@ func (s *Service) remember(guildID, channelID string, present []mind.Acquaintanc
 	return topic.String(), mind.Recall(memories, now, mind.Keywords(topic.String()), here, maxRecalled)
 }
 
+// standing is what this person's roles mean to her: one directive and the
+// combined regard.
+//
+// Roles come from the gateway's own cached member, which is populated for
+// anyone who has spoken. A member it cannot resolve has no roles as far as
+// this is concerned, and no standing either way — the safe reading, since the
+// alternative is treating someone as a stranger because a cache missed.
+func (s *Service) standing(sess *discordgo.Session, guildID, userID, username string) (string, float64) {
+	if sess == nil || guildID == "" || userID == "" {
+		return "", 0
+	}
+
+	biases := s.store.ChatRoleBiases(guildID)
+	if len(biases) == 0 {
+		return "", 0
+	}
+
+	member, err := sess.State.Member(guildID, userID)
+	if err != nil || member == nil {
+		return "", 0
+	}
+
+	var values []float64
+	var note string
+	var strongest float64
+
+	for _, roleID := range member.Roles {
+		bias, ok := biases[roleID]
+		if !ok {
+			continue
+		}
+		values = append(values, bias.Regard)
+
+		// One note, from whichever role counts for most. Several would be a
+		// list of opinions about one person in a prompt that has to fit.
+		if abs(bias.Regard) >= abs(strongest) && strings.TrimSpace(bias.Note) != "" {
+			note, strongest = bias.Note, bias.Regard
+		}
+	}
+	if len(values) == 0 {
+		return "", 0
+	}
+
+	regard := mind.Combine(values)
+	return mind.RegardDirective(username, note, regard), regard
+}
+
+func abs(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // hold puts an approach back for a later attempt, or gives up on it.
 //
 // Giving up quietly is the point: she simply never answers, which is a thing
@@ -262,6 +316,11 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	g.Present = s.present(t.item.GuildID, t.item.ChannelID)
 	g.Drives = s.drives(t.item.GuildID, t.item.ChannelID, now)
 	g.Topic, g.Remembers = s.remember(t.item.GuildID, t.item.ChannelID, g.Present, now)
+
+	// About the person being answered, not about everyone present: standing is
+	// a fact about one member, and a paragraph covering the room would be more
+	// prompt than it is worth and harder to act on.
+	g.AboutThem, g.Regard = s.standing(sess, t.item.GuildID, t.item.UserID, t.item.Username)
 	return g
 }
 
@@ -290,4 +349,12 @@ func (s *Service) present(guildID, channelID string) []mind.Acquaintance {
 		out = append(out, who)
 	}
 	return out
+}
+
+// regardFor is the combined standing of someone's roles, for the decision to
+// answer at all. The directive that goes with it is built later, at reply
+// time; see Service.standing.
+func (s *Service) regardFor(sess *discordgo.Session, guildID, userID string) float64 {
+	_, regard := s.standing(sess, guildID, userID, "")
+	return regard
 }

@@ -128,6 +128,9 @@ type Situation struct {
 	// Irritation is how much this particular person has got on her nerves,
 	// already decayed. It lowers their odds and nobody else's.
 	Irritation float64
+	// Regard is what this person's roles are worth to her, -1 to +1. Standing
+	// rather than feeling: it is set by an operator and does not decay.
+	Regard float64
 }
 
 // Decide reports whether to answer. roll is a value in [0,1) from the caller's
@@ -182,6 +185,7 @@ func Decide(a Attention, s Situation, roll float64) Outcome {
 	// approach and a second-in-a-row are always answered — so this can never
 	// turn into the silence that reads as a broken bot.
 	chance += IrritationNudge(s.Irritation)
+	chance += RegardNudge(s.Regard)
 
 	if roll < clamp01(chance) {
 		return OutcomeSpeak

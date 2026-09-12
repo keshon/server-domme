@@ -14,6 +14,8 @@ import (
 	chatsvc "github.com/keshon/server-domme/internal/chat"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
+	"github.com/keshon/server-domme/internal/mind"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 // Subcommand names. Renaming one costs every admin their muscle memory and
@@ -26,6 +28,10 @@ const (
 	subStatus  = "status"
 	subState   = "state"
 	subForget  = "forget"
+	subRole    = "role"
+	optRole    = "role"
+	optRegard  = "regard"
+	optNote    = "note"
 	// optConfirm is the word an administrator has to type out. A button would
 	// be one click from the same mistake, and this is not undoable.
 	optConfirm    = "confirm"
@@ -107,6 +113,33 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subRole,
+				Description: "What a role means to her — how she treats anyone wearing it",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionRole,
+						Name:        optRole,
+						Description: "The role to set. Leave the rest empty to see what it is now",
+						Required:    true,
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionNumber,
+						Name:        optRegard,
+						Description: "-1 to 1. Negative is reserved, positive is forthcoming, 0 clears it",
+						Required:    false,
+						MinValue:    &minRegard,
+						MaxValue:    maxRegard,
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        optNote,
+						Description: `Said about them verbatim, e.g. "a submissive here, speak to them as one"`,
+						Required:    false,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subForget,
 				Description: "Wipe everything she remembers about this server",
 				Options: []*discordgo.ApplicationCommandOption{
@@ -132,7 +165,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state` or `forget`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `role` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -168,6 +201,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subState:
 		return c.runState(context)
+
+	case subRole:
+		return runRole(context, sub)
 
 	case subForget:
 		return c.runForget(context, sub)
@@ -412,4 +448,79 @@ func (c *ChatCommand) runForget(
 			"She still knows who is a regular and who is new — that is counted from "+
 			"messages, not remembered, and wiping it would turn everyone here into a "+
 			"stranger.", forgotten))
+}
+
+// Regard bounds, as Discord enforces them in the picker so a bad value never
+// reaches the bot.
+var (
+	minRegard = -1.0
+	maxRegard = 1.0
+)
+
+// runRole sets or shows what a Discord role means to the persona.
+//
+// Per role rather than per person because a server that has roles has already
+// decided who is what. Asking an operator to rate three hundred members one at
+// a time is asking them not to use it.
+func runRole(
+	context *cmdadapter.SlashInteractionContext,
+	sub *discordgo.ApplicationCommandInteractionDataOption,
+) error {
+	s, e, store := context.Session, context.Event, context.Storage
+
+	var roleID, note string
+	var regard float64
+	var setting bool
+
+	for _, opt := range sub.Options {
+		switch opt.Name {
+		case optRole:
+			roleID = opt.Value.(string)
+		case optRegard:
+			regard = opt.FloatValue()
+			setting = true
+		case optNote:
+			note = strings.TrimSpace(opt.StringValue())
+			setting = true
+		}
+	}
+	if roleID == "" {
+		return respond(s, e, "Name a role.")
+	}
+
+	if !setting {
+		bias, ok := store.ChatRoleBiases(e.GuildID)[roleID]
+		if !ok {
+			return respond(s, e, fmt.Sprintf(
+				"<@&%s> means nothing to her in particular. "+
+					"`/chat role role:<role> regard:<-1..1> note:<what they are>` changes that.",
+				roleID))
+		}
+		return respond(s, e, describeBias(roleID, bias))
+	}
+
+	bias := storage.ChatRoleBias{Regard: regard, Note: note}
+	if err := store.SetChatRoleBias(e.GuildID, roleID, bias); err != nil {
+		return fmt.Errorf("chat: set role bias: %w", err)
+	}
+
+	if bias.Regard == 0 && bias.Note == "" {
+		return respond(s, e, fmt.Sprintf("<@&%s> means nothing to her again.", roleID))
+	}
+	return respond(s, e, describeBias(roleID, bias))
+}
+
+// describeBias says what a role is worth, and what it will actually put in
+// front of her — the directive rather than the number, because the number is
+// not what she reads.
+func describeBias(roleID string, bias storage.ChatRoleBias) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "<@&%s>\n```\n%s\n```\n", roleID, gauge("regard", bias.Regard))
+
+	if line := mind.RegardDirective("Someone", bias.Note, bias.Regard); line != "" {
+		b.WriteString("She is told: " + line)
+	} else {
+		b.WriteString("Not enough either way to be worth telling her.")
+	}
+	return b.String()
 }

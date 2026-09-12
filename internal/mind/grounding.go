@@ -127,6 +127,13 @@ type Grounding struct {
 	// Topic is the text the room is currently on, used to decide which
 	// memories are close enough to the subject to surface.
 	Topic string
+	// AboutThem is one instruction about the person being answered, from what
+	// their roles mean on this server. Built by the caller, because it needs
+	// Discord's role list; see chat.Service.standing.
+	AboutThem string
+	// Regard is that person's combined standing, which moves their odds of an
+	// answer as well as colouring it.
+	Regard float64
 	// AnsweringAfter is how long ago the message being answered was sent,
 	// set only when a reply was held back because no backend would answer.
 	// Telling her the gap is what lets her acknowledge it in her own words;

@@ -43,6 +43,22 @@ type GuildSettings struct {
 	TranslateChannels    []string          `json:"translate_channels,omitempty"`
 	ChatChannels         []string          `json:"chat_channels,omitempty"`
 	ChatBrief            string            `json:"chat_brief,omitempty"`
+	// ChatRoles is how she regards each Discord role, keyed by role id.
+	ChatRoles map[string]ChatRoleBias `json:"chat_roles,omitempty"`
+}
+
+// ChatRoleBias is what a Discord role means to the persona.
+//
+// Per role rather than per person because a server with roles has already
+// decided who is what, and rating members one at a time is asking an operator
+// not to use it.
+type ChatRoleBias struct {
+	// Regard runs -1 to +1. Zero says nothing.
+	Regard float64 `json:"regard"`
+	// Note is an instruction about anyone holding this role, used verbatim in
+	// the prompt. "a submissive here, speak to them as one" says something no
+	// number can, which is why it is here at all.
+	Note string `json:"note,omitempty"`
 }
 
 func (g *GuildSettings) Key() string { return g.GuildID }

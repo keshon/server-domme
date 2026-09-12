@@ -308,6 +308,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
 		Drives:        s.drives(m.GuildID, m.ChannelID, now),
 		Irritation:    irritation,
+		Regard:        s.regardFor(sess, m.GuildID, m.Author.ID),
 	}, s.roll())
 	s.encounters.Record(key, outcome)
 

@@ -225,6 +225,31 @@ off, for a quarter of an hour. On a retry the indicator is a lie — the last
 attempt failed and this one may too — and past a few attempts silence is the
 honest outcome.
 
+### What a role is worth to her
+
+`/chat role` sets what a Discord role means to the persona: a regard from -1 to
++1, and optionally a note. Per role rather than per person, because a server
+that has roles has already decided who is what, and asking an operator to rate
+three hundred members one at a time is asking them not to use it.
+
+The note is the part that earns its place. A scalar can only produce a sentence
+derived from a number — "You think well enough of cass" — where an operator
+writing about their own server can say "a submissive here, speak to them as
+one", which is a thing no number encodes. It goes into the prompt verbatim, and
+the bands are the fallback for a role set without one.
+
+Regard sums across the roles someone holds and clamps, so two roles that both
+count for something add up while three do not make her more forthcoming than
+any one role could, and roles that disagree cancel. It moves their odds by at
+most `RegardNudge` — smaller than the mood, about the size of irritation.
+Standing should colour how she treats someone, not decide whether they can talk
+to her: a member who cannot get an answer because of a role they were given has
+no way to tell that from a broken bot.
+
+It sits above irritation in the prompt. Standing is the settled fact about
+someone and irritation is the passing one, so the passing one goes later and
+wins where they disagree.
+
 ### Being annoyed with someone
 
 Irritation is held **per person**, not per guild, because that is the whole
