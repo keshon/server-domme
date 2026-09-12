@@ -12,12 +12,14 @@
 # model behind it is paywalled, or 403 because the request came from a
 # datacentre address. The only way to know is to ask, which is what this does.
 #
-# Whatever comes back WORKS goes in CHAT_BACKENDS, most preferred first:
+# It asks twice. A backend that answers "say OK" has proved almost nothing —
+# pollinations served a two-word prompt and refused a real one with 402
+# KEY_BUDGET_EXHAUSTED — so whatever survives the first pass is asked again
+# with a prompt the size of a real character, and only those go in the output.
 #
-#   CHAT_BACKENDS="g4f-a|http://g4f:8080/v1|<first>,g4f-b|http://g4f:8080/v1|<second>"
-#
-# More than one entry is the point. A provider that works today is the one
-# answering 403 next week, and the pool fails over between them.
+# Whatever it prints goes in CHAT_BACKENDS. More than one entry is the point:
+# a provider that works today is the one answering 403 next week, and the pool
+# fails over between them.
 
 set -euo pipefail
 
@@ -58,25 +60,59 @@ BASE = "http://127.0.0.1:8080/v1"
 WHAT = sys.argv[1]
 TIMEOUT = int(sys.argv[2])
 
+# A 200 is not an answer. Several of these providers are image or audio models
+# that cheerfully return a markdown image or an <audio> tag for any prompt, and
+# one returns "Sign up and repeat your request." with a perfectly good status
+# code. Either in the pool means the bot posts a picture instead of speaking.
+MEDIA_MARKERS = ("![", "<audio", "<video", "<img", "](https://image.")
+BRUSH_OFF = ("sign up", "log in", "login required", "create an account",
+             "subscribe", "verify you", "authentication")
 
-def ask(model_id):
+
+def classify(reply):
+    text = reply.strip()
+    if not text:
+        return "EMPTY"
+    if any(marker in text[:120] for marker in MEDIA_MARKERS):
+        return "NOT TEXT"
+    lowered = text.lower()
+    if len(text) < 200 and any(phrase in lowered for phrase in BRUSH_OFF):
+        return "SUSPECT"
+    return "WORKS"
+
+
+def ask(model_id, messages, timeout):
     body = json.dumps({
         "model": model_id,
-        "messages": [{"role": "user", "content": "say OK"}],
+        "messages": messages,
         "stream": False,
     }).encode()
     req = urllib.request.Request(
         BASE + "/chat/completions", body, {"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             reply = json.load(resp)["choices"][0]["message"]["content"]
-            return "WORKS", reply[:55].replace("\n", " ")
+            return classify(reply), reply[:55].replace("\n", " ")
     except urllib.error.HTTPError as err:
         detail = err.read()[:70].decode("utf-8", "replace").replace("\n", " ")
-        return f"HTTP {err.code}", detail
+        return "HTTP %d" % err.code, detail
     except Exception as err:  # noqa: BLE001 - any failure is a failure to report
         return "FAIL", str(err)[:70].replace("\n", " ")
 
+
+HELLO = [{"role": "user", "content": "say OK"}]
+
+# Roughly the size of a real assembled character prompt, which is about 2700
+# characters of persona, limits and examples before anyone has said anything.
+FILLER = ("You are a long-standing member of this server, not an assistant. "
+          "You speak briefly, you decline freely, and you never offer help "
+          "nobody asked for. ") * 12
+REAL = [
+    {"role": "system", "content": FILLER},
+    {"role": "user", "content": "cass: @domme you awake"},
+    {"role": "assistant", "content": "unfortunately"},
+    {"role": "user", "content": "cass: what do you make of the new rules"},
+]
 
 with urllib.request.urlopen(BASE + "/models", timeout=30) as resp:
     entries = json.load(resp)["data"]
@@ -93,22 +129,41 @@ if WHAT in ("providers", "all"):
 if WHAT in ("models", "all"):
     targets += models
 
-print(f"{len(providers)} providers, {len(models)} models — trying {len(targets)}\n", flush=True)
+print("%d providers, %d models - trying %d\n" % (len(providers), len(models), len(targets)),
+      flush=True)
 
-working = []
+candidates = []
 for name in targets:
-    status, detail = ask(name)
-    print(f"  {status:9s} {name:32s} {detail}", flush=True)
+    status, detail = ask(name, HELLO, TIMEOUT)
+    print("  %-9s %-32s %s" % (status, name, detail), flush=True)
     if status == "WORKS":
-        working.append(name)
+        candidates.append(name)
+
+if not candidates:
+    print("\nNothing answered with text. The providers are reachable from a"
+          " browser and not from here, which is the same wall the hosted relay"
+          " hit.", flush=True)
+    raise SystemExit(0)
+
+print("\n%d answered with text. Re-testing at the size of a real character"
+      " prompt:\n" % len(candidates), flush=True)
+
+survivors = []
+for name in candidates:
+    status, detail = ask(name, REAL, TIMEOUT * 2)
+    print("  %-9s %-32s %s" % (status, name, detail), flush=True)
+    if status == "WORKS":
+        survivors.append(name)
 
 print(flush=True)
-if working:
-    print(f"{len(working)} answered:", flush=True)
-    entries = ",".join(
-        f"g4f-{i}|http://g4f:8080/v1|{name}" for i, name in enumerate(working[:3], 1))
-    print(f'\n  CHAT_BACKENDS="{entries}"\n', flush=True)
-else:
-    print("Nothing answered. The providers are reachable from a browser and not"
-          " from here, which is the same wall the hosted relay hit.", flush=True)
+if not survivors:
+    print("All of them answered a two-word prompt and none carried a real one."
+          " That is a size limit, not an outage.", flush=True)
+    raise SystemExit(0)
+
+entries = ",".join(
+    "g4f-%d|http://g4f:8080/v1|%s" % (i, name)
+    for i, name in enumerate(survivors, 1))
+print("%d carried a full prompt, all of them:\n" % len(survivors), flush=True)
+print('  CHAT_BACKENDS="%s"\n' % entries, flush=True)
 PY

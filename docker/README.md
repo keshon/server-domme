@@ -132,13 +132,25 @@ docker compose exec app wget -qO- http://g4f:8080/v1/models | head -c 400
 ./probe-providers.sh all      # named models too
 ```
 
-Two things it exploits. `/v1/models` returns provider names as well as model
+Three things it knows. `/v1/models` returns provider names as well as model
 names, flagged `"provider": true`, and a provider name is itself valid as a
 `model` — it resolves to that provider's own default. That is the way past a
 model name like `gpt-4o-mini` that turns out to be paywalled at whoever serves
-it. And g4f lists what it *believes* works, which is not what answers from this
-host today, so the script asks rather than reads. It prints a ready-made
-`CHAT_BACKENDS` line from whatever replied.
+it. g4f lists what it *believes* works, which is not what answers from this
+host today, so the script asks rather than reads.
+
+And a 200 is not an answer. Of nine providers that returned one on a real
+server, four were useless: two image generators and a text-to-speech model that
+answer any prompt with a markdown image or an `<audio>` tag, and one that
+replied "Sign up and repeat your request." with a perfectly good status code.
+Those are reported as `NOT TEXT` and `SUSPECT` and kept out of the generated
+line — a pool containing an image generator means the bot occasionally posts a
+picture instead of speaking.
+
+Whatever survives that is asked a second time with a prompt the size of a real
+character, because answering "say OK" proves almost nothing: pollinations
+served a two-word prompt and refused a real one with 402. Only what carries a
+full prompt reaches the printed `CHAT_BACKENDS` line.
 
 `/chat status` quotes the last error from any backend that has never succeeded,
 which is the faster way to see what a provider is actually saying. The startup
