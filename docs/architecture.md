@@ -208,6 +208,36 @@ off, for a quarter of an hour. On a retry the indicator is a lie — the last
 attempt failed and this one may too — and past a few attempts silence is the
 honest outcome.
 
+### How she is doing
+
+`mind.Drives` is three numbers — Social, Energy, Interest — derived on read
+from a timestamp and two counts. It is the cognitum experiment's symbolic core
+with its price removed: that design kept state in the same way and spent around
+eighty model calls an hour doing it, a third of which failed to parse. Nothing
+here calls a backend.
+
+Derived rather than ticked. cognitum recomputed on a one-second timer, which
+needs a goroutine, loses everything on restart and burns cycles in an empty
+server; computing from elapsed time when the value is wanted gives the same
+curves for nothing and survives a redeploy, because the timestamps do.
+
+Three drives rather than four: Social, Energy and Interest each have an input
+this bot can observe, and cognitum's Coherence had none. A drive fed by nothing
+drifts convincingly and means nothing.
+
+Energy follows an anchored day curve rather than a cosine, because a 24-hour
+cosine is symmetric — putting the trough at 04:00 necessarily makes 08:00 just
+as dark. `CHAT_TIMEZONE` is the community's zone, not the host's: a bot yawning
+through someone's prime time is worse than one with no clock at all.
+
+They reach the reply twice. `Drives.Phrase` adds one plain sentence to the
+grounding, never numbers, and `Drives.Nudge` moves the odds of answering by up
+to a fifth — but only for the indirect approaches. A direct mention or a reply
+is answered on its own terms whatever the hour: someone tired still answers
+when spoken to, and making that conditional is how "she ignored my direct
+question" returns with a better excuse. The zero value nudges by nothing, so an
+unset mood is not a bad one.
+
 ### What she knows she missed
 
 The conversation buffer is in memory and starts empty, so on its own she knows

@@ -114,6 +114,10 @@ type Grounding struct {
 	// Now is the wall clock the grounding was built at, taken as a parameter
 	// so the rendered text is reproducible in tests.
 	Now time.Time
+	// Drives is how she is doing: the hour, how long she has been alone, how
+	// busy the room is. Rendered as one plain phrase and never as numbers —
+	// see Drives.Phrase.
+	Drives Drives
 	// AnsweringAfter is how long ago the message being answered was sent,
 	// set only when a reply was held back because no backend would answer.
 	// Telling her the gap is what lets her acknowledge it in her own words;
@@ -153,6 +157,15 @@ func (g Grounding) Render() string {
 	if people := g.renderPeople(); people != "" {
 		b.WriteString("\nWho you are talking to:\n")
 		b.WriteString(people)
+	}
+
+	// Last, and on its own line. It is the one part of the grounding that is
+	// about her rather than about the room, and burying it among the
+	// surroundings is the mistake this file has now made three times.
+	if mood := g.Drives.Phrase(); mood != "" {
+		b.WriteString("\n")
+		b.WriteString(mood)
+		b.WriteString("\n")
 	}
 
 	return b.String()

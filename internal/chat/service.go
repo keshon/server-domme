@@ -66,6 +66,9 @@ type Deps struct {
 	// Attention overrides how readily she answers. The zero value takes the
 	// defaults.
 	Attention mind.Attention
+	// Location is the timezone the community keeps, not the one the host is
+	// racked in. Nil means UTC.
+	Location *time.Location
 	// RequestTimeout is how long one backend gets. Zero keeps the default.
 	//
 	// The whole attempt is allowed twice this, so a first backend that hangs
@@ -96,6 +99,7 @@ type Service struct {
 	log       zerolog.Logger
 	attention mind.Attention
 	budget    mind.Budget
+	location  *time.Location
 	roll      func() float64
 
 	conv       *mind.Conversations
@@ -140,6 +144,7 @@ func New(d Deps) *Service {
 		log:        d.Log,
 		attention:  attention,
 		budget:     mind.DefaultBudget(),
+		location:   d.Location,
 		roll:       roll,
 		conv:       mind.NewConversations(),
 		deferrals:  mind.NewDeferrals(),
@@ -265,6 +270,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		FirstApproach: first,
 		IgnoredLast:   ignoredLast,
 		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
+		Drives:        s.drives(m.GuildID, m.ChannelID, now),
 	}, s.roll())
 	s.encounters.Record(key, outcome)
 

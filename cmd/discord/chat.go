@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/keshon/server-domme/internal/ai"
 	chatsvc "github.com/keshon/server-domme/internal/chat"
@@ -86,6 +87,19 @@ func buildChatService(
 			"then restart."
 	}
 
+	// An unknown zone is a misconfiguration, not a reason to refuse to start:
+	// she falls back to UTC and says so, which costs the clock its accuracy
+	// and nothing else.
+	location := time.UTC
+	if cfg.ChatTimezone != "" {
+		loaded, err := time.LoadLocation(cfg.ChatTimezone)
+		if err != nil {
+			log.Warn().Err(err).Str("timezone", cfg.ChatTimezone).Msg("chat_timezone_invalid")
+		} else {
+			location = loaded
+		}
+	}
+
 	attention := mind.DefaultAttention()
 	attention.MentionChance = cfg.ChatMentionChance
 	attention.NamedChance = cfg.ChatNamedChance
@@ -107,6 +121,7 @@ func buildChatService(
 		Log:            log,
 		Names:          names,
 		Attention:      attention,
+		Location:       location,
 		RequestTimeout: cfg.ChatRequestTimeout,
 	}), ""
 }

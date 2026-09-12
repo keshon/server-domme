@@ -87,12 +87,18 @@ func (s *Service) speak(ctx context.Context, t task) {
 	if sent != nil {
 		sentID = sent.ID
 	}
+	spokeAt := time.Now()
 	s.conv.Record(t.item.ChannelID, mind.Turn{
 		Content:   reply,
-		At:        time.Now(),
+		At:        spokeAt,
 		FromBot:   true,
 		MessageID: sentID,
 	})
+	// Persisted because the conversation buffer keeps half an hour and the
+	// social drive is measured in hours; see Service.drives.
+	if err := s.store.MarkMindSpoke(t.item.GuildID, spokeAt); err != nil {
+		s.log.Warn().Err(err).Str("guild_id", t.item.GuildID).Msg("chat_spoke_record_failed")
+	}
 	s.deferrals.Drop(t.item.ChannelID)
 
 	s.log.Info().
@@ -102,6 +108,28 @@ func (s *Service) speak(ctx context.Context, t task) {
 		Bool("late", t.late).
 		Int("chars", len(reply)).
 		Msg("chat_replied")
+}
+
+// drives computes how she is doing, from the clock and from state already to
+// hand.
+//
+// No backend call and no stored mood: the drives are derived on read from a
+// timestamp and two counts, so they cost nothing, cannot drift out of step with
+// what actually happened, and survive a restart because the timestamp does.
+func (s *Service) drives(guildID, channelID string, now time.Time) mind.Drives {
+	in := mind.MoodInput{Now: now, Location: s.location}
+
+	if guild := s.store.GetMindGuild(guildID); guild != nil {
+		in.LastSpokeAt = guild.LastSpokeAt
+	}
+
+	for _, turn := range s.conv.Recent(channelID) {
+		in.RecentTurns++
+		if turn.Mentioned {
+			in.AddressedTurns++
+		}
+	}
+	return mind.DeriveDrives(in)
 }
 
 // hold puts an approach back for a later attempt, or gives up on it.
@@ -187,6 +215,7 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	}
 
 	g.Present = s.present(t.item.GuildID, t.item.ChannelID)
+	g.Drives = s.drives(t.item.GuildID, t.item.ChannelID, now)
 	return g
 }
 

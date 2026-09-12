@@ -108,6 +108,9 @@ type Situation struct {
 	IgnoredLast bool
 	// LastSpokeAt is when she last spoke in this channel.
 	LastSpokeAt time.Time
+	// Drives is how she is doing. It moves the odds on the indirect
+	// approaches only — see Drives.Nudge.
+	Drives Drives
 }
 
 // Decide reports whether to answer. roll is a value in [0,1) from the caller's
@@ -140,11 +143,12 @@ func Decide(a Attention, s Situation, roll float64) Outcome {
 		if engaged {
 			chance -= a.CrowdingPenalty
 		}
+		chance += s.Drives.Nudge()
 	case TriggerFollowUp:
 		// No engagement adjustment: a follow-up only exists inside an open
 		// exchange, so the boost would apply to every one of them and is
 		// already priced into FollowUpChance.
-		chance = a.FollowUpChance
+		chance = a.FollowUpChance + s.Drives.Nudge()
 	default:
 		return OutcomeIgnore
 	}

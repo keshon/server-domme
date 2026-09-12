@@ -147,6 +147,23 @@ type MindPerson struct {
 
 func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }
 
+// MindGuild is the character's own state in one guild, as opposed to what it
+// knows about the people in it.
+//
+// One row per guild, holding only what cannot be recomputed. The live
+// conversation comes back from Discord on demand (see chat.Service.backfill)
+// and the drives are derived on read from these timestamps, so nothing here is
+// a second copy of something Discord already stores.
+type MindGuild struct {
+	GuildID string `json:"guild_id"`
+	// LastSpokeAt is when she last said something here. It is what separates
+	// a quiet hour from a quiet week, which the conversation buffer cannot:
+	// that only keeps thirty minutes.
+	LastSpokeAt time.Time `json:"last_spoke_at,omitempty"`
+}
+
+func (m *MindGuild) Key() string { return m.GuildID }
+
 // TaskCooldown blocks a member from drawing another task until Until passes.
 type TaskCooldown struct {
 	GuildID string    `json:"guild_id"`

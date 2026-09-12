@@ -114,3 +114,34 @@ func (s *Storage) SetChatBrief(guildID, brief string) error {
 func (s *Storage) GetChatBrief(guildID string) string {
 	return s.guildSettings(guildID).ChatBrief
 }
+
+// MarkMindSpoke records that the character spoke in a guild.
+//
+// Stored rather than derived because the conversation buffer keeps thirty
+// minutes and this has to answer "how long has she been alone", which is a
+// question measured in hours. See mind.DeriveDrives.
+func (s *Storage) MarkMindSpoke(guildID string, at time.Time) error {
+	if guildID == "" {
+		return nil
+	}
+	err := s.db.Update(func(tx *datastore.Tx) error {
+		return datastore.In(tx, s.mindGuilds).Put(&MindGuild{
+			GuildID:     guildID,
+			LastSpokeAt: at,
+		})
+	})
+	if err != nil {
+		return fmt.Errorf("storage: mark mind spoke: %w", err)
+	}
+	return nil
+}
+
+// GetMindGuild returns the character's state in a guild, or nil when she has
+// never spoken there.
+func (s *Storage) GetMindGuild(guildID string) *MindGuild {
+	got, ok := s.mindGuilds.Get(guildID)
+	if !ok {
+		return nil
+	}
+	return got
+}

@@ -109,6 +109,13 @@ type Config struct {
 	// this, so failover still has room.
 	ChatRequestTimeout time.Duration `env:"CHAT_REQUEST_TIMEOUT" envDefault:"45s"`
 
+	// ChatTimezone is the timezone the community keeps, as an IANA name. It
+	// is what decides whether it is the middle of the night for the people she
+	// is talking to, which is not the same question as what time it is on the
+	// host — a bot yawning through someone's prime time is worse than one with
+	// no clock at all. Empty means UTC.
+	ChatTimezone string `env:"CHAT_TIMEZONE"`
+
 	// Chat*Chance are the odds she answers each kind of approach, 0 to 1.
 	// Someone who answers every single time is recognisably a machine, so the
 	// defaults are short of certainty; set them to 1 to take the choice away.
