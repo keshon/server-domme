@@ -313,3 +313,20 @@ func TestNeedsAnchorWhenTheMessageIsNoLongerInTheBuffer(t *testing.T) {
 		t.Error("anchored to nothing at all")
 	}
 }
+
+func TestLastSessionStopsAtTheLastLongSilence(t *testing.T) {
+	now := time.Now()
+	turns := []Turn{
+		{Content: "last week", At: now.Add(-7 * 24 * time.Hour)},
+		{Content: "morning", At: now.Add(-20 * time.Minute)},
+		{Content: "morning", At: now.Add(-10 * time.Minute)},
+		{Content: "anyway", At: now},
+	}
+	got := LastSession(turns, 30*time.Minute)
+	if len(got) != 3 || got[0].Content != "morning" {
+		t.Errorf("LastSession = %+v, want the three turns of this morning", got)
+	}
+	if LastSession(nil, time.Minute) != nil {
+		t.Error("an empty buffer produced a session")
+	}
+}

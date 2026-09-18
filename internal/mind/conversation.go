@@ -302,3 +302,17 @@ func NeedsAnchor(turns []Turn, messageID, userID string) bool {
 	}
 	return !found
 }
+
+// LastSession returns the trailing run of turns with no silence longer than
+// gap between them: the latest conversation, as opposed to everything the
+// buffer happens to hold.
+func LastSession(turns []Turn, gap time.Duration) []Turn {
+	if len(turns) == 0 {
+		return nil
+	}
+	start := len(turns) - 1
+	for start > 0 && turns[start].At.Sub(turns[start-1].At) <= gap {
+		start--
+	}
+	return turns[start:]
+}

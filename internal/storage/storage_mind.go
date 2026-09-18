@@ -106,6 +106,19 @@ func (s *Storage) GetChatChannels(guildID string) []string {
 	return channels
 }
 
+// AllChatChannels lists every opted-in channel across all guilds, as a map
+// from channel to guild. Used once at startup, to reread the conversations a
+// restart interrupted; see chat.Service.catchUp.
+func (s *Storage) AllChatChannels() map[string]string {
+	out := make(map[string]string)
+	for g := range s.settings.All() {
+		for _, channelID := range g.ChatChannels {
+			out[channelID] = g.GuildID
+		}
+	}
+	return out
+}
+
 // IsChatChannel reports whether a channel is opted in.
 func (s *Storage) IsChatChannel(guildID, channelID string) bool {
 	return slices.Contains(s.guildSettings(guildID).ChatChannels, channelID)

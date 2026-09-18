@@ -355,7 +355,18 @@ half when it finishes.
 
 Whether a conversation has already been remembered is derived from the stored
 memories rather than from a marker in memory, so a restart cannot pay for the
-same memory twice.
+same memory twice. Only turns after the newest stored memory are considered,
+and of those only the last session — the run since the last half-hour silence
+(`mind.LastSession`). Without that, a buffer refilled from Discord could fold a
+week of a quiet channel into one memory, part of it for the second time.
+
+The buffer is in memory, so a restart used to cost her whatever had not been
+remembered yet: the sweep only looks at channels in the buffer, and a channel
+only came back into it when she next spoke there. On a bot redeployed several
+times an afternoon that was most conversations. The sweep now starts by
+reading back the history of every opted-in channel it has not seen this
+process (`catchUp`), one REST call per channel, so a conversation interrupted
+by a deploy is still remembered once it settles.
 
 The sweep checks the opt-in itself rather than trusting that `Observe` did.
 Summarising sends a channel's contents to a relay, which is precisely what

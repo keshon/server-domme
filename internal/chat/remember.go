@@ -25,6 +25,10 @@ const (
 	// rememberTimeout bounds one summary call. Generous: nothing waits on it,
 	// and a summary that takes a minute costs nobody anything.
 	rememberTimeout = 2 * time.Minute
+	// sessionGap is the silence that ends one conversation and starts the
+	// next. Longer than settleFor: a six-minute pause decides that talk has
+	// stopped, but people pick a thread back up after ten.
+	sessionGap = 30 * time.Minute
 )
 
 // rememberLoop writes memories for conversations that have finished.
@@ -51,6 +55,7 @@ func (s *Service) rememberLoop(ctx context.Context) {
 // rememberSettled walks the live channels and remembers the ones that have
 // gone quiet.
 func (s *Service) rememberSettled(ctx context.Context) {
+	s.catchUp()
 	now := time.Now()
 
 	for _, channelID := range s.conv.Channels() {
@@ -71,11 +76,13 @@ func (s *Service) rememberSettled(ctx context.Context) {
 			continue
 		}
 
-		turns := s.conv.All(channelID)
+		// Only the latest conversation, and only what no memory covers yet.
+		// The buffer can hold days of a quiet channel once history has been
+		// read back, and summarising all of it folds last week's argument and
+		// this morning's greeting into one memory — some of it for the
+		// second time.
+		turns := mind.LastSession(s.unremembered(guildID, channelID, s.conv.All(channelID)), sessionGap)
 		if len(turns) < worthRemembering || !mind.Settled(turns, now, settleFor) {
-			continue
-		}
-		if s.alreadyRemembered(guildID, channelID, turns) {
 			continue
 		}
 
@@ -83,21 +90,55 @@ func (s *Service) rememberSettled(ctx context.Context) {
 	}
 }
 
-// alreadyRemembered reports whether the newest turn is already covered by a
-// memory.
+// catchUp rereads every opted-in channel the process has not seen yet.
+//
+// The conversation buffer is in memory, and without this a redeploy threw
+// away whatever had not yet been remembered: the sweep only looks at channels
+// in the buffer, and a channel only came back into it when she next spoke
+// there. Every deploy that landed inside a conversation, or in the six minutes
+// after it, cost her that conversation. Reading the history back from Discord
+// puts it where the sweep can see it, and unremembered keeps anything
+// that was stored before the restart from being summarised twice.
+//
+// One REST call per channel per process, because backfill marks a channel
+// done whether or not the read succeeds.
+func (s *Service) catchUp() {
+	sess := s.session()
+	if sess == nil {
+		return
+	}
+	for channelID, guildID := range s.store.AllChatChannels() {
+		if !s.conv.NeedsSeed(channelID) {
+			continue
+		}
+		s.noteGuild(guildID, channelID)
+		s.backfill(sess, channelID)
+	}
+}
+
+// unremembered drops the turns a stored memory already covers.
 //
 // Derived from the stored memories rather than from a marker held in memory,
 // so a restart does not cause the same conversation to be remembered twice —
-// which would cost a second backend call to produce a duplicate.
-func (s *Service) alreadyRemembered(guildID, channelID string, turns []mind.Turn) bool {
-	newest := turns[len(turns)-1].At
-
+// which would cost a second backend call to produce a duplicate. A memory is
+// stamped with the time of the last turn it covers, so everything up to and
+// including that moment is done.
+func (s *Service) unremembered(guildID, channelID string, turns []mind.Turn) []mind.Turn {
+	var covered time.Time
 	for _, m := range s.store.MindMemories(guildID, channelID) {
-		if !m.At.Before(newest) {
-			return true
+		if m.At.After(covered) {
+			covered = m.At
 		}
 	}
-	return false
+	if covered.IsZero() {
+		return turns
+	}
+	for i, t := range turns {
+		if t.At.After(covered) {
+			return turns[i:]
+		}
+	}
+	return nil
 }
 
 // remembered asks a backend to summarise a finished conversation and stores
