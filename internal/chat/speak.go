@@ -68,6 +68,10 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
+	if t.item.Trigger == mind.TriggerAfterthought && !s.afterthoughtStands(t, reply) {
+		return
+	}
+
 	// A copy of someone's line is a failed generation that happened to parse,
 	// so it takes the same path: an answer is tried again later, something
 	// volunteered is dropped.
@@ -112,6 +116,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 		s.log.Warn().Err(err).Str("guild_id", t.item.GuildID).Msg("chat_spoke_record_failed")
 	}
 	s.deferrals.Drop(t.item.ChannelID)
+	s.considerAfterthought(ctx, t, grounding, reply, sentID, spokeAt)
 
 	s.log.Info().
 		Str("guild_id", t.item.GuildID).
@@ -238,15 +243,15 @@ func abs(v float64) float64 {
 // people do. The alternative — telling the channel that a backend is
 // unavailable — breaks character to report plumbing nobody there can fix.
 func (s *Service) hold(t task, reason string) {
-	// Something she volunteered is dropped rather than held. An answer is owed
-	// to whoever asked, even late; an unprompted remark arriving twenty
-	// minutes after the moment it was about is stranger than never saying it.
-	if mind.Volunteered(t.item.Trigger) {
+	// Only an answer is held. Something she volunteered, or a second thought
+	// about her own reply, belongs to its moment; see mind.Owed.
+	if !mind.Owed(t.item.Trigger) {
 		s.log.Info().
 			Str("guild_id", t.item.GuildID).
 			Str("channel_id", t.item.ChannelID).
 			Str("reason", reason).
-			Msg("chat_volunteer_dropped")
+			Str("trigger", string(t.item.Trigger)).
+			Msg("chat_unowed_dropped")
 		return
 	}
 	if s.deferrals.Hold(t.item, time.Now()) {
@@ -283,8 +288,12 @@ func (s *Service) send(sess *discordgo.Session, t task, content string) (*discor
 	// an answer to someone who replied to her, or a channel where somebody
 	// else has spoken since the line she is answering. Not otherwise — see
 	// mind.NeedsAnchor.
-	if t.late || t.item.Trigger == mind.TriggerReply ||
-		mind.NeedsAnchor(s.conv.Recent(t.item.ChannelID), t.item.MessageID, t.item.UserID) {
+	//
+	// An afterthought never is. It follows her own message, and quoting the
+	// original line again would split one thought across two anchors.
+	anchor := t.late || t.item.Trigger == mind.TriggerReply ||
+		mind.NeedsAnchor(s.conv.Recent(t.item.ChannelID), t.item.MessageID, t.item.UserID)
+	if anchor && t.item.Trigger != mind.TriggerAfterthought {
 		msg.Reference = &discordgo.MessageReference{
 			MessageID: t.item.MessageID,
 			ChannelID: t.item.ChannelID,
@@ -339,6 +348,9 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	// prompt than it is worth and harder to act on.
 	g.AboutThem, g.Regard = s.standing(sess, t.item.GuildID, t.item.UserID, t.item.Username)
 	g.Volunteering = t.item.Volunteering
+	if t.item.Trigger == mind.TriggerAfterthought {
+		g.Afterthought = mind.AfterthoughtDirective(t.item.FirstLine)
+	}
 	return g
 }
 

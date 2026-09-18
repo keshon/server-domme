@@ -47,6 +47,10 @@ type scenario struct {
 	// nobody addressed her. The thing to watch is whether she answers the
 	// last line as though it were put to her anyway.
 	volunteering string
+	// afterthought is her own last line, for the scenarios that ask for a
+	// second message after it. The thing to watch is how often she declines
+	// and whether what she adds sounds like her rather than a curious bot.
+	afterthought string
 }
 
 func main() {
@@ -218,6 +222,32 @@ func scenarios(now time.Time) []scenario {
 			volunteering: mind.RecallDirective("the argument over whether pinned messages survive a purge"),
 		},
 		{
+			name: "afterthought: bored",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "Hey Domme", At: now.Add(-time.Minute)},
+				{FromBot: true, Content: "hey", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "Are you bored? Be honest with me", At: now},
+				{FromBot: true, Content: "yes", At: now},
+			},
+			afterthought: "yes",
+		},
+		{
+			name: "afterthought: backed up",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "It's okay, I will back you up", At: now},
+				{FromBot: true, Content: "good.", At: now},
+			},
+			afterthought: "good.",
+		},
+		{
+			name: "afterthought: plain greeting",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "morning", At: now},
+				{FromBot: true, Content: "morning", At: now},
+			},
+			afterthought: "morning",
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -234,6 +264,9 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	g.AnsweringAfter = sc.late
 	g.Drives = sc.drives
 	g.Volunteering = sc.volunteering
+	if sc.afterthought != "" {
+		g.Afterthought = mind.AfterthoughtDirective(sc.afterthought)
+	}
 
 	messages := mind.Build(character, g, sc.turns, mind.DefaultBudget())
 

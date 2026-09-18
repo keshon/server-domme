@@ -151,3 +151,16 @@ func TestCleanDropsLeakedToolCallMarkup(t *testing.T) {
 		t.Error("dropped a reply that only mentions the words")
 	}
 }
+
+// A safety-guard model's whole verdict, as it reached the channel.
+func TestCleanDropsAMultiLineSafetyVerdict(t *testing.T) {
+	reply := "User Safety: unsafe\nResponse Safety: unsafe\nSafety Categories: Profanity, Harassment"
+	if got := Clean(reply); got != "" {
+		t.Errorf("Clean kept %q", got)
+	}
+	// One real line among them keeps the reply: the guard drops scaffolding,
+	// not speech that mentions it.
+	if got := Clean("policy: none\nbut you knew that"); got == "" {
+		t.Error("dropped a reply with real speech in it")
+	}
+}

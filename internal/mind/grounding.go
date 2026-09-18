@@ -138,6 +138,10 @@ type Grounding struct {
 	// answer. It is the reason this message exists at all, so Build puts it
 	// after everything else.
 	Volunteering string
+	// Afterthought asks for a second message after her own, or is empty.
+	// Build puts it after the conversation, since her own last line is what
+	// it is about; see AfterthoughtDirective.
+	Afterthought string
 	// AnsweringAfter is how long ago the message being answered was sent,
 	// set only when a reply was held back because no backend would answer.
 	// Telling her the gap is what lets her acknowledge it in her own words;

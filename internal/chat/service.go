@@ -85,6 +85,9 @@ type task struct {
 	// late marks a second attempt at something held back, so the reply can
 	// acknowledge the gap.
 	late bool
+	// after is the id of her own message an afterthought follows. It is only
+	// sent while that message is still the last word; see mind.LastWord.
+	after string
 }
 
 // Service is the running persona.
@@ -107,6 +110,11 @@ type Service struct {
 	// and a sweep over it has no other way to know where a channel lives.
 	guildMu sync.RWMutex
 	guilds  map[string]string
+
+	// afterthoughts is when she last added a second message, per channel.
+	// In memory: a restart forgetting it costs at most one extra double-text.
+	afterthoughtMu sync.Mutex
+	afterthoughts  map[string]time.Time
 
 	conv       *mind.Conversations
 	deferrals  *mind.Deferrals
@@ -142,21 +150,23 @@ func New(d Deps) *Service {
 	return &Service{
 		generateTimeout: generateTimeout,
 
-		character:  d.Character,
-		names:      mind.CleanNames(names),
-		provider:   d.Provider,
-		store:      d.Storage,
-		session:    d.Session,
-		log:        d.Log,
-		attention:  attention,
-		budget:     mind.DefaultBudget(),
-		location:   d.Location,
-		roll:       roll,
-		guilds:     make(map[string]string),
-		conv:       mind.NewConversations(),
-		deferrals:  mind.NewDeferrals(),
-		encounters: mind.NewEncounters(),
-		work:       make(chan task, queueDepth),
+		character: d.Character,
+		names:     mind.CleanNames(names),
+		provider:  d.Provider,
+		store:     d.Storage,
+		session:   d.Session,
+		log:       d.Log,
+		attention: attention,
+		budget:    mind.DefaultBudget(),
+		location:  d.Location,
+		roll:      roll,
+		guilds:    make(map[string]string),
+
+		afterthoughts: make(map[string]time.Time),
+		conv:          mind.NewConversations(),
+		deferrals:     mind.NewDeferrals(),
+		encounters:    mind.NewEncounters(),
+		work:          make(chan task, queueDepth),
 	}
 }
 

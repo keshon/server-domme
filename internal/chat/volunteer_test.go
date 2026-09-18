@@ -171,3 +171,54 @@ func TestHoldDropsWhatSheVolunteered(t *testing.T) {
 		t.Errorf("held %d volunteered remarks, want none", n)
 	}
 }
+
+// An afterthought is dropped when the person has spoken since her message,
+// not sent after their reply.
+func TestAfterthoughtIsDroppedOnceOvertaken(t *testing.T) {
+	store := testStore(t)
+	svc := awakeService(t, store)
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", Content: "yes", At: time.Now()})
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "cass", Content: "why", At: time.Now()})
+
+	svc.enqueueAfterthought(task{
+		item:  mind.Deferred{ChannelID: testChannel, Trigger: mind.TriggerAfterthought, FirstLine: "yes"},
+		after: "b1",
+	})
+
+	if _, ok := queued(svc); ok {
+		t.Error("queued an afterthought after the person had already answered")
+	}
+}
+
+func TestAfterthoughtIsQueuedWhileSheHasTheLastWord(t *testing.T) {
+	store := testStore(t)
+	svc := awakeService(t, store)
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "cass", Content: "bored?", At: time.Now()})
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", Content: "yes", At: time.Now()})
+
+	svc.enqueueAfterthought(task{
+		item:  mind.Deferred{ChannelID: testChannel, Trigger: mind.TriggerAfterthought, FirstLine: "yes"},
+		after: "b1",
+	})
+
+	if _, ok := queued(svc); !ok {
+		t.Error("dropped an afterthought while her message was still the last word")
+	}
+}
+
+func TestAfterthoughtStandsOnlyWhenItAddsSomething(t *testing.T) {
+	store := testStore(t)
+	svc := awakeService(t, store)
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", Content: "yes", At: time.Now()})
+	at := task{item: mind.Deferred{ChannelID: testChannel, FirstLine: "yes"}, after: "b1"}
+
+	for reply, want := range map[string]bool{
+		"entertain me, then": true,
+		"SKIP":               false,
+		"Yes.":               false,
+	} {
+		if got := svc.afterthoughtStands(at, reply); got != want {
+			t.Errorf("afterthoughtStands(%q) = %v, want %v", reply, got, want)
+		}
+	}
+}

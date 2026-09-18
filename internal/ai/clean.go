@@ -98,8 +98,13 @@ func Clean(reply string) string {
 // is a real thing to say; a false positive here is silence with no explanation,
 // so the guard is narrow and lets an unknown artifact through rather than
 // risking that.
+//
+// Applied per line, and a reply is dropped only when every line is one. A
+// safety-guard model behind one relay answered with its whole verdict —
+// "User Safety: unsafe / Response Safety: unsafe / Safety Categories:
+// Profanity, Harassment" — which the single-line version let through.
 var controlArtifact = regexp.MustCompile(
-	`(?i)^\s*(user\s+)?(safety|moderation|content\s+filter|policy|compliance|flagged)\s*:\s*[\w-]+\s*$`)
+	`(?i)^\s*((user|response|prompt)\s+)?(safety(\s+categor(y|ies))?|moderation|content\s+filter|policy|compliance|flagged)\s*:\s*[\w-]+(\s*,\s*[\w-]+( [\w-]+)?)*\s*$`)
 
 // toolCallMarkup is a relay leaking the scaffolding of a tool-calling model:
 // "<tool_call>The question is: ..." arrived as a whole reply while probing the
@@ -108,8 +113,20 @@ var controlArtifact = regexp.MustCompile(
 var toolCallMarkup = regexp.MustCompile(`(?i)</?(tool_call|function_call|tool_use)\b`)
 
 func isControlArtifact(reply string) bool {
-	return controlArtifact.MatchString(strings.TrimSpace(reply)) ||
-		toolCallMarkup.MatchString(reply)
+	if toolCallMarkup.MatchString(reply) {
+		return true
+	}
+	lines := 0
+	for _, line := range strings.Split(reply, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !controlArtifact.MatchString(line) {
+			return false
+		}
+		lines++
+	}
+	return lines > 0
 }
 
 // stripWrappingQuotes removes one matched pair enclosing the whole reply. A

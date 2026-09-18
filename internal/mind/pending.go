@@ -53,8 +53,11 @@ type Deferred struct {
 	// answer. Carried with the approach because the reason is decided when
 	// the message arrives and only turned into a prompt at reply time.
 	Volunteering string
-	Attempts     int
-	nextTry      time.Time
+	// FirstLine is what she has just said, for an afterthought: the second
+	// message is written knowing what the first one was.
+	FirstLine string
+	Attempts  int
+	nextTry   time.Time
 }
 
 // Age reports how long the approach has been waiting.

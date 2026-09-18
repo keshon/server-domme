@@ -545,6 +545,56 @@ for word. `mind.Echoes` catches a reply that is only someone else's line and
 treats it as a failed generation — an answer is retried, a volunteered remark
 dropped — and `ai.Clean` now drops leaked `<tool_call>` scaffolding.
 
+### A second thought
+
+After a clipped answer she sometimes sends a second message a few seconds
+later: "are you bored?" → "yes" → "then stop being boring." People double-text;
+a bot that sends exactly one message per approach has a rhythm nobody has.
+
+Go decides whether one is allowed (`mind.MayAddAfterthought`), caps before the
+roll:
+
+- only after an answer, never after something she volunteered, a late reply or
+  another afterthought;
+- only after a short reply — six words or fewer. A reply that said its piece
+  has nothing to add;
+- at most one per channel every `AfterthoughtCooldown`, held in memory, since a
+  restart forgetting it costs one extra double-text at most;
+- not when she is tired, irritated with the person or cold towards their role,
+  where a curt answer is curt on purpose;
+- not when others are talking, where a second line lands in their exchange.
+
+The model then decides whether anything is said. The request is a separate
+call made after a pause of three to eight seconds with typing shown, and its
+last message is her own; a trailing system message quotes it and asks for one
+more line or the word `SKIP`. Declining has to be allowed, or every permitted
+afterthought becomes a sent one. Measured with `cmd/chatprobe -only
+afterthought`: the first wording let her open by repeating herself ("yes. you
+people are the entertainment"), so it now says not to.
+
+It is dropped rather than sent late if the person has spoken since her message
+(`mind.LastWord`, checked before generating and again before sending), if it
+repeats her first line, or if the model declined. A second line arriving after
+their reply is exactly the tell this exists to avoid. Like a volunteered remark
+it is never held for retry.
+
+### Relay scaffolding in a reply
+
+Some relays answer with something that is not a reply at all: a safety
+classifier's verdict ("User Safety: unsafe / Response Safety: unsafe / Safety
+Categories: Profanity, Harassment"), or `<tool_call>` markup. `ai.Clean`
+empties those, which makes the backend's answer an `ErrEmptyReply`: the pool
+counts it as a failure and tries the next backend, so the retry is silent and
+nothing about it reaches the channel.
+
+Posted, it does worse than look odd. Her own message is replayed to her as part
+of the conversation, so once a verdict reached the channel she read it back as
+something she had said and explained it in character ("the automated
+moderation layer flagged my last reply"). That is why the guard empties the
+reply rather than trying to reword it, and why the retry does not tell the
+model that something was filtered: a character told about filters talks about
+filters.
+
 ### How much of the conversation counts as live
 
 `Conversations.Recent` bounds the live context two ways and takes whichever

@@ -98,6 +98,13 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: late})
 	}
 
+	// After the transcript, which ends with her own message. Without a
+	// trailing instruction a model handed a conversation whose last turn is
+	// its own either repeats itself or answers nobody.
+	if more := strings.TrimSpace(g.Afterthought); more != "" {
+		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: more})
+	}
+
 	return msgs
 }
 
