@@ -1028,14 +1028,30 @@ only people she has a record of.
 someone's with their salience and how often she let them pass, and `/chat
 forget` clears them with the rest of her file.
 
-**Measured so far.** Extraction, with `cmd/chatprobe -notes` over three
-conversations — his own interview tomorrow, no plans, and someone else's
-brother flying to a wedding — was right on all three in the one run the relay
-allowed before refusing this machine for the day (a per-IP credit budget):
-`clinic interview | tomorrow` kept and dated, nothing from the other two. That
-is one run, not a measurement. Surfacing has scenarios ready
-(`-only concern:` — the day after, the night before, and while he asks
-something else) and has not been run.
+**Measured** on a local KoboldCpp model (Gemma 26B), since the public relays
+were refusing this machine at the time; the relays themselves gave one run,
+right on all three.
+
+- **Extraction** (`cmd/chatprobe -notes`, three runs of three
+  conversations): his own interview tomorrow was kept and dated 3 of 3;
+  a conversation with no plans gave nothing 3 of 3; cass's brother flying to a
+  wedding gave nothing 2 of 3 — and once came back as `PLAN cass: brother
+  flying to Porto`, which the own-words check passed, because those were
+  cass's words. A plan that names a relation (brother, friend, boss…), or
+  comes from a line about "my/his/her <relation>", is now refused as well
+  (`aboutSomeoneElse`), and a test pins that case.
+- **Surfacing** (`-only concern:`, four runs each, the concern forced on her
+  mind): the day after, "hey. how did the interview go?" 4 of 4; the night
+  before, "good luck tomorrow", "how's the nerves for tomorrow?" twice and
+  "you're still up?" — luck came from the time phrase alone, nothing asks
+  for it; while he asked something else, she answered his question 4 of 4 and
+  left the interview alone, which in use counts as letting it pass.
+
+Two things the run showed that are not about concerns: the local model gave
+word-for-word identical replies across runs, because the bot sends no
+temperature and KoboldCpp's default samples close to greedily; and asked
+when movie night was, she answered "eight" — a time nothing in her context
+contains, as the relays did earlier with "ten o'clock".
 
 ### One description of how she is
 

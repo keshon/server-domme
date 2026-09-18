@@ -112,10 +112,10 @@ func DueFrom(when string, said time.Time, loc *time.Location) time.Time {
 
 // NewConcern dates a reported plan and keeps it only if it is in the person's
 // own words: at least half of what the plan says, and at least one word, has
-// to appear in something they said. A plan the model invented, or one they
-// mentioned about somebody else in words of their own, mostly fails this;
-// "my brother's wedding" said by cass is still cass's line, which is why the
-// notes call is told plainly that only their own plans count.
+// to appear in something they said. A plan the model invented fails that.
+// One they mentioned about somebody else passes it — "my brother is flying
+// to Porto" is cass's own line — so a plan that names a relation, or comes
+// from a line about one, is refused as well; see aboutSomeoneElse.
 func NewConcern(p Plan, said time.Time, loc *time.Location, theirLines []string) (Concern, bool) {
 	what := strings.Join(strings.Fields(p.What), " ")
 	if what == "" || len(strings.Fields(what)) > maxConcernWords {
@@ -127,6 +127,9 @@ func NewConcern(p Plan, said time.Time, loc *time.Location, theirLines []string)
 	}
 	theirs := Keywords(strings.Join(theirLines, " "))
 	if shared := sharedWords(words, theirs); shared == 0 || 2*shared < len(words) {
+		return Concern{}, false
+	}
+	if aboutSomeoneElse(what, words, theirLines) {
 		return Concern{}, false
 	}
 	due := DueFrom(p.When, said, loc)
@@ -256,4 +259,45 @@ func sharedWords(a, b []string) int {
 		}
 	}
 	return n
+}
+
+// relations are the words that make a plan someone else's. Measured: asked
+// for plans only of the speaker's own, a model still wrote "PLAN cass:
+// brother flying to Porto" from "my brother is flying to Porto", and the
+// own-words check passed it, because those were cass's words.
+var relations = map[string]bool{
+	"brother": true, "sister": true, "mom": true, "mum": true, "mother": true,
+	"dad": true, "father": true, "parents": true, "wife": true, "husband": true,
+	"girlfriend": true, "boyfriend": true, "partner": true, "son": true,
+	"daughter": true, "kid": true, "kids": true, "friend": true, "friends": true,
+	"cousin": true, "uncle": true, "aunt": true, "grandma": true, "grandpa": true,
+	"boss": true, "colleague": true, "roommate": true, "neighbour": true,
+	"neighbor": true, "family": true,
+}
+
+// aboutSomeoneElse reports whether a plan belongs to somebody the speaker
+// mentioned rather than to the speaker: it names a relation, or the line it
+// came from is about "my/his/her/their <relation>".
+func aboutSomeoneElse(what string, words []string, lines []string) bool {
+	for _, w := range strings.Fields(strings.ToLower(what)) {
+		if relations[strings.Trim(w, ".,!?'\"")] {
+			return true
+		}
+	}
+	for _, line := range lines {
+		lw := Keywords(line)
+		if sharedWords(words, lw) == 0 {
+			continue
+		}
+		fields := strings.Fields(strings.ToLower(line))
+		for i := 0; i+1 < len(fields); i++ {
+			switch fields[i] {
+			case "my", "his", "her", "their", "our":
+				if relations[strings.Trim(fields[i+1], ".,!?'\"")] {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

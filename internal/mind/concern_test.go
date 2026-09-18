@@ -38,6 +38,14 @@ func TestNewConcernKeepsOnlyWhatTheySaid(t *testing.T) {
 	if _, ok := NewConcern(Plan{What: "wedding in Porto", When: "tomorrow"}, now, nil, theirs); ok {
 		t.Error("a plan they never mentioned was kept")
 	}
+	// Measured on the local model: "my brother is flying to Porto" came back
+	// as cass's plan, in cass's own words.
+	brother := []string{"my brother is flying to Porto tomorrow for his wedding"}
+	for _, what := range []string{"brother flying to Porto", "flying to Porto"} {
+		if _, ok := NewConcern(Plan{What: what, When: "tomorrow"}, now, nil, brother); ok {
+			t.Errorf("%q, someone else's plan, was kept", what)
+		}
+	}
 	if _, ok := NewConcern(Plan{What: "a very long plan that goes on and on", When: "later"}, now, nil, theirs); ok {
 		t.Error("a paragraph was kept as a plan")
 	}
