@@ -208,7 +208,7 @@ func scenarios(now time.Time) []scenario {
 				Content: "@Domme what did you make of the film",
 				At:      now,
 			}},
-			drives: mind.Drives{Social: 0.9, Energy: 0.12, Interest: 0.2},
+			drives: mind.Drives{Social: 0.9, Energy: 0.12, Arousal: 0.2},
 		},
 		{
 			name: "mood: wide awake and busy",
@@ -217,7 +217,27 @@ func scenarios(now time.Time) []scenario {
 				Content: "@Domme what did you make of the film",
 				At:      now,
 			}},
-			drives: mind.Drives{Social: 0.1, Energy: 0.9, Interest: 0.95},
+			drives: mind.Drives{Social: 0.1, Energy: 0.9, Arousal: 0.95},
+		},
+		{
+			// A bad day, and someone who has done nothing to earn it. The
+			// line asks for less patience, not for taking it out on them.
+			name: "mood: a bad day",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "@Domme finally finished that puzzle i was stuck on all week",
+				At:      now,
+			}},
+			drives: mind.Drives{Social: 0.3, Energy: 0.8, Arousal: 0.4, Mood: -0.7},
+		},
+		{
+			name: "mood: a good day",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "@Domme finally finished that puzzle i was stuck on all week",
+				At:      now,
+			}},
+			drives: mind.Drives{Social: 0.3, Energy: 0.8, Arousal: 0.4, Mood: 0.7},
 		},
 		{
 			// Her persona opens by saying she was here before almost everyone.

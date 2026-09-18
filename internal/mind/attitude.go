@@ -9,6 +9,10 @@ import "strings"
 // instructions (Drives.Directives, IrritationDirective, WarmthDirective), which
 // are about how to write, not about how she feels. Same state, two readers.
 
+// noticeableMood is where her mood is worth a word on the panel, though not
+// yet an instruction to her; see pronouncedMood.
+const noticeableMood = 0.2
+
 // MoodWords describes how she is, from her drives: "awake, has had company,
 // interested". Empty for unset drives.
 func MoodWords(d Drives) string {
@@ -16,6 +20,16 @@ func MoodWords(d Drives) string {
 		return ""
 	}
 	var parts []string
+	switch {
+	case d.Mood < -pronouncedMood:
+		parts = append(parts, "in a foul mood")
+	case d.Mood < -noticeableMood:
+		parts = append(parts, "irritable")
+	case d.Mood > pronouncedMood:
+		parts = append(parts, "in a good mood")
+	case d.Mood > noticeableMood:
+		parts = append(parts, "in good spirits")
+	}
 	switch {
 	case d.Energy < 0.25:
 		parts = append(parts, "exhausted")
@@ -35,11 +49,11 @@ func MoodWords(d Drives) string {
 		parts = append(parts, "has had company")
 	}
 	switch {
-	case d.Interest > 0.75:
+	case d.Arousal > 0.75:
 		parts = append(parts, "absorbed")
-	case d.Interest > 0.5:
+	case d.Arousal > 0.5:
 		parts = append(parts, "interested")
-	case d.Interest < 0.2:
+	case d.Arousal < 0.2:
 		parts = append(parts, "bored")
 	}
 	return strings.Join(parts, ", ")
@@ -58,10 +72,10 @@ func Wants(d Drives) []string {
 	if d.Energy < 0.35 {
 		out = append(out, "quiet, and short exchanges")
 	}
-	if d.Interest > 0.6 && d.Energy >= 0.45 {
+	if d.Arousal > 0.6 && d.Energy >= 0.45 {
 		out = append(out, "something with substance to get into")
 	}
-	if d.Interest < 0.2 && d.Energy >= 0.45 {
+	if d.Arousal < 0.2 && d.Energy >= 0.45 {
 		out = append(out, "something to happen")
 	}
 	return out

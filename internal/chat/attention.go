@@ -16,6 +16,9 @@ const (
 	// A timer, unlike everything else she does unprompted, because absence
 	// is only noticeable over time — and only for people who asked for it.
 	attentionInterval = 10 * time.Minute
+	// attentionJitter is how far each wait varies from attentionInterval,
+	// as a share of it.
+	attentionJitter = 1.0 / 3
 	// activityEvery throttles recording that an opted-in person was active
 	// elsewhere, so a busy member is one write a minute, not one a message.
 	activityEvery = time.Minute
@@ -29,14 +32,18 @@ const (
 
 // attentionLoop considers, now and then, whether to go after anyone who has
 // said she may.
+//
+// Each wait is varied by up to a third either way, so a reach-out never lands
+// on the same minute past the hour: a fixed tick is a clock anyone can learn.
 func (s *Service) attentionLoop(ctx context.Context) {
-	ticker := time.NewTicker(attentionInterval)
-	defer ticker.Stop()
 	for {
+		wait := time.Duration(float64(attentionInterval) * (1 + attentionJitter*(2*s.roll()-1)))
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			s.considerReaching(time.Now())
 		}
 	}

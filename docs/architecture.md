@@ -439,7 +439,8 @@ she is worn out, never while they are already talking to her, and nothing more
 after three unanswered until they speak to her. Speaking to her resets the
 count.
 
-A ten-minute timer looks at the people who opted in — the one thing she does on
+A timer of about ten minutes, varied by a third each time so it never lands
+on the same minute, looks at the people who opted in — the one thing she does on
 a timer, because absence is only noticeable over time, and only for people who
 asked for it. A backend call happens only when she decides to act. She reaches
 them in the channel they last talked to her in, tagging them (and only them;
@@ -795,8 +796,8 @@ switching on blind.
 
 ### How she is doing
 
-`mind.Drives` is three numbers — Social, Energy, Interest — derived on read
-from a timestamp and two counts. It is the cognitum experiment's symbolic core
+`mind.Drives` is four numbers — Social, Energy, Arousal and Mood — derived on
+read from timestamps, counts and a few stored values. It is the cognitum experiment's symbolic core
 with its price removed: that design kept state in the same way and spent around
 eighty model calls an hour doing it, a third of which failed to parse. Nothing
 here calls a backend.
@@ -806,21 +807,58 @@ needs a goroutine, loses everything on restart and burns cycles in an empty
 server; computing from elapsed time when the value is wanted gives the same
 curves for nothing and survives a redeploy, because the timestamps do.
 
-Three drives rather than four: Social, Energy and Interest each have an input
-this bot can observe, and cognitum's Coherence had none. A drive fed by nothing
-drifts convincingly and means nothing.
+Social, Energy and Arousal each have an input this bot can observe, and
+cognitum's Coherence had none. A drive fed by nothing drifts convincingly and
+means nothing. Mood is fed by what happens to her.
 
 Energy follows an anchored day curve rather than a cosine, because a 24-hour
 cosine is symmetric — putting the trough at 04:00 necessarily makes 08:00 just
 as dark. `CHAT_TIMEZONE` is the community's zone, not the host's: a bot yawning
 through someone's prime time is worse than one with no clock at all.
 
+**Arousal** (it was called Interest) is how busy the room is and how much of
+it is aimed at her, worn down by habituation: `mind.Repetition` is the share of
+each line's keywords an earlier line already used, her own lines left out, and
+a room circling the same words holds her up to 60% less. The fifth round of the
+chicken joke interests her less than the first, which a count of messages
+cannot see.
+
+**Mood** is how her day is going, -1 to +1, one per server (`mind_guilds`). It
+is the sum of three things:
+
+- **her temperament's baseline** — the character file's `warmth` dial, so a
+  reserved character settles a little below neutral and a warm one a little
+  above (`SpeechStyle.MoodBaseline`);
+- **the day's tone** (`mind.DayTone`), seeded from the guild and the date so it
+  holds all day, survives a restart and differs between servers. Cubed, so
+  most days are flat and about one in six is clearly good or clearly bad. It
+  moves her energy by up to 0.12 and her mood by up to 0.35: noticeable but
+  rare, a day regulars would call her being in a mood;
+- **what has happened** (`mind.MoodSwing`): every event in the bond table also
+  carries a mood shift, and a remembered conversation moves it once by its
+  tone (`mind.ConversationMood`). The swing halves every three hours.
+
+The spillover is what lets one bad exchange colour the next conversation
+without becoming a grudge against someone who had nothing to do with it.
+Someone pestering her raises her tension with them by 0.34 and lowers her mood
+by 0.05: short with them for the afternoon, and a bit short with everyone for
+an hour or two. Irritation always spills over less than it is felt towards its
+cause (tested). Conversations move her mood once however many people were in
+them, and unlike the bond a group counts: a room that turned hostile sours her
+even when nobody in it can fairly be blamed.
+
 They reach the reply twice. `Drives.Nudge` moves the odds of answering by up to
 a fifth — but only for the indirect approaches. A direct mention or a reply is
 answered on its own terms whatever the hour: someone tired still answers when
 spoken to, and making that conditional is how "she ignored my direct question"
 returns with a better excuse. The zero value nudges by nothing, so an unset
-mood is not a bad one.
+mood is not a bad one. Mood is part of the nudge (±0.08), and closeness to the
+person counts on every trigger, up to +0.08 (`mind.ClosenessNudge`) — smaller
+than tension takes away, because being annoyed with someone is the sharper
+feeling. Over a year of simulated afternoons the average odds per trigger moved
+by a point (named 0.69 → 0.70, overheard 0.29 → 0.30, follow-up 0.84 → 0.85),
+and now vary by about ±5 points with her state
+(`TestAnswerRatesStayNearTodaysOnAverage`).
 
 `Drives.Directives` is the other half, and the shape of it is the point. The
 first version stated the mood as a fact in the grounding — "Right now: it is
@@ -835,7 +873,16 @@ Phrased as instructions and placed last — after the output rules, where nothin
 follows it — the same states produce "haven't seen it" at 3am against full
 sentences when awake. At most two directives, and only when the state is
 pronounced: a list of qualifications on every reply is how a strong instruction
-becomes a weak one.
+becomes a weak one. A mood beyond ±0.45 gets one of its own, placed after
+tiredness and before company. Measured with `cmd/chatprobe -only "mood: a"` on
+"finally finished that puzzle i was stuck on all week": the first wording ("let
+a little of it through") read the same on good and bad days, the lesson this
+section already records. Stated as behaviour — a short fuse and no playing
+along; more generous, tease rather than dismiss — the bad days came back as
+"took you long enough. hope it was worth the suffering." and the good ones as
+"nice work, don't let it go to your head". A small difference, which suits a
+character this dry; stage four's single description of her state is where it
+gets re-measured.
 
 Above the mood sits `mind.SpeechStyle`, the settled temperament, read from the
 character file's `## Temper` section as dials on 0..1. Same machinery, one

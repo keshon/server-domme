@@ -33,7 +33,7 @@ func TestMayVolunteerGates(t *testing.T) {
 		"daily budget spent":   func(v *Volunteer) { v.Today = VolunteerDailyMax },
 		// Already talking: what she says next is a reply, not a volunteer.
 		"already in the conversation": func(v *Volunteer) { v.LastSpokeAt = now.Add(-time.Minute) },
-		"too tired":                   func(v *Volunteer) { v.Drives = Drives{Energy: 0.1, Interest: 0.5} },
+		"too tired":                   func(v *Volunteer) { v.Drives = Drives{Energy: 0.1, Arousal: 0.5} },
 		"not a volunteered trigger":   func(v *Volunteer) { v.Trigger = TriggerMention },
 	}
 

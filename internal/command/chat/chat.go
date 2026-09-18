@@ -425,7 +425,9 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	b.WriteString("```\n")
 	fmt.Fprintf(&b, "%s\n", gauge("Energy", st.Drives.Energy))
 	fmt.Fprintf(&b, "%s\n", gauge("Alone", st.Drives.Social))
-	fmt.Fprintf(&b, "%s\n", gauge("Interest", st.Drives.Interest))
+	fmt.Fprintf(&b, "%s\n", gauge("Interest", st.Drives.Arousal))
+	// Mood runs -1 to +1, so the bar is centred: half full is neutral.
+	fmt.Fprintf(&b, "%-*s %s  %+.2f\n", labelWidth, "Mood", meter((st.Drives.Mood+1)/2), st.Drives.Mood)
 	b.WriteString("```\n")
 
 	if len(st.Wants) > 0 {

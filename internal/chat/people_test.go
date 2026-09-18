@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -232,5 +233,41 @@ func TestABurstGetsOneAnswer(t *testing.T) {
 
 	if n := len(svc.work); n != 1 {
 		t.Errorf("queued %d answers to one burst, want 1", n)
+	}
+}
+
+// One person pestering her sours her with everyone for a while: the mood is
+// the server's, not theirs.
+func TestAnnoyanceSpillsIntoHerMood(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	before := svc.drives(testGuild, testChannel, now).Mood
+
+	svc.appraise(testGuild, "u1", mind.EventPestered, now)
+	svc.appraise(testGuild, "u1", mind.EventPestered, now)
+
+	if after := svc.drives(testGuild, testChannel, now).Mood; after >= before {
+		t.Errorf("mood before %.2f, after being pestered %.2f", before, after)
+	}
+	if p := store.GetMindPerson(testGuild, "u2"); p != nil && p.Tension > 0 {
+		t.Error("the annoyance was held against someone else")
+	}
+}
+
+// A hostile room sours her once, not once per person in it.
+func TestAConversationMovesHerMoodOnce(t *testing.T) {
+	store := testStore(t)
+	one := newTestService(t, store, 0)
+	now := time.Now()
+	one.feelConversation(testGuild, []string{"u1", "u2", "u3"}, mind.ToneHostile, now)
+
+	got := one.drives(testGuild, testChannel, now).Mood
+	store2 := testStore(t)
+	other := newTestService(t, store2, 0)
+	other.feelConversation(testGuild, []string{"u1"}, mind.ToneHostile, now)
+	want := other.drives(testGuild, testChannel, now).Mood
+	if math.Abs(got-want) > 1e-9 {
+		t.Errorf("three people moved her mood to %.2f, one to %.2f", got, want)
 	}
 }

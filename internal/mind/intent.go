@@ -136,6 +136,10 @@ type Situation struct {
 	// Regard is what this person's roles are worth to her, -1 to +1. Standing
 	// rather than feeling: it is set by an operator and does not decay.
 	Regard float64
+	// Closeness is how close she has come to this person, already decayed.
+	// It raises their odds a little: people she likes get answered more
+	// readily, the way anyone's attention works.
+	Closeness float64
 	// Closer marks a message that closes the topic rather than moving it.
 	Closer bool
 }
@@ -173,7 +177,8 @@ func DecideWhy(a Attention, s Situation, roll float64) (Outcome, Decision) {
 	// skips the overrides: letting "same" go unanswered is not the silence
 	// that reads as a broken bot, it is how a conversation ends.
 	if s.Closer && (s.Trigger == TriggerFollowUp || s.Trigger == TriggerReply) {
-		chance := clamp01(a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Tension) + RegardNudge(s.Regard))
+		chance := clamp01(a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Tension) +
+			RegardNudge(s.Regard) + ClosenessNudge(s.Closeness))
 		d := Decision{Rule: RuleCloser, Chance: chance}
 		if roll < chance {
 			return OutcomeSpeak, d
@@ -230,6 +235,7 @@ func DecideWhy(a Attention, s Situation, roll float64) (Outcome, Decision) {
 	// turn into the silence that reads as a broken bot.
 	chance += IrritationNudge(s.Tension)
 	chance += RegardNudge(s.Regard)
+	chance += ClosenessNudge(s.Closeness)
 
 	d := Decision{Rule: RuleOdds, Chance: clamp01(chance)}
 	if roll < d.Chance {
@@ -237,6 +243,17 @@ func DecideWhy(a Attention, s Situation, roll float64) (Outcome, Decision) {
 	}
 	return OutcomeIgnore, d
 }
+
+// ClosenessNudge is how much being close to someone raises the odds of
+// answering them. Smaller than tension takes away, on purpose: liking someone
+// makes her a little more available, while being annoyed with them is the
+// sharper feeling.
+func ClosenessNudge(closeness float64) float64 {
+	return closenessWeight * clamp01(closeness)
+}
+
+// closenessWeight is ClosenessNudge at full closeness.
+const closenessWeight = 0.08
 
 func clamp01(v float64) float64 {
 	if v < 0 {

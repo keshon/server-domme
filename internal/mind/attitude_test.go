@@ -26,11 +26,11 @@ func TestAttitudePutsFeelingsBeforeStanding(t *testing.T) {
 }
 
 func TestWantsFollowTheDrives(t *testing.T) {
-	lonely := Wants(Drives{Energy: 0.8, Social: 0.9, Interest: 0.3})
+	lonely := Wants(Drives{Energy: 0.8, Social: 0.9, Arousal: 0.3})
 	if len(lonely) == 0 || !strings.Contains(lonely[0], "company") {
 		t.Errorf("lonely wants %v", lonely)
 	}
-	if got := Wants(Drives{Energy: 0.2, Social: 0.1, Interest: 0.3}); len(got) != 1 || !strings.Contains(got[0], "quiet") {
+	if got := Wants(Drives{Energy: 0.2, Social: 0.1, Arousal: 0.3}); len(got) != 1 || !strings.Contains(got[0], "quiet") {
 		t.Errorf("exhausted wants %v", got)
 	}
 	if Wants(Drives{}) != nil {
@@ -41,7 +41,7 @@ func TestWantsFollowTheDrives(t *testing.T) {
 // What the panel lists as "being told" has to be what the prompt carries.
 func TestToldIsWhatThePromptCarries(t *testing.T) {
 	g := Grounding{
-		Drives:    Drives{Energy: 0.2, Social: 0.9, Interest: 0.5},
+		Drives:    Drives{Energy: 0.2, Social: 0.9, Arousal: 0.5},
 		Present:   []Acquaintance{{UserID: "1", Username: "Big M", Tension: 0.4}, {UserID: "2", Username: "cass", Closeness: 0.7}},
 		Reception: ReceptionDirective("Big M", ReceptionPanned),
 	}

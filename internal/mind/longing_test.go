@@ -32,7 +32,7 @@ func TestLongingNoticesBeingIgnoredBySomeoneAround(t *testing.T) {
 // She is not forced to seek attention: the urge comes from how she feels.
 func TestUrgeComesFromHowSheFeels(t *testing.T) {
 	missed := Longing{Missing: 0.8}
-	awake := Drives{Energy: 0.9, Social: 0.5, Interest: 0.5}
+	awake := Drives{Energy: 0.9, Social: 0.5, Arousal: 0.5}
 	fond := Urge(Reach{Longing: missed, Closeness: 0.8, Drives: awake})
 	neutral := Urge(Reach{Longing: missed, Closeness: 0, Drives: awake})
 	if !(fond > neutral) {
@@ -47,7 +47,7 @@ func eager() Reach {
 	return Reach{
 		Now: time.Now(), Hour: 14, Welcome: 1,
 		Longing: Longing{Missing: 1, Neglected: true}, Closeness: 1,
-		Drives: Drives{Energy: 0.9, Social: 1, Interest: 0.5},
+		Drives: Drives{Energy: 0.9, Social: 1, Arousal: 0.5},
 	}
 }
 

@@ -244,6 +244,10 @@ type MindGuild struct {
 	// InitiativeAt; decayed on read. See mind.Fatigue.
 	Initiative   float64   `json:"initiative,omitempty"`
 	InitiativeAt time.Time `json:"initiative_at,omitempty"`
+	// MoodSwing is how far events have moved her mood from its baseline, as
+	// of MoodSwingAt; decayed on read. See mind.MoodSwing.
+	MoodSwing   float64   `json:"mood_swing,omitempty"`
+	MoodSwingAt time.Time `json:"mood_swing_at,omitempty"`
 }
 
 func (m *MindGuild) Key() string { return m.GuildID }

@@ -394,6 +394,10 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 
 	drives := s.drives(m.GuildID, m.ChannelID, now)
 	regard := s.regardFor(sess, m.GuildID, m.Author.ID)
+	var warmth float64
+	if person != nil {
+		warmth = mind.ClosenessNow(person.Closeness, person.ClosenessAt, now)
+	}
 	roll := s.roll()
 	outcome, decision := mind.DecideWhy(s.attention, mind.Situation{
 		Trigger:       trigger,
@@ -404,13 +408,9 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Drives:        drives,
 		Tension:       irritation,
 		Regard:        regard,
+		Closeness:     warmth,
 		Closer:        closer,
 	}, roll)
-
-	var warmth float64
-	if person != nil {
-		warmth = mind.ClosenessNow(person.Closeness, person.ClosenessAt, now)
-	}
 	entry := storage.MindJournal{
 		GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
 		MessageID: m.ID, UserID: m.Author.ID, Username: name, Excerpt: content,

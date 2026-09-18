@@ -193,7 +193,7 @@ func TestBuildPutsTheMoodLastAndAsInstructions(t *testing.T) {
 	c := &Character{Name: "X", Persona: "someone who lives here"}
 	g := Grounding{
 		Now:    time.Now(),
-		Drives: Drives{Social: 0.9, Energy: 0.1, Interest: 0.2},
+		Drives: Drives{Social: 0.9, Energy: 0.1, Arousal: 0.2},
 	}
 
 	system := Build(c, g, nil, DefaultBudget())[0].Content

@@ -93,8 +93,8 @@ func TestDeriveDrivesUsesEveryInput(t *testing.T) {
 	if d.Social < 0.9 {
 		t.Errorf("a full window of silence: Social = %.2f, want near 1", d.Social)
 	}
-	if d.Interest < 0.9 {
-		t.Errorf("busy and aimed at her: Interest = %.2f, want near 1", d.Interest)
+	if d.Arousal < 0.9 {
+		t.Errorf("busy and aimed at her: Interest = %.2f, want near 1", d.Arousal)
 	}
 }
 
@@ -118,8 +118,8 @@ func TestNudgeMovesTheIndirectOnes(t *testing.T) {
 	a := DefaultAttention()
 	now := at(20)
 
-	lonely := Drives{Social: 1, Energy: 0.9, Interest: 1}
-	flat := Drives{Social: 0, Energy: 0.15, Interest: 0}
+	lonely := Drives{Social: 1, Energy: 0.9, Arousal: 1}
+	flat := Drives{Social: 0, Energy: 0.15, Arousal: 0}
 
 	if lonely.Nudge() <= flat.Nudge() {
 		t.Fatalf("lonely and awake should want to talk more than tired and ignored: %.2f vs %.2f",
@@ -138,8 +138,8 @@ func TestNudgeMovesTheIndirectOnes(t *testing.T) {
 }
 
 func TestNudgeIsBounded(t *testing.T) {
-	best := Drives{Social: 1, Energy: 1, Interest: 1}
-	worst := Drives{Social: 0, Energy: 0, Interest: 0}
+	best := Drives{Social: 1, Energy: 1, Arousal: 1}
+	worst := Drives{Social: 0, Energy: 0, Arousal: 0}
 
 	if got := best.Nudge(); got > 0.25 {
 		t.Errorf("Nudge = %.2f, want it capped: mood adjusts the odds, it does not set them", got)
@@ -160,7 +160,7 @@ func TestNudgeTreatsTheZeroValueAsNeutral(t *testing.T) {
 // changed nothing measurable: at 3am the character wrote the longest and
 // liveliest reply of the set.
 func TestDirectivesTellHerHowToWriteNotHowSheFeels(t *testing.T) {
-	exhausted := Drives{Social: 0.9, Energy: 0.12, Interest: 0.2}.Directives()
+	exhausted := Drives{Social: 0.9, Energy: 0.12, Arousal: 0.2}.Directives()
 	if len(exhausted) == 0 {
 		t.Fatal("a wrung-out character was given no instruction at all")
 	}
@@ -172,7 +172,7 @@ func TestDirectivesTellHerHowToWriteNotHowSheFeels(t *testing.T) {
 }
 
 func TestDirectivesSayNothingAboutAnUnremarkableMood(t *testing.T) {
-	if got := (Drives{Social: 0.2, Energy: 0.6, Interest: 0.3}).Directives(); len(got) != 0 {
+	if got := (Drives{Social: 0.2, Energy: 0.6, Arousal: 0.3}).Directives(); len(got) != 0 {
 		t.Errorf("an ordinary mood produced instructions: %q", got)
 	}
 	if got := (Drives{}).Directives(); len(got) != 0 {
@@ -183,7 +183,7 @@ func TestDirectivesSayNothingAboutAnUnremarkableMood(t *testing.T) {
 // A list of qualifications on every reply is how a strong instruction becomes
 // a weak one, which this prompt has demonstrated three times.
 func TestDirectivesStayShort(t *testing.T) {
-	everything := Drives{Social: 1, Energy: 0, Interest: 1}
+	everything := Drives{Social: 1, Energy: 0, Arousal: 1}
 	if got := everything.Directives(); len(got) > 2 {
 		t.Errorf("gave %d instructions at once: %q", len(got), got)
 	}

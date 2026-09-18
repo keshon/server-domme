@@ -13,18 +13,23 @@ import (
 // an hour maintaining state like this, and a third of the replies failed to
 // parse.
 //
-// Three rather than cognitum's four. Social, Energy and Interest each have an
-// input this bot can actually observe; Coherence had none, and a drive fed by
-// nothing is a number that drifts convincingly and means nothing.
+// Social, Energy and Arousal each have an input this bot can actually observe;
+// cognitum's Coherence had none, and a drive fed by nothing is a number that
+// drifts convincingly and means nothing. Mood's inputs are the events of the
+// bond table and the day's tone; see feeling.go.
 type Drives struct {
 	// Social rises with time alone and falls on contact. High means she has
 	// had nobody to talk to for a while.
 	Social float64
-	// Energy follows the clock, lowest in the small hours.
+	// Energy follows the clock, lowest in the small hours, lifted or lowered
+	// by the day's tone.
 	Energy float64
-	// Interest rises with how busy the channel is and how much of it is aimed
-	// at her.
-	Interest float64
+	// Arousal rises with how busy the channel is and how much of it is aimed
+	// at her, and wears off as the room keeps circling the same words.
+	Arousal float64
+	// Mood is how her day is going, -1 to +1: her temperament's baseline,
+	// the day's tone, and what has happened lately. See MoodSwing.
+	Mood float64
 }
 
 // MoodInput is everything the drives are computed from. All of it is either a
@@ -39,6 +44,15 @@ type MoodInput struct {
 	RecentTurns int
 	// AddressedTurns is how many of those were aimed at her.
 	AddressedTurns int
+	// Repetition is how much the live conversation keeps coming back to the
+	// same words, 0..1; see Repetition.
+	Repetition float64
+	// Seed tells servers' days apart: the guild ID. See DayTone.
+	Seed string
+	// Baseline is the mood she drifts back to, from her temperament, and
+	// Swing how far events have moved her from it, already decayed.
+	Baseline float64
+	Swing    float64
 	// Location is the timezone the community keeps, not the one the server is
 	// racked in. Nil means UTC.
 	Location *time.Location
@@ -62,10 +76,12 @@ const (
 // empty server. Computing from elapsed time on read gives the same curves, for
 // nothing, and survives a redeploy because the timestamps do.
 func DeriveDrives(in MoodInput) Drives {
+	day := DayTone(in.Seed, in.Now, in.Location)
 	return Drives{
-		Social:   solitude(in.Now, in.LastSpokeAt),
-		Energy:   circadian(in.Now, in.Location),
-		Interest: interest(in.RecentTurns, in.AddressedTurns),
+		Social:  solitude(in.Now, in.LastSpokeAt),
+		Energy:  clamp01(circadian(in.Now, in.Location) + dayEnergy*day),
+		Arousal: interest(in.RecentTurns, in.AddressedTurns) * (1 - habituation*clamp01(in.Repetition)),
+		Mood:    clampSigned(in.Baseline + dayMood*day + in.Swing),
 	}
 }
 
@@ -124,6 +140,10 @@ func interest(recent, addressed int) float64 {
 	return clamp01(0.6*busy + 0.4*aimed)
 }
 
+// pronouncedMood is how far from neutral her mood has to be before it is
+// worth telling her about.
+const pronouncedMood = 0.45
+
 // Nudge is how much the drives move the odds of answering, positive or
 // negative, roughly within a fifth either way.
 //
@@ -143,9 +163,13 @@ func (d Drives) Nudge() float64 {
 
 	lonely := 0.15 * d.Social
 	tired := 0.20 * (1 - d.Energy)
-	engaged := 0.10 * d.Interest
+	engaged := 0.10 * d.Arousal
 
-	nudge := lonely + engaged - tired
+	// A good day makes her more forthcoming and a bad one less, on the same
+	// indirect approaches only.
+	mood := 0.08 * d.Mood
+
+	nudge := lonely + engaged - tired + mood
 	if nudge < -0.2 {
 		return -0.2
 	}
@@ -183,10 +207,19 @@ func (d Drives) Directives() []string {
 		out = append(out, "You are tired. Keep it shorter than usual.")
 	}
 
+	// Above company and interest: a bad mood is the thing about her today
+	// that most changes how a line should read.
+	switch {
+	case d.Mood < -pronouncedMood:
+		out = append(out, "You are in a bad mood today. Short fuse: fewer words, no playing along, and do not explain why. It is not their fault, so no insults unless they earn one.")
+	case d.Mood > pronouncedMood:
+		out = append(out, "You are in a good mood today. Be more generous than usual: play along with it, tease rather than dismiss, and give them something to work with.")
+	}
+
 	switch {
 	case d.Social > 0.8:
 		out = append(out, "You have had nobody to talk to for a long time. Engage with this rather than brushing it off.")
-	case d.Interest > 0.75:
+	case d.Arousal > 0.75:
 		out = append(out, "This has your attention. Say something with content in it rather than a one-liner.")
 	}
 

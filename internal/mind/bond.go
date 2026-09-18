@@ -83,9 +83,13 @@ const (
 	EventAskedForPeace        Event = "asked her to back off"
 )
 
-// Shift is what one event does to a bond.
+// Shift is what one event does to a bond, and Mood what it does to her
+// generally: the spillover that lets someone getting on her nerves leave her
+// a little short with everyone for a while. Smaller than the bond's share,
+// and it fades sooner; see MoodSwing.
 type Shift struct {
 	Closeness, Tension, Welcome float64
+	Mood                        float64
 }
 
 // appraisals is the whole of how events move a bond, in one place.
@@ -93,20 +97,40 @@ type Shift struct {
 // The values are the ones each mechanism had when it was separate, carried
 // over so this reorganisation changes structure and not behaviour; re-tuning
 // them is a separate, measured step.
+//
+// Conversations carry no mood here, because they are appraised once for
+// every person in them and the mood is one: see ConversationMood.
 var appraisals = map[Event]Shift{
-	EventPestered:             {Tension: pesterStep},
-	EventBrushedOff:           {Tension: BrushOffStep},
-	EventLaughed:              {Closeness: LikedWarmth},
-	EventPanned:               {Tension: PannedIrritation},
+	EventPestered:             {Tension: pesterStep, Mood: -0.05},
+	EventBrushedOff:           {Tension: BrushOffStep, Mood: -0.08},
+	EventLaughed:              {Closeness: LikedWarmth, Mood: 0.08},
+	EventPanned:               {Tension: PannedIrritation, Mood: -0.12},
 	EventWarmAlone:            {Closeness: 0.15},
 	EventWarmGroup:            {Closeness: 0.05},
 	EventOrdinaryAlone:        {Closeness: 0.03},
 	EventTenseAlone:           {Tension: 0.2},
 	EventHostileAlone:         {Closeness: -0.15, Tension: 0.4},
-	EventReachAnswered:        {Closeness: 0.02, Welcome: 0.10},
-	EventReachAnsweredQuickly: {Closeness: 0.03, Welcome: 0.15},
-	EventReachIgnored:         {Welcome: -0.12},
-	EventAskedForPeace:        {Welcome: -0.30},
+	EventReachAnswered:        {Closeness: 0.02, Welcome: 0.10, Mood: 0.06},
+	EventReachAnsweredQuickly: {Closeness: 0.03, Welcome: 0.15, Mood: 0.10},
+	EventReachIgnored:         {Welcome: -0.12, Mood: -0.06},
+	EventAskedForPeace:        {Welcome: -0.30, Mood: -0.12},
+}
+
+// ConversationMood is what a remembered conversation does to her mood, once
+// for the conversation however many were in it. Unlike the bond, a group
+// counts: a room that turned hostile sours her even when nobody in it can
+// fairly be blamed.
+func ConversationMood(tone Tone) float64 {
+	switch tone {
+	case ToneWarm:
+		return 0.12
+	case ToneTense:
+		return -0.08
+	case ToneHostile:
+		return -0.2
+	default:
+		return 0
+	}
 }
 
 // Appraise is what an event does to a bond, or the zero shift for one that

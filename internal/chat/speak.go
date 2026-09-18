@@ -269,18 +269,24 @@ func (s *Service) speak(ctx context.Context, t task) {
 // timestamp and two counts, so they cost nothing, cannot drift out of step with
 // what actually happened, and survive a restart because the timestamp does.
 func (s *Service) drives(guildID, channelID string, now time.Time) mind.Drives {
-	in := mind.MoodInput{Now: now, Location: s.location}
+	in := mind.MoodInput{Now: now, Location: s.location, Seed: guildID}
 
 	if guild := s.store.GetMindGuild(guildID); guild != nil {
 		in.LastSpokeAt = guild.LastSpokeAt
+		in.Swing = mind.MoodSwing{Level: guild.MoodSwing, At: guild.MoodSwingAt}.Now(now)
+	}
+	if s.character != nil {
+		in.Baseline = s.character.Style.MoodBaseline()
 	}
 
-	for _, turn := range s.conv.Recent(channelID) {
+	turns := s.conv.Recent(channelID)
+	for _, turn := range turns {
 		in.RecentTurns++
 		if turn.Mentioned {
 			in.AddressedTurns++
 		}
 	}
+	in.Repetition = mind.Repetition(turns)
 	return mind.DeriveDrives(in)
 }
 

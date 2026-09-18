@@ -35,7 +35,23 @@ func (s *Service) appraise(guildID, userID string, e mind.Event, now time.Time) 
 		Str("user_id", userID).
 		Str("event", string(e)).
 		Msg("chat_appraised")
+	s.moveMood(guildID, mind.Appraise(e).Mood, now)
 	return after
+}
+
+// moveMood carries an event's spillover into her mood in a guild. One mood
+// per server: whoever caused it, everyone she talks to next meets it.
+func (s *Service) moveMood(guildID string, delta float64, now time.Time) {
+	if delta == 0 || guildID == "" {
+		return
+	}
+	err := s.store.UpdateMindGuild(guildID, func(g *storage.MindGuild) {
+		m := mind.MoodSwing{Level: g.MoodSwing, At: g.MoodSwingAt}.Add(delta, now)
+		g.MoodSwing, g.MoodSwingAt = m.Level, m.At
+	})
+	if err != nil {
+		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_mood_record_failed")
+	}
 }
 
 // bondOf reads the bond out of a person's record.
@@ -65,4 +81,5 @@ func (s *Service) feelConversation(guildID string, people []string, tone mind.To
 	for _, userID := range people {
 		s.appraise(guildID, userID, e, at)
 	}
+	s.moveMood(guildID, mind.ConversationMood(tone), at)
 }
