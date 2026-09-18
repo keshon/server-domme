@@ -78,23 +78,11 @@ func TestMergeFactsKeepsTheNewestWhenFull(t *testing.T) {
 
 func TestWarmthFadesOverWeeksNotHours(t *testing.T) {
 	now := time.Now()
-	if got := WarmthNow(0.8, now.Add(-24*time.Hour), now); got < 0.75 {
+	if got := ClosenessNow(0.8, now.Add(-24*time.Hour), now); got < 0.75 {
 		t.Errorf("a day later warmth is %.2f; liking someone does not pass overnight", got)
 	}
-	if got := WarmthNow(0.8, now.Add(-WarmthHalflife), now); got < 0.39 || got > 0.41 {
+	if got := ClosenessNow(0.8, now.Add(-WarmthHalflife), now); got < 0.39 || got > 0.41 {
 		t.Errorf("one halflife later warmth is %.2f, want half", got)
-	}
-}
-
-func TestWarmthStepAttributesLikeIrritationDoes(t *testing.T) {
-	if WarmthStep(ToneWarm, true) <= WarmthStep(ToneWarm, false) {
-		t.Error("a warm group conversation counted as much as a warm one-to-one")
-	}
-	if WarmthStep(ToneHostile, false) != 0 {
-		t.Error("a hostile group conversation cooled her towards everyone in it")
-	}
-	if WarmthStep(ToneHostile, true) >= 0 {
-		t.Error("a hostile one-to-one did not cool her")
 	}
 }
 
@@ -116,7 +104,7 @@ func TestPeopleBlockCarriesWhatSheKnows(t *testing.T) {
 // a contradiction the model resolves at random.
 func TestFondnessIsNeverDirectedAtSomeoneShesShortWith(t *testing.T) {
 	g := Grounding{Present: []Acquaintance{{
-		UserID: "1", Username: "Big M", Irritation: 0.9, Warmth: 0.9,
+		UserID: "1", Username: "Big M", Tension: 0.9, Closeness: 0.9,
 	}}}
 	got := buildSystem(nil, g, DefaultBudget())
 	if strings.Contains(got, "fond of Big M") {

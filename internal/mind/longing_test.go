@@ -33,40 +33,39 @@ func TestLongingNoticesBeingIgnoredBySomeoneAround(t *testing.T) {
 func TestUrgeComesFromHowSheFeels(t *testing.T) {
 	missed := Longing{Missing: 0.8}
 	awake := Drives{Energy: 0.9, Social: 0.5, Interest: 0.5}
-	fond := Urge(Reach{Longing: missed, Warmth: 0.8, Drives: awake})
-	neutral := Urge(Reach{Longing: missed, Warmth: 0, Drives: awake})
+	fond := Urge(Reach{Longing: missed, Closeness: 0.8, Drives: awake})
+	neutral := Urge(Reach{Longing: missed, Closeness: 0, Drives: awake})
 	if !(fond > neutral) {
 		t.Errorf("fond %.2f, neutral %.2f", fond, neutral)
 	}
-	if got := Urge(Reach{Longing: missed, Warmth: 0.8, Irritation: 0.8, Drives: awake}); got != 0 {
+	if got := Urge(Reach{Longing: missed, Closeness: 0.8, Tension: 0.8, Drives: awake}); got != 0 {
 		t.Errorf("annoyed with them and still wants their attention: %.2f", got)
 	}
 }
 
 func eager() Reach {
 	return Reach{
-		Now: time.Now(), Level: AttentionKeen, Hour: 14,
-		Longing: Longing{Missing: 1, Neglected: true}, Warmth: 1,
+		Now: time.Now(), Hour: 14, Welcome: 1,
+		Longing: Longing{Missing: 1, Neglected: true}, Closeness: 1,
 		Drives: Drives{Energy: 0.9, Social: 1, Interest: 0.5},
 	}
 }
 
-func TestMayReachRespectsWhatTheyAllowed(t *testing.T) {
+func TestMayReachRespectsTheSafetyLimits(t *testing.T) {
 	now := time.Now()
 	if ok, _ := MayReach(eager(), 0); !ok {
 		t.Fatal("refused with every reason to reach out")
 	}
 	cases := map[string]func(*Reach){
-		"not opted in":           func(r *Reach) { r.Level = AttentionOff },
 		"already talking to her": func(r *Reach) { r.Engaged = true },
-		"day's allowance spent":  func(r *Reach) { r.Today = 3 },
+		"day's safety limit":     func(r *Reach) { r.Today = reachDailyMax },
 		"inside the cooldown":    func(r *Reach) { r.Last = now.Add(-time.Hour) },
 		"night":                  func(r *Reach) { r.Hour = 3 },
 		"ignored three times":    func(r *Reach) { r.Unanswered = maxUnanswered },
 		"exhausted":              func(r *Reach) { r.Drives.Energy = 0.1 },
 		"backoff after being ignored": func(r *Reach) {
 			r.Unanswered = 1
-			r.Last = now.Add(-5 * time.Hour) // past keen's 4h, short of 8h
+			r.Last = now.Add(-150 * time.Minute) // past her shortest gap, inside it doubled
 		},
 	}
 	for name, change := range cases {
@@ -83,7 +82,7 @@ func TestMayReachRespectsWhatTheyAllowed(t *testing.T) {
 // hears nothing.
 func TestMayReachIsRarelyForSomeoneSheBarelyMisses(t *testing.T) {
 	r := eager()
-	r.Longing, r.Warmth = Longing{Missing: 0.2}, 0
+	r.Longing, r.Closeness = Longing{Missing: 0.2}, 0
 	if ok, urge := MayReach(r, 0.2); ok {
 		t.Errorf("reached out to someone she barely misses (urge %.2f)", urge)
 	}
@@ -95,7 +94,7 @@ func TestReachDirectiveSpeaksToHowSheFeels(t *testing.T) {
 	if got := ReachDirective("Big M", r); !strings.Contains(got, "talking to other people") || !strings.Contains(got, "You miss them") {
 		t.Errorf("fond and ignored: %q", got)
 	}
-	r.Warmth, r.Longing.Neglected = 0, false
+	r.Closeness, r.Longing.Neglected = 0, false
 	if got := ReachDirective("Big M", r); !strings.Contains(got, "bored enough") {
 		t.Errorf("neutral: %q", got)
 	}
@@ -111,5 +110,42 @@ func TestWantsPeace(t *testing.T) {
 		if WantsPeace(s) {
 			t.Errorf("%q heard as asking her to back off", s)
 		}
+	}
+}
+
+// Welcome replaces the levels: how often she comes is learned from how they
+// take it, not chosen from a menu.
+func TestReachGapFollowsWelcome(t *testing.T) {
+	warm := ReachGap(1, 0, 0.5)
+	cold := ReachGap(0, 0, 0.5)
+	if warm >= cold {
+		t.Errorf("gap for someone glad to hear from her %s, for someone who is not %s", warm, cold)
+	}
+	if ReachGap(1, 1, 0.5) != 2*warm {
+		t.Error("an unanswered reach did not double the wait")
+	}
+	if ReachGap(1, 0, 0) == ReachGap(1, 0, 0.99) {
+		t.Error("the wait never varies, which is a clock")
+	}
+}
+
+func TestUnwelcomeLowersTheUrgeToReach(t *testing.T) {
+	r := eager()
+	_, welcomed := MayReach(r, 1)
+	r.Welcome = 0
+	_, unwelcome := MayReach(r, 1)
+	if welcomed <= unwelcome {
+		t.Errorf("urge when welcome %.2f, when not %.2f", welcomed, unwelcome)
+	}
+}
+
+func TestConsentIsOnOrOff(t *testing.T) {
+	for _, v := range []string{"on", "keen", "light", "insistent"} {
+		if !Consented(v) {
+			t.Errorf("%q not read as consent", v)
+		}
+	}
+	if Consented("") {
+		t.Error("nothing read as consent")
 	}
 }

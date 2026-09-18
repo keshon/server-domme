@@ -28,7 +28,7 @@ func TestMayAddAfterthoughtGates(t *testing.T) {
 		"after a volunteer":     func(a *Afterthought) { a.Trigger = TriggerRecall },
 		"inside the cooldown":   func(a *Afterthought) { a.Last = now.Add(-AfterthoughtCooldown / 2) },
 		"too tired":             func(a *Afterthought) { a.Drives = Drives{Energy: 0.2, Interest: 0.5} },
-		"irritated with them":   func(a *Afterthought) { a.Irritation = 0.5 },
+		"irritated with them":   func(a *Afterthought) { a.Tension = 0.5 },
 		"cold towards them":     func(a *Afterthought) { a.Regard = -0.5 },
 		"others are talking": func(a *Afterthought) {
 			a.Turns = []Turn{

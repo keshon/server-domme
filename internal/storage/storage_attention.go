@@ -7,9 +7,11 @@ import (
 	"github.com/keshon/datastore"
 )
 
-// updatePerson applies change to one person's record, creating it if there is
-// none — every attention write is a small edit of the same row.
-func (s *Storage) updatePerson(guildID, userID string, at time.Time, change func(*MindPerson)) error {
+// UpdateMindPerson applies change to one person's record in a transaction,
+// creating it if there is none. It is how every change to how she feels about
+// someone is written: read, changed and put back as one step, so two events
+// landing together cannot overwrite each other.
+func (s *Storage) UpdateMindPerson(guildID, userID string, at time.Time, change func(*MindPerson)) error {
 	if guildID == "" || userID == "" {
 		return fmt.Errorf("storage: person needs a guild and a user")
 	}
@@ -24,18 +26,18 @@ func (s *Storage) updatePerson(guildID, userID string, at time.Time, change func
 	})
 }
 
-// SetMindAttention records how much reaching out someone agrees to; empty
+// SetMindConsent records whether someone agrees to be sought out; empty
 // withdraws it. Withdrawing also clears the count of unanswered reaches, so
 // agreeing again starts afresh.
-func (s *Storage) SetMindAttention(guildID, userID, level string, at time.Time) error {
-	err := s.updatePerson(guildID, userID, at, func(p *MindPerson) {
-		p.Attention = level
-		if level == "" {
+func (s *Storage) SetMindConsent(guildID, userID, value string, at time.Time) error {
+	err := s.UpdateMindPerson(guildID, userID, at, func(p *MindPerson) {
+		p.Attention = value
+		if value == "" {
 			p.Unanswered = 0
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("storage: set attention: %w", err)
+		return fmt.Errorf("storage: set consent: %w", err)
 	}
 	return nil
 }
@@ -43,7 +45,7 @@ func (s *Storage) SetMindAttention(guildID, userID, level string, at time.Time) 
 // ExchangeMindPerson records that someone spoke to her, in which channel. It
 // is what missing them is measured from, and it answers any reach she made.
 func (s *Storage) ExchangeMindPerson(guildID, userID, channelID string, at time.Time) error {
-	err := s.updatePerson(guildID, userID, at, func(p *MindPerson) {
+	err := s.UpdateMindPerson(guildID, userID, at, func(p *MindPerson) {
 		p.LastExchangeAt = at
 		p.LastChatChannel = channelID
 		p.Unanswered = 0
@@ -58,7 +60,7 @@ func (s *Storage) ExchangeMindPerson(guildID, userID, channelID string, at time.
 // A timestamp only — nothing about where or what — and only kept for people
 // who opted in, since it is what lets her notice being ignored.
 func (s *Storage) ActiveMindPerson(guildID, userID string, at time.Time) error {
-	err := s.updatePerson(guildID, userID, at, func(p *MindPerson) { p.LastActiveAt = at })
+	err := s.UpdateMindPerson(guildID, userID, at, func(p *MindPerson) { p.LastActiveAt = at })
 	if err != nil {
 		return fmt.Errorf("storage: record activity: %w", err)
 	}
@@ -68,7 +70,7 @@ func (s *Storage) ActiveMindPerson(guildID, userID string, at time.Time) error {
 // MarkReached records that she reached out to someone. The day's count starts
 // again on a new day; unanswered goes up until they speak to her.
 func (s *Storage) MarkReached(guildID, userID, day string, at time.Time) error {
-	err := s.updatePerson(guildID, userID, at, func(p *MindPerson) {
+	err := s.UpdateMindPerson(guildID, userID, at, func(p *MindPerson) {
 		if p.ReachDay != day {
 			p.ReachDay, p.ReachToday = day, 0
 		}

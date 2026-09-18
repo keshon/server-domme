@@ -557,7 +557,7 @@ func (s *Service) holdSpoken(t task, sp *spoken, reason string) {
 func (s *Service) curtWith(g mind.Grounding, userID string) bool {
 	for _, p := range g.Present {
 		if p.UserID == userID {
-			return mind.IsCurt(p.Irritation, g.Regard)
+			return mind.IsCurt(p.Tension, g.Regard)
 		}
 	}
 	return mind.IsCurt(0, g.Regard)
@@ -602,8 +602,8 @@ func (s *Service) present(guildID, channelID string) []mind.Acquaintance {
 			who.FirstSeen = known.FirstSeen
 			who.LastSeen = known.LastSeen
 			who.PrevSeen = known.PrevSeen
-			who.Irritation = mind.IrritationNow(known.Irritation, known.IrritatedAt, time.Now())
-			who.Warmth = mind.WarmthNow(known.Warmth, known.WarmAt, time.Now())
+			who.Tension = mind.TensionNow(known.Tension, known.TensionAt, time.Now())
+			who.Closeness = mind.ClosenessNow(known.Closeness, known.ClosenessAt, time.Now())
 			who.Facts = factsOf(known)
 			who.Impression = known.Impression
 			if known.Username != "" {

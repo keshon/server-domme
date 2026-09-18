@@ -42,7 +42,7 @@ func TestWantsFollowTheDrives(t *testing.T) {
 func TestToldIsWhatThePromptCarries(t *testing.T) {
 	g := Grounding{
 		Drives:    Drives{Energy: 0.2, Social: 0.9, Interest: 0.5},
-		Present:   []Acquaintance{{UserID: "1", Username: "Big M", Irritation: 0.4}, {UserID: "2", Username: "cass", Warmth: 0.7}},
+		Present:   []Acquaintance{{UserID: "1", Username: "Big M", Tension: 0.4}, {UserID: "2", Username: "cass", Closeness: 0.7}},
 		Reception: ReceptionDirective("Big M", ReceptionPanned),
 	}
 	told := g.Told()

@@ -56,9 +56,9 @@ type Fact struct {
 	At    time.Time
 }
 
-// WarmthNow decays a stored warmth to the present, the same way irritation is:
-// stored once with its time, never swept.
-func WarmthNow(stored float64, at, now time.Time) float64 {
+// ClosenessNow decays a stored closeness to the present, the same way tension
+// is: stored once with its time, never swept.
+func ClosenessNow(stored float64, at, now time.Time) float64 {
 	if stored <= 0 || at.IsZero() {
 		return 0
 	}
@@ -71,36 +71,6 @@ func WarmthNow(stored float64, at, now time.Time) float64 {
 		return 0
 	}
 	return clamp01(level)
-}
-
-// WarmthStep is how much one remembered conversation moves her warmth towards
-// someone who was in it.
-//
-// Attribution works as it does for irritation: a pleasant conversation with
-// one person is about that person, and a pleasant group conversation is
-// shared out thinly. An ordinary one-to-one still counts for a little —
-// people grow fond of whoever keeps turning up to talk to them — and a hostile
-// one takes warmth away.
-func WarmthStep(tone Tone, alone bool) float64 {
-	switch tone {
-	case ToneWarm:
-		if alone {
-			return 0.15
-		}
-		return 0.05
-	case ToneOrdinary:
-		if alone {
-			return 0.03
-		}
-		return 0
-	case ToneHostile:
-		if alone {
-			return -0.15
-		}
-		return 0
-	default:
-		return 0
-	}
 }
 
 // WarmthDirective is the instruction for someone she has come to like, or ""

@@ -20,39 +20,18 @@ import (
 // much they will put up with, not how much she has to do.
 const TriggerReach Trigger = "reach"
 
-// AttentionLevel is how much reaching out someone has agreed to.
-type AttentionLevel string
+// Consented reports whether a stored attention value means someone has agreed
+// to be sought out. Any value does: consent is on or off, and the levels it
+// once had — light, keen, insistent — are read as on.
+//
+// There are no levels because levels were a clock. "Three a day, four hours
+// apart" is a rhythm anyone on it learns within a week, and nothing a person
+// does has edges like that. How often she comes is now learned per person,
+// from how they take it: see Bond.Welcome.
+func Consented(stored string) bool { return strings.TrimSpace(stored) != "" }
 
-const (
-	AttentionOff       AttentionLevel = ""
-	AttentionLight     AttentionLevel = "light"
-	AttentionKeen      AttentionLevel = "keen"
-	AttentionInsistent AttentionLevel = "insistent"
-)
-
-// ParseAttention reads a level, reporting whether it is one.
-func ParseAttention(s string) (AttentionLevel, bool) {
-	switch l := AttentionLevel(strings.ToLower(strings.TrimSpace(s))); l {
-	case AttentionLight, AttentionKeen, AttentionInsistent:
-		return l, true
-	case "off", "":
-		return AttentionOff, true
-	default:
-		return AttentionOff, false
-	}
-}
-
-// ceiling is what a level tolerates: how many a day and how far apart.
-type ceiling struct {
-	perDay   int
-	cooldown time.Duration
-}
-
-var ceilings = map[AttentionLevel]ceiling{
-	AttentionLight:     {perDay: 1, cooldown: 12 * time.Hour},
-	AttentionKeen:      {perDay: 3, cooldown: 4 * time.Hour},
-	AttentionInsistent: {perDay: 6, cooldown: 90 * time.Minute},
-}
+// ConsentOn is the value stored for someone who has agreed.
+const ConsentOn = "on"
 
 // Longing tuning.
 const (
@@ -72,6 +51,15 @@ const (
 	// she stops until they speak to her. Nobody wants to be the one still
 	// knocking.
 	maxUnanswered = 3
+	// reachDailyMax is a safety limit, not a rhythm: enough that it is never
+	// what decides, so that welcome and her mood are.
+	reachDailyMax = 4
+	// reachGapShortest and reachGapLongest bound the wait between reaches:
+	// the shortest for someone who always answers her warmly, the longest
+	// for someone who seldom does. Doubled for every one left unanswered,
+	// and varied by a quarter either way so it never lands on the clock.
+	reachGapShortest = 2 * time.Hour
+	reachGapLongest  = 12 * time.Hour
 	// quietFrom and quietUntil are the hours, in the community's timezone,
 	// she does not reach out in.
 	quietFrom  = 23
@@ -108,13 +96,14 @@ func FeelLonging(now, lastExchange, lastActive time.Time, warmth float64) Longin
 
 // Reach is everything that decides whether she reaches out to someone now.
 type Reach struct {
-	Now   time.Time
-	Level AttentionLevel
-	// Longing, Warmth and Irritation are how she feels about them.
-	Longing    Longing
-	Warmth     float64
-	Irritation float64
-	Drives     Drives
+	Now time.Time
+	// Longing, Closeness and Tension are how she feels about them, and
+	// Welcome how they have taken it when she came to them before.
+	Longing   Longing
+	Closeness float64
+	Tension   float64
+	Welcome   float64
+	Drives    Drives
 	// Hour is the hour in the community's timezone.
 	Hour int
 	// Today is how many times she has reached out to them today, Last when
@@ -124,6 +113,8 @@ type Reach struct {
 	Unanswered int
 	// Engaged is whether they are already talking to her.
 	Engaged bool
+	// Jitter, in [0,1), varies the wait between reaches.
+	Jitter float64
 }
 
 // Urge is how much she wants their attention right now, 0..1. Missing them is
@@ -131,34 +122,35 @@ type Reach struct {
 // while they are plainly around sharpens it; being alone adds to it and being
 // tired or annoyed with them takes it away.
 func Urge(r Reach) float64 {
-	u := r.Longing.Missing * (0.35 + 0.65*clamp01(r.Warmth))
+	u := r.Longing.Missing * (0.35 + 0.65*clamp01(r.Closeness))
 	if r.Longing.Neglected {
 		u += 0.15
 	}
 	u += 0.15 * r.Drives.Social
 	u -= 0.25 * (1 - r.Drives.Energy)
-	u -= r.Irritation
+	u -= r.Tension
 	return clamp01(u)
 }
 
-// MayReach decides whether she reaches out now. The ceiling the person set
-// and the guards come first; then the urge, rolled against, so what is left is
-// her choice.
+// ReachGap is how long she waits after reaching out before she would again:
+// shorter for someone who has been glad to hear from her, longer for someone
+// who has not, doubled for each reach left unanswered, and varied.
+func ReachGap(welcome float64, unanswered int, jitter float64) time.Duration {
+	gap := float64(reachGapShortest) + float64(reachGapLongest-reachGapShortest)*(1-clamp01(welcome))
+	gap *= float64(int(1) << unanswered)
+	gap *= 0.75 + 0.5*jitter
+	return time.Duration(gap)
+}
+
+// MayReach decides whether she reaches out now to someone who consented.
+// Safety comes first — never at night, never exhausted, never knocking a
+// fourth time on a closed door — then the wait welcome sets, then the urge,
+// rolled against squared, so what is left is her choice.
 func MayReach(r Reach, roll float64) (bool, float64) {
-	c, ok := ceilings[r.Level]
-	if !ok || r.Engaged {
+	if r.Engaged || r.Today >= reachDailyMax || r.Unanswered >= maxUnanswered {
 		return false, 0
 	}
-	if r.Today >= c.perDay {
-		return false, 0
-	}
-	// Doubling with every unanswered one, and stopping after a few: the
-	// ceiling is what they allowed, silence is what they said.
-	if r.Unanswered >= maxUnanswered {
-		return false, 0
-	}
-	wait := c.cooldown * time.Duration(1<<r.Unanswered)
-	if !r.Last.IsZero() && r.Now.Sub(r.Last) < wait {
+	if !r.Last.IsZero() && r.Now.Sub(r.Last) < ReachGap(r.Welcome, r.Unanswered, r.Jitter) {
 		return false, 0
 	}
 	if r.Hour >= quietFrom || r.Hour < quietUntil {
@@ -167,7 +159,7 @@ func MayReach(r Reach, roll float64) (bool, float64) {
 	if r.Drives != (Drives{}) && r.Drives.Energy < tooTiredToVolunteer {
 		return false, 0
 	}
-	urge := Urge(r)
+	urge := clamp01(Urge(r) * (0.5 + r.Welcome))
 	return roll < urge*urge, urge
 }
 
@@ -188,9 +180,9 @@ func ReachDirective(name string, r Reach) string {
 
 	var feel string
 	switch {
-	case r.Warmth > fondAbove:
+	case r.Closeness > fondAbove:
 		feel = "You miss them, not that you would put it that way."
-	case r.Warmth > likesAbove:
+	case r.Closeness > likesAbove:
 		feel = "You have noticed, and you want their attention."
 	default:
 		feel = "You are bored enough to go and poke them."

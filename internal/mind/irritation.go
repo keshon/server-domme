@@ -26,12 +26,12 @@ const (
 	sharpAbove = 0.65
 )
 
-// IrritationNow decays a stored irritation to what it is at now.
+// TensionNow decays a stored irritation to what it is at now.
 //
 // Computed on read from a timestamp, like everything else here: there is no
 // sweeper, nothing to keep in step, and a restart loses nothing because the
 // timestamp is what was stored.
-func IrritationNow(stored float64, at, now time.Time) float64 {
+func TensionNow(stored float64, at, now time.Time) float64 {
 	if stored <= 0 || at.IsZero() {
 		return 0
 	}
@@ -45,18 +45,6 @@ func IrritationNow(stored float64, at, now time.Time) float64 {
 		return 0
 	}
 	return clamp01(level)
-}
-
-// Pester raises irritation by one push.
-//
-// Deliberately not a judgement about tone. Deciding whether a message was rude
-// needs a model call per message, which is not affordable and which the
-// experiment this design came from showed answering confidently and
-// arbitrarily. What is countable is behaviour: being passed over and
-// immediately pressing again is pushing, in any language and with no
-// interpretation at all.
-func Pester(current float64) float64 {
-	return clamp01(current + pesterStep)
 }
 
 // IrritationDirective turns irritation with one person into an instruction, or

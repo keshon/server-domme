@@ -155,23 +155,6 @@ func WeighTone(weight float64, tone Tone) float64 {
 	}
 }
 
-// ToneIrritation is how much an unpleasant conversation adds to how she feels
-// about the person who was in it.
-//
-// Whether there is anyone to apply it to is the caller's problem, and it is
-// the hard half: a conversation between four people that went badly does not
-// say who made it go badly. See chat.rememberSettled, which refuses to guess.
-func ToneIrritation(tone Tone) float64 {
-	switch tone {
-	case ToneHostile:
-		return 0.4
-	case ToneTense:
-		return 0.2
-	default:
-		return 0
-	}
-}
-
 // tidySummary strips the punctuation a model wraps around a labelled value.
 //
 // Applied to the value and not only the line, because "**GIST:** the row"

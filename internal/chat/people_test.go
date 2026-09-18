@@ -62,17 +62,36 @@ func TestNotePeopleRevisesRatherThanReplaces(t *testing.T) {
 	}
 }
 
-func TestWarmToGrowsFondnessFromAWarmOneToOne(t *testing.T) {
+func TestWarmConversationsBuildCloseness(t *testing.T) {
 	store := testStore(t)
 	svc := newTestService(t, store, 0)
 	now := time.Now()
 
-	svc.warmTo(testGuild, []string{"u1"}, mind.ToneWarm, now)
-	svc.warmTo(testGuild, []string{"u1"}, mind.ToneWarm, now)
+	svc.feelConversation(testGuild, []string{"u1"}, mind.ToneWarm, now)
+	svc.feelConversation(testGuild, []string{"u1"}, mind.ToneWarm, now)
 
 	p := store.GetMindPerson(testGuild, "u1")
-	if p == nil || p.Warmth < 0.29 {
-		t.Errorf("warmth after two warm conversations: %+v", p)
+	if p == nil || p.Closeness < 0.29 {
+		t.Errorf("closeness after two warm conversations: %+v", p)
+	}
+	if p.LastEvent != string(mind.EventWarmAlone) {
+		t.Errorf("last event = %q, want the conversation that moved her", p.LastEvent)
+	}
+}
+
+// A hostile one-to-one used to be two mechanisms — warmth taken away, and
+// irritation added — tuned apart. As one event it does both.
+func TestAHostileOneToOneCoolsAndIrritatesAtOnce(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	svc.feelConversation(testGuild, []string{"u1"}, mind.ToneWarm, now)
+	svc.feelConversation(testGuild, []string{"u1"}, mind.ToneWarm, now)
+
+	b := svc.appraise(testGuild, "u1", mind.EventHostileAlone, now)
+	closeness, tension, _ := b.Now(now)
+	if closeness >= 0.29 || tension <= 0 {
+		t.Errorf("after a hostile one-to-one: closeness %.2f, tension %.2f", closeness, tension)
 	}
 }
 
@@ -95,7 +114,7 @@ func TestObserveNoticesBeingBrushedOffOnce(t *testing.T) {
 	}
 
 	p := store.GetMindPerson(testGuild, "u1")
-	if p == nil || p.Irritation < mind.BrushOffStep-0.01 || p.Irritation > mind.BrushOffStep+0.01 {
+	if p == nil || p.Tension < mind.BrushOffStep-0.01 || p.Tension > mind.BrushOffStep+0.01 {
 		t.Errorf("irritation after being brushed off = %+v, want one step", p)
 	}
 }
@@ -114,7 +133,7 @@ func TestObserveTakesAReactionToHerLastLine(t *testing.T) {
 
 	svc.Observe(testSession(), message("this one is lame meeeh", false))
 
-	if p := store.GetMindPerson(testGuild, "u1"); p == nil || p.Irritation < mind.PannedIrritation-0.01 {
+	if p := store.GetMindPerson(testGuild, "u1"); p == nil || p.Tension < mind.PannedIrritation-0.01 {
 		t.Errorf("being panned left irritation at %+v", p)
 	}
 	if got := svc.receptionFor(testChannel, "u1", "cass", time.Now()); got == "" {
@@ -194,8 +213,8 @@ func TestTaggingHerAfterAnUntaggedLineWentUnansweredIsNotPestering(t *testing.T)
 	svc.Observe(testSession(), message("@DevBot how are u", true))
 	queued(svc)
 
-	if p := store.GetMindPerson(testGuild, "u1"); p != nil && p.Irritation > 0 {
-		t.Errorf("tagging her after an unnoticed line raised irritation to %.2f", p.Irritation)
+	if p := store.GetMindPerson(testGuild, "u1"); p != nil && p.Tension > 0 {
+		t.Errorf("tagging her after an unnoticed line raised irritation to %.2f", p.Tension)
 	}
 }
 

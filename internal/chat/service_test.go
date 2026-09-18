@@ -1034,8 +1034,8 @@ func TestIrritationRisesWhenSomeonePressesAfterBeingIgnored(t *testing.T) {
 	if person == nil {
 		t.Fatal("nobody was recorded at all")
 	}
-	if person.Irritation <= 0 {
-		t.Errorf("pushing after being ignored left irritation at %.2f", person.Irritation)
+	if person.Tension <= 0 {
+		t.Errorf("pushing after being ignored left irritation at %.2f", person.Tension)
 	}
 }
 
@@ -1043,8 +1043,10 @@ func TestIrritationRisesWhenSomeonePressesAfterBeingIgnored(t *testing.T) {
 // her ordinary.
 func TestIrritationIsHeldAgainstThePersonNotTheRoom(t *testing.T) {
 	store := testStore(t)
-	if err := store.IrritateMindPerson(testGuild, "u1", 0.9, time.Now()); err != nil {
-		t.Fatalf("IrritateMindPerson: %v", err)
+	if err := store.UpdateMindPerson(testGuild, "u1", time.Now(), func(p *storage.MindPerson) {
+		p.Tension, p.TensionAt = 0.9, time.Now()
+	}); err != nil {
+		t.Fatalf("UpdateMindPerson: %v", err)
 	}
 	svc := newTestService(t, store, 0)
 
@@ -1059,8 +1061,10 @@ func TestIrritationIsHeldAgainstThePersonNotTheRoom(t *testing.T) {
 func TestIrritationFadesWithoutBeingTouched(t *testing.T) {
 	store := testStore(t)
 	long := time.Now().Add(-24 * time.Hour)
-	if err := store.IrritateMindPerson(testGuild, "u1", 0.9, long); err != nil {
-		t.Fatalf("IrritateMindPerson: %v", err)
+	if err := store.UpdateMindPerson(testGuild, "u1", long, func(p *storage.MindPerson) {
+		p.Tension, p.TensionAt = 0.9, long
+	}); err != nil {
+		t.Fatalf("UpdateMindPerson: %v", err)
 	}
 	svc := newTestService(t, store, 0)
 
@@ -1127,7 +1131,7 @@ func TestToneOnlyBecomesPersonalWithOnePersonInTheRoom(t *testing.T) {
 		store := testStore(t)
 		svc := newTestService(t, store, 0)
 
-		svc.takeItPersonally(testGuild, []string{"u1"}, mind.ToneHostile, now)
+		svc.feelConversation(testGuild, []string{"u1"}, mind.ToneHostile, now)
 
 		if got := svc.irritationWith(testGuild, "u1", now); got <= 0 {
 			t.Errorf("a hostile one-to-one left irritation at %.2f", got)
@@ -1138,7 +1142,7 @@ func TestToneOnlyBecomesPersonalWithOnePersonInTheRoom(t *testing.T) {
 		store := testStore(t)
 		svc := newTestService(t, store, 0)
 
-		svc.takeItPersonally(testGuild, []string{"u1", "u2", "u3"}, mind.ToneHostile, now)
+		svc.feelConversation(testGuild, []string{"u1", "u2", "u3"}, mind.ToneHostile, now)
 
 		for _, id := range []string{"u1", "u2", "u3"} {
 			if got := svc.irritationWith(testGuild, id, now); got != 0 {
@@ -1151,7 +1155,7 @@ func TestToneOnlyBecomesPersonalWithOnePersonInTheRoom(t *testing.T) {
 		store := testStore(t)
 		svc := newTestService(t, store, 0)
 
-		svc.takeItPersonally(testGuild, []string{"u1"}, mind.ToneWarm, now)
+		svc.feelConversation(testGuild, []string{"u1"}, mind.ToneWarm, now)
 
 		if got := svc.irritationWith(testGuild, "u1", now); got != 0 {
 			t.Errorf("a warm conversation made her cross: %.2f", got)

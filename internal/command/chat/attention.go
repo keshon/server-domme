@@ -7,14 +7,18 @@ import (
 	"github.com/bwmarrin/discordgo"
 	chatsvc "github.com/keshon/server-domme/internal/chat"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/perm"
 	"github.com/keshon/server-domme/internal/mind"
 )
 
-const optLevel = "level"
+const optWholeServer = "whole_server"
 
-// AttentionCommand lets a member say how much the persona may come after
-// them. A member's command, not an administrator's: it is consent, and only
-// the person giving it can.
+// AttentionCommand is how a member says the persona may come after them, and
+// how an administrator stops her doing it to anyone.
+//
+// One command for both. Consent is a member's to give and only they can give
+// it; the server-wide switch sits in the same command behind an administrator
+// check, rather than in a second command with a confusingly similar name.
 type AttentionCommand struct {
 	// Service is nil when the persona is not running.
 	Service *chatsvc.Service
@@ -34,14 +38,12 @@ func (c *AttentionCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type: discordgo.ApplicationCommandOptionString, Name: optLevel,
-				Description: "How much you will put up with. Empty shows what you have now",
-				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{Name: "off — she never comes after you", Value: "off"},
-					{Name: "light — at most once a day", Value: string(mind.AttentionLight)},
-					{Name: "keen — up to three times a day", Value: string(mind.AttentionKeen)},
-					{Name: "insistent — up to six times a day", Value: string(mind.AttentionInsistent)},
-				},
+				Type: discordgo.ApplicationCommandOptionBoolean, Name: optEnabled,
+				Description: "On lets her come after you; off stops her. Empty shows what you have",
+			},
+			{
+				Type: discordgo.ApplicationCommandOptionBoolean, Name: optWholeServer,
+				Description: "Administrators: apply it to the whole server instead of just you",
 			},
 		},
 	}
@@ -56,35 +58,73 @@ func (c *AttentionCommand) Run(ctx interface{}) error {
 	if c.Service == nil {
 		return respond(s, e, "The persona is not running on this bot, so there is nobody to come after you.")
 	}
-	userID := e.Member.User.ID
 
-	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		current := "off"
-		if p := store.GetMindPerson(e.GuildID, userID); p != nil && p.Attention != "" {
-			current = p.Attention
+	var enabled, wholeServer *bool
+	for _, o := range e.ApplicationCommandData().Options {
+		v := o.BoolValue()
+		switch o.Name {
+		case optEnabled:
+			enabled = &v
+		case optWholeServer:
+			wholeServer = &v
 		}
-		return respond(s, e, fmt.Sprintf("You have it on **%s**. `/attention level:` changes it.", current))
 	}
 
-	level, ok := mind.ParseAttention(data.Options[0].StringValue())
-	if !ok {
-		return respond(s, e, "That is not a level.")
-	}
-	if err := store.SetMindAttention(e.GuildID, userID, string(level), time.Now()); err != nil {
-		return fmt.Errorf("chat: set attention: %w", err)
+	if wholeServer != nil && *wholeServer {
+		if !perm.IsAdministrator(s, e.Member, context.Config) {
+			return respond(s, e, "Only administrators can change this for the whole server. Leave `whole_server` off to change it for yourself.")
+		}
+		if enabled == nil {
+			return respond(s, e, serverStatus(store.IsChatAttentionOff(e.GuildID)))
+		}
+		if err := store.SetChatAttentionOff(e.GuildID, !*enabled); err != nil {
+			return fmt.Errorf("chat: set attention: %w", err)
+		}
+		return respond(s, e, serverStatus(!*enabled))
 	}
 
-	if level == mind.AttentionOff {
+	userID := e.Member.User.ID
+	if enabled == nil {
+		on := false
+		if p := store.GetMindPerson(e.GuildID, userID); p != nil {
+			on = mind.Consented(p.Attention)
+		}
+		msg := "Off: she never comes after you."
+		if on {
+			msg = "On: she may come after you when she wants your attention."
+		}
+		if store.IsChatAttentionOff(e.GuildID) {
+			msg += "\n\nAn administrator has switched this off for the whole server, so for now nothing happens either way."
+		}
+		return respond(s, e, msg)
+	}
+
+	value := ""
+	if *enabled {
+		value = mind.ConsentOn
+	}
+	if err := store.SetMindConsent(e.GuildID, userID, value, time.Now()); err != nil {
+		return fmt.Errorf("chat: set consent: %w", err)
+	}
+	if !*enabled {
 		return respond(s, e, "Off. She will not come after you. She still answers when you talk to her.")
 	}
-	msg := fmt.Sprintf("**%s**. She may come after you when she wants your attention — "+
-		"when she has missed you, or you are around and ignoring her. Whether she does "+
-		"is up to how she feels about you; this is only how much you will put up with.\n\n"+
-		"She backs off if you do not answer, never at night, and stops at once if you tell "+
-		"her to leave you alone. `/attention level:off` ends it.", level)
+
+	msg := "On. She may come after you when she wants your attention — when she has missed you, " +
+		"or you are around and ignoring her.\n\n" +
+		"Whether she does is up to how she feels about you, and how often is up to how you take it: " +
+		"answer her and she comes back sooner, ignore her and she backs off, and after a few " +
+		"unanswered she stops until you speak to her. Never at night. Tell her to leave you alone, " +
+		"or run `/attention enabled:false`, and it ends at once."
 	if store.IsChatAttentionOff(e.GuildID) {
 		msg += "\n\n⚠️ An administrator has switched this off for the whole server, so for now nothing will happen."
 	}
 	return respond(s, e, msg)
+}
+
+func serverStatus(off bool) string {
+	if off {
+		return "Off for the whole server: she will not come after anyone here, whatever they agreed to. She still answers."
+	}
+	return "On for the server: she may come after members who turned it on for themselves."
 }

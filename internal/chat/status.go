@@ -95,11 +95,11 @@ type State struct {
 
 // Stance is how she stands with one person.
 type Stance struct {
-	Username   string
-	Attitude   string
-	Warmth     float64
-	Irritation float64
-	Regard     float64
+	Username  string
+	Attitude  string
+	Closeness float64
+	Tension   float64
+	Regard    float64
 }
 
 // StateIn reports what she is like in one channel.
@@ -134,11 +134,11 @@ func (s *Service) StateIn(sess *discordgo.Session, guildID, channelID string) St
 	for _, p := range present {
 		regard := s.regardFor(sess, guildID, p.UserID)
 		st.People = append(st.People, Stance{
-			Username:   p.Username,
-			Attitude:   mind.Attitude(p.Warmth, p.Irritation, regard),
-			Warmth:     p.Warmth,
-			Irritation: p.Irritation,
-			Regard:     regard,
+			Username:  p.Username,
+			Attitude:  mind.Attitude(p.Closeness, p.Tension, regard),
+			Closeness: p.Closeness,
+			Tension:   p.Tension,
+			Regard:    regard,
 		})
 	}
 	sort.SliceStable(st.People, func(i, j int) bool {
@@ -160,5 +160,5 @@ func (s *Service) StateIn(sess *discordgo.Session, guildID, channelID string) St
 
 // feeling is how strongly she feels about someone either way, for ordering.
 func feeling(p Stance) float64 {
-	return p.Warmth + p.Irritation + math.Abs(p.Regard)
+	return p.Closeness + p.Tension + math.Abs(p.Regard)
 }

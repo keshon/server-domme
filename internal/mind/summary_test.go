@@ -203,12 +203,3 @@ func TestWeighToneLengthensAChargedConversation(t *testing.T) {
 		t.Errorf("weight ran past 1: %.2f", got)
 	}
 }
-
-func TestToneIrritationOnlyForTheUnpleasantOnes(t *testing.T) {
-	if ToneIrritation(ToneOrdinary) != 0 || ToneIrritation(ToneWarm) != 0 {
-		t.Error("a pleasant conversation made her cross")
-	}
-	if ToneIrritation(ToneHostile) <= ToneIrritation(ToneTense) {
-		t.Error("hostile should count for more than tense")
-	}
-}

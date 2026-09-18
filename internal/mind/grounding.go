@@ -49,10 +49,10 @@ type Acquaintance struct {
 	// someone mid-conversation; LastSeen alone cannot, because it is stamped
 	// with the present the moment they speak.
 	PrevSeen time.Time
-	// Irritation is how much they have got on her nerves, already decayed.
-	Irritation float64
-	// Warmth is how much she has come to like them, already decayed.
-	Warmth float64
+	// Tension is how much they have got on her nerves, already decayed.
+	Tension float64
+	// Closeness is how much she has come to like them, already decayed.
+	Closeness float64
 	// Facts are what they have said about themselves, newest first, and
 	// Impression is her own opinion of them. See mind.Fact.
 	Facts      []Fact
@@ -385,8 +385,8 @@ func (g Grounding) mostLiked(skip string) (string, float64) {
 	var who string
 	var best float64
 	for _, p := range g.Present {
-		if p.Username != skip && p.Warmth > best {
-			who, best = p.Username, p.Warmth
+		if p.Username != skip && p.Closeness > best {
+			who, best = p.Username, p.Closeness
 		}
 	}
 	return who, best
@@ -402,8 +402,8 @@ func (g Grounding) mostIrritating() (string, float64) {
 	var worst float64
 
 	for _, p := range g.Present {
-		if p.Irritation > worst {
-			who, worst = p.Username, p.Irritation
+		if p.Tension > worst {
+			who, worst = p.Username, p.Tension
 		}
 	}
 	return who, worst

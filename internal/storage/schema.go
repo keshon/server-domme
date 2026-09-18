@@ -170,7 +170,7 @@ type MindPerson struct {
 	// long enough to be worth remarking on is not decided here — see
 	// mind.Acquaintance.
 	PrevSeen time.Time `json:"prev_seen,omitempty"`
-	// Irritation is how much this person has got on her nerves, 0..1, as it
+	// Tension is how much this person has got on her nerves, 0..1, as it
 	// stood at IrritatedAt. It is stored undecayed and decayed on read, so
 	// there is nothing to sweep and a restart loses nothing — see
 	// mind.IrritationNow.
@@ -178,12 +178,20 @@ type MindPerson struct {
 	// Per person rather than per guild on purpose: being short with one member
 	// and perfectly ordinary with the next is the thing that separates someone
 	// annoyed from a bot in a bad mode.
-	Irritation  float64   `json:"irritation,omitempty"`
-	IrritatedAt time.Time `json:"irritated_at,omitempty"`
-	// Warmth is how much she has come to like them, 0..1, as it stood at
+	Tension   float64   `json:"irritation,omitempty"`
+	TensionAt time.Time `json:"irritated_at,omitempty"`
+	// Closeness is how much she has come to like them, 0..1, as it stood at
 	// WarmAt. Stored and decayed the same way as Irritation, only slower.
-	Warmth float64   `json:"warmth,omitempty"`
-	WarmAt time.Time `json:"warm_at,omitempty"`
+	Closeness   float64   `json:"warmth,omitempty"`
+	ClosenessAt time.Time `json:"warm_at,omitempty"`
+	// Welcome is how they have taken it when she came to them, as it stood
+	// at WelcomeAt; unset reads as neutral. See mind.Bond.
+	Welcome   float64   `json:"welcome,omitempty"`
+	WelcomeAt time.Time `json:"welcome_at,omitempty"`
+	// LastEvent is the last thing that moved how she feels about them, and
+	// LastEventAt when — so "why is she like this with me" has an answer.
+	LastEvent   string    `json:"last_event,omitempty"`
+	LastEventAt time.Time `json:"last_event_at,omitempty"`
 	// Facts are what they have said about themselves, newest first, and
 	// Impression is her one-line opinion of them. Both are written after a
 	// conversation is remembered; see mind.NotesPrompt.

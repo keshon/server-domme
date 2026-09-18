@@ -23,7 +23,7 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 	var irritation float64
 	for _, p := range g.Present {
 		if p.UserID == t.item.UserID {
-			irritation = p.Irritation
+			irritation = p.Tension
 		}
 	}
 
@@ -32,16 +32,16 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 	s.afterthoughtMu.Unlock()
 
 	allowed := mind.MayAddAfterthought(mind.Afterthought{
-		Trigger:    t.item.Trigger,
-		Late:       t.late,
-		Reply:      reply,
-		Now:        at,
-		Last:       last,
-		Turns:      s.conv.Recent(t.item.ChannelID),
-		UserID:     t.item.UserID,
-		Drives:     g.Drives,
-		Irritation: irritation,
-		Regard:     g.Regard,
+		Trigger: t.item.Trigger,
+		Late:    t.late,
+		Reply:   reply,
+		Now:     at,
+		Last:    last,
+		Turns:   s.conv.Recent(t.item.ChannelID),
+		UserID:  t.item.UserID,
+		Drives:  g.Drives,
+		Tension: irritation,
+		Regard:  g.Regard,
 	}, s.roll())
 	if !allowed {
 		return

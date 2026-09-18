@@ -385,11 +385,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	irritation := s.irritationWith(m.GuildID, m.Author.ID, now)
 	if ignoredLast && s.encounters.IgnoredDirectly(key) && s.pressedAgainQuickly(m.ChannelID, m.Author.ID, now) {
 		wasNoticeable := mind.IrritationNoticeable(irritation)
-		irritation = mind.Pester(irritation)
-
-		if err := s.store.IrritateMindPerson(m.GuildID, m.Author.ID, irritation, now); err != nil {
-			s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_irritation_record_failed")
-		}
+		_, irritation, _ = s.appraise(m.GuildID, m.Author.ID, mind.EventPestered, now).Now(now)
 
 		// Only as it crosses into mattering, so an episode leaves one memory
 		// rather than one per push. Without it the feeling has no cause
@@ -412,14 +408,14 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		IgnoredLast:   ignoredLast,
 		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
 		Drives:        drives,
-		Irritation:    irritation,
+		Tension:       irritation,
 		Regard:        regard,
 		Closer:        closer,
 	}, roll)
 
 	var warmth float64
 	if person != nil {
-		warmth = mind.WarmthNow(person.Warmth, person.WarmAt, now)
+		warmth = mind.ClosenessNow(person.Closeness, person.ClosenessAt, now)
 	}
 	entry := storage.MindJournal{
 		GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
@@ -716,7 +712,7 @@ func (s *Service) irritationWith(guildID, userID string, now time.Time) float64 
 	if person == nil {
 		return 0
 	}
-	return mind.IrritationNow(person.Irritation, person.IrritatedAt, now)
+	return mind.TensionNow(person.Tension, person.TensionAt, now)
 }
 
 // pressedAgainQuickly reports whether this person spoke again within the

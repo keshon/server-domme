@@ -265,8 +265,11 @@ func TestForgetMindMemoriesClearsMemoriesAndIrritation(t *testing.T) {
 			t.Fatalf("AddMindMemory: %v", err)
 		}
 	}
-	if err := store.IrritateMindPerson("g1", "u1", 0.8, time.Now()); err != nil {
-		t.Fatalf("IrritateMindPerson: %v", err)
+	if err := store.UpdateMindPerson("g1", "u1", time.Now(), func(p *MindPerson) {
+		p.Tension, p.TensionAt = 0.8, time.Now()
+		p.Welcome, p.WelcomeAt = 0.9, time.Now()
+	}); err != nil {
+		t.Fatalf("UpdateMindPerson: %v", err)
 	}
 
 	forgotten, err := store.ForgetMindMemories("g1")
@@ -285,8 +288,8 @@ func TestForgetMindMemoriesClearsMemoriesAndIrritation(t *testing.T) {
 	if person == nil {
 		t.Fatal("the person record went too")
 	}
-	if person.Irritation != 0 {
-		t.Errorf("still annoyed at %.2f with nothing to point at", person.Irritation)
+	if person.Tension != 0 {
+		t.Errorf("still annoyed at %.2f with nothing to point at", person.Tension)
 	}
 }
 

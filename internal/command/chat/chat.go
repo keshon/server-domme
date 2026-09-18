@@ -34,7 +34,6 @@ const (
 	subSpeakUp = "proactive"
 	subAbout   = "about"
 	subWhy     = "why"
-	subAttend  = "attention"
 	optMessage = "message"
 	optUser    = "user"
 	optEnabled = "enabled"
@@ -188,19 +187,6 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        subAttend,
-				Description: "Allow or stop her coming after members who opted in with /attention",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionBoolean,
-						Name:        optEnabled,
-						Description: "Off overrides what every member opted into",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subForget,
 				Description: "Wipe everything she remembers about this server",
 				Options: []*discordgo.ApplicationCommandOption{
@@ -226,7 +212,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `why`, `about`, `role`, `proactive`, `attention` or `forget`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `why`, `about`, `role`, `proactive` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -277,16 +263,6 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subWhy:
 		return c.runWhy(context, sub)
-
-	case subAttend:
-		on := len(sub.Options) > 0 && sub.Options[0].BoolValue()
-		if err := store.SetChatAttentionOff(e.GuildID, !on); err != nil {
-			return fmt.Errorf("chat: set attention: %w", err)
-		}
-		if on {
-			return respond(s, e, "She may come after members who opted in with `/attention`, as far as each allowed.")
-		}
-		return respond(s, e, "She will not come after anyone here, whatever they opted into. She still answers.")
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -468,7 +444,7 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 		// carrying the name, the word and three numbers wrapped mid-row.
 		for _, p := range st.People {
 			fmt.Fprintf(&b, "%-*s %s\n", labelWidth, clip(p.Username, labelWidth), p.Attitude)
-			fmt.Fprintf(&b, "  warm %.2f  irked %.2f  role %+.2f\n", p.Warmth, p.Irritation, p.Regard)
+			fmt.Fprintf(&b, "  warm %.2f  irked %.2f  role %+.2f\n", p.Closeness, p.Tension, p.Regard)
 		}
 		b.WriteString("```\n")
 	}
@@ -617,10 +593,21 @@ func runAbout(
 	fmt.Fprintf(&b, "**<@%s>** — %s, %d messages seen, first <t:%d:R>\n",
 		userID, who.Familiarity(), p.Messages, p.FirstSeen.Unix())
 
+	bond := mind.Bond{
+		Closeness: p.Closeness, ClosenessAt: p.ClosenessAt,
+		Tension: p.Tension, TensionAt: p.TensionAt,
+		Welcome: p.Welcome, WelcomeAt: p.WelcomeAt,
+	}
+	closeness, tension, welcome := bond.Now(now)
+
 	b.WriteString("```\n")
-	fmt.Fprintf(&b, "%s\n", gauge("Warmth", mind.WarmthNow(p.Warmth, p.WarmAt, now)))
-	fmt.Fprintf(&b, "%s\n", gauge("Irritated", mind.IrritationNow(p.Irritation, p.IrritatedAt, now)))
+	fmt.Fprintf(&b, "%s\n", gauge("Closeness", closeness))
+	fmt.Fprintf(&b, "%s\n", gauge("Tension", tension))
+	fmt.Fprintf(&b, "%s\n", gauge("Welcome", welcome))
 	b.WriteString("```\n")
+	if p.LastEvent != "" {
+		fmt.Fprintf(&b, "Last moved by: %s, <t:%d:R>\n", p.LastEvent, p.LastEventAt.Unix())
+	}
 
 	if p.Impression != "" {
 		fmt.Fprintf(&b, "**Her take** (<t:%d:R>)\n> %s\n", p.ImpressionAt.Unix(), p.Impression)
@@ -631,14 +618,13 @@ func runAbout(
 			fmt.Fprintf(&b, "- %s: %s (<t:%d:R>)\n", strings.ReplaceAll(f.Key, "_", " "), f.Value, f.At.Unix())
 		}
 	}
-	if level := p.Attention; level != "" {
-		warmth := mind.WarmthNow(p.Warmth, p.WarmAt, now)
+	if mind.Consented(p.Attention) {
 		active := p.LastActiveAt
 		if p.LastSeen.After(active) {
 			active = p.LastSeen
 		}
-		l := mind.FeelLonging(now, p.LastExchangeAt, active, warmth)
-		fmt.Fprintf(&b, "\n**Attention** %s — misses them %.2f", level, l.Missing)
+		l := mind.FeelLonging(now, p.LastExchangeAt, active, closeness)
+		fmt.Fprintf(&b, "\n**Lets her come after them** — misses them %.2f", l.Missing)
 		if l.Neglected {
 			b.WriteString(", and they are around ignoring her")
 		}

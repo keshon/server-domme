@@ -28,14 +28,7 @@ func (s *Service) noticeSnub(sess *discordgo.Session, m *discordgo.MessageCreate
 		return
 	}
 
-	level := s.irritationWith(m.GuildID, m.Author.ID, now) + mind.BrushOffStep
-	if level > 1 {
-		level = 1
-	}
-	if err := s.store.IrritateMindPerson(m.GuildID, m.Author.ID, level, now); err != nil {
-		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_irritation_record_failed")
-		return
-	}
+	s.appraise(m.GuildID, m.Author.ID, mind.EventBrushedOff, now)
 	s.log.Info().
 		Str("guild_id", m.GuildID).
 		Str("channel_id", m.ChannelID).

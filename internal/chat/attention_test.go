@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/keshon/server-domme/internal/mind"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 // Someone fond, opted in, and silent for a day: she goes after them.
@@ -18,11 +19,13 @@ func TestReachesOutToSomeoneSheMisses(t *testing.T) {
 	if err := store.ExchangeMindPerson(testGuild, "u1", testChannel, now.Add(-30*time.Hour)); err != nil {
 		t.Fatalf("ExchangeMindPerson: %v", err)
 	}
-	if err := store.WarmMindPerson(testGuild, "u1", 0.9, now); err != nil {
-		t.Fatalf("WarmMindPerson: %v", err)
+	if err := store.UpdateMindPerson(testGuild, "u1", now, func(p *storage.MindPerson) {
+		p.Closeness, p.ClosenessAt = 0.9, now
+	}); err != nil {
+		t.Fatalf("UpdateMindPerson: %v", err)
 	}
-	if err := store.SetMindAttention(testGuild, "u1", string(mind.AttentionKeen), now); err != nil {
-		t.Fatalf("SetMindAttention: %v", err)
+	if err := store.SetMindConsent(testGuild, "u1", mind.ConsentOn, now); err != nil {
+		t.Fatalf("SetMindConsent: %v", err)
 	}
 
 	svc.considerReaching(now)
@@ -47,8 +50,10 @@ func TestNeverReachesOutWithoutConsent(t *testing.T) {
 	if err := store.ExchangeMindPerson(testGuild, "u1", testChannel, now.Add(-30*time.Hour)); err != nil {
 		t.Fatalf("ExchangeMindPerson: %v", err)
 	}
-	if err := store.WarmMindPerson(testGuild, "u1", 0.9, now); err != nil {
-		t.Fatalf("WarmMindPerson: %v", err)
+	if err := store.UpdateMindPerson(testGuild, "u1", now, func(p *storage.MindPerson) {
+		p.Closeness, p.ClosenessAt = 0.9, now
+	}); err != nil {
+		t.Fatalf("UpdateMindPerson: %v", err)
 	}
 
 	svc.considerReaching(now)
@@ -57,8 +62,8 @@ func TestNeverReachesOutWithoutConsent(t *testing.T) {
 	}
 
 	// Opted in, but the server switched it off.
-	if err := store.SetMindAttention(testGuild, "u1", string(mind.AttentionKeen), now); err != nil {
-		t.Fatalf("SetMindAttention: %v", err)
+	if err := store.SetMindConsent(testGuild, "u1", mind.ConsentOn, now); err != nil {
+		t.Fatalf("SetMindConsent: %v", err)
 	}
 	if err := store.SetChatAttentionOff(testGuild, true); err != nil {
 		t.Fatalf("SetChatAttentionOff: %v", err)
@@ -74,8 +79,8 @@ func TestLeaveMeAloneWithdrawsConsent(t *testing.T) {
 	store := testStore(t)
 	proactiveChannel(t, store)
 	svc := newTestService(t, store, 0)
-	if err := store.SetMindAttention(testGuild, "u1", string(mind.AttentionInsistent), time.Now()); err != nil {
-		t.Fatalf("SetMindAttention: %v", err)
+	if err := store.SetMindConsent(testGuild, "u1", mind.ConsentOn, time.Now()); err != nil {
+		t.Fatalf("SetMindConsent: %v", err)
 	}
 
 	svc.Observe(testSession(), message("@Domme leave me alone", true))
@@ -99,8 +104,8 @@ func TestActivityElsewhereIsOnlyATimestampForTheOptedIn(t *testing.T) {
 		t.Errorf("recorded someone who never opted in: %+v", p)
 	}
 
-	if err := store.SetMindAttention(testGuild, "u1", string(mind.AttentionKeen), time.Now()); err != nil {
-		t.Fatalf("SetMindAttention: %v", err)
+	if err := store.SetMindConsent(testGuild, "u1", mind.ConsentOn, time.Now()); err != nil {
+		t.Fatalf("SetMindConsent: %v", err)
 	}
 	svc.Observe(testSession(), elsewhere)
 	if p := store.GetMindPerson(testGuild, "u1"); p == nil || p.LastActiveAt.IsZero() {
@@ -120,5 +125,30 @@ func TestReachingOutAlwaysTagsThem(t *testing.T) {
 	}
 	if got := msg.AllowedMentions.Users; len(got) != 1 || got[0] != "u1" {
 		t.Errorf("may ping %v", got)
+	}
+}
+
+// Welcome is learned: answered soon after she came to them, she feels more
+// welcome; left unanswered and going again, less.
+func TestWelcomeIsLearnedFromHowTheyTakeIt(t *testing.T) {
+	store := testStore(t)
+	proactiveChannel(t, store)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	if err := store.SetMindConsent(testGuild, "u1", mind.ConsentOn, now); err != nil {
+		t.Fatalf("SetMindConsent: %v", err)
+	}
+	if err := store.MarkReached(testGuild, "u1", svc.day(now), now.Add(-10*time.Minute)); err != nil {
+		t.Fatalf("MarkReached: %v", err)
+	}
+
+	svc.Observe(testSession(), message("@Domme hey, missed you too", true))
+
+	p := store.GetMindPerson(testGuild, "u1")
+	if _, _, welcome := bondOf(p).Now(now); welcome <= 0.5 {
+		t.Errorf("answered quickly and welcome is %.2f", welcome)
+	}
+	if p.LastEvent != string(mind.EventReachAnsweredQuickly) || p.Unanswered != 0 {
+		t.Errorf("record after a quick answer: event %q, unanswered %d", p.LastEvent, p.Unanswered)
 	}
 }

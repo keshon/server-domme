@@ -130,9 +130,9 @@ type Situation struct {
 	// Drives is how she is doing. It moves the odds on the indirect
 	// approaches only — see Drives.Nudge.
 	Drives Drives
-	// Irritation is how much this particular person has got on her nerves,
+	// Tension is how much this particular person has got on her nerves,
 	// already decayed. It lowers their odds and nobody else's.
-	Irritation float64
+	Tension float64
 	// Regard is what this person's roles are worth to her, -1 to +1. Standing
 	// rather than feeling: it is set by an operator and does not decay.
 	Regard float64
@@ -173,7 +173,7 @@ func DecideWhy(a Attention, s Situation, roll float64) (Outcome, Decision) {
 	// skips the overrides: letting "same" go unanswered is not the silence
 	// that reads as a broken bot, it is how a conversation ends.
 	if s.Closer && (s.Trigger == TriggerFollowUp || s.Trigger == TriggerReply) {
-		chance := clamp01(a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Irritation) + RegardNudge(s.Regard))
+		chance := clamp01(a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Tension) + RegardNudge(s.Regard))
 		d := Decision{Rule: RuleCloser, Chance: chance}
 		if roll < chance {
 			return OutcomeSpeak, d
@@ -228,7 +228,7 @@ func DecideWhy(a Attention, s Situation, roll float64) (Outcome, Decision) {
 	// this per person, and the rails above still guarantee that a first
 	// approach and a second-in-a-row are always answered — so this can never
 	// turn into the silence that reads as a broken bot.
-	chance += IrritationNudge(s.Irritation)
+	chance += IrritationNudge(s.Tension)
 	chance += RegardNudge(s.Regard)
 
 	d := Decision{Rule: RuleOdds, Chance: clamp01(chance)}

@@ -302,6 +302,31 @@ It sits above irritation in the prompt. Standing is the settled fact about
 someone and irritation is the passing one, so the passing one goes later and
 wins where they disagree.
 
+### Her bond with each person
+
+How she stands with someone is one `mind.Bond`: **closeness** (slow — builds
+over conversations, fades over weeks), **tension** (fast — gone in an
+afternoon), and **welcome** (learned from how they take it when she comes to
+them, starting neutral and drifting back to it). Missing them is not stored; it
+is read from time and closeness (`mind.FeelLonging`). Role regard stays
+separate, as standing an operator sets rather than a feeling.
+
+Everything that moves a bond is an `Event` in one table (`appraisals` in
+`internal/mind/bond.go`): pestering, a brush-off, a laugh, a pan, a remembered
+conversation by tone and company, and how a reach-out was taken. Before this
+they were separate mechanisms — irritation, warmth, brush-off, reactions — each
+with its own write path and its own step, and two of them happened to use the
+same `.34` without either knowing. Now a new reason to feel something is a row
+in the table, and `chat.Service.appraise` is the only thing that writes a bond:
+read, changed and put back in one transaction, with the event kept as the last
+thing that moved her, so `/chat about` can say why she is the way she is with
+someone. The values are the ones the separate mechanisms had; this changed the
+structure, not the behaviour.
+
+An event restamps only what it moves, so being asked to back off does not
+reset how long tension has been fading. The stored field names are unchanged
+(`irritation`, `warmth`), so no data migrated.
+
 ### Being annoyed with someone
 
 Irritation is held **per person**, not per guild, because that is the whole
@@ -345,7 +370,7 @@ than once per push, or the store fills with the same sentence.
 mood in words (`mind.MoodWords`) over the drives as bars, what they make her
 want (`mind.Wants`), her stance towards each person in the conversation in a
 word — short with, cool towards, fond of, likes, well disposed to, has little
-time for, neutral (`mind.Attitude`) — with the warmth, irritation and role
+time for, neutral (`mind.Attitude`) — with the closeness, tension and role
 regard behind it, how her last line landed while that still counts, and every
 instruction about her state the next reply would carry, verbatim
 (`Grounding.Told`, built by the same functions as the prompt, and tested to
@@ -370,36 +395,48 @@ no copy.
 
 ### Coming after someone who asked for it
 
-A member can run `/attention level:light|keen|insistent` to let her come after
-them when she wants their attention, and `/attention level:off` — or telling
-her to leave them alone, go away, stop pinging them (`mind.WantsPeace`) — to
-end it. `/chat attention enabled:false` switches it off for a whole server,
-whatever anyone opted into.
+A member runs `/attention enabled:true` to let her come after them when she
+wants their attention, and `/attention enabled:false` — or tells her to leave
+them alone, go away, stop pinging them (`mind.WantsPeace`) — to end it.
+`/attention` on its own shows where they stand. An administrator adds
+`whole_server:false` to switch it off for the server, whatever anyone opted
+into.
 
-Consent does not create the behaviour; it removes a guard. Without it she never
-goes looking for anyone. With it, whether she does is up to how she feels,
-like everything else here:
+Consent is on or off. It used to come in three levels — light, keen,
+insistent — each a fixed daily cap and cooldown, and that was a pattern: pick
+"keen" and she came every four hours like a reminder. Consent does not create
+the behaviour; it removes a guard. Without it she never goes looking for
+anyone. With it, whether she does is up to how she feels, like everything
+else here:
 
 - **Missing them** (`mind.FeelLonging`) grows from the time since they last
-  spoke to her, on a curve that rises faster for people she is fond of —
+  spoke to her, on a curve that rises faster for people she is close to —
   absence is felt sooner for someone who matters. It is computed on read from
   `LastExchangeAt`, never stored.
 - **Being ignored** sharpens it: they have been active somewhere in the server
   in the last half hour and still not spoken to her in three. For people who
   opted in, a message in a channel she does not read records a timestamp and
   nothing else — not where, not what.
-- **The urge** (`mind.Urge`) is missing them weighted by how fond she is, plus
-  being ignored and being alone, minus being tired, minus any irritation with
-  them — annoyed with someone, she does not want their attention at all. It is
-  rolled against squared, so a middling urge rarely acts.
+- **The urge** (`mind.Urge`) is missing them weighted by closeness, plus being
+  ignored and being alone, minus being tired, minus any tension with them —
+  annoyed with someone, she does not want their attention at all. It is scaled
+  by how welcome she has learned she is (`0.5 + welcome`) and rolled against
+  squared, so a middling urge rarely acts.
 
-The level is what the person will put up with, not what she has to do: a cap a
-day (1, 3, 6) and a cooldown (12h, 4h, 90m). Someone she is indifferent to may
-opt in and hear nothing for days, which is the point. Her guards sit on top:
-never between 23:00 and 09:00 in the community's timezone, never when she is
-worn out, never while they are already talking to her, the cooldown doubling
-with every reach they leave unanswered, and nothing more after three
-unanswered until they speak to her. Speaking to her resets all of it.
+How often she comes is **learned, not chosen**: welcome is part of her bond
+with them. An answer to a reach-out raises it (+0.10, +0.15 inside the hour),
+leaving one unanswered lowers it (−0.12), and being told to back off drops it
+by 0.30. The shortest wait between reaches runs from 2h for someone glad to
+hear from her to 12h for someone who is not (`mind.ReachGap`), doubles with
+every reach left unanswered, and varies by a quarter either way so it is never
+a clock. Someone she is indifferent to may opt in and hear nothing for days,
+which is the point.
+
+The guards that stay are safety limits rather than a personality: at most four
+a day, never between 23:00 and 09:00 in the community's timezone, never when
+she is worn out, never while they are already talking to her, and nothing more
+after three unanswered until they speak to her. Speaking to her resets the
+count.
 
 A ten-minute timer looks at the people who opted in — the one thing she does on
 a timer, because absence is only noticeable over time, and only for people who
@@ -414,9 +451,10 @@ all. Measured with `cmd/chatprobe -only reach:` — fond of him and ignored:
 exist or has he finally given up on you?"; indifferent, three days on: "you
 alive or just being dramatic again?".
 
-`/chat about` shows someone's level, how much she misses them, whether they
-are around ignoring her, and how many reaches are unanswered; every reach is
-in the journal for `/chat why`.
+`/chat about` shows whether someone lets her come after them, how much she
+misses them, whether they are around ignoring her, how many reaches are
+unanswered, and the welcome gauge with the rest of the bond; every reach is in
+the journal for `/chat why`.
 
 ### When a conversation has run out
 

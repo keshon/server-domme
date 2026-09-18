@@ -217,29 +217,6 @@ func (s *Storage) MindMemories(guildID, channelID string) []MindMemory {
 	return out
 }
 
-// IrritateMindPerson raises how much someone has got on her nerves.
-//
-// Takes the already-decayed current level from the caller rather than decaying
-// here, because the decay needs the same clock the prompt was built with and
-// storage has no business knowing the half-life.
-func (s *Storage) IrritateMindPerson(guildID, userID string, level float64, at time.Time) error {
-	if guildID == "" || userID == "" {
-		return fmt.Errorf("storage: irritation needs a guild and a user")
-	}
-
-	return s.db.Update(func(tx *datastore.Tx) error {
-		col := datastore.In(tx, s.mindPeople)
-
-		person, ok := col.Get(guildScopedKey(guildID, userID))
-		if !ok {
-			person = &MindPerson{GuildID: guildID, UserID: userID, FirstSeen: at}
-		}
-		person.Irritation = level
-		person.IrritatedAt = at
-		return col.Put(person)
-	})
-}
-
 // NoteMindPerson replaces what she knows about someone: their facts, already
 // merged by the caller, and her impression when impression is not empty.
 //
@@ -263,26 +240,6 @@ func (s *Storage) NoteMindPerson(guildID, userID string, facts []MindFact, impre
 			person.Impression = impression
 			person.ImpressionAt = at
 		}
-		return col.Put(person)
-	})
-}
-
-// WarmMindPerson records how much she likes someone, already combined with
-// what was there and decayed by the caller.
-func (s *Storage) WarmMindPerson(guildID, userID string, level float64, at time.Time) error {
-	if guildID == "" || userID == "" {
-		return fmt.Errorf("storage: warmth needs a guild and a user")
-	}
-
-	return s.db.Update(func(tx *datastore.Tx) error {
-		col := datastore.In(tx, s.mindPeople)
-
-		person, ok := col.Get(guildScopedKey(guildID, userID))
-		if !ok {
-			person = &MindPerson{GuildID: guildID, UserID: userID, FirstSeen: at}
-		}
-		person.Warmth = level
-		person.WarmAt = at
 		return col.Put(person)
 	})
 }
@@ -326,12 +283,15 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 
 		people := datastore.In(tx, s.mindPeople)
 		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
-			if p.Irritation == 0 && p.IrritatedAt.IsZero() && p.Warmth == 0 &&
+			if p.Tension == 0 && p.TensionAt.IsZero() && p.Closeness == 0 &&
+				p.WelcomeAt.IsZero() && p.LastEvent == "" &&
 				len(p.Facts) == 0 && p.Impression == "" {
 				continue
 			}
-			p.Irritation, p.IrritatedAt = 0, time.Time{}
-			p.Warmth, p.WarmAt = 0, time.Time{}
+			p.Tension, p.TensionAt = 0, time.Time{}
+			p.Closeness, p.ClosenessAt = 0, time.Time{}
+			p.Welcome, p.WelcomeAt = 0, time.Time{}
+			p.LastEvent, p.LastEventAt = "", time.Time{}
 			p.Facts = nil
 			p.Impression, p.ImpressionAt = "", time.Time{}
 			if err := people.Put(p); err != nil {

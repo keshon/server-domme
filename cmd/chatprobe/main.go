@@ -341,8 +341,8 @@ func scenarios(now time.Time) []scenario {
 				{UserID: "2", Username: "mira", Content: "anyone seen the new event schedule", At: now.Add(-4 * time.Minute)},
 			},
 			volunteering: mind.ReachDirective("Big M", mind.Reach{
-				Longing: mind.Longing{Missing: 0.8, Neglected: true, Away: 26 * time.Hour},
-				Warmth:  0.8,
+				Longing:   mind.Longing{Missing: 0.8, Neglected: true, Away: 26 * time.Hour},
+				Closeness: 0.8,
 			}) + " If it fits: " + bringFor([]mind.Fact{{Key: "pet", Value: "a cat called Bo"}}),
 		},
 		{
@@ -351,8 +351,8 @@ func scenarios(now time.Time) []scenario {
 				{UserID: "2", Username: "mira", Content: "quiet tonight", At: now.Add(-10 * time.Minute)},
 			},
 			volunteering: mind.ReachDirective("Big M", mind.Reach{
-				Longing: mind.Longing{Missing: 0.9, Away: 80 * time.Hour},
-				Warmth:  0,
+				Longing:   mind.Longing{Missing: 0.9, Away: 80 * time.Hour},
+				Closeness: 0,
 			}),
 		},
 		{

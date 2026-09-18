@@ -77,10 +77,10 @@ type Afterthought struct {
 	// UserID is who she was answering.
 	UserID string
 	Drives Drives
-	// Irritation and Regard are how she feels about that person, already
+	// Tension and Regard are how she feels about that person, already
 	// decayed and combined.
-	Irritation float64
-	Regard     float64
+	Tension float64
+	Regard  float64
 }
 
 // MayAddAfterthought decides, caps before the roll, whether a second message
@@ -100,7 +100,7 @@ func MayAddAfterthought(a Afterthought, roll float64) bool {
 	if a.Drives != (Drives{}) && a.Drives.Energy < tooTiredForAfterthought {
 		return false
 	}
-	if a.Irritation >= tooIrritatedForAfterthought || a.Regard <= coldRegard {
+	if a.Tension >= tooIrritatedForAfterthought || a.Regard <= coldRegard {
 		return false
 	}
 	// One person and her. With others talking, a second line from her lands

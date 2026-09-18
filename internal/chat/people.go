@@ -9,31 +9,6 @@ import (
 	"github.com/keshon/server-domme/internal/storage"
 )
 
-// warmTo carries a conversation's tone into how much she likes the people in
-// it. No backend call: the tone was already read by the summary.
-func (s *Service) warmTo(guildID string, people []string, tone mind.Tone, at time.Time) {
-	step := mind.WarmthStep(tone, len(people) == 1)
-	if step == 0 {
-		return
-	}
-	for _, userID := range people {
-		var current float64
-		if p := s.store.GetMindPerson(guildID, userID); p != nil {
-			current = mind.WarmthNow(p.Warmth, p.WarmAt, at)
-		}
-		level := current + step
-		if level < 0 {
-			level = 0
-		}
-		if level > 1 {
-			level = 1
-		}
-		if err := s.store.WarmMindPerson(guildID, userID, level, at); err != nil {
-			s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_warmth_record_failed")
-		}
-	}
-}
-
 // notePeople updates the person file for everyone in a remembered
 // conversation: facts they stated about themselves, and her impression.
 //
