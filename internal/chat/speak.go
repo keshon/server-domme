@@ -84,7 +84,25 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
-	if grounding.InnerVoice && t.item.Trigger != mind.TriggerAfterthought && !mind.Volunteered(t.item.Trigger) {
+	// The label first: it comes before the thought, and whatever else goes
+	// wrong below, it must not reach the channel.
+	if grounding.Perceive && grounding.Answering() {
+		var ok bool
+		if reply, ok = s.perceived(t, sp, reply); !ok {
+			// Only a label came back. Asked again at once without it, as an
+			// unsplittable thought is: a formatting slip is not an outage.
+			grounding.InnerVoice, grounding.Perceive = false, false
+			plain := mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget)
+			if reply, sp.backend, err = s.generate(genCtx, plain); err != nil {
+				if ctx.Err() == nil {
+					s.holdSpoken(t, sp, "no relay answered")
+				}
+				return
+			}
+		}
+	}
+
+	if grounding.InnerVoice && grounding.Answering() {
 		thought, message, ok := mind.SplitThought(reply)
 		if !ok {
 			// Never posted: a private thought reaching the channel cannot be
@@ -96,7 +114,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 				Str("guild_id", t.item.GuildID).
 				Str("channel_id", t.item.ChannelID).
 				Msg("chat_thought_unsplittable")
-			grounding.InnerVoice = false
+			grounding.InnerVoice, grounding.Perceive = false, false
 			plain := mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget)
 			if reply, sp.backend, err = s.generate(genCtx, plain); err != nil {
 				if ctx.Err() == nil {
@@ -176,7 +194,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 			sp.reason = "second thought repeated something already said"
 			return
 		}
-		grounding.InnerVoice = false
+		grounding.InnerVoice, grounding.Perceive = false, false
 		again := append(mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget),
 			ai.Message{Role: ai.RoleSystem, Content: mind.RepeatNote(earlier)})
 		if reply, sp.backend, err = s.generate(genCtx, again); err != nil {
@@ -527,6 +545,7 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 		g.Reaching, g.Volunteering = t.item.Volunteering, ""
 	}
 	g.InnerVoice = s.innerVoice
+	g.Perceive = s.perceive
 	g.Reception = s.receptionFor(t.item.ChannelID, t.item.UserID, t.item.Username, g.Now)
 	if t.item.Trigger == mind.TriggerAfterthought {
 		g.Afterthought = mind.AfterthoughtDirective(t.item.FirstLine)

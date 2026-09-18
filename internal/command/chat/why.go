@@ -104,8 +104,11 @@ func explain(j storage.MindJournal) string {
 			b.WriteString("- " + line + "\n")
 		}
 	}
+	if j.Perceived != "" {
+		fmt.Fprintf(&b, "\n**Read their message as** %s\n-# shadow: recorded, not acted on\n", j.Perceived)
+	}
 	if j.Thought != "" {
-		fmt.Fprintf(&b, "\n**She thought**\n> %s\n", j.Thought)
+		fmt.Fprintf(&b, "\n**Her first reaction** (from the model — changes nothing)\n> %s\n", j.Thought)
 	}
 	if j.Raw != "" && strings.TrimSpace(j.Raw) != strings.TrimSpace(j.Posted) {
 		fmt.Fprintf(&b, "\n**The model returned**\n```\n%s\n```\n", strings.ReplaceAll(j.Raw, "```", "'''"))

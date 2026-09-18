@@ -29,6 +29,11 @@ import (
 // An earlier version said only "see CHAT_ENABLED", which sent an operator who
 // had already set it looking in the wrong place — the actual fault was a
 // character file that never reached the deployment.
+
+// perceptionShadow is the CHAT_PERCEPTION value that records how the model
+// read each message without acting on it.
+const perceptionShadow = "shadow"
+
 func buildChatService(
 	ctx context.Context,
 	cfg *config.Config,
@@ -125,6 +130,7 @@ func buildChatService(
 		Location:       location,
 		RequestTimeout: cfg.ChatRequestTimeout,
 		InnerVoice:     cfg.ChatInnerVoice,
+		PerceiveShadow: cfg.ChatPerception == perceptionShadow,
 		CasualSlips:    cfg.ChatCasualSlips,
 	}), ""
 }

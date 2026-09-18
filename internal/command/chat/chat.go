@@ -468,7 +468,7 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	}
 
 	if st.InnerVoice && st.Thought.Text != "" {
-		fmt.Fprintf(&b, "\n**Last thought** (<t:%d:R>, never posted)\n> %s\n",
+		fmt.Fprintf(&b, "\n**Her first reaction** (<t:%d:R>, from the model — never posted, changes nothing)\n> %s\n",
 			st.Thought.At.Unix(), st.Thought.Text)
 	}
 

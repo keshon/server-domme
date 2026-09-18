@@ -137,6 +137,13 @@ type Config struct {
 	// back from the same call — but it makes every reply longer to generate
 	// and asks more of the relay's model, so it is off until switched on.
 	ChatInnerVoice bool `env:"CHAT_INNER_VOICE" envDefault:"false"`
+	// ChatPerception has the model label how each message she answers came
+	// across — warm, playful, flirty, needling, hostile, neutral — in the
+	// same call as the reply. "shadow" records the label in the journal
+	// (/chat why) and changes nothing else, so the labels can be checked
+	// against what people meant before anything is allowed to act on them.
+	// Anything else is off.
+	ChatPerception string `env:"CHAT_PERCEPTION" envDefault:"off"`
 	// ChatCasualSlips is the odds that a message drops the apostrophes from
 	// casual contractions — "dont", "im", "thats" — the way people type. Set
 	// to 0 to keep them always. Never applied while she is short with

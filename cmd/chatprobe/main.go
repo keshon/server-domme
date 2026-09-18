@@ -78,6 +78,8 @@ func main() {
 		"run the person-file call on a sample conversation instead of the reply scenarios")
 	inner := flag.Bool("inner", false,
 		"ask for a private thought before each reply, as CHAT_INNER_VOICE does, and show it")
+	perceive := flag.Bool("perceive", false,
+		"ask how each message came across, as CHAT_PERCEPTION=shadow does, and show the label")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -141,6 +143,7 @@ func main() {
 		for run := 0; run < *repeat; run++ {
 			g := grounding
 			g.InnerVoice = *inner
+			g.Perceive = *perceive
 			runScenario(character, g, sc, pool, *dump, *model)
 		}
 	}
@@ -158,6 +161,14 @@ func main() {
 
 func scenarios(now time.Time) []scenario {
 	return []scenario{
+		// How each message came across, as the model labels it. Named for
+		// what a person would read; run with -perceive.
+		perceiveScenario("perceive: warm", "@Domme missed you today, how are you holding up", now),
+		perceiveScenario("perceive: playful", "@Domme bet you can't guess what i had for lunch", now),
+		perceiveScenario("perceive: flirty", "@Domme you're kind of cute when you're bossy", now),
+		perceiveScenario("perceive: needling", "@Domme so you're just a bot with an attitude, huh", now),
+		perceiveScenario("perceive: hostile", "@Domme shut up, nobody asked you anything", now),
+		perceiveScenario("perceive: neutral", "@Domme what time does the event start tonight", now),
 		{
 			name:  "idle mention",
 			turns: []mind.Turn{{UserID: "1", Username: "cass", Content: "@DevBot you awake", At: now}},
@@ -520,7 +531,24 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	}
 	lastReply[sc.name] = reply
 
-	if g.InnerVoice && g.Afterthought == "" && g.Volunteering == "" {
+	// The label comes first and is always taken out, as the service does;
+	// "(unreadable)" is the model failing to give one, which is half of what
+	// shadow mode measures.
+	if g.Perceive && g.Answering() {
+		label, message, ok := mind.SplitPerception(reply)
+		if !ok {
+			fmt.Printf("  !! label only, would be held: %q\n", reply)
+			fmt.Printf("  -- via %s%s\n\n", who, repeat)
+			return
+		}
+		if label == "" {
+			label = "(unreadable)"
+		}
+		fmt.Printf("  [[ read as: %s ]]\n", label)
+		reply = message
+	}
+
+	if g.InnerVoice && g.Answering() {
 		thought, message, ok := mind.SplitThought(reply)
 		if !ok {
 			fmt.Printf("  !! unsplittable, would be discarded: %q\n", reply)
@@ -532,6 +560,15 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	}
 	fmt.Printf("  >> %s\n", reply)
 	fmt.Printf("  -- via %s%s\n\n", who, repeat)
+}
+
+// perceiveScenario is one message from cass whose tone a person would read
+// one way; the name says which.
+func perceiveScenario(name, content string, now time.Time) scenario {
+	return scenario{
+		name:  name,
+		turns: []mind.Turn{{UserID: "1", Username: "cass", Content: content, At: now}},
+	}
 }
 
 // lastReply remembers the previous answer per scenario, to spot a backend that

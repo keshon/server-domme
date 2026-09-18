@@ -77,6 +77,10 @@ type Deps struct {
 	// InnerVoice has her write a private thought before each reply; see
 	// mind.InnerVoiceNote.
 	InnerVoice bool
+	// PerceiveShadow has the model label how each message she answers came
+	// across, recorded in the journal and acted on nowhere; see
+	// mind.Perception.
+	PerceiveShadow bool
 	// CasualSlips is the odds a message drops the apostrophes from casual
 	// contractions; see mind.CasualStyle.
 	CasualSlips float64
@@ -114,6 +118,7 @@ type Service struct {
 	// innerVoice and thoughts: whether she thinks before speaking, and the
 	// latest thought per channel, kept only so /chat state can show it.
 	innerVoice  bool
+	perceive    bool
 	casualSlips float64
 	thoughtMu   sync.Mutex
 	thoughts    map[string]Thought
@@ -186,6 +191,7 @@ func New(d Deps) *Service {
 		guilds:    make(map[string]string),
 
 		innerVoice:  d.InnerVoice,
+		perceive:    d.PerceiveShadow,
 		casualSlips: d.CasualSlips,
 		thoughts:    make(map[string]Thought),
 

@@ -109,6 +109,7 @@ type spoken struct {
 	outcome, reason string
 	told            []string
 	thought         string
+	perceived       string
 	raw, posted     string
 	backend         string
 	took            time.Duration
@@ -123,6 +124,7 @@ func (s *Service) closeSpoken(t task, sp *spoken) {
 	s.journalUpdate(t.item.GuildID, t.item.Journal, func(j *storage.MindJournal) {
 		j.Outcome, j.Reason = sp.outcome, sp.reason
 		j.Told, j.Thought = sp.told, sp.thought
+		j.Perceived = sp.perceived
 		j.Raw, j.Posted = excerpt(sp.raw, journalReply), excerpt(sp.posted, journalReply)
 		j.Backend, j.Took = sp.backend, sp.took
 		j.ReplyID = sp.replyID

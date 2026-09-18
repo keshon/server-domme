@@ -112,7 +112,14 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 	// thought, and measured against the relays a second thought talked her out
 	// of it — asked to greet a regular back, she thought about what they had
 	// missed instead and answered that.
-	if g.InnerVoice && g.Afterthought == "" && g.Volunteering == "" {
+	//
+	// The label of how their message landed goes just before it, for the
+	// same answers only: the things she starts have no message of theirs to
+	// read. See PerceiveNote.
+	if g.Perceive && g.Answering() {
+		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: PerceiveNote})
+	}
+	if g.InnerVoice && g.Answering() {
 		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: InnerVoiceNote})
 	}
 
@@ -132,6 +139,15 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 	}
 
 	return msgs
+}
+
+// Answering reports whether this reply answers someone, as opposed to
+// something she started: a second thought, speaking up, or reaching out. Only
+// an answer gets a private thought or a label, and only an answer has them
+// taken back out before posting — asking for one anywhere else would put the
+// tag in the channel.
+func (g Grounding) Answering() bool {
+	return g.Afterthought == "" && g.Volunteering == "" && g.Reaching == ""
 }
 
 func buildSystem(c *Character, g Grounding, b Budget) string {

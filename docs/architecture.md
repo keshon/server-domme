@@ -794,6 +794,53 @@ because the relay's model changes between sessions. What it found:
 It is worth trying on a given deployment and watching `/chat state`, not worth
 switching on blind.
 
+What the thought is not, since its name invites the mistake: it is not her
+thinking. Her mind is the Go side — mood, bonds, fatigue, the decision to
+answer — and all of that is settled before the thought is written. The thought
+colours one message, decides nothing and is never fed back; the panels call it
+her "first reaction, from the model" for that reason.
+
+Asking for it on a reach-out was a bug, found while adding perception below: a
+reach-out clears `Volunteering` and sets `Reaching`, so `Build` asked for the
+thought and `speak`, which skips things she starts, never took it back out.
+Both now use `Grounding.Answering`, and a test pins it.
+
+### How their message came across
+
+Her mind reacts only to what it can count, so it cannot tell "you're actually
+funny" from "you're a bot, aren't you" unless somebody reacts with an emoji.
+The model can, and it has the message in context in the call that answers it.
+`CHAT_PERCEPTION=shadow` asks it, in that same call, for one word from a fixed
+list — warm, playful, flirty, needling, hostile, neutral — between `<tone>`
+tags (`mind.PerceiveNote`). A label from a list rather than free text, and read
+by Go rather than acted on by the model: free text fed back is how cognitum
+fixated, and a model setting her feelings is how its state came to mean
+nothing.
+
+In shadow mode the label is taken out of the reply, written to the journal —
+`/chat why` shows "Read their message as", or `unreadable` when the model gave
+nothing usable — and logged as `chat_perceived`, and nothing else happens. It
+does not move a bond or her mood. The point is to check the labels against
+what people meant, in real conversations, before any of them is allowed to;
+the relays were measured answering "was this rude?" confidently and
+arbitrarily once already. Only answers are labelled, like the thought: the
+things she starts have no message of theirs to read.
+
+Measured with `cmd/chatprobe -only perceive: -perceive`, six messages whose
+tone a person would read one way, three runs each, twice. The first run showed
+two of eighteen replies using the word itself as the tag — `<warm>`,
+`<neutral>unfortunately</neutral>` — which would have been posted as they
+were; `SplitPerception` now reads that shape too, and a reply that is only a
+label is asked for again at once without one. After that fix, 27 of 33
+readable labels matched the intended tone, and every miss was to a neighbour
+(warm read as neutral twice, flirty as playful, needling as playful, hostile as
+needling) rather than across — never warm for hostile.
+
+That is good enough to watch and not yet good enough to act on. If the journal
+agrees with what people meant over a week of real use, the next step is a small
+weight: each label an event in the bond table, smaller than the counted events,
+with Go deciding what it does.
+
 ### How she is doing
 
 `mind.Drives` is four numbers — Social, Energy, Arousal and Mood — derived on

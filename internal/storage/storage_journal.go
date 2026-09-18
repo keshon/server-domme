@@ -52,8 +52,12 @@ type MindJournal struct {
 	// out, both trimmed.
 	Told    []string `json:"told,omitempty"`
 	Thought string   `json:"thought,omitempty"`
-	Raw     string   `json:"raw,omitempty"`
-	Posted  string   `json:"posted,omitempty"`
+	// Perceived is how the model labelled their message when asked, or
+	// "unreadable" when it was asked and gave no usable word. Shadow only:
+	// nothing acts on it yet. See mind.Perception.
+	Perceived string `json:"perceived,omitempty"`
+	Raw       string `json:"raw,omitempty"`
+	Posted    string `json:"posted,omitempty"`
 
 	// Backend is which relay answered and Took how long the reply took.
 	Backend string        `json:"backend,omitempty"`

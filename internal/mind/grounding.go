@@ -159,6 +159,9 @@ type Grounding struct {
 	// InnerVoice asks her to write a private thought before the message; see
 	// InnerVoiceNote.
 	InnerVoice bool
+	// Perceive asks for one word of how their message came across; see
+	// PerceiveNote.
+	Perceive bool
 	// Afterthought asks for a second message after her own, or is empty.
 	// Build puts it after the conversation, since her own last line is what
 	// it is about; see AfterthoughtDirective.
