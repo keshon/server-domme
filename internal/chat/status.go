@@ -77,6 +77,10 @@ type State struct {
 	// worst first. Held per person: being short with one member and ordinary
 	// with the next is the thing being modelled.
 	Irritated []Annoyance
+	// Proactive is whether she may speak first in this channel, and
+	// VolunteeredToday how much of the day's allowance she has used.
+	Proactive        bool
+	VolunteeredToday int
 }
 
 // Annoyance is one person and how much they have got on her nerves.
@@ -102,6 +106,11 @@ func (s *Service) StateIn(guildID, channelID string) State {
 	}
 	if guild := s.store.GetMindGuild(guildID); guild != nil {
 		st.LastSpokeAt = guild.LastSpokeAt
+	}
+
+	st.Proactive = s.store.IsChatProactive(guildID, channelID)
+	if ch := s.store.MindChannelState(guildID, channelID); ch.Day == s.day(now) {
+		st.VolunteeredToday = ch.Today
 	}
 
 	present := s.present(guildID, channelID)

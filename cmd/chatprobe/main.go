@@ -43,6 +43,10 @@ type scenario struct {
 	late time.Duration
 	// drives is how she is doing, when the scenario is about that.
 	drives mind.Drives
+	// volunteering is why she is speaking unasked, for the scenarios where
+	// nobody addressed her. The thing to watch is whether she answers the
+	// last line as though it were put to her anyway.
+	volunteering string
 }
 
 func main() {
@@ -198,6 +202,22 @@ func scenarios(now time.Time) []scenario {
 			}},
 		},
 		{
+			name: "volunteer: a regular comes back",
+			turns: []mind.Turn{
+				{UserID: "2", Username: "mira", Content: "anyone watching the finals tonight", At: now.Add(-3 * time.Minute)},
+				{UserID: "1", Username: "cass", Content: "hey all, what did i miss", At: now},
+			},
+			volunteering: mind.ReturnDirective("cass", 40*24*time.Hour),
+		},
+		{
+			name: "volunteer: an old subject comes round",
+			turns: []mind.Turn{
+				{UserID: "2", Username: "mira", Content: "are the pins getting purged again this week", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "cass", Content: "no idea, ask a mod", At: now},
+			},
+			volunteering: mind.RecallDirective("the argument over whether pinned messages survive a purge"),
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -213,6 +233,7 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	g := grounding
 	g.AnsweringAfter = sc.late
 	g.Drives = sc.drives
+	g.Volunteering = sc.volunteering
 
 	messages := mind.Build(character, g, sc.turns, mind.DefaultBudget())
 

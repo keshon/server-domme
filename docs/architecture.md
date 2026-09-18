@@ -483,6 +483,68 @@ She does not @mention the person either. Her allowed-mentions are empty so it
 would not ping, and an inline mention reads like a bot addressing a ticket
 where the reply anchor shows the same thing without touching what she says.
 
+### Speaking first
+
+`/chat proactive enabled:true` lets her speak without being addressed in one
+channel. It is off by default and per channel: a general channel can take her
+greeting someone back, a support channel cannot take her bringing up last
+week's argument. Switching a channel off with `/chat silence` switches this off
+with it.
+
+There are two reasons she will, and both are something a person just did:
+
+- **A regular comes back.** Someone she knows — not a newcomer — speaks after
+  two weeks or more away (`Acquaintance.AwayFor`). Greeting a stranger's
+  return reads as being watched rather than recognised.
+- **An old subject comes round.** The live conversation shares enough words
+  with the gist of a memory at least six hours old (`mind.Relevant`). Matched
+  against the gist alone: overlap is a share of the memory's words, so counting
+  the detail made a vividly remembered episode harder to recall than a vague
+  one. The age floor keeps her from bringing up the last hour as history.
+
+There is deliberately no third reason of breaking a silence. Nothing here runs
+on a timer, so a quiet channel stays quiet; a bot that posts into an empty room
+on a schedule is the most recognisable bot behaviour there is.
+
+`mind.MayVolunteer` then gates it, caps first and the roll last, so the random
+part only ever says no to something already allowed:
+
+- at most `VolunteerDailyLimit` a day per channel, counted in the community's
+  timezone and persisted in `mind_channels` — the bot is redeployed often
+  enough that a counter held in memory would be no limit at all;
+- never within `VolunteerCooldown` of the last one;
+- never while she is already in the conversation, where what she says next is a
+  reply;
+- never when she is worn out;
+- for a memory, never into two other people's exchange — the same barging that
+  kept `about` from being an approach. A returning regular is noticed however
+  busy the room is.
+
+The budget is spent when she decides, not when the message goes out, so a
+remark that then fails to generate still counts: the error is towards saying
+less. A volunteered remark is never held for a later retry either — nobody is
+owed it, and arriving twenty minutes after its moment is stranger than not
+arriving. The queue being full drops it for the same reason.
+
+Why she is speaking goes last in the prompt, after the mood. Without it the
+model reads the transcript, finds nothing aimed at her and answers the last
+line as though it were. The wording of both directives was measured against the
+relays with `cmd/chatprobe -only volunteer`, and two versions failed in ways
+worth knowing about:
+
+- Asked only to greet someone back, she answered their "what did I miss" by
+  inventing a recap. The directive now says she does not know what happened.
+- Telling her she did not know the answer to the question the room was on
+  sent her into assistant mode — "I don't have visibility into server events".
+  Stating what a model does not know invites a disclaimer. The recall
+  directive now describes the one thing to say instead: a dry remark that the
+  subject is back.
+
+The same probe turned up a relay answering with the transcript's last line word
+for word. `mind.Echoes` catches a reply that is only someone else's line and
+treats it as a failed generation — an answer is retried, a volunteered remark
+dropped — and `ai.Clean` now drops leaked `<tool_call>` scaffolding.
+
 ### How much of the conversation counts as live
 
 `Conversations.Recent` bounds the live context two ways and takes whichever

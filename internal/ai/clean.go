@@ -101,8 +101,15 @@ func Clean(reply string) string {
 var controlArtifact = regexp.MustCompile(
 	`(?i)^\s*(user\s+)?(safety|moderation|content\s+filter|policy|compliance|flagged)\s*:\s*[\w-]+\s*$`)
 
+// toolCallMarkup is a relay leaking the scaffolding of a tool-calling model:
+// "<tool_call>The question is: ..." arrived as a whole reply while probing the
+// character. Nothing she says contains these tags, so their presence anywhere
+// means the rest is scaffolding too.
+var toolCallMarkup = regexp.MustCompile(`(?i)</?(tool_call|function_call|tool_use)\b`)
+
 func isControlArtifact(reply string) bool {
-	return controlArtifact.MatchString(strings.TrimSpace(reply))
+	return controlArtifact.MatchString(strings.TrimSpace(reply)) ||
+		toolCallMarkup.MatchString(reply)
 }
 
 // stripWrappingQuotes removes one matched pair enclosing the whole reply. A

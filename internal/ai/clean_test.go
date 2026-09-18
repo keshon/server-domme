@@ -135,3 +135,19 @@ func TestCleanKeepsSpeechThatHappensToUseAColon(t *testing.T) {
 		}
 	}
 }
+
+// A relay fronting a tool-calling model can leak its scaffolding as the whole
+// reply. Observed while probing the character.
+func TestCleanDropsLeakedToolCallMarkup(t *testing.T) {
+	for _, reply := range []string{
+		`<tool_call>The question is: "quote what you said to me yesterday"`,
+		"sure </function_call>",
+	} {
+		if got := Clean(reply); got != "" {
+			t.Errorf("Clean(%q) = %q, want it dropped", reply, got)
+		}
+	}
+	if got := Clean("tool_calls are not my department"); got == "" {
+		t.Error("dropped a reply that only mentions the words")
+	}
+}

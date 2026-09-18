@@ -164,6 +164,13 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 		}
 	}
 
+	// Why she is speaking at all, when nobody asked. Last of all: without it
+	// the model reads the transcript, finds no question aimed at her, and
+	// answers whatever was said most recently as though it had been.
+	if why := strings.TrimSpace(g.Volunteering); why != "" {
+		sb.WriteString("\n\nWhy you are speaking:\n- " + why + "\n")
+	}
+
 	return sb.String()
 }
 

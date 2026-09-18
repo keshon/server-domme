@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -86,6 +87,13 @@ func (s *Storage) RemoveChatChannel(guildID, channelID string) error {
 		return fmt.Errorf("storage: channel not found in chat list")
 	}
 	g.ChatChannels = updated
+	// Volunteering only makes sense on top of answering, so taking a channel
+	// away takes that with it. Left behind, it would come back switched on the
+	// next time someone ran /chat here, which nobody asking for it back would
+	// expect.
+	g.ChatProactive = slices.DeleteFunc(g.ChatProactive, func(c string) bool {
+		return c == channelID
+	})
 	return s.settings.Put(g)
 }
 
@@ -305,4 +313,75 @@ func (s *Storage) ChatRoleBiases(guildID string) map[string]ChatRoleBias {
 		out[id] = bias
 	}
 	return out
+}
+
+// ErrChatChannelRequired is returned when proactivity is asked for in a
+// channel she has not been let into. Its text is shown to the administrator,
+// which is why it carries no package prefix.
+var ErrChatChannelRequired = errors.New("she has to be let into this channel with /chat here first")
+
+// SetChatProactive lets her speak unprompted in a channel, or stops her.
+//
+// Refuses a channel she cannot answer in: volunteering is a permission on top
+// of answering, not instead of it.
+func (s *Storage) SetChatProactive(guildID, channelID string, on bool) error {
+	g := s.guildSettings(guildID)
+	if on && !slices.Contains(g.ChatChannels, channelID) {
+		return ErrChatChannelRequired
+	}
+
+	g.ChatProactive = slices.DeleteFunc(g.ChatProactive, func(c string) bool {
+		return c == channelID
+	})
+	if on {
+		g.ChatProactive = append(g.ChatProactive, channelID)
+	}
+	return s.settings.Put(g)
+}
+
+// IsChatProactive reports whether she may speak unprompted in a channel.
+//
+// Checks both lists rather than trusting the subset to hold, so a row edited
+// by hand or restored from an old backup cannot have her volunteering in a
+// channel she is not allowed to read.
+func (s *Storage) IsChatProactive(guildID, channelID string) bool {
+	g := s.guildSettings(guildID)
+	return slices.Contains(g.ChatChannels, channelID) &&
+		slices.Contains(g.ChatProactive, channelID)
+}
+
+// MindChannelState returns what she has volunteered in a channel, or a zero
+// row when she never has.
+func (s *Storage) MindChannelState(guildID, channelID string) MindChannel {
+	got, ok := s.mindChannels.Get(guildScopedKey(guildID, channelID))
+	if !ok {
+		return MindChannel{GuildID: guildID, ChannelID: channelID}
+	}
+	return *got
+}
+
+// MarkVolunteered records one unprompted remark, restarting the count when
+// day has moved on.
+//
+// The day is the caller's to compute, because it has to be in the
+// community's timezone and storage has no business knowing which that is.
+func (s *Storage) MarkVolunteered(guildID, channelID, day string, at time.Time) error {
+	if guildID == "" || channelID == "" {
+		return fmt.Errorf("storage: volunteer needs a guild and a channel")
+	}
+
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.mindChannels)
+
+		row, ok := col.Get(guildScopedKey(guildID, channelID))
+		if !ok {
+			row = &MindChannel{GuildID: guildID, ChannelID: channelID}
+		}
+		if row.Day != day {
+			row.Day, row.Today = day, 0
+		}
+		row.Today++
+		row.VolunteeredAt = at
+		return col.Put(row)
+	})
 }

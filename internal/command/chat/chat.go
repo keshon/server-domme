@@ -7,6 +7,7 @@
 package chat
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,6 +30,8 @@ const (
 	subState   = "state"
 	subForget  = "forget"
 	subRole    = "role"
+	subSpeakUp = "proactive"
+	optEnabled = "enabled"
 	optRole    = "role"
 	optRegard  = "regard"
 	optNote    = "note"
@@ -140,6 +143,19 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subSpeakUp,
+				Description: "Let her speak first here now and then — greet a regular, bring up an old thread",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionBoolean,
+						Name:        optEnabled,
+						Description: "On or off. Off is the default: she only ever answers",
+						Required:    true,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subForget,
 				Description: "Wipe everything she remembers about this server",
 				Options: []*discordgo.ApplicationCommandOption{
@@ -165,7 +181,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `role` or `forget`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `role`, `proactive` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -207,6 +223,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subForget:
 		return c.runForget(context, sub)
+
+	case subSpeakUp:
+		return runSpeakUp(context, sub)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -353,6 +372,12 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	fmt.Fprintf(&b, "Odds of answering an indirect approach: %+.0f%%\n", st.Nudge*100)
 	fmt.Fprintf(&b, "Remembers %d things here, %d bright enough to come up now\n",
 		st.Memories, st.Recalled)
+	if st.Proactive {
+		fmt.Fprintf(&b, "Speaks first here: on, %d of %d used today\n",
+			st.VolunteeredToday, mind.VolunteerDailyLimit)
+	} else {
+		b.WriteString("Speaks first here: off — she only answers\n")
+	}
 
 	// The directives verbatim, because they are the part that actually reaches
 	// the model. The numbers above are how they were arrived at.
@@ -448,6 +473,44 @@ func (c *ChatCommand) runForget(
 			"She still knows who is a regular and who is new — that is counted from "+
 			"messages, not remembered, and wiping it would turn everyone here into a "+
 			"stranger.", forgotten))
+}
+
+// runSpeakUp switches volunteering on or off for this channel.
+//
+// Per channel rather than per server, because what is welcome differs: a
+// general channel can take her greeting someone back, a support channel
+// cannot take her bringing up last week's argument.
+func runSpeakUp(
+	context *cmdadapter.SlashInteractionContext,
+	sub *discordgo.ApplicationCommandInteractionDataOption,
+) error {
+	s, e, store := context.Session, context.Event, context.Storage
+
+	var on bool
+	for _, opt := range sub.Options {
+		if opt.Name == optEnabled {
+			on = opt.BoolValue()
+		}
+	}
+
+	if err := store.SetChatProactive(e.GuildID, e.ChannelID, on); err != nil {
+		if errors.Is(err, storage.ErrChatChannelRequired) {
+			return respond(s, e, "She is not listening here yet. `/chat here` first.")
+		}
+		return fmt.Errorf("chat: set proactive: %w", err)
+	}
+
+	if !on {
+		return respond(s, e, fmt.Sprintf("She will only answer in <#%s> now.", e.ChannelID))
+	}
+	return respond(s, e, fmt.Sprintf(
+		"She may speak first in <#%s> now: noticing a regular who has been gone "+
+			"a while, or bringing up something she remembers when it comes round "+
+			"again.\n\n"+
+			"At most %d times a day, never within %d minutes of the last, never "+
+			"while she is already in the conversation and never when she is worn "+
+			"out. `/chat proactive enabled:false` stops it.",
+		e.ChannelID, mind.VolunteerDailyLimit, int(mind.VolunteerCooldown.Minutes())))
 }
 
 // Regard bounds, as Discord enforces them in the picker so a bad value never

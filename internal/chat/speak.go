@@ -68,6 +68,18 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
+	// A copy of someone's line is a failed generation that happened to parse,
+	// so it takes the same path: an answer is tried again later, something
+	// volunteered is dropped.
+	if mind.Echoes(reply, s.conv.Recent(t.item.ChannelID)) {
+		s.log.Warn().
+			Str("guild_id", t.item.GuildID).
+			Str("channel_id", t.item.ChannelID).
+			Msg("chat_reply_echoed")
+		s.hold(t, "echoed")
+		return
+	}
+
 	sent, err := s.send(sess, t, reply)
 	if err != nil {
 		// The reply exists but could not be delivered — a missing permission,
@@ -153,20 +165,9 @@ func (s *Service) remember(guildID, channelID string, present []mind.Acquaintanc
 		topic.WriteString(" ")
 	}
 
-	stored := s.store.MindMemories(guildID, channelID)
-	if len(stored) == 0 {
+	memories := s.memoriesOf(guildID, channelID)
+	if len(memories) == 0 {
 		return topic.String(), nil
-	}
-
-	memories := make([]mind.Memory, 0, len(stored))
-	for _, m := range stored {
-		memories = append(memories, mind.Memory{
-			At:     m.At,
-			Gist:   m.Gist,
-			Detail: m.Detail,
-			Weight: m.Weight,
-			People: m.People,
-		})
 	}
 
 	here := make([]string, 0, len(present))
@@ -237,6 +238,17 @@ func abs(v float64) float64 {
 // people do. The alternative — telling the channel that a backend is
 // unavailable — breaks character to report plumbing nobody there can fix.
 func (s *Service) hold(t task, reason string) {
+	// Something she volunteered is dropped rather than held. An answer is owed
+	// to whoever asked, even late; an unprompted remark arriving twenty
+	// minutes after the moment it was about is stranger than never saying it.
+	if mind.Volunteered(t.item.Trigger) {
+		s.log.Info().
+			Str("guild_id", t.item.GuildID).
+			Str("channel_id", t.item.ChannelID).
+			Str("reason", reason).
+			Msg("chat_volunteer_dropped")
+		return
+	}
 	if s.deferrals.Hold(t.item, time.Now()) {
 		return
 	}
@@ -326,6 +338,7 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	// a fact about one member, and a paragraph covering the room would be more
 	// prompt than it is worth and harder to act on.
 	g.AboutThem, g.Regard = s.standing(sess, t.item.GuildID, t.item.UserID, t.item.Username)
+	g.Volunteering = t.item.Volunteering
 	return g
 }
 
@@ -362,4 +375,32 @@ func (s *Service) present(guildID, channelID string) []mind.Acquaintance {
 func (s *Service) regardFor(sess *discordgo.Session, guildID, userID string) float64 {
 	_, regard := s.standing(sess, guildID, userID, "")
 	return regard
+}
+
+// memoriesOf loads what she remembers about a channel, as the mind package
+// reads it. Shared by reply-time recall and by volunteering, so the two cannot
+// drift into disagreeing about what she knows.
+func (s *Service) memoriesOf(guildID, channelID string) []mind.Memory {
+	stored := s.store.MindMemories(guildID, channelID)
+	out := make([]mind.Memory, 0, len(stored))
+	for _, m := range stored {
+		out = append(out, mind.Memory{
+			At:     m.At,
+			Gist:   m.Gist,
+			Detail: m.Detail,
+			Weight: m.Weight,
+			People: m.People,
+		})
+	}
+	return out
+}
+
+// liveTopic is the words of the conversation in progress, run together.
+func (s *Service) liveTopic(channelID string) string {
+	var topic strings.Builder
+	for _, turn := range s.conv.Recent(channelID) {
+		topic.WriteString(turn.Content)
+		topic.WriteString(" ")
+	}
+	return topic.String()
 }

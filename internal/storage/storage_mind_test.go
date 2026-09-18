@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -325,5 +326,70 @@ func TestForgetMindMemoriesLeavesOtherGuildsAlone(t *testing.T) {
 	}
 	if got := store.MindMemories("g2", "c1"); len(got) != 1 {
 		t.Errorf("reached into another guild: %d memories left", len(got))
+	}
+}
+
+func TestChatProactiveNeedsTheChannelFirst(t *testing.T) {
+	store := newTestStore(t)
+
+	if err := store.SetChatProactive("g1", "c1", true); !errors.Is(err, ErrChatChannelRequired) {
+		t.Fatalf("SetChatProactive on a channel she cannot read = %v, want ErrChatChannelRequired", err)
+	}
+	if store.IsChatProactive("g1", "c1") {
+		t.Error("proactive in a channel she was never let into")
+	}
+
+	if err := store.AddChatChannel("g1", "c1"); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	if err := store.SetChatProactive("g1", "c1", true); err != nil {
+		t.Fatalf("SetChatProactive: %v", err)
+	}
+	if !store.IsChatProactive("g1", "c1") {
+		t.Error("not proactive after being switched on")
+	}
+}
+
+// Left behind, proactivity would come back switched on the next time someone
+// ran /chat here, which nobody asking for her back would expect.
+func TestSilencingAChannelTakesProactivityWithIt(t *testing.T) {
+	store := newTestStore(t)
+	if err := store.AddChatChannel("g1", "c1"); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	if err := store.SetChatProactive("g1", "c1", true); err != nil {
+		t.Fatalf("SetChatProactive: %v", err)
+	}
+
+	if err := store.RemoveChatChannel("g1", "c1"); err != nil {
+		t.Fatalf("RemoveChatChannel: %v", err)
+	}
+	if err := store.AddChatChannel("g1", "c1"); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	if store.IsChatProactive("g1", "c1") {
+		t.Error("proactivity survived being silenced and came back on its own")
+	}
+}
+
+func TestMarkVolunteeredCountsPerDay(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Now()
+
+	for i := 0; i < 2; i++ {
+		if err := store.MarkVolunteered("g1", "c1", "2026-09-18", now); err != nil {
+			t.Fatalf("MarkVolunteered: %v", err)
+		}
+	}
+	if got := store.MindChannelState("g1", "c1"); got.Today != 2 {
+		t.Errorf("Today = %d, want 2", got.Today)
+	}
+
+	// A new day starts the budget again rather than carrying yesterday's.
+	if err := store.MarkVolunteered("g1", "c1", "2026-09-19", now); err != nil {
+		t.Fatalf("MarkVolunteered: %v", err)
+	}
+	if got := store.MindChannelState("g1", "c1"); got.Today != 1 || got.Day != "2026-09-19" {
+		t.Errorf("after the day turned: %+v", got)
 	}
 }

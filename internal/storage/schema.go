@@ -43,6 +43,11 @@ type GuildSettings struct {
 	TranslateChannels    []string          `json:"translate_channels,omitempty"`
 	ChatChannels         []string          `json:"chat_channels,omitempty"`
 	ChatBrief            string            `json:"chat_brief,omitempty"`
+	// ChatProactive lists the chat channels where she may also speak without
+	// being asked. Always a subset of ChatChannels: answering and volunteering
+	// are separate permissions, and the second only makes sense on top of the
+	// first.
+	ChatProactive []string `json:"chat_proactive,omitempty"`
 	// ChatRoles is how she regards each Discord role, keyed by role id.
 	ChatRoles map[string]ChatRoleBias `json:"chat_roles,omitempty"`
 }
@@ -189,6 +194,22 @@ type MindGuild struct {
 }
 
 func (m *MindGuild) Key() string { return m.GuildID }
+
+// MindChannel is what she has volunteered in one channel, kept so the daily
+// budget survives a restart. Held in memory it would reset on every deploy,
+// and a bot redeployed three times in an afternoon would get three budgets.
+type MindChannel struct {
+	GuildID   string `json:"guild_id"`
+	ChannelID string `json:"channel_id"`
+	// VolunteeredAt is when she last spoke here unprompted.
+	VolunteeredAt time.Time `json:"volunteered_at,omitempty"`
+	// Day is the calendar day, in the community's timezone, that Today
+	// counts. A different day means Today is stale and starts again.
+	Day   string `json:"day,omitempty"`
+	Today int    `json:"today,omitempty"`
+}
+
+func (m *MindChannel) Key() string { return guildScopedKey(m.GuildID, m.ChannelID) }
 
 // MindMemory is one thing the character remembers happening in a channel.
 //

@@ -267,12 +267,16 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		MessageID: m.ID,
 	})
 
-	if _, err := s.store.SeeMindPerson(m.GuildID, m.Author.ID, name, now); err != nil {
+	person, err := s.store.SeeMindPerson(m.GuildID, m.Author.ID, name, now)
+	if err != nil {
 		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_person_record_failed")
 	}
 
 	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
 	if !addressed {
+		// Not aimed at her. The only thing left to decide is whether she has
+		// a reason to say something anyway.
+		s.maybeVolunteer(m, name, person, now)
 		return
 	}
 

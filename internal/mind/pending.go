@@ -49,8 +49,12 @@ type Deferred struct {
 	Content   string
 	Trigger   Trigger
 	FormedAt  time.Time
-	Attempts  int
-	nextTry   time.Time
+	// Volunteering is why she is speaking when nobody asked, empty for an
+	// answer. Carried with the approach because the reason is decided when
+	// the message arrives and only turned into a prompt at reply time.
+	Volunteering string
+	Attempts     int
+	nextTry      time.Time
 }
 
 // Age reports how long the approach has been waiting.

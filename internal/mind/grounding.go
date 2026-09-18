@@ -134,6 +134,10 @@ type Grounding struct {
 	// Regard is that person's combined standing, which moves their odds of an
 	// answer as well as colouring it.
 	Regard float64
+	// Volunteering is why she is speaking when nobody asked, or empty for an
+	// answer. It is the reason this message exists at all, so Build puts it
+	// after everything else.
+	Volunteering string
 	// AnsweringAfter is how long ago the message being answered was sent,
 	// set only when a reply was held back because no backend would answer.
 	// Telling her the gap is what lets her acknowledge it in her own words;
