@@ -240,6 +240,10 @@ type MindGuild struct {
 	// a quiet hour from a quiet week, which the conversation buffer cannot:
 	// that only keeps thirty minutes.
 	LastSpokeAt time.Time `json:"last_spoke_at,omitempty"`
+	// LastContactAt is when someone last spoke to her here. It, not her own
+	// speaking, is what satisfies her need for company: talking into a room
+	// that does not answer cures no loneliness. See mind.MoodInput.
+	LastContactAt time.Time `json:"last_contact_at,omitempty"`
 	// Initiative is how much she has put herself forward lately, as of
 	// InitiativeAt; decayed on read. See mind.Fatigue.
 	Initiative   float64   `json:"initiative,omitempty"`

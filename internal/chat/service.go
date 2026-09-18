@@ -144,6 +144,11 @@ type Service struct {
 	replyingMu sync.Mutex
 	replying   map[string]bool
 
+	// payoffs are the things she started, per channel, still waiting to see
+	// how they land. In memory: a restart loses at most ten minutes of them.
+	payoffMu sync.Mutex
+	payoffs  map[string][]awaiting
+
 	conv       *mind.Conversations
 	deferrals  *mind.Deferrals
 	encounters *mind.Encounters
@@ -198,6 +203,7 @@ func New(d Deps) *Service {
 		snubbed:    make(map[string]bool),
 		receptions: make(map[string]mind.Received),
 		replying:   make(map[string]bool),
+		payoffs:    make(map[string][]awaiting),
 		conv:       mind.NewConversations(),
 		deferrals:  mind.NewDeferrals(),
 		encounters: mind.NewEncounters(),
@@ -282,6 +288,7 @@ func (s *Service) retryLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			s.expirePayoffs(time.Now())
 			for _, item := range s.deferrals.Due(time.Now()) {
 				select {
 				case s.work <- task{item: item, late: true}:

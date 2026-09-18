@@ -102,7 +102,7 @@ func TestRepetitionSeesARoomGoingStale(t *testing.T) {
 
 func TestDeriveDrivesHabituatesAndFeels(t *testing.T) {
 	now := at(15)
-	base := MoodInput{Now: now, LastSpokeAt: now, RecentTurns: busyChannel, AddressedTurns: busyChannel / 2}
+	base := MoodInput{Now: now, LastContact: now, RecentTurns: busyChannel, AddressedTurns: busyChannel / 2}
 	fresh := DeriveDrives(base)
 
 	stale := base
@@ -194,7 +194,7 @@ func TestAnswerRatesStayNearTodaysOnAverage(t *testing.T) {
 	a := DefaultAttention()
 	start := time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC)
 	for _, trigger := range []Trigger{TriggerNamed, TriggerAbout, TriggerFollowUp} {
-		in := MoodInput{Now: start, LastSpokeAt: start.Add(-time.Hour), RecentTurns: 6, AddressedTurns: 2}
+		in := MoodInput{Now: start, LastContact: start.Add(-time.Hour), RecentTurns: 6, AddressedTurns: 2}
 		before := DeriveDrives(in)
 		before.Energy, before.Mood = circadian(start, nil), 0
 		_, old := DecideWhy(a, Situation{Trigger: trigger, Now: start, Drives: before}, 1)
@@ -204,7 +204,7 @@ func TestAnswerRatesStayNearTodaysOnAverage(t *testing.T) {
 		const days = 365
 		for d := range days {
 			in.Now = start.Add(time.Duration(d) * 24 * time.Hour)
-			in.LastSpokeAt = in.Now.Add(-time.Hour)
+			in.LastContact = in.Now.Add(-time.Hour)
 			in.Seed = "g1"
 			closeness := 0.3 * float64(d%10) / 10
 			_, now := DecideWhy(a, Situation{Trigger: trigger, Now: in.Now, Drives: DeriveDrives(in), Closeness: closeness}, 1)

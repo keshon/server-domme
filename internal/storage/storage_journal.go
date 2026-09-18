@@ -56,8 +56,11 @@ type MindJournal struct {
 	// "unreadable" when it was asked and gave no usable word. Shadow only:
 	// nothing acts on it yet. See mind.Perception.
 	Perceived string `json:"perceived,omitempty"`
-	Raw       string `json:"raw,omitempty"`
-	Posted    string `json:"posted,omitempty"`
+	// Payoff is how something she started was received, and what that did
+	// to her, once it is known. See mind.Payoff.
+	Payoff string `json:"payoff,omitempty"`
+	Raw    string `json:"raw,omitempty"`
+	Posted string `json:"posted,omitempty"`
 
 	// Backend is which relay answered and Took how long the reply took.
 	Backend string        `json:"backend,omitempty"`

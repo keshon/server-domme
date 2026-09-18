@@ -269,6 +269,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 	}
 	s.deferrals.Drop(t.item.ChannelID)
 	s.receptionUsed(t.item.ChannelID, t.item.UserID)
+	s.awaitPayoff(t, spokeAt)
 	s.considerAfterthought(ctx, t, grounding, reply, sentID, spokeAt)
 
 	s.log.Info().
@@ -290,7 +291,12 @@ func (s *Service) drives(guildID, channelID string, now time.Time) mind.Drives {
 	in := mind.MoodInput{Now: now, Location: s.location, Seed: guildID}
 
 	if guild := s.store.GetMindGuild(guildID); guild != nil {
-		in.LastSpokeAt = guild.LastSpokeAt
+		// Someone speaking to her is what satisfies the need; before the
+		// first contact is recorded, her own last word stands in for it.
+		in.LastContact = guild.LastContactAt
+		if in.LastContact.IsZero() {
+			in.LastContact = guild.LastSpokeAt
+		}
 		in.Swing = mind.MoodSwing{Level: guild.MoodSwing, At: guild.MoodSwingAt}.Now(now)
 	}
 	if s.character != nil {

@@ -129,6 +129,9 @@ func explain(j storage.MindJournal) string {
 	if j.Reaction != "" {
 		fmt.Fprintf(&b, "\n**How it landed** %s\n", mind.ReceptionWords(mind.Reception(j.Reaction)))
 	}
+	if j.Payoff != "" {
+		fmt.Fprintf(&b, "\n**How it paid off** %s\n", j.Payoff)
+	}
 	return trimForEmbedBody(b.String())
 }
 

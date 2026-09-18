@@ -81,6 +81,10 @@ const (
 	EventReachAnsweredQuickly Event = "answered her quickly"
 	EventReachIgnored         Event = "ignored her reaching out"
 	EventAskedForPeace        Event = "asked her to back off"
+	// EventInitiativeTaken and EventInitiativeDropped are how something she
+	// started with them, other than reaching out, was received; see Payoff.
+	EventInitiativeTaken   Event = "took up something she started"
+	EventInitiativeDropped Event = "let something she started drop"
 )
 
 // Shift is what one event does to a bond, and Mood what it does to her
@@ -114,6 +118,11 @@ var appraisals = map[Event]Shift{
 	EventReachAnsweredQuickly: {Closeness: 0.03, Welcome: 0.15, Mood: 0.10},
 	EventReachIgnored:         {Welcome: -0.12, Mood: -0.06},
 	EventAskedForPeace:        {Welcome: -0.30, Mood: -0.12},
+	// Smaller than reaching out's: a remark in a room they are already in
+	// says less about whether they want her than coming to find them does.
+	// No mood here; the surprise carries that. See SurpriseMood.
+	EventInitiativeTaken:   {Welcome: 0.05},
+	EventInitiativeDropped: {Welcome: -0.04},
 }
 
 // ConversationMood is what a remembered conversation does to her mood, once

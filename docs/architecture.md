@@ -1087,6 +1087,46 @@ unanswered reaches. None of them should be what decides on an ordinary day.
 `/chat state` shows the current fatigue, and `/chat why` records the chance and
 roll behind each initiative, with the fatigue she decided under.
 
+### What she gets out of it
+
+Initiative fatigue is the cost of putting herself forward, paid whatever
+happens. Reward is the other half, the part dopamine carries in a person: not
+the outcome but how it compares with what she expected.
+
+After a greeting, an old subject brought up or a second thought, she waits ten
+minutes (`mind.PayoffWindow`) to see how it lands. The person it was aimed at
+speaking to her again settles it — laughing (1.0), taking it up (0.7), or
+panning it (0.1) — and nothing by the end of the window is being ignored (0).
+A remark about a subject is to the room, so anyone taking it up settles it.
+Reaching out learns the same way from its own answered and unanswered counts,
+over hours rather than minutes.
+
+- **Surprise moves her mood.** `mind.Surprise` is the outcome less what she
+  expected, and her expectation of someone is her welcome with them — the one
+  number she both learns and predicts from. A warm answer from someone she
+  expected nothing from lifts her; the same answer from someone who always
+  gives one barely does; silence from them stings more than from a stranger.
+- **She learns who welcomes her.** Being taken up or let drop moves welcome a
+  little (`EventInitiativeTaken` +0.05, `EventInitiativeDropped` −0.04) —
+  less than reaching out, because a remark in a room they are already in says
+  less about whether they want her than coming to find them does. Welcome now
+  scales speaking up and second thoughts towards that person as it already
+  scaled reaching out: unchanged at neutral, so nothing moves until she has
+  learned something.
+- **The need is satisfied by contact, not by speaking.** Her need for company
+  used to reset whenever she spoke, which meant talking into a room that did
+  not answer cured her loneliness. It now resets when someone speaks to her
+  (`MindGuild.LastContactAt`). So when a greeting pays off, the need behind it
+  is met and the next greeting comes less readily; when it falls flat, the need
+  is still there, and whether she tries someone else is up to the roll.
+
+`TestAGreetingThatPaysOffSatisfiesTheNeedBehindIt` shows the loop end to end:
+alone all afternoon, her odds of greeting the next person are 0.68; after a
+greeting that was taken up, 0.53; after one that was ignored, 0.67. Fatigue
+lowers both further, equally. `/chat why` records each payoff on the entry of
+the thing she started — "laughed — expected 0.50, surprise +0.50" — and the log
+carries it as `chat_paid_off`.
+
 ### Speaking first
 
 `/chat proactive enabled:true` lets her speak without being addressed in one

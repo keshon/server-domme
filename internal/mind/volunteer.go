@@ -93,6 +93,10 @@ type Volunteer struct {
 	Drives Drives
 	// Fatigue is how much she has put herself forward lately.
 	Fatigue float64
+	// WelcomeShift is how glad the person this is about has been of her,
+	// from neutral; zero when she has learned nothing or it is about the
+	// room. See WelcomeShift.
+	WelcomeShift float64
 }
 
 // MayVolunteer decides whether she speaks unprompted, given a roll in [0,1),
@@ -125,7 +129,7 @@ func MayVolunteer(v Volunteer, roll float64) (bool, float64) {
 	if v.Trigger == TriggerReturn {
 		pull = returnChance
 	}
-	chance := clamp01(pull+v.Drives.Nudge()) * Rested(v.Fatigue)
+	chance := clamp01(welcomed(clamp01(pull+v.Drives.Nudge()), v.WelcomeShift)) * Rested(v.Fatigue)
 	return roll < chance, chance
 }
 

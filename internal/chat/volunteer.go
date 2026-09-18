@@ -44,6 +44,9 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 		UserID:        m.Author.ID,
 		Drives:        s.drives(m.GuildID, m.ChannelID, now),
 		Fatigue:       fatigue,
+		// A greeting is to them, and how they have taken what she started
+		// before counts; a remembered subject is to the room.
+		WelcomeShift: welcomeShiftFor(trigger, s.welcomeOf(m.GuildID, m.Author.ID, now)),
 	}, roll)
 	if !willing {
 		return
@@ -125,4 +128,13 @@ func (s *Service) day(now time.Time) string {
 		loc = time.UTC
 	}
 	return now.In(loc).Format(time.DateOnly)
+}
+
+// welcomeShiftFor is how glad the person a remark is aimed at has been of
+// her, from neutral, or zero for a remark to the room.
+func welcomeShiftFor(t mind.Trigger, welcome float64) float64 {
+	if t == mind.TriggerRecall {
+		return 0
+	}
+	return mind.WelcomeShift(welcome)
 }

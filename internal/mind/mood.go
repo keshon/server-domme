@@ -36,10 +36,10 @@ type Drives struct {
 // timestamp or a count the bot already has.
 type MoodInput struct {
 	Now time.Time
-	// LastSpokeAt is when she last said something in this guild. Zero means
+	// LastContact is when she last said something in this guild. Zero means
 	// she never has, which reads as solitude rather than as a fresh start —
 	// a bot that has never spoken here has, in fact, been quiet.
-	LastSpokeAt time.Time
+	LastContact time.Time
 	// RecentTurns is how many messages are in the live conversation.
 	RecentTurns int
 	// AddressedTurns is how many of those were aimed at her.
@@ -78,7 +78,7 @@ const (
 func DeriveDrives(in MoodInput) Drives {
 	day := DayTone(in.Seed, in.Now, in.Location)
 	return Drives{
-		Social:  solitude(in.Now, in.LastSpokeAt),
+		Social:  solitude(in.Now, in.LastContact),
 		Energy:  clamp01(circadian(in.Now, in.Location) + dayEnergy*day),
 		Arousal: interest(in.RecentTurns, in.AddressedTurns) * (1 - habituation*clamp01(in.Repetition)),
 		Mood:    clampSigned(in.Baseline + dayMood*day + in.Swing),

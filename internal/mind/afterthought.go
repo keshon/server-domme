@@ -78,6 +78,9 @@ type Afterthought struct {
 	// keeps double-texting rare: the third in ten minutes is a pattern, and
 	// a pattern is exactly what this exists to break.
 	Fatigue float64
+	// WelcomeShift is how glad they have been of what she starts; see
+	// WelcomeShift.
+	WelcomeShift float64
 }
 
 // MayAddAfterthought decides, gates before the roll, whether a second
@@ -105,7 +108,7 @@ func MayAddAfterthought(a Afterthought, roll float64) (bool, float64) {
 	}
 
 	pull := afterthoughtChance + a.Drives.Nudge() + RegardNudge(a.Regard)
-	chance := clamp01(pull) * Rested(a.Fatigue)
+	chance := clamp01(welcomed(clamp01(pull), a.WelcomeShift)) * Rested(a.Fatigue)
 	return roll < chance, chance
 }
 

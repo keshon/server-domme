@@ -109,6 +109,8 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 	// The last one went unanswered, and now she is going again: that is
 	// when it counts against how welcome she feels, once per reach.
 	if p.Unanswered > 0 {
+		expected := s.welcomeOf(guildID, p.UserID, now)
+		s.moveMood(guildID, mind.SurpriseMood(mind.Surprise(mind.PayoffIgnored, expected)), now)
 		s.appraise(guildID, p.UserID, mind.EventReachIgnored, now)
 	}
 
@@ -191,13 +193,23 @@ func (s *Service) noteActivity(m *discordgo.MessageCreate) {
 // noticeExchange records that someone spoke to her, learns from it if she had
 // reached out to them, and honours a request to back off.
 func (s *Service) noticeExchange(m *discordgo.MessageCreate, person *storage.MindPerson, content string, now time.Time) {
+	// Being spoken to is what satisfies her need for company, and it settles
+	// anything she started in this channel that was waiting on them.
+	s.markContact(m.GuildID, now)
+	s.settlePayoffs(m.ChannelID, m.Author.ID, content, now)
+
 	// Answered after she came to them: the lesson is how welcome she is,
 	// and an answer inside the hour teaches more than a late one.
 	if person != nil && person.Unanswered > 0 && !person.ReachedAt.IsZero() {
-		e := mind.EventReachAnswered
-		if now.Sub(person.ReachedAt) < answeredQuickly {
-			e = mind.EventReachAnsweredQuickly
+		e := mind.EventReachAnsweredQuickly
+		if now.Sub(person.ReachedAt) >= answeredQuickly {
+			e = mind.EventReachAnswered
 		}
+		// Surprise against what she expected before this answer taught her
+		// anything: a quick answer from someone who seldom gives one is the
+		// reward, and it is measured before it moves the expectation.
+		expected := s.welcomeOf(m.GuildID, m.Author.ID, now)
+		s.moveMood(m.GuildID, mind.SurpriseMood(mind.Surprise(mind.PayoffOf(content), expected)), now)
 		s.appraise(m.GuildID, m.Author.ID, e, now)
 	}
 	if err := s.store.ExchangeMindPerson(m.GuildID, m.Author.ID, m.ChannelID, now); err != nil {

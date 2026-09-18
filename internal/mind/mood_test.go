@@ -82,7 +82,7 @@ func TestDeriveDrivesUsesEveryInput(t *testing.T) {
 	now := at(3)
 	d := DeriveDrives(MoodInput{
 		Now:            now,
-		LastSpokeAt:    now.Add(-solitudeFull),
+		LastContact:    now.Add(-solitudeFull),
 		RecentTurns:    busyChannel,
 		AddressedTurns: busyChannel,
 	})
@@ -104,7 +104,7 @@ func TestDeriveDrivesUsesEveryInput(t *testing.T) {
 func TestNudgeLeavesDirectApproachesAlone(t *testing.T) {
 	a := DefaultAttention()
 	now := at(3) // the worst possible mood: small hours
-	exhausted := DeriveDrives(MoodInput{Now: now, LastSpokeAt: now})
+	exhausted := DeriveDrives(MoodInput{Now: now, LastContact: now})
 
 	for _, trigger := range []Trigger{TriggerMention, TriggerReply} {
 		s := Situation{Trigger: trigger, Now: now, Drives: exhausted, LastSpokeAt: now.Add(-time.Minute)}
