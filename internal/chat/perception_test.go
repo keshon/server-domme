@@ -36,3 +36,22 @@ func TestPerceivedRecordsTheLabelAndChangesNothing(t *testing.T) {
 		t.Errorf("a missing label recorded as %q", sp.perceived)
 	}
 }
+
+// Production, 17:17: "well, maybe I like you.." was answered "thanks", typed,
+// and dropped as though the bot were shutting down. The last-word check meant
+// for afterthoughts ran on every declinable answer, whose t.after is empty.
+func TestAnAnswerIsNeverOvertakenLikeAnAfterthought(t *testing.T) {
+	svc := newTestService(t, testStore(t), 0)
+	now := time.Now()
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "Big M", Content: "well, maybe I like you..", At: now})
+
+	answer := task{item: mind.Deferred{GuildID: testGuild, ChannelID: testChannel, UserID: "u1", Trigger: mind.TriggerFollowUp}}
+	if !svc.stillHerMove(answer) {
+		t.Error("a follow-up answer was treated as overtaken")
+	}
+
+	after := task{item: mind.Deferred{ChannelID: testChannel, Trigger: mind.TriggerAfterthought}, after: "b1"}
+	if svc.stillHerMove(after) {
+		t.Error("an afterthought went out after they had spoken")
+	}
+}

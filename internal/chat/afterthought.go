@@ -118,11 +118,24 @@ func (s *Service) typeBriefly(ctx context.Context, sess *discordgo.Session, t ta
 		return false
 	case <-timer.C:
 	}
-	if !mind.LastWord(s.conv.Recent(t.item.ChannelID), t.after) {
+	if !s.stillHerMove(t) {
 		s.log.Debug().Str("channel_id", t.item.ChannelID).Msg("chat_afterthought_overtaken")
 		return false
 	}
 	return true
+}
+
+// stillHerMove reports whether a message that has just been typed should go
+// out. Only an afterthought can be overtaken: it follows her own message, and
+// lands wrongly once the person has answered it. An answer has no message of
+// hers to follow — t.after is empty — and asking LastWord about one always
+// said no, which dropped every answer she was allowed to decline, after
+// typing, for most of a day.
+func (s *Service) stillHerMove(t task) bool {
+	if t.item.Trigger != mind.TriggerAfterthought {
+		return true
+	}
+	return mind.LastWord(s.conv.Recent(t.item.ChannelID), t.after)
 }
 
 // afterthoughtStands reports whether a generated afterthought should be sent.

@@ -15,6 +15,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// perceptionShadow is the CHAT_PERCEPTION value that records how the model
+// read each message without acting on it.
+const perceptionShadow = "shadow"
+
+// perceptionOff is the default CHAT_PERCEPTION value.
+const perceptionOff = "off"
+
 // buildChatService assembles the conversational persona, or returns nil and
 // the reason why.
 //
@@ -29,10 +36,6 @@ import (
 // An earlier version said only "see CHAT_ENABLED", which sent an operator who
 // had already set it looking in the wrong place — the actual fault was a
 // character file that never reached the deployment.
-
-// perceptionShadow is the CHAT_PERCEPTION value that records how the model
-// read each message without acting on it.
-const perceptionShadow = "shadow"
 
 func buildChatService(
 	ctx context.Context,
@@ -103,6 +106,13 @@ func buildChatService(
 		} else {
 			location = loaded
 		}
+	}
+
+	// Only "shadow" does anything yet. Anything else is off, and said so:
+	// "on" reads like it should work, and silently doing nothing for it
+	// cost a test session.
+	if p := cfg.ChatPerception; p != perceptionShadow && p != perceptionOff {
+		log.Warn().Str("value", p).Str("accepted", perceptionShadow).Msg("chat_perception_unknown")
 	}
 
 	attention := mind.DefaultAttention()
