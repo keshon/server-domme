@@ -75,6 +75,9 @@ func message(content string, mentionsBot bool) *discordgo.MessageCreate {
 func queued(s *Service) (task, bool) {
 	select {
 	case t := <-s.work:
+		// As the worker does once it has spoken, so the next approach from
+		// the same person is not taken for part of this one.
+		s.doneAnswering(encounterKey(t.item.GuildID, t.item.ChannelID, t.item.UserID))
 		return t, true
 	default:
 		return task{}, false

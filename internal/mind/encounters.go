@@ -10,6 +10,9 @@ const maxEncounters = 4096
 // encounter is what happened last time this person approached.
 type encounter struct {
 	ignoredLast bool
+	// ignoredDirect is whether that ignored approach addressed her directly.
+	// Only then is approaching again pushing; see IgnoredDirectly.
+	ignoredDirect bool
 }
 
 // Encounters remembers who has approached the character and how it went.
@@ -42,15 +45,30 @@ func (e *Encounters) Approach(key string) (firstApproach, ignoredLast bool) {
 	return !known, prior.ignoredLast
 }
 
+// IgnoredDirectly reports whether the approach she last ignored from this
+// person addressed her directly — a mention, a reply to her, her name.
+//
+// Pressing again after that is pushing. Pressing again after she let an
+// untagged line go is not: tagging her is how anyone repairs a message that
+// was not noticed, and counting it as pestering had her ignore someone and
+// then grow annoyed that they noticed.
+func (e *Encounters) IgnoredDirectly(key string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.seen[key].ignoredDirect
+}
+
 // Record stores how an approach was resolved.
-func (e *Encounters) Record(key string, outcome Outcome) {
+func (e *Encounters) Record(key string, outcome Outcome, trigger Trigger) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	if len(e.seen) >= maxEncounters {
 		e.seen = make(map[string]encounter)
 	}
-	e.seen[key] = encounter{ignoredLast: outcome == OutcomeIgnore}
+	ignored := outcome == OutcomeIgnore
+	direct := trigger == TriggerMention || trigger == TriggerReply || trigger == TriggerNamed
+	e.seen[key] = encounter{ignoredLast: ignored, ignoredDirect: ignored && direct}
 }
 
 // Len reports how many people are remembered.

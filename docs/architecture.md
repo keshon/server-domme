@@ -173,11 +173,19 @@ addressing her by name.
 
 `follow-up` is what stops her answering once and then going deaf. People drop
 the tag as soon as a conversation is running; re-addressing every line is what
-you do with a machine. It fires only when she spoke **last** in the channel,
-**recently**, and the message is from the **same person** she was answering.
-All three conditions carry weight: once anyone else has spoken the thread is no
-longer hers to assume, which is what keeps her out of conversations between two
-other members.
+you do with a machine. It fires only when **nobody else** has spoken since she
+last did, she did so **recently**, and the message is from the **person she
+was answering**. All three conditions carry weight: once anyone else has spoken
+the thread is no longer hers to assume, which is what keeps her out of
+conversations between two other members.
+
+"Nobody else since" rather than "she spoke last", because people type in
+bursts. The stricter version counted only the first line of one: once she let
+that pass, "hey" and "stop ignoring me" after it were not approaches at all
+until the person tagged her. And a burst gets one answer — while an answer to
+someone is queued or being written, further lines from them are not a second
+approach, since the answer is built from the conversation as it stands when a
+worker picks it up and will have them in front of it.
 
 A reply is detected two ways and needs both. `ReferencedMessage` carries the
 author but discordgo documents it as best-effort — *"the backend did not
@@ -258,7 +266,10 @@ one member and perfectly ordinary with the next is what a person does. The mood
 is the guild-wide layer; this sits under it and applies to one name.
 
 It rises on countable behaviour — pressing again inside `PesterWindow` after
-being passed over — and not on tone. Deciding whether a message was rude needs
+being passed over on a direct approach — and not on tone. A direct approach
+only: tagging her after she let an untagged line go is how anyone repairs a
+message that was not noticed, and counting it had her ignore someone and then
+grow annoyed that they noticed (`Encounters.IgnoredDirectly`). Deciding whether a message was rude needs
 a model call per message, which is not affordable, and the experiment this
 design came from showed small models answering that kind of question
 confidently and arbitrarily. Pushing is observable in any language with no

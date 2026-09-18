@@ -148,3 +148,70 @@ func TestObserveLetsACloserGoWithoutHoldingItAgainstThem(t *testing.T) {
 		t.Error("letting a closer go was recorded as ignoring them")
 	}
 }
+
+// Production: after her reply, "just to nag you a bit", "hey" and "stop
+// ignoring me" in a row. Only the first line counted; the rest were not
+// approaches at all until he tagged her.
+func TestFollowUpCoversABurstOfLines(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "Big M", Content: "how are u", At: now.Add(-time.Minute)})
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", To: "u1", Content: "i'm fine. what's on your mind?", At: now.Add(-50 * time.Second)})
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "Big M", Content: "just to nag you a bit", At: now.Add(-20 * time.Second)})
+
+	if !svc.followsUp(testChannel, "u1", now) {
+		t.Error("the second line of a burst was not taken as for her")
+	}
+	if svc.followsUp(testChannel, "u2", now) {
+		t.Error("a bystander's line was taken as for her")
+	}
+
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u2", Username: "John", Content: "anyway", At: now.Add(-10 * time.Second)})
+	if svc.followsUp(testChannel, "u1", now) {
+		t.Error("still assumed the thread was hers after someone else spoke")
+	}
+}
+
+// Production: she let "took you time to type it heh" go, he tagged her, and
+// that counted as pestering — she ignored him and then grew annoyed that he
+// noticed.
+func TestTaggingHerAfterAnUntaggedLineWentUnansweredIsNotPestering(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := newTestService(t, store, 0.9999)
+	now := time.Now()
+	svc.encounters.Record(encounterKey(testGuild, testChannel, "u1"), mind.OutcomeSpeak, mind.TriggerNamed)
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "Big M", Content: "Domme you there?", At: now.Add(-time.Minute)})
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", To: "u1", Content: "yeah.", At: now.Add(-50 * time.Second)})
+
+	svc.Observe(testSession(), message("took you time to type it heh", false))
+	if _, ok := queued(svc); ok {
+		t.Fatal("setup: the follow-up was answered on a roll meant to let it go")
+	}
+	svc.Observe(testSession(), message("@DevBot how are u", true))
+	queued(svc)
+
+	if p := store.GetMindPerson(testGuild, "u1"); p != nil && p.Irritation > 0 {
+		t.Errorf("tagging her after an unnoticed line raised irritation to %.2f", p.Irritation)
+	}
+}
+
+// Lines that arrive while she is already writing to someone join that answer
+// rather than queueing another.
+func TestABurstGetsOneAnswer(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := newTestService(t, store, 0)
+
+	svc.Observe(testSession(), message("@DevBot hey", true))
+	svc.Observe(testSession(), message("@DevBot stop ignoring me", true))
+
+	if n := len(svc.work); n != 1 {
+		t.Errorf("queued %d answers to one burst, want 1", n)
+	}
+}

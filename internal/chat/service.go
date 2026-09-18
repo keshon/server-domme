@@ -135,6 +135,11 @@ type Service struct {
 	receptionMu sync.Mutex
 	receptions  map[string]mind.Received
 
+	// replying holds the people she is already writing an answer to, per
+	// channel. See Service.answering.
+	replyingMu sync.Mutex
+	replying   map[string]bool
+
 	conv       *mind.Conversations
 	deferrals  *mind.Deferrals
 	encounters *mind.Encounters
@@ -187,6 +192,7 @@ func New(d Deps) *Service {
 		afterthoughts: make(map[string]time.Time),
 		snubbed:       make(map[string]bool),
 		receptions:    make(map[string]mind.Received),
+		replying:      make(map[string]bool),
 		conv:          mind.NewConversations(),
 		deferrals:     mind.NewDeferrals(),
 		encounters:    mind.NewEncounters(),
@@ -230,8 +236,29 @@ func (s *Service) workLoop(ctx context.Context) {
 			return
 		case t := <-s.work:
 			s.speak(ctx, t)
+			s.doneAnswering(encounterKey(t.item.GuildID, t.item.ChannelID, t.item.UserID))
 		}
 	}
+}
+
+// answering reports whether an answer to this person in this channel is
+// already queued or being written.
+func (s *Service) answering(key string) bool {
+	s.replyingMu.Lock()
+	defer s.replyingMu.Unlock()
+	return s.replying[key]
+}
+
+func (s *Service) startAnswering(key string) {
+	s.replyingMu.Lock()
+	s.replying[key] = true
+	s.replyingMu.Unlock()
+}
+
+func (s *Service) doneAnswering(key string) {
+	s.replyingMu.Lock()
+	delete(s.replying, key)
+	s.replyingMu.Unlock()
 }
 
 // retryLoop re-attempts approaches that no backend would answer at the time.
@@ -319,13 +346,21 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	key := encounterKey(m.GuildID, m.ChannelID, m.Author.ID)
+
+	// Already writing them an answer: that answer is built from the
+	// conversation as it stands when a worker picks it up, so this line will
+	// be in front of her. A second answer would reply to the same burst twice.
+	if s.answering(key) {
+		return
+	}
+
 	first, ignoredLast := s.encounters.Approach(key)
 
 	// Pressing again straight after being passed over is what raises
 	// irritation. Countable behaviour rather than a judgement about tone,
 	// which would need a model call per message to make badly.
 	irritation := s.irritationWith(m.GuildID, m.Author.ID, now)
-	if ignoredLast && s.pressedAgainQuickly(m.ChannelID, m.Author.ID, now) {
+	if ignoredLast && s.encounters.IgnoredDirectly(key) && s.pressedAgainQuickly(m.ChannelID, m.Author.ID, now) {
 		wasNoticeable := mind.IrritationNoticeable(irritation)
 		irritation = mind.Pester(irritation)
 
@@ -359,7 +394,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	// would force her to answer whatever they say next, and a quick follow-up
 	// would count as pestering her.
 	if !closer || outcome != mind.OutcomeIgnore {
-		s.encounters.Record(key, outcome)
+		s.encounters.Record(key, outcome, trigger)
 	}
 
 	if outcome == mind.OutcomeIgnore {
@@ -388,6 +423,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 
 	select {
 	case s.work <- task{item: item}:
+		s.startAnswering(key)
 	default:
 		// Everything is busy. Holding it takes the same path a failed backend
 		// does, so a busy moment produces a late answer rather than none.
@@ -456,30 +492,40 @@ func (s *Service) repliesToHer(m *discordgo.MessageCreate, self string) bool {
 }
 
 // followsUp reports whether this message continues an exchange she is already
-// in: she spoke last in the channel, recently, and to this same person.
+// in: nobody but this person has spoken since she last did, she did so
+// recently, and she was talking to them.
 //
-// All three conditions carry weight. "She spoke last" is what keeps her out of
-// a conversation between two other people — once someone else has spoken, the
-// thread is no longer hers to assume. "Same person" stops her fielding a
-// bystander's unrelated remark. The window stops a reply arriving against a
-// conversation everyone has left.
+// All three conditions carry weight. "Nobody else since" is what keeps her
+// out of a conversation between two other people — once someone else has
+// spoken, the thread is no longer hers to assume. "Talking to them" stops her
+// fielding a bystander's unrelated remark. The window stops a reply arriving
+// against a conversation everyone has left.
+//
+// Nobody else since, rather than her speaking last: people type in bursts. It
+// used to require her message to be the very last one, so only the first line
+// of a burst counted, and once she let one pass everything after it — "hey",
+// "stop ignoring me" — was not an approach at all until they tagged her.
 func (s *Service) followsUp(channelID, userID string, now time.Time) bool {
 	turns := s.conv.Recent(channelID)
-	if len(turns) == 0 {
+
+	i := len(turns) - 1
+	for i >= 0 && !turns[i].FromBot && turns[i].UserID == userID {
+		i--
+	}
+	if i < 0 || !turns[i].FromBot || now.Sub(turns[i].At) > s.attention.EngagedWindow {
 		return false
 	}
-
-	last := turns[len(turns)-1]
-	if !last.FromBot || now.Sub(last.At) > s.attention.EngagedWindow {
-		return false
+	if to := turns[i].To; to != "" {
+		return to == userID
 	}
 
-	// Whoever she was answering is the last person to speak before her.
-	for i := len(turns) - 2; i >= 0; i-- {
-		if turns[i].FromBot {
+	// A turn read back from history does not record who it answered; the
+	// last person to speak before her is who she was answering.
+	for j := i - 1; j >= 0; j-- {
+		if turns[j].FromBot {
 			continue
 		}
-		return turns[i].UserID == userID
+		return turns[j].UserID == userID
 	}
 	return false
 }
