@@ -36,7 +36,6 @@ const perceptionOff = "off"
 // An earlier version said only "see CHAT_ENABLED", which sent an operator who
 // had already set it looking in the wrong place — the actual fault was a
 // character file that never reached the deployment.
-
 func buildChatService(
 	ctx context.Context,
 	cfg *config.Config,
