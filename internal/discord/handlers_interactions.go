@@ -9,14 +9,16 @@ import (
 	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
-// onInteractionCreate dispatches slash commands, context menu commands, and
-// component interactions.
+// onInteractionCreate dispatches slash commands, context menu commands,
+// component interactions and modal submissions.
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		b.onApplicationCommand(s, i)
 	case discordgo.InteractionMessageComponent:
 		b.onComponentInteraction(s, i)
+	case discordgo.InteractionModalSubmit:
+		b.onModalSubmit(s, i)
 	default:
 		b.log.Debug().Int("interaction_type", int(i.Type)).Msg("interaction_unhandled")
 	}
@@ -87,6 +89,41 @@ func (b *Bot) onComponentInteraction(s *discordgo.Session, i *discordgo.Interact
 	b.runGuardedInteraction(s, i, "component", matched.Name(), func(cmdCtx context.Context) error {
 		_ = cmdCtx
 		return handler.Component(&cmdadapter.ComponentInteractionContext{
+			Session: s, Event: i, Storage: b.storage,
+			Config: b.cfg, Responder: reply.DefaultResponder, Logger: logger,
+			AppLog: b.log,
+		})
+	})
+}
+
+func (b *Bot) onModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.ModalSubmitData().CustomID
+
+	var matched command.Command
+	for _, c := range command.DefaultRegistry.GetAll() {
+		if matchesComponentID(customID, c.Name()) {
+			matched = c
+			break
+		}
+	}
+	if matched == nil {
+		b.log.Warn().Str("custom_id", customID).Msg("modal_no_handler")
+		return
+	}
+
+	handler, ok := command.Root(matched).(cmdadapter.ModalSubmitHandler)
+	if !ok {
+		b.log.Warn().Str("command", matched.Name()).Msg("modal_handler_missing")
+		return
+	}
+
+	b.mu.RLock()
+	logger := b.cmdLogger
+	b.mu.RUnlock()
+
+	b.runGuardedInteraction(s, i, "modal", matched.Name(), func(cmdCtx context.Context) error {
+		_ = cmdCtx
+		return handler.ModalSubmit(&cmdadapter.ComponentInteractionContext{
 			Session: s, Event: i, Storage: b.storage,
 			Config: b.cfg, Responder: reply.DefaultResponder, Logger: logger,
 			AppLog: b.log,

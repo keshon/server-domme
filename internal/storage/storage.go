@@ -34,6 +34,8 @@ type Storage struct {
 	mindChannels *datastore.Collection[*MindChannel]
 	mindJournal  *datastore.Collection[*MindJournal]
 	mindDays     *datastore.Collection[*MindDay]
+	welcomeRoles *datastore.Collection[*WelcomeRole]
+	welcomed     *datastore.Collection[*Welcomed]
 
 	cmdLogByGuild        *datastore.Index[*CommandLogEntry]
 	purgeJobsByGuild     *datastore.Index[*PurgeJob]
@@ -44,6 +46,7 @@ type Storage struct {
 	mindMemoriesByGuild  *datastore.Index[*MindMemory]
 	mindJournalByChannel *datastore.Index[*MindJournal]
 	mindJournalByGuild   *datastore.Index[*MindJournal]
+	welcomeRolesByGuild  *datastore.Index[*WelcomeRole]
 }
 
 // NewStorage opens the database in dir, creating it if needed. The directory is
@@ -68,6 +71,8 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.mindChannels = datastore.Register[*MindChannel](db, "mind_channels")
 	s.mindJournal = datastore.Register[*MindJournal](db, "mind_journal")
 	s.mindDays = datastore.Register[*MindDay](db, "mind_days")
+	s.welcomeRoles = datastore.Register[*WelcomeRole](db, "welcome_roles")
+	s.welcomed = datastore.Register[*Welcomed](db, "welcomed")
 
 	s.cmdLogByGuild = datastore.AddIndex(s.cmdLog, "guild",
 		func(c *CommandLogEntry) []string { return []string{c.GuildID} })
@@ -87,6 +92,8 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 		func(j *MindJournal) []string { return []string{journalChannel(j.GuildID, j.ChannelID)} })
 	s.mindJournalByGuild = datastore.AddIndex(s.mindJournal, "guild",
 		func(j *MindJournal) []string { return []string{j.GuildID} })
+	s.welcomeRolesByGuild = datastore.AddIndex(s.welcomeRoles, "guild",
+		func(w *WelcomeRole) []string { return []string{w.GuildID} })
 
 	if err := db.Open(); err != nil {
 		return nil, err

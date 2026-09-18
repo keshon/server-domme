@@ -59,6 +59,17 @@ type ComponentInteractionHandler interface {
 	Component(*ComponentInteractionContext) error
 }
 
+// ModalSubmitHandler is implemented by commands that open a modal and handle
+// its submission. The modal's customID follows the same convention as a
+// component's: it starts with the command name.
+//
+// A submission arrives without the command's permission check having run —
+// only the command that opened the modal was checked — so a handler must
+// check who is submitting before acting on it.
+type ModalSubmitHandler interface {
+	ModalSubmit(*ComponentInteractionContext) error
+}
+
 // Unlogged is implemented by commands that must never reach the audit log.
 //
 // /confess is the reason it exists. The confession it posts carries no author,

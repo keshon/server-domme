@@ -31,6 +31,19 @@ It’s designed to be practical for server management while providing light, int
   - **/help group** — View commands grouped by group
   - **/help flat** — View all commands as a flat list
 
+### 👋 Welcome
+
+- **/welcome** — Introduce and welcome a member, the way this server does it
+  - **/welcome member** — Post their role's intro and welcome — checks everything first
+  - **/welcome setup** — Where a role's intro and welcome go. Leave both empty to see
+  - **/welcome template** — Write a role's intro or welcome text — paste it straight from Discord
+  - **/welcome preview** — See a role's intro and welcome as they would be posted, without posting
+  - **/welcome roles** — Every role with a welcome set up
+  - **/welcome remove** — Remove a role's welcome settings
+  - **/welcome gif-add** — Add a gif link to pick welcomes from
+  - **/welcome gif-remove** — Remove a gif link
+  - **/welcome gifs** — The gifs welcomes pick from
+
 ### 📢 Utilities
 
 - **Announce (context command)** — Send a message on bot's behalf

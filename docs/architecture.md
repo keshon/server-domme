@@ -113,6 +113,50 @@ Applied in order, outermost first:
 4. `WithCommandLogger` — records the invocation, logging the full subcommand
    path (`settings commands disable`), not just the root name.
 
+### Welcoming a member
+
+`/welcome member user:@x` posts the introduction and the welcome a server has
+written for the role that person has, each in its own channel, tagging them,
+with a gif picked at random under the welcome. Everything is per role: a sub
+and a Domme are pointed at different channels and told different things, and
+any role can be given its own pair.
+
+It is run by an administrator, not triggered by an event, by request. Roles on
+these servers are picked after joining, changed, and occasionally given by
+mistake; a person deciding "this one is ready" is the guard no event can
+replace. The command does the fiddly part and refuses rather than guesses:
+
+- the person has to be in the server, not a bot, and actually have the role
+  they are being welcomed as — welcoming a sub as a Domme is the mistake it
+  most needs to refuse. With no role given, it uses the one configured role
+  they have and asks when they have several;
+- each part needs a channel and a text, and a channel the bot can see and
+  post in; a text over Discord's 2000 characters once the name is in it is
+  refused, not cut;
+- only the person being welcomed is notified, whatever the text says — a
+  template with a role mention or @everyone in it would otherwise ping a
+  whole server for one newcomer;
+- each part is recorded when it goes out (`storage.Welcomed`), so running it
+  twice does not post twice unless `again:True` is given, and a run that
+  failed half way can simply be run again to finish the other half.
+
+Every check runs before anything is posted, and the reply lists each part with
+a link to what went out or the reason it did not.
+
+Texts are written in a modal (`/welcome template`), because they are
+paragraphs and a command option is one line. They are pasted straight from
+Discord, and copied text carries a channel as "#introduction" rather than the
+"<#id>" a message needs, so `Render` turns "#channel-name" back into a link for
+any channel that exists, longest name first. A name that matches nothing is
+left as written and flagged when the text is saved and in `/welcome preview`.
+Placeholders: `{user}` (the tag), `{name}`, `{server}`, `{role}` — the role as
+text, never as a mention.
+
+Modal submissions route like components, by a customID starting with the
+command name (`cmdadapter.ModalSubmitHandler`). A submission arrives without
+the command's permission check, which only ran when the modal was opened, so
+the handler checks the submitter itself.
+
 ## The chat persona
 
 Off unless `CHAT_ENABLED` is set, and then still silent until an admin runs

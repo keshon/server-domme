@@ -30,6 +30,7 @@ import (
 	"github.com/keshon/server-domme/internal/command/shortlink"
 	taskcmd "github.com/keshon/server-domme/internal/command/task"
 	"github.com/keshon/server-domme/internal/command/translate"
+	"github.com/keshon/server-domme/internal/command/welcome"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
@@ -210,6 +211,8 @@ func registerCommands(log zerolog.Logger, chat *chatsvc.Service, chatUnavailable
 	cmdadapter.Register(&discipline.DisciplineCommand{}, mw...)
 
 	cmdadapter.Register(&media.RandomMediaCommand{}, mw...)
+
+	cmdadapter.Register(&welcome.WelcomeCommand{}, mw...)
 	cmdadapter.Register(&media.UploadMediaCommand{}, mw...)
 
 	cmdadapter.Register(&purge.PurgeCommand{}, mw...)

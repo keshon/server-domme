@@ -48,6 +48,9 @@ type GuildSettings struct {
 	// are separate permissions, and the second only makes sense on top of the
 	// first.
 	ChatProactive []string `json:"chat_proactive,omitempty"`
+	// WelcomeGifs are the links /welcome picks from at random, shared by
+	// every role.
+	WelcomeGifs []string `json:"welcome_gifs,omitempty"`
 	// ChatRoles is how she regards each Discord role, keyed by role id.
 	ChatRoles map[string]ChatRoleBias `json:"chat_roles,omitempty"`
 }
