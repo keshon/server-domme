@@ -744,12 +744,18 @@ roll:
 - not when others are talking, where a second line lands in their exchange.
 
 The model then decides whether anything is said. The request is a separate
-call made after a pause of three to eight seconds with typing shown, and its
+call made after a pause of three to eight seconds, and its
 last message is her own; a trailing system message quotes it and asks for one
 more line or the word `SKIP`. Declining has to be allowed, or every permitted
 afterthought becomes a sent one. Measured with `cmd/chatprobe -only
 afterthought`: the first wording let her open by repeating herself ("yes. you
 people are the entertainment"), so it now says not to.
+
+Typing shows only once the afterthought has passed every check, for a second
+and a half before it is sent. Shown before generating, as an answer's is, it
+announced lines the model then declined to write, or that were dropped because
+the person had answered meanwhile: typing that stops with nothing posted, which
+reads as her writing something and deleting it.
 
 It is dropped rather than sent late if the person has spoken since her message
 (`mind.LastWord`, checked before generating and again before sending), if it

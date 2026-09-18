@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/mind"
 )
 
@@ -84,6 +85,38 @@ func (s *Service) enqueueAfterthought(t task) {
 	default:
 		s.log.Debug().Str("channel_id", t.item.ChannelID).Msg("chat_afterthought_dropped_busy")
 	}
+}
+
+// afterthoughtTyping is how long "is typing" shows before an afterthought
+// lands. Long enough to register as someone typing a short line, short enough
+// that the second thought still follows the first.
+const afterthoughtTyping = 1500 * time.Millisecond
+
+// typeBriefly shows her typing just before an afterthought is sent, and
+// reports whether it should still go out.
+//
+// Only here, once it is certain to be sent. Shown before generating, as an
+// answer's typing is, it announced a message the model then declined to
+// write, or one dropped because the person had answered meanwhile — typing
+// that stops with nothing posted, which reads as her writing something and
+// deleting it. The last word is checked again after the pause for the same
+// reason.
+func (s *Service) typeBriefly(ctx context.Context, sess *discordgo.Session, t task) bool {
+	if err := sess.ChannelTyping(t.item.ChannelID); err != nil {
+		s.log.Debug().Err(err).Str("channel_id", t.item.ChannelID).Msg("chat_typing_failed")
+	}
+	timer := time.NewTimer(afterthoughtTyping)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+	}
+	if !mind.LastWord(s.conv.Recent(t.item.ChannelID), t.after) {
+		s.log.Debug().Str("channel_id", t.item.ChannelID).Msg("chat_afterthought_overtaken")
+		return false
+	}
+	return true
 }
 
 // afterthoughtStands reports whether a generated afterthought should be sent.

@@ -33,7 +33,10 @@ func (s *Service) speak(ctx context.Context, t task) {
 	// attempt failed and this one may too. Shown every time, a single
 	// unanswerable message had the bot appearing to type on and off for the
 	// whole deferral window, which is how an outage reads as a haunting.
-	if !t.late {
+	//
+	// Not for an afterthought either, whose typing shows only once it is
+	// certain to be sent; see typeBriefly.
+	if !t.late && t.item.Trigger != mind.TriggerAfterthought {
 		if err := sess.ChannelTyping(t.item.ChannelID); err != nil {
 			s.log.Debug().Err(err).Str("channel_id", t.item.ChannelID).Msg("chat_typing_failed")
 		}
@@ -94,8 +97,20 @@ func (s *Service) speak(ctx context.Context, t task) {
 		}
 	}
 
-	if t.item.Trigger == mind.TriggerAfterthought && !s.afterthoughtStands(t, reply) {
-		return
+	if t.item.Trigger == mind.TriggerAfterthought {
+		if !s.afterthoughtStands(t, reply) {
+			return
+		}
+		// Every check that could still drop it runs before typing shows, so
+		// typing always ends in a message.
+		recent := s.conv.Recent(t.item.ChannelID)
+		if _, repeats := mind.RepeatsHerself(reply, recent); repeats || mind.Echoes(reply, recent) {
+			s.log.Info().Str("channel_id", t.item.ChannelID).Msg("chat_afterthought_withheld")
+			return
+		}
+		if !s.typeBriefly(ctx, sess, t) {
+			return
+		}
 	}
 
 	// A copy of someone's line is a failed generation that happened to parse,
