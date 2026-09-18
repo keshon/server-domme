@@ -20,7 +20,7 @@ func willing(trigger Trigger) Volunteer {
 
 func TestMayVolunteerWhenEveryGatePasses(t *testing.T) {
 	for _, trigger := range []Trigger{TriggerReturn, TriggerRecall} {
-		if !MayVolunteer(willing(trigger), 0) {
+		if !volunteers(willing(trigger), 0) {
 			t.Errorf("%s: refused with every gate open", trigger)
 		}
 	}
@@ -30,8 +30,7 @@ func TestMayVolunteerGates(t *testing.T) {
 	now := time.Now()
 	cases := map[string]func(*Volunteer){
 		"channel not opted in": func(v *Volunteer) { v.Enabled = false },
-		"daily budget spent":   func(v *Volunteer) { v.Today = VolunteerDailyLimit },
-		"inside the cooldown":  func(v *Volunteer) { v.LastVolunteered = now.Add(-VolunteerCooldown / 2) },
+		"daily budget spent":   func(v *Volunteer) { v.Today = VolunteerDailyMax },
 		// Already talking: what she says next is a reply, not a volunteer.
 		"already in the conversation": func(v *Volunteer) { v.LastSpokeAt = now.Add(-time.Minute) },
 		"too tired":                   func(v *Volunteer) { v.Drives = Drives{Energy: 0.1, Interest: 0.5} },
@@ -43,7 +42,7 @@ func TestMayVolunteerGates(t *testing.T) {
 			v := willing(TriggerReturn)
 			v.Now = now
 			breakIt(&v)
-			if MayVolunteer(v, 0) {
+			if volunteers(v, 0) {
 				t.Error("spoke anyway")
 			}
 		})
@@ -61,14 +60,14 @@ func TestMayVolunteerDoesNotCutIntoAnExchange(t *testing.T) {
 		{UserID: "u3", Content: "they never stay", At: now.Add(-10 * time.Second)},
 		{UserID: "u1", Content: "the purge rules again?", At: now},
 	}
-	if MayVolunteer(v, 0) {
+	if volunteers(v, 0) {
 		t.Error("cut into two other people talking")
 	}
 
 	// The same room, one other voice: the person who prompted it is talking
 	// to one other person, which is not a closed exchange.
 	v.Turns = v.Turns[1:]
-	if !MayVolunteer(v, 0) {
+	if !volunteers(v, 0) {
 		t.Error("refused a room with only one other voice in it")
 	}
 }
@@ -83,7 +82,7 @@ func TestMayVolunteerGreetsAReturnEvenInABusyRoom(t *testing.T) {
 		{UserID: "u2", Content: "a", At: now.Add(-20 * time.Second)},
 		{UserID: "u3", Content: "b", At: now.Add(-10 * time.Second)},
 	}
-	if !MayVolunteer(v, 0) {
+	if !volunteers(v, 0) {
 		t.Error("ignored a returning regular because the room was busy")
 	}
 }
@@ -91,10 +90,10 @@ func TestMayVolunteerGreetsAReturnEvenInABusyRoom(t *testing.T) {
 // Caps rather than probabilities: the roll only ever says no to a remark that
 // was already allowed.
 func TestMayVolunteerRollOnlyRefines(t *testing.T) {
-	if MayVolunteer(willing(TriggerRecall), 0.99) {
+	if volunteers(willing(TriggerRecall), 0.99) {
 		t.Error("a near-certain roll still spoke at recall's modest odds")
 	}
-	if MayVolunteer(willing(TriggerReturn), 0.99) {
+	if volunteers(willing(TriggerReturn), 0.99) {
 		t.Error("a near-certain roll still spoke at return's odds")
 	}
 }
@@ -153,4 +152,9 @@ func TestVolunteerDirectivesSayWhyAndKeepItShort(t *testing.T) {
 	if !strings.Contains(recall, "the row about pins") || !strings.Contains(recall, "Leave their question") {
 		t.Errorf("recall directive: %q", recall)
 	}
+}
+
+func volunteers(v Volunteer, roll float64) bool {
+	ok, _ := MayVolunteer(v, roll)
+	return ok
 }

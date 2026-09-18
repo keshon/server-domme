@@ -27,11 +27,6 @@ func Owed(t Trigger) bool {
 
 // Afterthought limits.
 const (
-	// AfterthoughtCooldown is the least time between two in a channel. Rare
-	// is the point: the third double-text in ten minutes is a pattern, and a
-	// pattern is exactly what this exists to break.
-	AfterthoughtCooldown = 20 * time.Minute
-
 	// afterthoughtMaxWords is the longest first reply that can have one. A
 	// reply that already said its piece has nothing to add a beat later; the
 	// double-text follows a clipped first answer.
@@ -70,8 +65,6 @@ type Afterthought struct {
 	// Reply is what she just said.
 	Reply string
 	Now   time.Time
-	// Last is when she last added one in this channel.
-	Last time.Time
 	// Turns are the conversation, her reply included.
 	Turns []Turn
 	// UserID is who she was answering.
@@ -81,36 +74,39 @@ type Afterthought struct {
 	// decayed and combined.
 	Tension float64
 	Regard  float64
+	// Fatigue is how much she has put herself forward lately. It is what
+	// keeps double-texting rare: the third in ten minutes is a pattern, and
+	// a pattern is exactly what this exists to break.
+	Fatigue float64
 }
 
-// MayAddAfterthought decides, caps before the roll, whether a second message
-// is allowed at all. Whether one is actually sent is then up to the model,
-// which is told it may decline; see AfterthoughtDirective.
-func MayAddAfterthought(a Afterthought, roll float64) bool {
+// MayAddAfterthought decides, gates before the roll, whether a second
+// message is allowed at all, and returns the chance she had. Whether one is
+// actually sent is then up to the model, which is told it may decline; see
+// AfterthoughtDirective.
+func MayAddAfterthought(a Afterthought, roll float64) (bool, float64) {
 	if a.Late || !Owed(a.Trigger) {
-		return false
+		return false, 0
 	}
 	if words := len(strings.Fields(a.Reply)); words == 0 || words > afterthoughtMaxWords {
-		return false
-	}
-	if !a.Last.IsZero() && a.Now.Sub(a.Last) < AfterthoughtCooldown {
-		return false
+		return false, 0
 	}
 	// Zero drives mean unset, not exhausted; see Drives.Nudge.
 	if a.Drives != (Drives{}) && a.Drives.Energy < tooTiredForAfterthought {
-		return false
+		return false, 0
 	}
 	if a.Tension >= tooIrritatedForAfterthought || a.Regard <= coldRegard {
-		return false
+		return false, 0
 	}
 	// One person and her. With others talking, a second line from her lands
 	// in the middle of their exchange rather than after her own.
 	if busyRoom(a.Turns, a.UserID, a.Now) {
-		return false
+		return false, 0
 	}
 
-	chance := afterthoughtChance + a.Drives.Nudge() + RegardNudge(a.Regard)
-	return roll < clamp01(chance)
+	pull := afterthoughtChance + a.Drives.Nudge() + RegardNudge(a.Regard)
+	chance := clamp01(pull) * Rested(a.Fatigue)
+	return roll < chance, chance
 }
 
 // AfterthoughtDelay is how long she pauses before the second message, from a

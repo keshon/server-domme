@@ -12,7 +12,7 @@ func clipped() Afterthought {
 }
 
 func TestMayAddAfterthoughtAfterAClippedAnswer(t *testing.T) {
-	if !MayAddAfterthought(clipped(), 0) {
+	if !adds(clipped(), 0) {
 		t.Error("refused with every gate open")
 	}
 }
@@ -26,7 +26,6 @@ func TestMayAddAfterthoughtGates(t *testing.T) {
 		"first reply was late":  func(a *Afterthought) { a.Late = true },
 		"after an afterthought": func(a *Afterthought) { a.Trigger = TriggerAfterthought },
 		"after a volunteer":     func(a *Afterthought) { a.Trigger = TriggerRecall },
-		"inside the cooldown":   func(a *Afterthought) { a.Last = now.Add(-AfterthoughtCooldown / 2) },
 		"too tired":             func(a *Afterthought) { a.Drives = Drives{Energy: 0.2, Interest: 0.5} },
 		"irritated with them":   func(a *Afterthought) { a.Tension = 0.5 },
 		"cold towards them":     func(a *Afterthought) { a.Regard = -0.5 },
@@ -42,7 +41,7 @@ func TestMayAddAfterthoughtGates(t *testing.T) {
 			a := clipped()
 			a.Now = now
 			closeIt(&a)
-			if MayAddAfterthought(a, 0) {
+			if adds(a, 0) {
 				t.Error("allowed anyway")
 			}
 		})
@@ -51,7 +50,7 @@ func TestMayAddAfterthoughtGates(t *testing.T) {
 
 // Caps first, roll last: the roll only ever refuses something already allowed.
 func TestMayAddAfterthoughtIsRare(t *testing.T) {
-	if MayAddAfterthought(clipped(), 0.9) {
+	if adds(clipped(), 0.9) {
 		t.Error("a high roll still allowed one")
 	}
 }
@@ -93,4 +92,9 @@ func TestAfterthoughtDirectiveQuotesHerAndAllowsDeclining(t *testing.T) {
 	if !strings.Contains(got, `"yes"`) || !strings.Contains(got, AfterthoughtSkip) {
 		t.Errorf("directive: %q", got)
 	}
+}
+
+func adds(a Afterthought, roll float64) bool {
+	ok, _ := MayAddAfterthought(a, roll)
+	return ok
 }

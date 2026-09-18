@@ -91,9 +91,10 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 		Unanswered: p.Unanswered,
 		Engaged:    !p.LastExchangeAt.IsZero() && now.Sub(p.LastExchangeAt) < engagedWithin,
 		Jitter:     s.roll(),
+		Fatigue:    s.fatigue(guildID, now),
 	}
 	roll := s.roll()
-	reach, urge := mind.MayReach(r, roll)
+	reach, chance := mind.MayReach(r, roll)
 	if !reach {
 		return
 	}
@@ -110,6 +111,7 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_reach_record_failed")
 		return
 	}
+	s.spendInitiative(guildID, mind.TriggerReach, now)
 
 	name := p.Username
 	why := mind.ReachDirective(name, r)
@@ -128,8 +130,8 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 		Journal: s.journalOpen(storage.MindJournal{
 			GuildID: guildID, ChannelID: channelID, At: now,
 			UserID: p.UserID, Username: name,
-			Trigger: string(mind.TriggerReach), Rule: "reached out: she wanted their attention",
-			Chance: urge * urge, Roll: roll,
+			Trigger: string(mind.TriggerReach), Rule: "reached out: she wanted their attention" + initiativeNote(r.Fatigue),
+			Chance: chance, Roll: roll,
 			Mood:     mind.MoodWords(r.Drives),
 			Attitude: mind.Attitude(closeness, tension, 0),
 			Outcome:  outcomeQueued,
@@ -141,7 +143,7 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 			Str("guild_id", guildID).
 			Str("channel_id", channelID).
 			Str("user_id", p.UserID).
-			Float64("urge", urge).
+			Float64("chance", chance).
 			Msg("chat_reached_out")
 	default:
 		s.log.Debug().Str("guild_id", guildID).Msg("chat_reach_dropped_busy")

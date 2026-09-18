@@ -31,29 +31,30 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 		today = 0
 	}
 
-	willing := mind.MayVolunteer(mind.Volunteer{
-		Trigger:         trigger,
-		Now:             now,
-		Enabled:         true,
-		Today:           today,
-		LastVolunteered: state.VolunteeredAt,
-		LastSpokeAt:     s.lastSpokeAt(m.ChannelID),
-		EngagedWindow:   s.attention.EngagedWindow,
-		Turns:           s.conv.Recent(m.ChannelID),
-		UserID:          m.Author.ID,
-		Drives:          s.drives(m.GuildID, m.ChannelID, now),
-	}, s.roll())
+	fatigue := s.fatigue(m.GuildID, now)
+	roll := s.roll()
+	willing, chance := mind.MayVolunteer(mind.Volunteer{
+		Trigger:       trigger,
+		Now:           now,
+		Enabled:       true,
+		Today:         today,
+		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
+		EngagedWindow: s.attention.EngagedWindow,
+		Turns:         s.conv.Recent(m.ChannelID),
+		UserID:        m.Author.ID,
+		Drives:        s.drives(m.GuildID, m.ChannelID, now),
+		Fatigue:       fatigue,
+	}, roll)
 	if !willing {
 		return
 	}
 
-	// Counted when decided rather than when sent. A remark that then fails to
-	// generate still spends the budget, which errs towards her saying less —
-	// the right direction for something nobody asked for.
+	// Counted when decided rather than when sent; see spendInitiative.
 	if err := s.store.MarkVolunteered(m.GuildID, m.ChannelID, day, now); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_volunteer_record_failed")
 		return
 	}
+	s.spendInitiative(m.GuildID, trigger, now)
 
 	item := mind.Deferred{
 		GuildID:      m.GuildID,
@@ -68,7 +69,8 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 			GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
 			MessageID: m.ID, UserID: m.Author.ID, Username: name,
 			Excerpt: m.ContentWithMentionsReplaced(),
-			Trigger: string(trigger), Rule: "spoke first: " + why,
+			Trigger: string(trigger), Rule: "spoke first: " + why + initiativeNote(fatigue),
+			Chance: chance, Roll: roll,
 			Mood:    mind.MoodWords(s.drives(m.GuildID, m.ChannelID, now)),
 			Outcome: outcomeQueued,
 		}),

@@ -124,11 +124,6 @@ type Service struct {
 	guildMu sync.RWMutex
 	guilds  map[string]string
 
-	// afterthoughts is when she last added a second message, per channel.
-	// In memory: a restart forgetting it costs at most one extra double-text.
-	afterthoughtMu sync.Mutex
-	afterthoughts  map[string]time.Time
-
 	// snubbed holds the questions of hers already counted as ignored, so one
 	// question is never held against someone twice.
 	snubMu  sync.Mutex
@@ -194,14 +189,13 @@ func New(d Deps) *Service {
 		casualSlips: d.CasualSlips,
 		thoughts:    make(map[string]Thought),
 
-		afterthoughts: make(map[string]time.Time),
-		snubbed:       make(map[string]bool),
-		receptions:    make(map[string]mind.Received),
-		replying:      make(map[string]bool),
-		conv:          mind.NewConversations(),
-		deferrals:     mind.NewDeferrals(),
-		encounters:    mind.NewEncounters(),
-		work:          make(chan task, queueDepth),
+		snubbed:    make(map[string]bool),
+		receptions: make(map[string]mind.Received),
+		replying:   make(map[string]bool),
+		conv:       mind.NewConversations(),
+		deferrals:  mind.NewDeferrals(),
+		encounters: mind.NewEncounters(),
+		work:       make(chan task, queueDepth),
 	}
 }
 

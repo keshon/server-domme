@@ -115,6 +115,8 @@ type Reach struct {
 	Engaged bool
 	// Jitter, in [0,1), varies the wait between reaches.
 	Jitter float64
+	// Fatigue is how much she has put herself forward lately, anywhere.
+	Fatigue float64
 }
 
 // Urge is how much she wants their attention right now, 0..1. Missing them is
@@ -160,7 +162,8 @@ func MayReach(r Reach, roll float64) (bool, float64) {
 		return false, 0
 	}
 	urge := clamp01(Urge(r) * (0.5 + r.Welcome))
-	return roll < urge*urge, urge
+	chance := urge * urge * Rested(r.Fatigue)
+	return roll < chance, chance
 }
 
 // ReachDirective tells her why she is speaking, as how she feels rather than

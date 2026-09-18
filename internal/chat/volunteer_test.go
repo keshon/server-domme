@@ -72,6 +72,9 @@ func TestObserveGreetsARegularComingBack(t *testing.T) {
 	if state := store.MindChannelState(testGuild, testChannel); state.Today != 1 {
 		t.Errorf("budget used = %d, want 1", state.Today)
 	}
+	if svc.fatigue(testGuild, time.Now()) <= 0 {
+		t.Error("speaking up unprompted did not tire her")
+	}
 }
 
 // Off by default: a channel that was let in but never told she may speak first
@@ -140,7 +143,7 @@ func TestObserveStopsVolunteeringOnceTheDayIsSpent(t *testing.T) {
 	proactiveChannel(t, store)
 	regularAwayFor(t, store, 30*24*time.Hour)
 	svc := awakeService(t, store)
-	for i := 0; i < mind.VolunteerDailyLimit; i++ {
+	for i := 0; i < mind.VolunteerDailyMax; i++ {
 		if err := store.MarkVolunteered(testGuild, testChannel, svc.day(time.Now()), time.Now().Add(-24*time.Hour)); err != nil {
 			t.Fatalf("MarkVolunteered: %v", err)
 		}

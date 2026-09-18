@@ -30,15 +30,13 @@ func Volunteered(t Trigger) bool {
 	return t == TriggerReturn || t == TriggerRecall || t == TriggerReach
 }
 
-// Proactivity limits. Caps rather than probabilities, because the failure this
-// guards against — a bot that keeps interjecting — is judged by how often it
-// happens, and a probability only makes that likely rather than bounded.
+// Proactivity tuning. How often she speaks up is decided by her initiative
+// fatigue (see Fatigue); the daily maximum is only a floor under that.
 const (
-	// VolunteerDailyLimit is how many unprompted remarks one channel gets in
-	// a day, in the community's own timezone.
-	VolunteerDailyLimit = 3
-	// VolunteerCooldown is the least time between two of them in a channel.
-	VolunteerCooldown = 45 * time.Minute
+	// VolunteerDailyMax is a safety limit on unprompted remarks in one
+	// channel a day, in the community's own timezone. Set where fatigue
+	// should never let her reach it, so it is never what decides.
+	VolunteerDailyMax = 6
 
 	// busyRoomWindow and busyRoomVoices describe two other people in the
 	// middle of an exchange, which is not a moment anyone should cut into
@@ -80,8 +78,6 @@ type Volunteer struct {
 	Enabled bool
 	// Today is how many unprompted remarks this channel has had today.
 	Today int
-	// LastVolunteered is when she last did it here.
-	LastVolunteered time.Time
 	// LastSpokeAt is when she last said anything here, prompted or not.
 	LastSpokeAt time.Time
 	// EngagedWindow is how recently she must have spoken to count as already
@@ -95,41 +91,42 @@ type Volunteer struct {
 	UserID string
 
 	Drives Drives
+	// Fatigue is how much she has put herself forward lately.
+	Fatigue float64
 }
 
-// MayVolunteer decides whether she speaks unprompted, given a roll in [0,1).
+// MayVolunteer decides whether she speaks unprompted, given a roll in [0,1),
+// and returns the chance she had.
 //
-// Every gate but the last is deterministic, so the rate is bounded by the
-// caps no matter how the roll falls. The roll is there only so that a channel
-// meeting every condition does not get the same predictable remark every time.
-func MayVolunteer(v Volunteer, roll float64) bool {
+// The gates are about the moment — already talking, too tired, other people
+// mid-exchange — and the odds are about her: the trigger's pull, her mood,
+// and how much she has put herself forward lately.
+func MayVolunteer(v Volunteer, roll float64) (bool, float64) {
 	if !v.Enabled || !Volunteered(v.Trigger) {
-		return false
+		return false, 0
 	}
-	if v.Today >= VolunteerDailyLimit {
-		return false
-	}
-	if !v.LastVolunteered.IsZero() && v.Now.Sub(v.LastVolunteered) < VolunteerCooldown {
-		return false
+	if v.Today >= VolunteerDailyMax {
+		return false, 0
 	}
 	// Already in the conversation: whatever she says next is a reply, and
 	// the follow-up and mention triggers own that.
 	if !v.LastSpokeAt.IsZero() && v.Now.Sub(v.LastSpokeAt) < v.EngagedWindow {
-		return false
+		return false, 0
 	}
 	// Zero drives mean unset, not exhausted; see Drives.Nudge.
 	if v.Drives != (Drives{}) && v.Drives.Energy < tooTiredToVolunteer {
-		return false
+		return false, 0
 	}
 	if v.Trigger == TriggerRecall && busyRoom(v.Turns, v.UserID, v.Now) {
-		return false
+		return false, 0
 	}
 
-	chance := recallChance
+	pull := recallChance
 	if v.Trigger == TriggerReturn {
-		chance = returnChance
+		pull = returnChance
 	}
-	return roll < clamp01(chance+v.Drives.Nudge())
+	chance := clamp01(pull+v.Drives.Nudge()) * Rested(v.Fatigue)
+	return roll < chance, chance
 }
 
 // busyRoom reports whether other people are in the middle of an exchange.

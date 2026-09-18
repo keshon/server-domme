@@ -27,32 +27,28 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 		}
 	}
 
-	s.afterthoughtMu.Lock()
-	last := s.afterthoughts[t.item.ChannelID]
-	s.afterthoughtMu.Unlock()
-
-	allowed := mind.MayAddAfterthought(mind.Afterthought{
+	fatigue := s.fatigue(t.item.GuildID, at)
+	roll := s.roll()
+	allowed, chance := mind.MayAddAfterthought(mind.Afterthought{
 		Trigger: t.item.Trigger,
 		Late:    t.late,
 		Reply:   reply,
 		Now:     at,
-		Last:    last,
 		Turns:   s.conv.Recent(t.item.ChannelID),
 		UserID:  t.item.UserID,
 		Drives:  g.Drives,
 		Tension: irritation,
 		Regard:  g.Regard,
-	}, s.roll())
+		Fatigue: fatigue,
+	}, roll)
 	if !allowed {
 		return
 	}
 
-	// Stamped when allowed rather than when sent, so a declined or failed one
-	// still spends the cooldown. The alternative is asking again after every
-	// short reply until the model finally says something.
-	s.afterthoughtMu.Lock()
-	s.afterthoughts[t.item.ChannelID] = at
-	s.afterthoughtMu.Unlock()
+	// Spent when allowed rather than when sent, so a declined or failed one
+	// still tires her. The alternative is asking again after every short
+	// reply until the model finally says something.
+	s.spendInitiative(t.item.GuildID, mind.TriggerAfterthought, at)
 
 	item := t.item
 	item.Trigger = mind.TriggerAfterthought
@@ -62,7 +58,9 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 	item.Journal = s.journalOpen(storage.MindJournal{
 		GuildID: item.GuildID, ChannelID: item.ChannelID, At: at,
 		UserID: item.UserID, Username: item.Username, Excerpt: reply,
-		Trigger: string(mind.TriggerAfterthought), Rule: "a second thought after her own short reply",
+		Trigger: string(mind.TriggerAfterthought),
+		Rule:    "a second thought after her own short reply" + initiativeNote(fatigue),
+		Chance:  chance, Roll: roll,
 		Mood:    mind.MoodWords(g.Drives),
 		Outcome: outcomeQueued,
 	})

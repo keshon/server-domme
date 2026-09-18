@@ -240,6 +240,10 @@ type MindGuild struct {
 	// a quiet hour from a quiet week, which the conversation buffer cannot:
 	// that only keeps thirty minutes.
 	LastSpokeAt time.Time `json:"last_spoke_at,omitempty"`
+	// Initiative is how much she has put herself forward lately, as of
+	// InitiativeAt; decayed on read. See mind.Fatigue.
+	Initiative   float64   `json:"initiative,omitempty"`
+	InitiativeAt time.Time `json:"initiative_at,omitempty"`
 }
 
 func (m *MindGuild) Key() string { return m.GuildID }

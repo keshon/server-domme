@@ -432,8 +432,9 @@ every reach left unanswered, and varies by a quarter either way so it is never
 a clock. Someone she is indifferent to may opt in and hear nothing for days,
 which is the point.
 
-The guards that stay are safety limits rather than a personality: at most four
-a day, never between 23:00 and 09:00 in the community's timezone, never when
+Reaching out also spends and is slowed by her initiative fatigue, like
+everything else she starts. The guards that stay are safety limits rather than
+a personality: at most four a day, never between 23:00 and 09:00 in the community's timezone, never when
 she is worn out, never while they are already talking to her, and nothing more
 after three unanswered until they speak to her. Speaking to her resets the
 count.
@@ -884,6 +885,37 @@ else she names renders as a mention and gets no notification, because letting
 her ping whoever she names makes her an instrument for pinging someone else
 with an insult. Roles, @everyone and @here are never parsed.
 
+### Taking the initiative
+
+Everything she starts rather than answers — speaking up when a regular comes
+back or an old subject returns, a second line after her own reply, going after
+someone who opted in — used to carry its own cap and cooldown: three a day
+forty-five minutes apart, twenty minutes between double-texts, a daily
+allowance and a cooldown per attention level. Each was reasonable alone;
+together they were a timetable, and anyone watching long enough learns when she
+cannot speak.
+
+Now each is an opportunity with a pull of its own, and one thing decides them
+all: her **initiative fatigue** (`mind.Fatigue`). It rises every time she takes
+the initiative — 0.6 for speaking up unprompted, the most exposed thing she
+does; 0.4 for reaching out; 0.3 for a second thought, when she is already
+talking — and halves every four hours. Every opportunity's odds are multiplied
+by how rested she is, cubed (`mind.Rested`), so a little fatigue barely matters
+and half-tired she is at an eighth of her usual odds.
+
+It is hers, per server, stored on `mind_guilds` and decayed on read: a mind
+that has just chased one person is less inclined to chime in somewhere else,
+and a quiet afternoon leaves her ready. `TestFatigueSpacesInitiativeUnevenly`
+gives her a reason to speak every ten minutes for fourteen hours, two hundred
+times over: she takes about four a day, near the three the caps allowed, with
+gaps of 231 ± 123 minutes — spread out, never stacked at a cooldown.
+
+Hard limits stay only where they are safety rather than personality: the daily
+maximum per channel and per person, quiet hours, stopping after three
+unanswered reaches. None of them should be what decides on an ordinary day.
+`/chat state` shows the current fatigue, and `/chat why` records the chance and
+roll behind each initiative, with the fatigue she decided under.
+
 ### Speaking first
 
 `/chat proactive enabled:true` lets her speak without being addressed in one
@@ -907,21 +939,23 @@ There is deliberately no third reason of breaking a silence. Nothing here runs
 on a timer, so a quiet channel stays quiet; a bot that posts into an empty room
 on a schedule is the most recognisable bot behaviour there is.
 
-`mind.MayVolunteer` then gates it, caps first and the roll last, so the random
-part only ever says no to something already allowed:
+`mind.MayVolunteer` then decides it. The gates are about the moment:
 
-- at most `VolunteerDailyLimit` a day per channel, counted in the community's
-  timezone and persisted in `mind_channels` — the bot is redeployed often
-  enough that a counter held in memory would be no limit at all;
-- never within `VolunteerCooldown` of the last one;
 - never while she is already in the conversation, where what she says next is a
   reply;
 - never when she is worn out;
 - for a memory, never into two other people's exchange — the same barging that
   kept `about` from being an approach. A returning regular is noticed however
-  busy the room is.
+  busy the room is;
+- never past `VolunteerDailyMax` (six) in a channel in a day, counted in the
+  community's timezone and persisted in `mind_channels`. A safety floor, set
+  where her initiative fatigue should never let her reach it.
 
-The budget is spent when she decides, not when the message goes out, so a
+The odds are about her: the reason's pull (a returning regular 0.6, an old
+subject 0.35), her mood, and how much she has put herself forward lately —
+see [Taking the initiative](#taking-the-initiative). There is no cooldown.
+
+Fatigue is spent when she decides, not when the message goes out, so a
 remark that then fails to generate still counts: the error is towards saying
 less. A volunteered remark is never held for a later retry either — nobody is
 owed it, and arriving twenty minutes after its moment is stranger than not
@@ -952,18 +986,22 @@ After a clipped answer she sometimes sends a second message a few seconds
 later: "are you bored?" → "yes" → "then stop being boring." People double-text;
 a bot that sends exactly one message per approach has a rhythm nobody has.
 
-Go decides whether one is allowed (`mind.MayAddAfterthought`), caps before the
-roll:
+Go decides whether one is allowed (`mind.MayAddAfterthought`), gates before
+the roll:
 
 - only after an answer, never after something she volunteered, a late reply or
   another afterthought;
 - only after a short reply — six words or fewer. A reply that said its piece
   has nothing to add;
-- at most one per channel every `AfterthoughtCooldown`, held in memory, since a
-  restart forgetting it costs one extra double-text at most;
 - not when she is tired, irritated with the person or cold towards their role,
   where a curt answer is curt on purpose;
 - not when others are talking, where a second line lands in their exchange.
+
+What keeps it rare is her initiative fatigue rather than a cooldown: a second
+thought tires her a little, so the next one is less likely for a while, and so
+is speaking up anywhere else. In a rapid one-to-one of short answers that comes
+to about two an hour, near what the old twenty-minute cooldown allowed, but
+never on the twenty-minute mark.
 
 The model then decides whether anything is said. The request is a separate
 call made after a pause of three to eight seconds, and its

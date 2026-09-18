@@ -146,16 +146,27 @@ func (s *Storage) MarkMindSpoke(guildID string, at time.Time) error {
 	if guildID == "" {
 		return nil
 	}
-	err := s.db.Update(func(tx *datastore.Tx) error {
-		return datastore.In(tx, s.mindGuilds).Put(&MindGuild{
-			GuildID:     guildID,
-			LastSpokeAt: at,
-		})
-	})
-	if err != nil {
+	if err := s.UpdateMindGuild(guildID, func(g *MindGuild) { g.LastSpokeAt = at }); err != nil {
 		return fmt.Errorf("storage: mark mind spoke: %w", err)
 	}
 	return nil
+}
+
+// UpdateMindGuild applies change to her state in a guild in a transaction,
+// creating it if there is none.
+func (s *Storage) UpdateMindGuild(guildID string, change func(*MindGuild)) error {
+	if guildID == "" {
+		return fmt.Errorf("storage: mind guild needs a guild")
+	}
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.mindGuilds)
+		g, ok := col.Get(guildID)
+		if !ok {
+			g = &MindGuild{GuildID: guildID}
+		}
+		change(g)
+		return col.Put(g)
+	})
 }
 
 // GetMindGuild returns the character's state in a guild, or nil when she has

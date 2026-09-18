@@ -444,7 +444,7 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 		// carrying the name, the word and three numbers wrapped mid-row.
 		for _, p := range st.People {
 			fmt.Fprintf(&b, "%-*s %s\n", labelWidth, clip(p.Username, labelWidth), p.Attitude)
-			fmt.Fprintf(&b, "  warm %.2f  irked %.2f  role %+.2f\n", p.Closeness, p.Tension, p.Regard)
+			fmt.Fprintf(&b, "  close %.2f  tense %.2f  role %+.2f\n", p.Closeness, p.Tension, p.Regard)
 		}
 		b.WriteString("```\n")
 	}
@@ -479,7 +479,10 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	fmt.Fprintf(&b, " · remembers %d here, %d bright now · indirect odds %+.0f%%",
 		st.Memories, st.Recalled, st.Nudge*100)
 	if st.Proactive {
-		fmt.Fprintf(&b, " · speaks first: %d/%d today", st.VolunteeredToday, mind.VolunteerDailyLimit)
+		fmt.Fprintf(&b, " · spoke first %d today", st.VolunteeredToday)
+	}
+	if st.Fatigue > 0 {
+		fmt.Fprintf(&b, " · initiative fatigue %.2f", st.Fatigue)
 	}
 	b.WriteString("\n")
 
@@ -677,10 +680,11 @@ func runSpeakUp(
 		"She may speak first in <#%s> now: noticing a regular who has been gone "+
 			"a while, or bringing up something she remembers when it comes round "+
 			"again.\n\n"+
-			"At most %d times a day, never within %d minutes of the last, never "+
-			"while she is already in the conversation and never when she is worn "+
-			"out. `/chat proactive enabled:false` stops it.",
-		e.ChannelID, mind.VolunteerDailyLimit, int(mind.VolunteerCooldown.Minutes())))
+			"How often is up to her: every time she puts herself forward she is "+
+			"less inclined to again for a few hours. Never while she is already "+
+			"in the conversation, never when she is worn out, and never more than "+
+			"%d times a day. `/chat proactive enabled:false` stops it.",
+		e.ChannelID, mind.VolunteerDailyMax))
 }
 
 // Regard bounds, as Discord enforces them in the picker so a bad value never

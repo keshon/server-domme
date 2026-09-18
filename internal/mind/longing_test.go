@@ -83,8 +83,8 @@ func TestMayReachRespectsTheSafetyLimits(t *testing.T) {
 func TestMayReachIsRarelyForSomeoneSheBarelyMisses(t *testing.T) {
 	r := eager()
 	r.Longing, r.Closeness = Longing{Missing: 0.2}, 0
-	if ok, urge := MayReach(r, 0.2); ok {
-		t.Errorf("reached out to someone she barely misses (urge %.2f)", urge)
+	if ok, chance := MayReach(r, 0.2); ok {
+		t.Errorf("reached out to someone she barely misses (chance %.2f)", chance)
 	}
 }
 
