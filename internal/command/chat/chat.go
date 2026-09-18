@@ -396,9 +396,12 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 
 	if len(st.People) > 0 {
 		b.WriteString("\n**Towards the people here**\n```\n")
+		// Two short lines per person rather than one long one. A code block in
+		// an embed is narrow — narrower still on a phone — and one line
+		// carrying the name, the word and three numbers wrapped mid-row.
 		for _, p := range st.People {
-			fmt.Fprintf(&b, "%-*s %-19s warm %.2f  irked %.2f  role %+.2f\n",
-				labelWidth, clip(p.Username, labelWidth), p.Attitude, p.Warmth, p.Irritation, p.Regard)
+			fmt.Fprintf(&b, "%-*s %s\n", labelWidth, clip(p.Username, labelWidth), p.Attitude)
+			fmt.Fprintf(&b, "  warm %.2f  irked %.2f  role %+.2f\n", p.Warmth, p.Irritation, p.Regard)
 		}
 		b.WriteString("```\n")
 	}
