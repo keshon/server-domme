@@ -56,7 +56,7 @@ const (
 
 // Directives turns the temperament into instructions about how to write.
 //
-// Same shape as Drives.Directives and for the same measured reason: a
+// Same shape as Grounding.State and for the same measured reason: a
 // description of how she sounds is not acted on, and an instruction is. These
 // sit above the mood, because temperament is what she is like generally and
 // mood is what she is like today — the more transient thing takes the later

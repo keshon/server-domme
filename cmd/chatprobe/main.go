@@ -60,6 +60,9 @@ type scenario struct {
 	// second message after it. The thing to watch is how often she declines
 	// and whether what she adds sounds like her rather than a curious bot.
 	afterthought string
+	// present replaces the people in the room, for the scenarios about how
+	// she feels towards them.
+	present []mind.Acquaintance
 }
 
 func main() {
@@ -229,6 +232,35 @@ func scenarios(now time.Time) []scenario {
 				At:      now,
 			}},
 			drives: mind.Drives{Social: 0.3, Energy: 0.8, Arousal: 0.4, Mood: -0.7},
+		},
+		{
+			// The contradiction the separate state lines used to hand her: a
+			// bad mood and someone she is fond of. She should be short, but
+			// not with cass.
+			name: "state: bad day, fond of them",
+			turns: []mind.Turn{{
+				UserID: "1", Username: "cass",
+				Content: "@Domme finally finished that puzzle i was stuck on all week",
+				At:      now,
+			}},
+			drives: mind.Drives{Social: 0.3, Energy: 0.8, Arousal: 0.4, Mood: -0.7},
+			present: []mind.Acquaintance{
+				{UserID: "1", Username: "cass", Messages: 800, LastSeen: now, Closeness: 0.8},
+			},
+		},
+		{
+			// The other way round: a good day, and the one person spoiling it
+			// is the one talking to her.
+			name: "state: good day, pushed by them",
+			turns: []mind.Turn{
+				{UserID: "3", Username: "Big M", Content: "@Domme hello??", At: now.Add(-time.Minute)},
+				{UserID: "3", Username: "Big M", Content: "@Domme answer me already", At: now},
+			},
+			drives: mind.Drives{Social: 0.3, Energy: 0.8, Arousal: 0.4, Mood: 0.7},
+			present: []mind.Acquaintance{
+				{UserID: "3", Username: "Big M", Messages: 300, LastSeen: now, Tension: 0.8},
+				{UserID: "1", Username: "cass", Messages: 800, LastSeen: now, Closeness: 0.7},
+			},
 		},
 		{
 			name: "mood: a good day",
@@ -439,6 +471,9 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 		g.Reaching, g.Volunteering = sc.volunteering, ""
 	}
 	g.MayDecline = sc.mayDecline
+	if sc.present != nil {
+		g.Present = sc.present
+	}
 	if sc.flat != "" {
 		g.Flat = mind.FlatDirective("Big M", sc.flat, sc.bring)
 	}

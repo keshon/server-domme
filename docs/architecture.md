@@ -860,7 +860,7 @@ by a point (named 0.69 → 0.70, overheard 0.29 → 0.30, follow-up 0.84 → 0.8
 and now vary by about ±5 points with her state
 (`TestAnswerRatesStayNearTodaysOnAverage`).
 
-`Drives.Directives` is the other half, and the shape of it is the point. The
+`Grounding.State` is the other half, and the shape of it is the point. The
 first version stated the mood as a fact in the grounding — "Right now: it is
 the dead of night and you are running on fumes" — and measured **no effect at
 all**: asked the same question at 3am and at 8pm, the exhausted run produced
@@ -871,18 +871,16 @@ late-reply note and the anti-assistant rule.
 
 Phrased as instructions and placed last — after the output rules, where nothing
 follows it — the same states produce "haven't seen it" at 3am against full
-sentences when awake. At most two directives, and only when the state is
-pronounced: a list of qualifications on every reply is how a strong instruction
-becomes a weak one. A mood beyond ±0.45 gets one of its own, placed after
-tiredness and before company. Measured with `cmd/chatprobe -only "mood: a"` on
+sentences when awake. Only a pronounced state speaks: a list of qualifications
+on every reply is how a strong instruction becomes a weak one. A mood beyond
+±0.45 is part of it. Measured with `cmd/chatprobe -only "mood: a"` on
 "finally finished that puzzle i was stuck on all week": the first wording ("let
 a little of it through") read the same on good and bad days, the lesson this
 section already records. Stated as behaviour — a short fuse and no playing
 along; more generous, tease rather than dismiss — the bad days came back as
 "took you long enough. hope it was worth the suffering." and the good ones as
 "nice work, don't let it go to your head". A small difference, which suits a
-character this dry; stage four's single description of her state is where it
-gets re-measured.
+character this dry.
 
 Above the mood sits `mind.SpeechStyle`, the settled temperament, read from the
 character file's `## Temper` section as dials on 0..1. Same machinery, one
@@ -902,6 +900,54 @@ so a file that configures two of them costs two lines rather than five.
 This is what keeps the character file from being a constant. The persona is
 static by design, because its properties were measured and are worth keeping
 fixed; what varies per message is the block underneath it.
+
+### One description of how she is
+
+Her state used to reach the model as separate sentences, each written by the
+feature that owned it — tired, lonely, absorbed, short with one person, fond of
+another, in a mood — and each was measured and worked alone. Together they
+could contradict each other: "a bad mood, less patience" beside "fond of cass,
+more patience". A model handed a contradiction resolves it at random.
+
+`Grounding.State` reads all of it and writes one paragraph of at most four
+sentences under `Right now:`, with the contradictions settled in Go where the
+rule is visible and tested (`state_test.go`):
+
+- energy and mood are one sentence, not two that each assume the other is
+  neutral — "a good day, if a tired one. Warm, but brief.";
+- exhausted beats absorbed: "as few words as will do" and "say something with
+  content" cannot both be followed;
+- lonely and tired means brief, but staying in the conversation;
+- a bad mood is not for the person she is fond of, and says so by name; if
+  someone is getting on her nerves, the mood is for them;
+- a good mood does not extend to the person spoiling it;
+- one person is never both the one she is short with and the one she is fond
+  of.
+
+Still instructions rather than a description of feelings, in the same place
+the separate lines were. Standing (`AboutThem`), how her last line landed, a
+flat conversation and why she is speaking keep their own measured placements:
+they are about this exchange, not about her. `/chat state` shows the paragraph
+verbatim, and `/chat why` records it, because `Grounding.Told` is built from
+the same function as the prompt.
+
+Measured with `cmd/chatprobe -only state:` against the previous code and the
+same scenarios, interleaved in one session, four runs each:
+
+- **A bad day, and cass — whom she is fond of — shares a win.** The separate
+  lines took the mood out on cass twice in four ("good for you. puzzles are
+  boring anyway"); the one description never did ("nice work, cass. glad you
+  cracked that puzzle.", "congrats. hope it was the right kind of stuck").
+- **A good day, and Big M pestering her.** The separate lines let the good
+  mood win twice in four ("you had me at hello"); the one description was short
+  with him every time ("yeah i'm here. what do you want", "still waiting?").
+
+Every other scenario was re-run twice against a baseline from the same
+session, and none read worse. Only the state scenarios' prompts differ; the
+one that changed most is exhausted and lonely at 3am, which used to carry both
+"as few words as will do" and "engage with this" and now carries only the
+first — "haven't seen it" and "name the film first." against the baseline's
+"no idea which film you mean. i've spent the week being furniture."
 
 ### Making it clear who she is answering
 

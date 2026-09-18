@@ -6,8 +6,8 @@ import "strings"
 //
 // Numbers say how much; they do not say what she is like. These are read by an
 // administrator looking at /chat state, never by the model — the model gets
-// instructions (Drives.Directives, IrritationDirective, WarmthDirective), which
-// are about how to write, not about how she feels. Same state, two readers.
+// instructions (Grounding.State), which are about how to write, not about how
+// she feels. Same state, two readers.
 
 // noticeableMood is where her mood is worth a word on the panel, though not
 // yet an instruction to her; see pronouncedMood.

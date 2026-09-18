@@ -129,10 +129,10 @@ func TestABadMoodIsFeltInTheOddsAndTheWords(t *testing.T) {
 	if bad.Nudge() >= good.Nudge() {
 		t.Errorf("bad mood nudge %.2f, good %.2f", bad.Nudge(), good.Nudge())
 	}
-	if len(bad.Directives()) == 0 || len(good.Directives()) == 0 {
+	if (Grounding{Drives: bad}).State() == "" || (Grounding{Drives: good}).State() == "" {
 		t.Error("a pronounced mood was not told to her")
 	}
-	if len((Drives{Energy: 0.8, Mood: 0.1}).Directives()) != 0 {
+	if (Grounding{Drives: Drives{Energy: 0.8, Mood: 0.1}}).State() != "" {
 		t.Error("an ordinary mood was told to her")
 	}
 	if MoodWords(bad) == MoodWords(good) {

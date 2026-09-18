@@ -46,8 +46,13 @@ func TestToldIsWhatThePromptCarries(t *testing.T) {
 		Reception: ReceptionDirective("Big M", ReceptionPanned),
 	}
 	told := g.Told()
-	if len(told) < 4 {
-		t.Fatalf("Told = %v, want mood, both people and the reaction", told)
+	if len(told) != 2 {
+		t.Fatalf("Told = %v, want her state and the reaction", told)
+	}
+	for _, want := range []string{"exhausted", "Big M", "cass"} {
+		if !strings.Contains(told[0], want) {
+			t.Errorf("her state leaves out %q: %s", want, told[0])
+		}
 	}
 	system := buildSystem(nil, g, DefaultBudget())
 	for _, line := range told {

@@ -198,7 +198,7 @@ func TestBuildPutsTheMoodLastAndAsInstructions(t *testing.T) {
 
 	system := Build(c, g, nil, DefaultBudget())[0].Content
 
-	idx := strings.Index(system, "Right now, in particular:")
+	idx := strings.Index(system, "Right now:")
 	if idx < 0 {
 		t.Fatalf("the mood never reached the prompt:\n%s", system)
 	}
@@ -214,7 +214,7 @@ func TestBuildOmitsTheMoodBlockWhenThereIsNothingToSay(t *testing.T) {
 	c := &Character{Name: "X", Persona: "someone"}
 	system := Build(c, Grounding{Now: time.Now()}, nil, DefaultBudget())[0].Content
 
-	if strings.Contains(system, "Right now, in particular") {
+	if strings.Contains(system, "Right now:") {
 		t.Error("an unset mood still produced a block")
 	}
 }

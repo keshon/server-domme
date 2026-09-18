@@ -176,25 +176,13 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 		sb.WriteString("\n\n" + g.AboutThem + "\n")
 	}
 
-	// The person in front of her, before the general mood: being short with
-	// someone specific is more particular than being tired, and the more
-	// particular instruction goes later.
-	// Fondness after annoyance, and never for the same person: see
-	// Grounding.mostLiked.
-	for _, line := range g.feelingLines() {
-		sb.WriteString("\n\n" + line + "\n")
-	}
-
-	// Last, alone, and phrased as instructions. Everything above is either who
-	// she is or where she is; this is the only part of the prompt that tells
-	// her to write this message differently from the last one, and it earns
-	// the strongest position for the same reason the anti-assistant paragraph
-	// does. See Drives.Directives for what stating it as a fact achieved.
-	if directives := g.Drives.Directives(); len(directives) > 0 {
-		sb.WriteString("\n\nRight now, in particular:\n")
-		for _, line := range directives {
-			sb.WriteString("- " + line + "\n")
-		}
+	// How she is and how she feels about the people here, as one paragraph
+	// with its contradictions already settled; see Grounding.State. Late and
+	// phrased as instructions: everything above is who she is or where she
+	// is, and this is the part that tells her to write this message
+	// differently from the last one. Stated as a fact it changed nothing.
+	if state := g.State(); state != "" {
+		sb.WriteString("\n\n" + stateHeading + "\n" + state + "\n")
 	}
 
 	// How her last line went down, after the mood: it is about this exchange,

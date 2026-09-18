@@ -125,7 +125,7 @@ type Grounding struct {
 	// Drives is how she is doing: the hour, how long she has been alone, how
 	// busy the room is. Not rendered here — Build turns it into instructions
 	// at the end of the prompt, because rendered here as a statement of mood
-	// it changed nothing. See Drives.Directives.
+	// it changed nothing. See Grounding.State.
 	Drives Drives
 	// Remembers is what she still recalls of this channel, already selected
 	// and ordered by Recall. Rendered at whatever detail each one has left.
@@ -214,7 +214,7 @@ func (g Grounding) Render() string {
 	// on fumes" — and it changed nothing measurable: at 3am the character
 	// wrote the longest and liveliest reply of the set. Build emits it as
 	// instructions at the very end of the prompt instead. See
-	// Drives.Directives.
+	// Grounding.State.
 
 	return b.String()
 }
@@ -345,32 +345,16 @@ func (g Grounding) presentIDs() []string {
 	return ids
 }
 
-// feelingLines are the instructions about the people present: who she is
-// short with, then who she is fond of, never both for one person.
-func (g Grounding) feelingLines() []string {
-	var out []string
-	annoyed := ""
-	if who, level := g.mostIrritating(); who != "" {
-		if line := IrritationDirective(who, level); line != "" {
-			out = append(out, line)
-			annoyed = who
-		}
-	}
-	if who, level := g.mostLiked(annoyed); who != "" {
-		if line := WarmthDirective(who, level); line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
 // Told is every instruction about her state this grounding puts in a prompt:
-// how she is, how she feels about the people present, and how her last line
-// landed. The same functions Build uses, so what /chat state shows is what
-// the model is told, not a second account of it.
+// the one description of how she is and how she feels about the people
+// present, and how her last line landed. The same functions Build uses, so
+// what /chat state shows is what the model is told, not a second account of
+// it.
 func (g Grounding) Told() []string {
-	out := append([]string(nil), g.Drives.Directives()...)
-	out = append(out, g.feelingLines()...)
+	var out []string
+	if state := g.State(); state != "" {
+		out = append(out, state)
+	}
 	if r := strings.TrimSpace(g.Reception); r != "" {
 		out = append(out, r)
 	}

@@ -160,22 +160,20 @@ func TestNudgeTreatsTheZeroValueAsNeutral(t *testing.T) {
 // changed nothing measurable: at 3am the character wrote the longest and
 // liveliest reply of the set.
 func TestDirectivesTellHerHowToWriteNotHowSheFeels(t *testing.T) {
-	exhausted := Drives{Social: 0.9, Energy: 0.12, Arousal: 0.2}.Directives()
-	if len(exhausted) == 0 {
+	joined := Grounding{Drives: Drives{Social: 0.9, Energy: 0.12, Arousal: 0.2}}.State()
+	if joined == "" {
 		t.Fatal("a wrung-out character was given no instruction at all")
 	}
-
-	joined := strings.Join(exhausted, " ")
 	if !strings.Contains(joined, "few words") && !strings.Contains(joined, "shorter") {
 		t.Errorf("nothing here says how to write:\n%q", joined)
 	}
 }
 
 func TestDirectivesSayNothingAboutAnUnremarkableMood(t *testing.T) {
-	if got := (Drives{Social: 0.2, Energy: 0.6, Arousal: 0.3}).Directives(); len(got) != 0 {
+	if got := (Grounding{Drives: Drives{Social: 0.2, Energy: 0.6, Arousal: 0.3}}).State(); got != "" {
 		t.Errorf("an ordinary mood produced instructions: %q", got)
 	}
-	if got := (Drives{}).Directives(); len(got) != 0 {
+	if got := (Grounding{}).State(); got != "" {
 		t.Errorf("an unset mood produced instructions: %q", got)
 	}
 }
@@ -183,8 +181,14 @@ func TestDirectivesSayNothingAboutAnUnremarkableMood(t *testing.T) {
 // A list of qualifications on every reply is how a strong instruction becomes
 // a weak one, which this prompt has demonstrated three times.
 func TestDirectivesStayShort(t *testing.T) {
-	everything := Drives{Social: 1, Energy: 0, Arousal: 1}
-	if got := everything.Directives(); len(got) > 2 {
+	everything := Grounding{
+		Drives: Drives{Social: 1, Energy: 0, Arousal: 1, Mood: -1},
+		Present: []Acquaintance{
+			{Username: "Big M", Tension: 0.9},
+			{Username: "cass", Closeness: 0.9},
+		},
+	}
+	if got := everything.stateSentences(); len(got) > 4 {
 		t.Errorf("gave %d instructions at once: %q", len(got), got)
 	}
 }
