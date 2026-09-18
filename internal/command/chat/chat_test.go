@@ -165,3 +165,25 @@ func TestExplainSaysWhySheStayedQuiet(t *testing.T) {
 		}
 	}
 }
+
+// The label and the thought are read in the raw reply, tags and all; pulled
+// out into sections of their own as well, they said everything twice.
+func TestExplainShowsTheLabelAndThoughtOnce(t *testing.T) {
+	raw := "<tone>playful</tone>\n<inner>another of their games</inner>\nSKIP"
+	got := explain(storage.MindJournal{
+		Trigger: "follow-up", Outcome: "declined",
+		Perceived: "playful", Thought: "another of their games", Raw: raw,
+	})
+	if strings.Count(got, "another of their games") != 1 {
+		t.Errorf("the thought appears more than once:\n%s", got)
+	}
+	if strings.Contains(got, "Read their message as") {
+		t.Errorf("the label has a section of its own beside the raw reply:\n%s", got)
+	}
+
+	// With no raw reply to read them in, they still show.
+	got = explain(storage.MindJournal{Trigger: "mention", Outcome: "answered", Perceived: "warm", Thought: "nice"})
+	if !strings.Contains(got, "warm") || !strings.Contains(got, "nice") {
+		t.Errorf("without a raw reply the label and thought vanished:\n%s", got)
+	}
+}

@@ -104,14 +104,24 @@ func explain(j storage.MindJournal) string {
 			b.WriteString("- " + line + "\n")
 		}
 	}
-	if j.Perceived != "" {
-		fmt.Fprintf(&b, "\n**Read their message as** %s\n-# shadow: recorded, not acted on\n", j.Perceived)
-	}
-	if j.Thought != "" {
-		fmt.Fprintf(&b, "\n**Her first reaction** (from the model — changes nothing)\n> %s\n", j.Thought)
-	}
-	if j.Raw != "" && strings.TrimSpace(j.Raw) != strings.TrimSpace(j.Posted) {
+	// The label and the thought are both in what the model returned, tags
+	// and all, which reads more plainly than the same text pulled out into
+	// sections of its own. Shown apart only when there is no raw reply to
+	// read them in.
+	rawShown := j.Raw != "" && strings.TrimSpace(j.Raw) != strings.TrimSpace(j.Posted)
+	if rawShown {
 		fmt.Fprintf(&b, "\n**The model returned**\n```\n%s\n```\n", strings.ReplaceAll(j.Raw, "```", "'''"))
+		if j.Perceived != "" || j.Thought != "" {
+			b.WriteString("-# <tone> is shadow perception, recorded and not acted on; " +
+				"<inner> is her first reaction, which changes nothing\n")
+		}
+	} else {
+		if j.Perceived != "" {
+			fmt.Fprintf(&b, "\n**Read their message as** %s\n-# shadow: recorded, not acted on\n", j.Perceived)
+		}
+		if j.Thought != "" {
+			fmt.Fprintf(&b, "\n**Her first reaction** (from the model — changes nothing)\n> %s\n", j.Thought)
+		}
 	}
 	if j.Posted != "" {
 		fmt.Fprintf(&b, "**Posted**\n> %s\n", j.Posted)

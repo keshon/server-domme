@@ -47,6 +47,10 @@ const (
 const (
 	journalExcerpt = 160
 	journalReply   = 300
+	// journalRaw is longer: what the model returned carries the label and
+	// the private thought as well as the message, and /chat why shows them
+	// only there.
+	journalRaw = 700
 )
 
 // journalOpen records a decision and returns the entry's id, or 0 when it
@@ -125,7 +129,7 @@ func (s *Service) closeSpoken(t task, sp *spoken) {
 		j.Outcome, j.Reason = sp.outcome, sp.reason
 		j.Told, j.Thought = sp.told, sp.thought
 		j.Perceived = sp.perceived
-		j.Raw, j.Posted = excerpt(sp.raw, journalReply), excerpt(sp.posted, journalReply)
+		j.Raw, j.Posted = excerpt(sp.raw, journalRaw), excerpt(sp.posted, journalReply)
 		j.Backend, j.Took = sp.backend, sp.took
 		j.ReplyID = sp.replyID
 	})
