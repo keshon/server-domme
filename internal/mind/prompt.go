@@ -116,6 +116,14 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: InnerVoiceNote})
 	}
 
+	// After the transcript, for the same reason: the person she is going
+	// after is usually not in it, and with the reason stated only in the
+	// system message the relays answered whoever spoke last instead — seven
+	// times in eight when measured.
+	if r := strings.TrimSpace(g.Reaching); r != "" {
+		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: r})
+	}
+
 	// After the transcript, which ends with her own message. Without a
 	// trailing instruction a model handed a conversation whose last turn is
 	// its own either repeats itself or answers nobody.

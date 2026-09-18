@@ -70,6 +70,7 @@ It’s designed to be practical for server management while providing light, int
 
 ### 💬 Chat
 
+- **/attention** — Let her come after you when she wants your attention — or stop her
 - **/chat** — Let the resident persona into a channel
   - **/chat here** — Let her read and reply in this channel
   - **/chat silence** — Stop her reading this channel
@@ -80,6 +81,7 @@ It’s designed to be practical for server management while providing light, int
   - **/chat why** — Why she did what she did about a message — the latest here, or one you name
   - **/chat about** — What she knows and thinks about someone
   - **/chat proactive** — Let her speak first here now and then — greet a regular, bring up an old thread
+  - **/chat attention** — Allow or stop her coming after members who opted in with /attention
   - **/chat forget** — Wipe everything she remembers about this server
 
 ### 🎞️ Media

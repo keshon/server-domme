@@ -368,6 +368,56 @@ much larger thing than being asked to forget what happened. The confirmation is
 a typed word rather than a button, because this cannot be undone and there is
 no copy.
 
+### Coming after someone who asked for it
+
+A member can run `/attention level:light|keen|insistent` to let her come after
+them when she wants their attention, and `/attention level:off` — or telling
+her to leave them alone, go away, stop pinging them (`mind.WantsPeace`) — to
+end it. `/chat attention enabled:false` switches it off for a whole server,
+whatever anyone opted into.
+
+Consent does not create the behaviour; it removes a guard. Without it she never
+goes looking for anyone. With it, whether she does is up to how she feels,
+like everything else here:
+
+- **Missing them** (`mind.FeelLonging`) grows from the time since they last
+  spoke to her, on a curve that rises faster for people she is fond of —
+  absence is felt sooner for someone who matters. It is computed on read from
+  `LastExchangeAt`, never stored.
+- **Being ignored** sharpens it: they have been active somewhere in the server
+  in the last half hour and still not spoken to her in three. For people who
+  opted in, a message in a channel she does not read records a timestamp and
+  nothing else — not where, not what.
+- **The urge** (`mind.Urge`) is missing them weighted by how fond she is, plus
+  being ignored and being alone, minus being tired, minus any irritation with
+  them — annoyed with someone, she does not want their attention at all. It is
+  rolled against squared, so a middling urge rarely acts.
+
+The level is what the person will put up with, not what she has to do: a cap a
+day (1, 3, 6) and a cooldown (12h, 4h, 90m). Someone she is indifferent to may
+opt in and hear nothing for days, which is the point. Her guards sit on top:
+never between 23:00 and 09:00 in the community's timezone, never when she is
+worn out, never while they are already talking to her, the cooldown doubling
+with every reach they leave unanswered, and nothing more after three
+unanswered until they speak to her. Speaking to her resets all of it.
+
+A ten-minute timer looks at the people who opted in — the one thing she does on
+a timer, because absence is only noticeable over time, and only for people who
+asked for it. A backend call happens only when she decides to act. She reaches
+them in the channel they last talked to her in, tagging them (and only them;
+the tag is added if the model leaves it out). The reason goes after the
+transcript, as a trailing system message: stated only in the system prompt,
+the relays answered whoever had spoken last in the channel seven times in
+eight, since the person she is after is usually not in the conversation at
+all. Measured with `cmd/chatprobe -only reach:` — fond of him and ignored:
+"been watching you orbit everyone else for a day. bo still pretending you don't
+exist or has he finally given up on you?"; indifferent, three days on: "you
+alive or just being dramatic again?".
+
+`/chat about` shows someone's level, how much she misses them, whether they
+are around ignoring her, and how many reaches are unanswered; every reach is
+in the journal for `/chat why`.
+
 ### When a conversation has run out
 
 "same", "ok", "lol", "yeah" after something she said close a topic rather than

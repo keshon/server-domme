@@ -333,6 +333,29 @@ func scenarios(now time.Time) []scenario {
 			mayDecline: true,
 		},
 		{
+			// Opted in, she is fond of him, and he has been posting elsewhere
+			// all day without a word to her. Watch for guilt-tripping, begging
+			// or a reminder-bot tone; she should sound like herself.
+			name: "reach: fond, ignored while around",
+			turns: []mind.Turn{
+				{UserID: "2", Username: "mira", Content: "anyone seen the new event schedule", At: now.Add(-4 * time.Minute)},
+			},
+			volunteering: mind.ReachDirective("Big M", mind.Reach{
+				Longing: mind.Longing{Missing: 0.8, Neglected: true, Away: 26 * time.Hour},
+				Warmth:  0.8,
+			}) + " If it fits: " + bringFor([]mind.Fact{{Key: "pet", Value: "a cat called Bo"}}),
+		},
+		{
+			name: "reach: neutral, gone a few days",
+			turns: []mind.Turn{
+				{UserID: "2", Username: "mira", Content: "quiet tonight", At: now.Add(-10 * time.Minute)},
+			},
+			volunteering: mind.ReachDirective("Big M", mind.Reach{
+				Longing: mind.Longing{Missing: 0.9, Away: 80 * time.Hour},
+				Warmth:  0,
+			}),
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -392,6 +415,9 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	g.AnsweringAfter = sc.late
 	g.Drives = sc.drives
 	g.Volunteering = sc.volunteering
+	if strings.HasPrefix(sc.name, "reach:") {
+		g.Reaching, g.Volunteering = sc.volunteering, ""
+	}
 	g.MayDecline = sc.mayDecline
 	if sc.flat != "" {
 		g.Flat = mind.FlatDirective("Big M", sc.flat, sc.bring)

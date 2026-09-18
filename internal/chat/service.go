@@ -229,6 +229,12 @@ func (s *Service) Run(ctx context.Context) {
 		s.rememberLoop(ctx)
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.attentionLoop(ctx)
+	}()
+
 	s.log.Info().Int("workers", workers).Msg("chat_service_started")
 	wg.Wait()
 	s.log.Info().Msg("chat_service_stopped")
@@ -308,6 +314,9 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	if !s.store.IsChatChannel(m.GuildID, m.ChannelID) {
+		// Not a channel she reads. The only thing taken from it is that an
+		// opted-in person was active, never what they said.
+		s.noteActivity(m)
 		return
 	}
 
@@ -343,6 +352,9 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
+	if addressed {
+		s.noticeExchange(m, person, content, now)
+	}
 	if !addressed {
 		// Not aimed at her. The only thing left to decide is whether she has
 		// a reason to say something anyway.

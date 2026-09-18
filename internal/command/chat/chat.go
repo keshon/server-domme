@@ -34,6 +34,7 @@ const (
 	subSpeakUp = "proactive"
 	subAbout   = "about"
 	subWhy     = "why"
+	subAttend  = "attention"
 	optMessage = "message"
 	optUser    = "user"
 	optEnabled = "enabled"
@@ -187,6 +188,19 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subAttend,
+				Description: "Allow or stop her coming after members who opted in with /attention",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionBoolean,
+						Name:        optEnabled,
+						Description: "Off overrides what every member opted into",
+						Required:    true,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subForget,
 				Description: "Wipe everything she remembers about this server",
 				Options: []*discordgo.ApplicationCommandOption{
@@ -212,7 +226,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `why`, `about`, `role`, `proactive` or `forget`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `why`, `about`, `role`, `proactive`, `attention` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -263,6 +277,16 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subWhy:
 		return c.runWhy(context, sub)
+
+	case subAttend:
+		on := len(sub.Options) > 0 && sub.Options[0].BoolValue()
+		if err := store.SetChatAttentionOff(e.GuildID, !on); err != nil {
+			return fmt.Errorf("chat: set attention: %w", err)
+		}
+		if on {
+			return respond(s, e, "She may come after members who opted in with `/attention`, as far as each allowed.")
+		}
+		return respond(s, e, "She will not come after anyone here, whatever they opted into. She still answers.")
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -607,6 +631,26 @@ func runAbout(
 			fmt.Fprintf(&b, "- %s: %s (<t:%d:R>)\n", strings.ReplaceAll(f.Key, "_", " "), f.Value, f.At.Unix())
 		}
 	}
+	if level := p.Attention; level != "" {
+		warmth := mind.WarmthNow(p.Warmth, p.WarmAt, now)
+		active := p.LastActiveAt
+		if p.LastSeen.After(active) {
+			active = p.LastSeen
+		}
+		l := mind.FeelLonging(now, p.LastExchangeAt, active, warmth)
+		fmt.Fprintf(&b, "\n**Attention** %s — misses them %.2f", level, l.Missing)
+		if l.Neglected {
+			b.WriteString(", and they are around ignoring her")
+		}
+		if !p.ReachedAt.IsZero() {
+			fmt.Fprintf(&b, " · last reached out <t:%d:R>", p.ReachedAt.Unix())
+		}
+		if p.Unanswered > 0 {
+			fmt.Fprintf(&b, " · %d unanswered", p.Unanswered)
+		}
+		b.WriteString("\n")
+	}
+
 	if p.Impression == "" && len(p.Facts) == 0 {
 		b.WriteString("\nShe has no opinion of them yet and nothing they have told her. " +
 			"Both are written after a conversation she remembers.\n")

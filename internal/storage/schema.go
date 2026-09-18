@@ -51,6 +51,9 @@ type GuildSettings struct {
 	// WelcomeGifs are the links /welcome picks from at random, shared by
 	// every role.
 	WelcomeGifs []string `json:"welcome_gifs,omitempty"`
+	// ChatAttentionOff stops her reaching out to anyone in the guild, whatever
+	// they opted into. An administrator's override of members' consent.
+	ChatAttentionOff bool `json:"chat_attention_off,omitempty"`
 	// ChatRoles is how she regards each Discord role, keyed by role id.
 	ChatRoles map[string]ChatRoleBias `json:"chat_roles,omitempty"`
 }
@@ -187,6 +190,24 @@ type MindPerson struct {
 	Facts        []MindFact `json:"facts,omitempty"`
 	Impression   string     `json:"impression,omitempty"`
 	ImpressionAt time.Time  `json:"impression_at,omitempty"`
+
+	// Attention is how much reaching out they have agreed to — light, keen,
+	// insistent — or empty for none, which is everyone who has not asked.
+	// See mind.TriggerReach.
+	Attention string `json:"attention,omitempty"`
+	// LastExchangeAt is when they last spoke to her, and LastChatChannel
+	// where; LastActiveAt when they were last seen anywhere in the server,
+	// kept only for people who opted in.
+	LastExchangeAt  time.Time `json:"last_exchange_at,omitempty"`
+	LastChatChannel string    `json:"last_chat_channel,omitempty"`
+	LastActiveAt    time.Time `json:"last_active_at,omitempty"`
+	// ReachedAt is when she last reached out to them, ReachDay and
+	// ReachToday how many times on that day, and Unanswered how many in a
+	// row they have not answered.
+	ReachedAt  time.Time `json:"reached_at,omitempty"`
+	ReachDay   string    `json:"reach_day,omitempty"`
+	ReachToday int       `json:"reach_today,omitempty"`
+	Unanswered int       `json:"unanswered,omitempty"`
 }
 
 // MindFact is one thing a person said about themselves.

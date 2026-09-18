@@ -152,6 +152,10 @@ type Grounding struct {
 	// Reception is how her last message to this person landed, as an
 	// instruction, or empty. See ReceptionDirective.
 	Reception string
+	// Reaching is why she is going after someone who is not in the
+	// conversation, or empty. Build puts it after the transcript; see
+	// ReachDirective.
+	Reaching string
 	// InnerVoice asks her to write a private thought before the message; see
 	// InnerVoiceNote.
 	InnerVoice bool

@@ -27,7 +27,7 @@ const (
 // an unprompted remark is simply dropped, because one arriving twenty minutes
 // after the moment it was about is stranger than silence.
 func Volunteered(t Trigger) bool {
-	return t == TriggerReturn || t == TriggerRecall
+	return t == TriggerReturn || t == TriggerRecall || t == TriggerReach
 }
 
 // Proactivity limits. Caps rather than probabilities, because the failure this

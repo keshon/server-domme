@@ -205,6 +205,7 @@ func registerCommands(log zerolog.Logger, chat *chatsvc.Service, chatUnavailable
 	cmdadapter.Register(&ask.AskCommand{}, mw...)
 
 	cmdadapter.Register(&chatcmd.ChatCommand{Service: chat, Unavailable: chatUnavailable}, mw...)
+	cmdadapter.Register(&chatcmd.AttentionCommand{Service: chat}, mw...)
 
 	cmdadapter.Register(&confess.ConfessCommand{}, mw...)
 

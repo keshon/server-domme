@@ -424,6 +424,13 @@ func (s *Service) outgoing(t task, content string) *discordgo.MessageSend {
 
 	resolved, named := mind.ResolveMentions(content, mentionable(recent, t.item))
 
+	// Reaching out has to reach them: if the model did not tag them, the
+	// tag goes first. Nobody else is ever tagged this way.
+	if t.item.Trigger == mind.TriggerReach && t.item.UserID != "" && !strings.Contains(resolved, "<@"+t.item.UserID+">") {
+		resolved = "<@" + t.item.UserID + "> " + resolved
+		named = append(named, t.item.UserID)
+	}
+
 	allowed := &discordgo.MessageAllowedMentions{Parse: []discordgo.AllowedMentionType{}}
 	for _, id := range named {
 		if id == t.item.UserID {
@@ -510,6 +517,9 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	// prompt than it is worth and harder to act on.
 	g.AboutThem, g.Regard = s.standing(sess, t.item.GuildID, t.item.UserID, t.item.Username)
 	g.Volunteering = t.item.Volunteering
+	if t.item.Trigger == mind.TriggerReach {
+		g.Reaching, g.Volunteering = t.item.Volunteering, ""
+	}
 	g.InnerVoice = s.innerVoice
 	g.Reception = s.receptionFor(t.item.ChannelID, t.item.UserID, t.item.Username, g.Now)
 	if t.item.Trigger == mind.TriggerAfterthought {
