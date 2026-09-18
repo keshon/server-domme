@@ -47,6 +47,12 @@ type scenario struct {
 	// nobody addressed her. The thing to watch is whether she answers the
 	// last line as though it were put to her anyway.
 	volunteering string
+	// mayDecline offers SKIP, as a follow-up gets. The thing to watch is how
+	// often she takes it on a message that deserved an answer.
+	mayDecline bool
+	// flat is what they said that closed the topic, and bring what she is
+	// pointed at; see mind.FlatDirective.
+	flat, bring string
 	// reception is how her last line landed, for the scenarios about taking a
 	// reaction; see mind.ReceptionDirective.
 	reception mind.Reception
@@ -290,6 +296,43 @@ func scenarios(now time.Time) []scenario {
 			reception: mind.ReceptionPanned,
 		},
 		{
+			// Production: "same" got "hey, same here. just another day in the
+			// server." She knows something about him to bring instead.
+			name: "flat: same, with something to bring",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "hello @DevBot", At: now.Add(-2 * time.Minute)},
+				{FromBot: true, Content: "hey", At: now.Add(-2 * time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "how are you?", At: now.Add(-time.Minute)},
+				{FromBot: true, Content: "still here. you?", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "same", At: now},
+			},
+			mayDecline: false,
+			flat:       "same",
+			bring:      bringFor([]mind.Fact{{Key: "pet", Value: "a cat called Bo"}}),
+		},
+		{
+			name: "flat: same, knowing nothing",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "how are you?", At: now.Add(-time.Minute)},
+				{FromBot: true, Content: "still here. you?", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "same", At: now},
+			},
+			mayDecline: true,
+			flat:       "same",
+			bring:      bringFor(nil),
+		},
+		{
+			// The risk of offering SKIP: a follow-up that plainly wants an
+			// answer. Any SKIP here is a failure.
+			name: "decline offered on a real question",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "hey domme", At: now.Add(-time.Minute)},
+				{FromBot: true, Content: "what", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "what do you think of the new rules", At: now},
+			},
+			mayDecline: true,
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -338,11 +381,21 @@ func runNotes(pool *ai.Pool, persona string, now time.Time) {
 	}
 }
 
+// bringFor is what she would be pointed at for Big M, knowing these facts.
+func bringFor(facts []mind.Fact) string {
+	bring, _ := mind.SomethingToBring("Big M", facts, nil, 0)
+	return bring
+}
+
 func runScenario(character *mind.Character, grounding mind.Grounding, sc scenario, pool *ai.Pool, dump, model string) {
 	g := grounding
 	g.AnsweringAfter = sc.late
 	g.Drives = sc.drives
 	g.Volunteering = sc.volunteering
+	g.MayDecline = sc.mayDecline
+	if sc.flat != "" {
+		g.Flat = mind.FlatDirective("Big M", sc.flat, sc.bring)
+	}
 	if sc.reception != mind.ReceptionNone {
 		g.Reception = mind.ReceptionDirective("Big M", sc.reception)
 	}

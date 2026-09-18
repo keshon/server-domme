@@ -98,6 +98,12 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: late})
 	}
 
+	// Before the inner voice, which has to stay last: both are about the
+	// shape of what comes back, and the thought is the one a model drops.
+	if g.MayDecline && g.Afterthought == "" {
+		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: DeclineNote})
+	}
+
 	// Last of all, because it changes the shape of what comes back and a
 	// format instruction anywhere earlier is the first thing a model drops.
 	//
@@ -196,6 +202,10 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 	// which is more particular than how she is doing in general.
 	if r := strings.TrimSpace(g.Reception); r != "" {
 		sb.WriteString("\n\nHow your last message went:\n- " + r + "\n")
+	}
+
+	if f := strings.TrimSpace(g.Flat); f != "" {
+		sb.WriteString("\n\nWhere the conversation is:\n- " + f + "\n")
 	}
 
 	// Why she is speaking at all, when nobody asked. Last of all: without it

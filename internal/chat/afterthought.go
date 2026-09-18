@@ -76,7 +76,7 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 // enqueueAfterthought hands a scheduled afterthought to a worker, unless the
 // conversation has moved on while she paused.
 func (s *Service) enqueueAfterthought(t task) {
-	if !mind.LastWord(s.conv.Recent(t.item.ChannelID), t.after) {
+	if t.item.Trigger == mind.TriggerAfterthought && !mind.LastWord(s.conv.Recent(t.item.ChannelID), t.after) {
 		s.log.Debug().Str("channel_id", t.item.ChannelID).Msg("chat_afterthought_overtaken")
 		return
 	}
@@ -92,15 +92,15 @@ func (s *Service) enqueueAfterthought(t task) {
 // that the second thought still follows the first.
 const afterthoughtTyping = 1500 * time.Millisecond
 
-// typeBriefly shows her typing just before an afterthought is sent, and
-// reports whether it should still go out.
+// typeBriefly shows her typing just before a message that could have been
+// declined is sent — an afterthought, or an answer she was allowed to SKIP —
+// and reports whether it should still go out.
 //
 // Only here, once it is certain to be sent. Shown before generating, as an
-// answer's typing is, it announced a message the model then declined to
-// write, or one dropped because the person had answered meanwhile — typing
-// that stops with nothing posted, which reads as her writing something and
-// deleting it. The last word is checked again after the pause for the same
-// reason.
+// ordinary answer's typing is, it announced messages the model then declined
+// to write — typing that stops with nothing posted, which reads as her writing
+// something and deleting it. An afterthought also checks the last word again
+// after the pause, since the person may have answered meanwhile.
 func (s *Service) typeBriefly(ctx context.Context, sess *discordgo.Session, t task) bool {
 	if err := sess.ChannelTyping(t.item.ChannelID); err != nil {
 		s.log.Debug().Err(err).Str("channel_id", t.item.ChannelID).Msg("chat_typing_failed")

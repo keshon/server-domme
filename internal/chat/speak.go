@@ -36,7 +36,11 @@ func (s *Service) speak(ctx context.Context, t task) {
 	//
 	// Not for an afterthought either, whose typing shows only once it is
 	// certain to be sent; see typeBriefly.
-	if !t.late && t.item.Trigger != mind.TriggerAfterthought {
+	//
+	// Nor for an approach she may still decline: typing that ends in nothing
+	// reads as her writing something and deleting it. Those show typing once
+	// the reply is certain; see typeBriefly.
+	if !t.late && t.item.Trigger != mind.TriggerAfterthought && !declinable(t) {
 		if err := sess.ChannelTyping(t.item.ChannelID); err != nil {
 			s.log.Debug().Err(err).Str("channel_id", t.item.ChannelID).Msg("chat_typing_failed")
 		}
@@ -97,6 +101,18 @@ func (s *Service) speak(ctx context.Context, t task) {
 		}
 	}
 
+	if grounding.MayDecline && mind.IsSkip(reply) {
+		// Her choice, made with the whole conversation in front of her, and
+		// final like any other decision not to answer: nothing is held.
+		s.log.Info().
+			Str("guild_id", t.item.GuildID).
+			Str("channel_id", t.item.ChannelID).
+			Str("trigger", string(t.item.Trigger)).
+			Bool("closer", t.item.Closer).
+			Msg("chat_declined")
+		return
+	}
+
 	if t.item.Trigger == mind.TriggerAfterthought {
 		if !s.afterthoughtStands(t, reply) {
 			return
@@ -121,7 +137,11 @@ func (s *Service) speak(ctx context.Context, t task) {
 			Str("guild_id", t.item.GuildID).
 			Str("channel_id", t.item.ChannelID).
 			Msg("chat_reply_echoed")
-		s.hold(t, "echoed")
+		// Something she was free to decline is not retried later either: a
+		// late answer to "same" is stranger than none.
+		if !grounding.MayDecline {
+			s.hold(t, "echoed")
+		}
 		return
 	}
 
@@ -152,6 +172,10 @@ func (s *Service) speak(ctx context.Context, t task) {
 				Msg("chat_repeat_dropped")
 			return
 		}
+	}
+
+	if grounding.MayDecline && !s.typeBriefly(ctx, sess, t) {
+		return
 	}
 
 	sent, err := s.send(sess, t, reply)
@@ -452,7 +476,28 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	if t.item.Trigger == mind.TriggerAfterthought {
 		g.Afterthought = mind.AfterthoughtDirective(t.item.FirstLine)
 	}
+	g.MayDecline = declinable(t)
+	if t.item.Closer {
+		var facts []mind.Fact
+		if p := s.store.GetMindPerson(t.item.GuildID, t.item.UserID); p != nil {
+			facts = factsOf(p)
+		}
+		bring, concrete := mind.SomethingToBring(t.item.Username, facts, g.Remembers, s.roll())
+		g.Flat = mind.FlatDirective(t.item.Username, t.item.Content, bring)
+		// With something concrete to bring the decision to speak stands: the
+		// odds already let most closers go, and a second veto from the model
+		// took the rest. With nothing to bring, letting it drop is her call.
+		if concrete {
+			g.MayDecline = false
+		}
+	}
 	return g
+}
+
+// declinable reports whether she may still answer SKIP to this approach:
+// something she was not directly asked, or a message that closed the topic.
+func declinable(t task) bool {
+	return !t.late && (mind.MayDecline(t.item.Trigger) || t.item.Closer)
 }
 
 // present lists the people in the live conversation, most recent speaker last.

@@ -53,6 +53,9 @@ type Deferred struct {
 	// answer. Carried with the approach because the reason is decided when
 	// the message arrives and only turned into a prompt at reply time.
 	Volunteering string
+	// Closer marks an approach that closed the topic; answering it, she is
+	// told the conversation has gone flat. See FlatDirective.
+	Closer bool
 	// FirstLine is what she has just said, for an afterthought: the second
 	// message is written knowing what the first one was.
 	FirstLine string

@@ -124,3 +124,27 @@ func TestObserveTakesAReactionToHerLastLine(t *testing.T) {
 		t.Errorf("someone else's reply is coloured by it: %q", got)
 	}
 }
+
+// "same" after her own line usually ends it, and letting it go must not count
+// as ignoring them: otherwise their next message would be forced through and
+// a quick one would count as pestering.
+func TestObserveLetsACloserGoWithoutHoldingItAgainstThem(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := newTestService(t, store, 0.5)
+	now := time.Now()
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "cass", Content: "how are you?", At: now.Add(-time.Minute)})
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", To: "u1", Content: "still here. you?", At: now.Add(-30 * time.Second)})
+
+	svc.Observe(testSession(), message("same", false))
+
+	if got, ok := queued(svc); ok {
+		t.Errorf("answered a closer at even odds: %+v", got.item)
+	}
+	_, ignoredLast := svc.encounters.Approach(encounterKey(testGuild, testChannel, "u1"))
+	if ignoredLast {
+		t.Error("letting a closer go was recorded as ignoring them")
+	}
+}

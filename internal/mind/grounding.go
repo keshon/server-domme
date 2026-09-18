@@ -144,6 +144,11 @@ type Grounding struct {
 	// answer. It is the reason this message exists at all, so Build puts it
 	// after everything else.
 	Volunteering string
+	// Flat is the instruction for answering a message that closed the topic,
+	// or empty. See FlatDirective.
+	Flat string
+	// MayDecline lets her answer SKIP after all; see DeclineNote.
+	MayDecline bool
 	// Reception is how her last message to this person landed, as an
 	// instruction, or empty. See ReceptionDirective.
 	Reception string

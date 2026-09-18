@@ -302,6 +302,47 @@ much larger thing than being asked to forget what happened. The confirmation is
 a typed word rather than a button, because this cannot be undone and there is
 no copy.
 
+### When a conversation has run out
+
+"same", "ok", "lol", "yeah" after something she said close a topic rather than
+open one. They were weighed like any other follow-up — eighty per cent odds of
+an answer — and the answer was then forced to exist: told to say something
+brief rather than pad, with nothing to say, she greeted again, echoed the word
+back and added filler ("hey, same here. just another day in the server").
+
+Three things now handle it:
+
+- **Closers are recognised** (`mind.IsCloser`): a short list of
+  acknowledgements and emoji-only messages, never anything with a question
+  mark. Inside an exchange — a follow-up, or a reply to her — they are weighed
+  at `CloserChance` (0.15) instead, and the rails that force an answer to a
+  first or second approach do not apply: letting "same" go is how a
+  conversation ends, not a bot failing to answer. Letting one go is not
+  recorded as ignoring the person, so their next message is not forced through
+  and a quick one does not count as pestering. A direct @mention is someone
+  asking, whatever it says, and is never a closer.
+- **She may still decline** (`mind.DeclineNote`) a follow-up or an overheard
+  remark by answering `SKIP`: something likely to deserve an answer but not
+  owed one. Measured on a follow-up that plainly asked something, she declined
+  none of five. A mention or a reply to her is never offered it. Typing for a
+  declinable answer shows only once the reply is certain, for the same reason
+  an afterthought's does.
+- **When she answers a closer, she is given something to bring**
+  (`mind.FlatDirective`, `SomethingToBring`): one fact from the person's file
+  or a memory still bright enough to recall, chosen at random among those, and
+  told not to greet, echo or fill. Offered SKIP as well, she declined three
+  times in four even with a fact to hand, so with something concrete the
+  decision to speak stands and SKIP is not offered; with nothing to bring,
+  letting it drop is her call. With the fact: "speaking of the usual, how's
+  Bo? still think the ceiling fan is a threat?"
+
+While measuring this, two replies in five answered things that were in none of
+the prompts sent — "the rules from yesterday", "a link or article" — matching
+other chatprobe scenarios not run at the time. The public relay appears to
+return answers belonging to other requests now and then. Nothing here can
+detect that reliably; it is worth knowing when she says something from
+nowhere.
+
 ### How her last line landed
 
 When someone answers her — a Discord reply to her, or the follow-up from the

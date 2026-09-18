@@ -342,6 +342,8 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
+	closer := (trigger == mind.TriggerFollowUp || trigger == mind.TriggerReply) && mind.IsCloser(content)
+
 	outcome := mind.Decide(s.attention, mind.Situation{
 		Trigger:       trigger,
 		Now:           now,
@@ -351,8 +353,14 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Drives:        s.drives(m.GuildID, m.ChannelID, now),
 		Irritation:    irritation,
 		Regard:        s.regardFor(sess, m.GuildID, m.Author.ID),
+		Closer:        closer,
 	}, s.roll())
-	s.encounters.Record(key, outcome)
+	// Letting "same" go is not ignoring someone. Recorded as an ignore it
+	// would force her to answer whatever they say next, and a quick follow-up
+	// would count as pestering her.
+	if !closer || outcome != mind.OutcomeIgnore {
+		s.encounters.Record(key, outcome)
+	}
 
 	if outcome == mind.OutcomeIgnore {
 		// Logged at info rather than debug: from outside, a deliberate silence
@@ -375,6 +383,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Content:   content,
 		Trigger:   trigger,
 		FormedAt:  now,
+		Closer:    closer,
 	}
 
 	select {

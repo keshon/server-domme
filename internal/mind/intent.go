@@ -47,6 +47,10 @@ type Attention struct {
 	// she is mid-conversation with, untagged. High, but short of certain: an
 	// open exchange is strong evidence a message is for her, not proof.
 	FollowUpChance float64
+	// CloserChance replaces FollowUpChance and ReplyChance for a message that
+	// closes the topic — "same", "ok", "lol". Low: people mostly let those be
+	// the end. See IsCloser.
+	CloserChance float64
 }
 
 // DefaultAttention returns settings that answer nearly every direct approach
@@ -69,6 +73,7 @@ func DefaultAttention() Attention {
 		EngagedBoost:    0.12,
 		CrowdingPenalty: 0.20,
 		FollowUpChance:  0.80,
+		CloserChance:    0.15,
 	}
 }
 
@@ -131,6 +136,8 @@ type Situation struct {
 	// Regard is what this person's roles are worth to her, -1 to +1. Standing
 	// rather than feeling: it is set by an operator and does not decay.
 	Regard float64
+	// Closer marks a message that closes the topic rather than moving it.
+	Closer bool
 }
 
 // Decide reports whether to answer. roll is a value in [0,1) from the caller's
@@ -140,6 +147,17 @@ type Situation struct {
 // The two overrides come first and are not probabilistic, because they are the
 // cases where silence would be read as a defect rather than as a choice.
 func Decide(a Attention, s Situation, roll float64) Outcome {
+	// A closer inside an exchange she is part of is weighed on its own and
+	// skips the overrides: letting "same" go unanswered is not the silence
+	// that reads as a broken bot, it is how a conversation ends.
+	if s.Closer && (s.Trigger == TriggerFollowUp || s.Trigger == TriggerReply) {
+		chance := a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Irritation) + RegardNudge(s.Regard)
+		if roll < clamp01(chance) {
+			return OutcomeSpeak
+		}
+		return OutcomeIgnore
+	}
+
 	if s.FirstApproach || s.IgnoredLast {
 		return OutcomeSpeak
 	}
