@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -19,7 +20,7 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 		return
 	}
 
-	trigger, why := s.reasonToVolunteer(m.GuildID, m.ChannelID, name, person, now)
+	trigger, why, pull, salience := s.reasonToVolunteer(m.GuildID, m.ChannelID, name, person, now)
 	if trigger == "" {
 		return
 	}
@@ -44,6 +45,7 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 		UserID:        m.Author.ID,
 		Drives:        s.drives(m.GuildID, m.ChannelID, now),
 		Fatigue:       fatigue,
+		Pull:          pull,
 		// A greeting is to them, and how they have taken what she started
 		// before counts; a remembered subject is to the room.
 		WelcomeShift: welcomeShiftFor(trigger, s.welcomeOf(m.GuildID, m.Author.ID, now)),
@@ -72,8 +74,9 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 			GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
 			MessageID: m.ID, UserID: m.Author.ID, Username: name,
 			Excerpt: m.ContentWithMentionsReplaced(),
-			Trigger: string(trigger), Rule: "spoke first: " + why + initiativeNote(fatigue),
-			Chance: chance, Roll: roll,
+			Trigger: string(trigger),
+			Rule:    fmt.Sprintf("spoke first (pull %.2f, on her mind %.2f): %s%s", pull, salience, why, initiativeNote(fatigue)),
+			Chance:  chance, Roll: roll,
 			Mood:    mind.MoodWords(s.drives(m.GuildID, m.ChannelID, now)),
 			Outcome: outcomeQueued,
 		}),
@@ -93,11 +96,12 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 	}
 }
 
-// reasonToVolunteer finds something worth saying unprompted, or nothing.
+// reasonToVolunteer finds something worth saying unprompted, or nothing, with
+// how strongly it draws her and how much what it touches is on her mind.
 //
 // A returning regular is checked first: noticing a person is a stronger reason
 // to speak than a subject coming up, and it is the more human of the two.
-func (s *Service) reasonToVolunteer(guildID, channelID, name string, person *storage.MindPerson, now time.Time) (mind.Trigger, string) {
+func (s *Service) reasonToVolunteer(guildID, channelID, name string, person *storage.MindPerson, now time.Time) (mind.Trigger, string, float64, float64) {
 	if person != nil {
 		who := mind.Acquaintance{
 			Messages: person.Messages,
@@ -108,15 +112,21 @@ func (s *Service) reasonToVolunteer(guildID, channelID, name string, person *sto
 		// has come back is a stranger, and greeting a stranger's return reads
 		// as surveillance rather than as recognition.
 		if away := who.AwayFor(); away > 0 && who.Familiarity() != mind.FamiliarityNewcomer {
-			return mind.TriggerReturn, mind.ReturnDirective(name, away)
+			// How much they are on her mind as they walk back in: missed,
+			// liked, resented. Read as of just before they spoke, since
+			// speaking is what just ended the absence.
+			salience, _ := mind.PersonSalience(personMind(person, person.PrevSeen), now)
+			pull := mind.ReturnPull(away, who.Familiarity(), salience)
+			return mind.TriggerReturn, mind.ReturnDirective(name, away), pull, salience
 		}
 	}
 
 	topic := mind.Keywords(s.liveTopic(channelID))
-	if memory, ok := mind.Relevant(s.memoriesOf(guildID, channelID), now, topic); ok {
-		return mind.TriggerRecall, mind.RecallDirective(memory.Gist)
+	if memory, overlap, ok := mind.Relevant(s.memoriesOf(guildID, channelID), now, topic); ok {
+		salience := mind.SubjectSalience(memory, now)
+		return mind.TriggerRecall, mind.RecallDirective(memory.Gist), mind.RecallPull(overlap, salience), salience
 	}
-	return "", ""
+	return "", "", 0, 0
 }
 
 // day is the calendar day in the community's timezone, which is what the

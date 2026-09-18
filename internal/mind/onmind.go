@@ -18,9 +18,8 @@ import (
 // she already has, so that later the events can be weighed by it rather than
 // by constants.
 //
-// For now it is read-only: /chat state lists it, and nothing acts on it. The
-// ranking has to match an operator's own sense of her before anything leans
-// on it, the same way perception waits in shadow mode.
+// /chat state lists it, and the things she starts are weighed by it: see
+// pull.go.
 
 // OnMindKind is what sort of thing is on her mind.
 type OnMindKind string

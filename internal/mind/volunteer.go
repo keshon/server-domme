@@ -49,12 +49,6 @@ const (
 	// spoken to.
 	tooTiredToVolunteer = 0.25
 
-	// returnChance and recallChance are the odds once every gate has passed.
-	// A returning regular is worth more than a subject: noticing someone is
-	// what people do, bringing up a memory is what people sometimes do.
-	returnChance = 0.60
-	recallChance = 0.35
-
 	// recallOverlap is the share of a memory's keywords the room has to be
 	// using before it counts as the same subject. A third: less than that is
 	// a shared word, not a shared topic.
@@ -93,6 +87,10 @@ type Volunteer struct {
 	Drives Drives
 	// Fatigue is how much she has put herself forward lately.
 	Fatigue float64
+	// Pull is how strongly the opportunity draws her before mood, welcome and
+	// fatigue: the event's strength times how much what it touches matters to
+	// her. See ReturnPull and RecallPull.
+	Pull float64
 	// WelcomeShift is how glad the person this is about has been of her,
 	// from neutral; zero when she has learned nothing or it is about the
 	// room. See WelcomeShift.
@@ -125,11 +123,10 @@ func MayVolunteer(v Volunteer, roll float64) (bool, float64) {
 		return false, 0
 	}
 
-	pull := recallChance
-	if v.Trigger == TriggerReturn {
-		pull = returnChance
+	if v.Pull <= 0 {
+		return false, 0
 	}
-	chance := clamp01(welcomed(clamp01(pull+v.Drives.Nudge()), v.WelcomeShift)) * Rested(v.Fatigue)
+	chance := clamp01(welcomed(clamp01(v.Pull+v.Drives.Nudge()), v.WelcomeShift)) * Rested(v.Fatigue)
 	return roll < chance, chance
 }
 
@@ -155,9 +152,13 @@ func busyRoom(turns []Turn, promptedBy string, now time.Time) bool {
 // meanings: "the purge rules" will not surface for "channel cleanup". That
 // errs towards silence, which is the right direction for something she was not
 // asked to say.
-func Relevant(memories []Memory, now time.Time, topic []string) (Memory, bool) {
+//
+// It also reports the overlap, which is how strong the event is: the room
+// using every word of a subject is a stronger reminder than one using a third
+// of them. See RecallPull.
+func Relevant(memories []Memory, now time.Time, topic []string) (Memory, float64, bool) {
 	if len(topic) == 0 {
-		return Memory{}, false
+		return Memory{}, 0, false
 	}
 
 	var best Memory
@@ -178,7 +179,7 @@ func Relevant(memories []Memory, now time.Time, topic []string) (Memory, bool) {
 			best, bestOverlap = m, overlap
 		}
 	}
-	return best, bestOverlap > 0
+	return best, bestOverlap, bestOverlap > 0
 }
 
 // ReturnDirective is why she is speaking when a regular comes back.

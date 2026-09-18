@@ -972,13 +972,32 @@ subject is a memory's brightness raised by how much it mattered, and capped at
 brightness, and uncapped the last conversation's subject outranked everyone
 she knows.
 
-It is read-only. `/chat state` lists it as **On her mind**, with the reasons
-and the number, and `/chat about` gives one person's; nothing she does is
-driven by it yet. The ranking has to match the reader's own sense of her
-before anything leans on it — the same reason perception waits in shadow
-mode. Run over the test server's store it read: *Big M kept pushing after
+`/chat state` lists it as **On her mind**, with the reasons and the number,
+and `/chat about` gives one person's. It was read-only for a while, so the
+ranking could be checked against a reader's sense of her before anything
+leaned on it; run over the test server's store it read: *Big M kept pushing after
 being left alone* (0.38, three hours ago) above **Big M** himself (0.29, just
 talked, annoyed with him).
+
+**What she starts is weighed by it** (`mind/pull.go`). Each kind of
+initiative used to carry a constant, so a regular she never warmed to was
+greeted as readily as one she had missed for a month, and a faded memory
+brought up as readily as a charged one. Now the pull is the event's strength
+times how much what it touches is on her mind, and what comes out is weighed
+by mood, welcome and fatigue as before:
+
+| She starts | Was | Now, typical cases |
+|---|---|---|
+| Greeting a returning regular | 0.60 | a month away: 0.39 if she is indifferent, 0.61 if she missed them; a half-met face 0.25 |
+| Bringing up an old subject | 0.35 | a day-old middling memory 0.25 at a third of its words, 0.39 at most of them; a charged one 0.58 |
+| A second thought | 0.35 | 0.24 for someone barely on her mind, 0.32 mid-conversation, 0.48 for someone she is fond of |
+| Reaching out | missing them | a plan of theirs on her mind adds up to 0.4 to the urge, and the reach carries it |
+
+A returning face keeps a floor for how familiar it is — a regular walking back
+in is noticeable whoever they are to her — and a newcomer's return still draws
+nothing. On average she starts a little less than the constants had her do,
+because most people are not much on her mind; the spread is where the change
+is. `TestPullsAgainstTheOldConstants` prints the table.
 
 ### Something they said they were about to do
 

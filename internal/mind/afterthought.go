@@ -32,10 +32,6 @@ const (
 	// double-text follows a clipped first answer.
 	afterthoughtMaxWords = 6
 
-	// afterthoughtChance is the odds once every gate has passed, before mood
-	// and regard move it.
-	afterthoughtChance = 0.35
-
 	// tooTiredForAfterthought is the energy below which "yes" stays "yes".
 	tooTiredForAfterthought = 0.35
 
@@ -81,6 +77,8 @@ type Afterthought struct {
 	// WelcomeShift is how glad they have been of what she starts; see
 	// WelcomeShift.
 	WelcomeShift float64
+	// Salience is how much they are on her mind; see AfterthoughtPull.
+	Salience float64
 }
 
 // MayAddAfterthought decides, gates before the roll, whether a second
@@ -107,7 +105,7 @@ func MayAddAfterthought(a Afterthought, roll float64) (bool, float64) {
 		return false, 0
 	}
 
-	pull := afterthoughtChance + a.Drives.Nudge() + RegardNudge(a.Regard)
+	pull := AfterthoughtPull(a.Salience) + a.Drives.Nudge() + RegardNudge(a.Regard)
 	chance := clamp01(welcomed(clamp01(pull), a.WelcomeShift)) * Rested(a.Fatigue)
 	return roll < chance, chance
 }

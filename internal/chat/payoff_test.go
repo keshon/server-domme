@@ -116,6 +116,7 @@ func TestAGreetingThatPaysOffSatisfiesTheNeedBehindIt(t *testing.T) {
 	chanceToGreet := func(svc *Service, at time.Time) float64 {
 		_, c := mind.MayVolunteer(mind.Volunteer{
 			Trigger: mind.TriggerReturn, Now: at, Enabled: true,
+			Pull:          mind.ReturnPull(30*24*time.Hour, mind.FamiliarityRegular, 0),
 			EngagedWindow: time.Minute, UserID: "u2",
 			Drives: svc.drives(testGuild, testChannel, at),
 		}, 1)

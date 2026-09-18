@@ -100,6 +100,14 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 		Jitter:     s.roll(),
 		Fatigue:    s.fatigue(guildID, now),
 	}
+	// Something they said they were about to do, if it is on her mind: a
+	// reason to go and find someone, and the fact she carries when she does.
+	if cs := concernsOf(&p); len(cs) > 0 {
+		if i, salience := mind.MostPressing(cs, now, closeness, r.Drives.Mood); i >= 0 {
+			r.Concern = salience
+			r.OnMind = cs[i].Phrase(p.Username, now, s.loc())
+		}
+	}
 	roll := s.roll()
 	reach, chance := mind.MayReach(r, roll)
 	if !reach {

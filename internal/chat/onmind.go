@@ -8,7 +8,7 @@ import (
 )
 
 // onHerMind ranks what is on her mind in a guild: everyone she knows and
-// everything she remembers there. Read-only for now; see mind.OnHerMind.
+// everything she remembers there. See mind.OnHerMind.
 func (s *Service) onHerMind(guildID string, now time.Time) []mind.OnMind {
 	stored := s.store.MindPeople(guildID)
 	people := make([]mind.PersonMind, 0, len(stored))
@@ -35,4 +35,14 @@ func personMind(p *storage.MindPerson, now time.Time) mind.PersonMind {
 		LastActive:   active,
 		Concerns:     concernsOf(p),
 	}
+}
+
+// salienceOf is how much one person is on her mind now.
+func (s *Service) salienceOf(guildID, userID string, now time.Time) float64 {
+	p := s.store.GetMindPerson(guildID, userID)
+	if p == nil {
+		return 0
+	}
+	salience, _ := mind.PersonSalience(personMind(p, now), now)
+	return salience
 }

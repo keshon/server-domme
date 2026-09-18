@@ -41,6 +41,7 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 		Regard:       g.Regard,
 		Fatigue:      fatigue,
 		WelcomeShift: mind.WelcomeShift(s.welcomeOf(t.item.GuildID, t.item.UserID, at)),
+		Salience:     s.salienceOf(t.item.GuildID, t.item.UserID, at),
 	}, roll)
 	if !allowed {
 		return

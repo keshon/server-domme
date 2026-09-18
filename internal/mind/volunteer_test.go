@@ -8,8 +8,16 @@ import (
 
 // willing is a volunteer that passes every gate, so each test can break
 // exactly one and show that gate alone stops her.
+// willing is a volunteer with every gate open, drawn as strongly as the old
+// constants did — 0.6 for a returning regular, 0.35 for a subject — so the
+// gate tests describe the same situations they always did.
 func willing(trigger Trigger) Volunteer {
+	pull := 0.35
+	if trigger == TriggerReturn {
+		pull = 0.6
+	}
 	return Volunteer{
+		Pull:          pull,
 		Trigger:       trigger,
 		Now:           time.Now(),
 		Enabled:       true,
@@ -105,7 +113,7 @@ func TestRelevantFindsTheSubjectTheRoomIsOn(t *testing.T) {
 		{At: now.Add(-3 * 24 * time.Hour), Gist: "someone shared a film", Detail: "nobody watched it"},
 	}
 
-	got, ok := Relevant(memories, now, Keywords("are the purge rules changing"))
+	got, _, ok := Relevant(memories, now, Keywords("are the purge rules changing"))
 	if !ok {
 		t.Fatal("found nothing for a subject she remembers")
 	}
@@ -113,7 +121,7 @@ func TestRelevantFindsTheSubjectTheRoomIsOn(t *testing.T) {
 		t.Errorf("picked %q", got.Gist)
 	}
 
-	if _, ok := Relevant(memories, now, Keywords("anyone for chess")); ok {
+	if _, _, ok := Relevant(memories, now, Keywords("anyone for chess")); ok {
 		t.Error("found a memory for a subject she has none of")
 	}
 }
@@ -124,7 +132,7 @@ func TestRelevantIgnoresTheConversationSheIsIn(t *testing.T) {
 	now := time.Now()
 	fresh := []Memory{{At: now.Add(-20 * time.Minute), Gist: "argument about the purge rules"}}
 
-	if _, ok := Relevant(fresh, now, Keywords("the purge rules")); ok {
+	if _, _, ok := Relevant(fresh, now, Keywords("the purge rules")); ok {
 		t.Error("recalled a conversation from twenty minutes ago")
 	}
 }

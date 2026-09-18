@@ -60,6 +60,9 @@ const (
 	// and varied by a quarter either way so it never lands on the clock.
 	reachGapShortest = 2 * time.Hour
 	reachGapLongest  = 12 * time.Hour
+	// concernUrge is how much a concern on her mind at full salience adds to
+	// the urge: about as much as missing them does for someone she is fond of.
+	concernUrge = 0.4
 	// quietFrom and quietUntil are the hours, in the community's timezone,
 	// she does not reach out in.
 	quietFrom  = 23
@@ -117,6 +120,11 @@ type Reach struct {
 	Jitter float64
 	// Fatigue is how much she has put herself forward lately, anywhere.
 	Fatigue float64
+	// Concern is how much something they said they were about to do is on
+	// her mind, and OnMind that concern as a fact with its time. Wanting to
+	// know how the interview went is a reason to go and find someone.
+	Concern float64
+	OnMind  string
 }
 
 // Urge is how much she wants their attention right now, 0..1. Missing them is
@@ -129,6 +137,7 @@ func Urge(r Reach) float64 {
 		u += 0.15
 	}
 	u += 0.15 * r.Drives.Social
+	u += concernUrge * clamp01(r.Concern)
 	u -= 0.25 * (1 - r.Drives.Energy)
 	u -= r.Tension
 	return clamp01(u)
@@ -192,6 +201,11 @@ func ReachDirective(name string, r Reach) string {
 	}
 	if r.Unanswered > 0 {
 		feel += " They did not answer you last time either."
+	}
+	// The fact, not a script: whether it is why she writes, or only
+	// something she knows, is up to her.
+	if on := strings.TrimSpace(r.OnMind); on != "" {
+		feel += " " + on
 	}
 
 	return why + " " + feel + " They have told you they do not mind you coming " +
