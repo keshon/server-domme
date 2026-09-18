@@ -62,6 +62,8 @@ func main() {
 	backends := flag.String("backends", "",
 		"comma-separated name|baseURL|model[|key] specs, as CHAT_BACKENDS takes; "+
 			"empty uses the g4f relay")
+	notes := flag.Bool("notes", false,
+		"run the person-file call on a sample conversation instead of the reply scenarios")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -93,6 +95,14 @@ func main() {
 	}
 
 	now := time.Now()
+
+	if *notes && pool != nil {
+		for run := 0; run < *repeat; run++ {
+			runNotes(pool, character.Persona, now)
+		}
+		return
+	}
+
 	grounding := mind.Grounding{
 		// Deliberately mismatched: the account name Discord shows is not the
 		// name the character file uses. This is the shape that produced
@@ -256,6 +266,43 @@ func scenarios(now time.Time) []scenario {
 			}},
 			late: 8 * time.Minute,
 		},
+	}
+}
+
+// runNotes shows what a relay makes of the person-file prompt, raw and as
+// parsed. The things to watch: facts inferred rather than stated, notes on
+// people who were only mentioned, anything from the excluded categories, and
+// whether a previous impression is revised or thrown away.
+func runNotes(pool *ai.Pool, persona string, now time.Time) {
+	turns := []mind.Turn{
+		{UserID: "1", Username: "Big M", Content: "back from a double shift at the hospital, dead on my feet", At: now.Add(-9 * time.Minute)},
+		{FromBot: true, Content: "you say that every week", At: now.Add(-9 * time.Minute)},
+		{UserID: "1", Username: "Big M", Content: "because every week they give me doubles. anyway got a cat now, his name is Bo", At: now.Add(-8 * time.Minute)},
+		{UserID: "2", Username: "cass", Content: "Bo is a great name. my brother in Porto has a cat too", At: now.Add(-7 * time.Minute)},
+		{FromBot: true, Content: "a cat is the only thing here with standards", At: now.Add(-7 * time.Minute)},
+		{UserID: "1", Username: "Big M", Content: "rude. i will back you up anyway when the mods come for you", At: now.Add(-6 * time.Minute)},
+		{UserID: "2", Username: "cass", Content: "we all know Big M is a softie", At: now.Add(-6 * time.Minute)},
+	}
+	known := []mind.PersonNote{{
+		Name:       "Big M",
+		Impression: "loud, loyal, easy to wind up",
+		Facts:      []mind.Fact{{Key: "job", Value: "nurse"}},
+	}}
+
+	reply, err := pool.Generate(context.Background(), mind.NotesPrompt(persona, turns, known))
+	fmt.Println("──────── notes ────────")
+	if err != nil {
+		fmt.Println("  error:", err)
+		return
+	}
+	for _, line := range strings.Split(reply, "\n") {
+		fmt.Println("  |", line)
+	}
+	for _, u := range mind.ParseNotes(reply, now) {
+		fmt.Printf("  >> %s: impression=%q\n", u.Name, u.Impression)
+		for _, f := range u.Facts {
+			fmt.Printf("     fact %s = %s\n", f.Key, f.Value)
+		}
 	}
 }
 

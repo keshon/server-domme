@@ -174,6 +174,23 @@ type MindPerson struct {
 	// annoyed from a bot in a bad mode.
 	Irritation  float64   `json:"irritation,omitempty"`
 	IrritatedAt time.Time `json:"irritated_at,omitempty"`
+	// Warmth is how much she has come to like them, 0..1, as it stood at
+	// WarmAt. Stored and decayed the same way as Irritation, only slower.
+	Warmth float64   `json:"warmth,omitempty"`
+	WarmAt time.Time `json:"warm_at,omitempty"`
+	// Facts are what they have said about themselves, newest first, and
+	// Impression is her one-line opinion of them. Both are written after a
+	// conversation is remembered; see mind.NotesPrompt.
+	Facts        []MindFact `json:"facts,omitempty"`
+	Impression   string     `json:"impression,omitempty"`
+	ImpressionAt time.Time  `json:"impression_at,omitempty"`
+}
+
+// MindFact is one thing a person said about themselves.
+type MindFact struct {
+	Key   string    `json:"key"`
+	Value string    `json:"value"`
+	At    time.Time `json:"at"`
 }
 
 func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }

@@ -399,6 +399,9 @@ func (s *Service) present(guildID, channelID string) []mind.Acquaintance {
 			who.LastSeen = known.LastSeen
 			who.PrevSeen = known.PrevSeen
 			who.Irritation = mind.IrritationNow(known.Irritation, known.IrritatedAt, time.Now())
+			who.Warmth = mind.WarmthNow(known.Warmth, known.WarmAt, time.Now())
+			who.Facts = factsOf(known)
+			who.Impression = known.Impression
 			if known.Username != "" {
 				who.Username = known.Username
 			}

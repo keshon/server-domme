@@ -196,6 +196,8 @@ func (s *Service) remembered(ctx context.Context, guildID, channelID string, tur
 		Msg("chat_remembered")
 
 	s.takeItPersonally(guildID, memory.People, tone, at)
+	s.warmTo(guildID, memory.People, tone, at)
+	s.notePeople(ctx, guildID, turns, at)
 }
 
 // takeItPersonally carries an unpleasant conversation into how she feels about

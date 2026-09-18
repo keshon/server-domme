@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	chatsvc "github.com/keshon/server-domme/internal/chat"
@@ -31,6 +32,8 @@ const (
 	subForget  = "forget"
 	subRole    = "role"
 	subSpeakUp = "proactive"
+	subAbout   = "about"
+	optUser    = "user"
 	optEnabled = "enabled"
 	optRole    = "role"
 	optRegard  = "regard"
@@ -143,6 +146,19 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subAbout,
+				Description: "What she knows and thinks about someone",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionUser,
+						Name:        optUser,
+						Description: "Who to look up",
+						Required:    true,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subSpeakUp,
 				Description: "Let her speak first here now and then — greet a regular, bring up an old thread",
 				Options: []*discordgo.ApplicationCommandOption{
@@ -181,7 +197,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `role`, `proactive` or `forget`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `about`, `role`, `proactive` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -226,6 +242,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subSpeakUp:
 		return runSpeakUp(context, sub)
+
+	case subAbout:
+		return runAbout(context, sub)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -468,11 +487,64 @@ func (c *ChatCommand) runForget(
 	}
 
 	return respond(s, e, fmt.Sprintf(
-		"Forgotten: %d things she remembered about this server, and anything she "+
-			"was holding against anyone in it.\n\n"+
+		"Forgotten: %d things she remembered about this server, what she knew "+
+			"and thought about the people in it, and how she felt about them.\n\n"+
 			"She still knows who is a regular and who is new — that is counted from "+
 			"messages, not remembered, and wiping it would turn everyone here into a "+
 			"stranger.", forgotten))
+}
+
+// runAbout shows her file on one person: how well she knows them, how she
+// feels about them, her opinion and what they have told her.
+//
+// Shown to administrators because it is kept about members without asking
+// them, and the people running a server should be able to see exactly what
+// that amounts to rather than take it on trust.
+func runAbout(
+	context *cmdadapter.SlashInteractionContext,
+	sub *discordgo.ApplicationCommandInteractionDataOption,
+) error {
+	s, e, store := context.Session, context.Event, context.Storage
+
+	var userID string
+	for _, opt := range sub.Options {
+		if opt.Name == optUser {
+			userID, _ = opt.Value.(string)
+		}
+	}
+
+	p := store.GetMindPerson(e.GuildID, userID)
+	if p == nil {
+		return respond(s, e, fmt.Sprintf("She has never seen <@%s> say anything.", userID))
+	}
+
+	now := time.Now()
+	who := mind.Acquaintance{Messages: p.Messages}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "**<@%s>** — %s, %d messages seen, first <t:%d:R>\n",
+		userID, who.Familiarity(), p.Messages, p.FirstSeen.Unix())
+
+	b.WriteString("```\n")
+	fmt.Fprintf(&b, "%s\n", gauge("Warmth", mind.WarmthNow(p.Warmth, p.WarmAt, now)))
+	fmt.Fprintf(&b, "%s\n", gauge("Irritated", mind.IrritationNow(p.Irritation, p.IrritatedAt, now)))
+	b.WriteString("```\n")
+
+	if p.Impression != "" {
+		fmt.Fprintf(&b, "**Her take** (<t:%d:R>)\n> %s\n", p.ImpressionAt.Unix(), p.Impression)
+	}
+	if len(p.Facts) > 0 {
+		b.WriteString("\n**What they have told her**\n")
+		for _, f := range p.Facts {
+			fmt.Fprintf(&b, "- %s: %s (<t:%d:R>)\n", strings.ReplaceAll(f.Key, "_", " "), f.Value, f.At.Unix())
+		}
+	}
+	if p.Impression == "" && len(p.Facts) == 0 {
+		b.WriteString("\nShe has no opinion of them yet and nothing they have told her. " +
+			"Both are written after a conversation she remembers.\n")
+	}
+
+	return respond(s, e, b.String())
 }
 
 // runSpeakUp switches volunteering on or off for this channel.

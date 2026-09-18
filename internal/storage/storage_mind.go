@@ -240,14 +240,61 @@ func (s *Storage) IrritateMindPerson(guildID, userID string, level float64, at t
 	})
 }
 
-// ForgetMindMemories deletes everything she remembers about a guild, and
-// clears what she holds against the people in it. It reports how many memories
-// went.
+// NoteMindPerson replaces what she knows about someone: their facts, already
+// merged by the caller, and her impression when impression is not empty.
 //
-// Irritation goes with the memories deliberately. Clearing one without the
-// other leaves her short with someone for a reason she can no longer name,
-// which is the exact failure the irritation memory was added to prevent — a
-// feeling with no cause attached.
+// Whole-list replacement rather than a merge here, because merging is a
+// decision about which value wins and that belongs with the rest of the
+// cognition in mind.MergeFacts, not in storage.
+func (s *Storage) NoteMindPerson(guildID, userID string, facts []MindFact, impression string, at time.Time) error {
+	if guildID == "" || userID == "" {
+		return fmt.Errorf("storage: notes need a guild and a user")
+	}
+
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.mindPeople)
+
+		person, ok := col.Get(guildScopedKey(guildID, userID))
+		if !ok {
+			person = &MindPerson{GuildID: guildID, UserID: userID, FirstSeen: at}
+		}
+		person.Facts = facts
+		if impression != "" {
+			person.Impression = impression
+			person.ImpressionAt = at
+		}
+		return col.Put(person)
+	})
+}
+
+// WarmMindPerson records how much she likes someone, already combined with
+// what was there and decayed by the caller.
+func (s *Storage) WarmMindPerson(guildID, userID string, level float64, at time.Time) error {
+	if guildID == "" || userID == "" {
+		return fmt.Errorf("storage: warmth needs a guild and a user")
+	}
+
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.mindPeople)
+
+		person, ok := col.Get(guildScopedKey(guildID, userID))
+		if !ok {
+			person = &MindPerson{GuildID: guildID, UserID: userID, FirstSeen: at}
+		}
+		person.Warmth = level
+		person.WarmAt = at
+		return col.Put(person)
+	})
+}
+
+// ForgetMindMemories deletes everything she remembers about a guild, and
+// clears what she holds for and against the people in it: irritation, warmth,
+// facts and impressions. It reports how many memories went.
+//
+// Feelings go with the memories deliberately. Clearing one without the other
+// leaves her short with someone, or fond of them, for a reason she can no
+// longer name — a feeling with no cause attached, which is the exact failure
+// the irritation memory was added to prevent.
 //
 // Message counts and first-seen stamps survive. Those are how she knows a
 // regular from a stranger, and wiping them turns everyone in the server into a
@@ -270,11 +317,14 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 
 		people := datastore.In(tx, s.mindPeople)
 		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
-			if p.Irritation == 0 && p.IrritatedAt.IsZero() {
+			if p.Irritation == 0 && p.IrritatedAt.IsZero() && p.Warmth == 0 &&
+				len(p.Facts) == 0 && p.Impression == "" {
 				continue
 			}
-			p.Irritation = 0
-			p.IrritatedAt = time.Time{}
+			p.Irritation, p.IrritatedAt = 0, time.Time{}
+			p.Warmth, p.WarmAt = 0, time.Time{}
+			p.Facts = nil
+			p.Impression, p.ImpressionAt = "", time.Time{}
 			if err := people.Put(p); err != nil {
 				return err
 			}

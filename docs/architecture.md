@@ -411,6 +411,57 @@ The summariser is not given the character file. This is a note being taken, not
 her speaking, and a persona in that prompt produces a memory that is
 entertaining and vague rather than one that is useful weeks later.
 
+### What she knows about people
+
+Beyond counting messages, she keeps three things per person per server, all on
+the `MindPerson` record, all shown by `/chat about @user` and all cleared by
+`/chat forget`:
+
+- **Facts** — what someone plainly said about themselves: job, city, a pet, a
+  plan. At most `MaxFacts`, newest value per key wins, oldest dropped. Only the
+  newest four reach a prompt; twelve facts about one person reads as a dossier
+  rather than as knowing someone.
+- **An impression** — her one-line opinion of them, in her voice.
+- **Warmth** — the counterpart of irritation: how much she has come to like
+  them, 0..1, decayed on read with a three-week halflife.
+
+Facts and the impression are written by one extra backend call after a
+conversation is remembered (`mind.NotesPrompt`), never on the path of a reply.
+It is separate from the summary so a relay that mangles one format does not
+cost the other. Lines are tied back to people by the names they spoke under; a
+name the model produced that was not in the conversation gets no file.
+
+The prompt excludes health, sexuality, religion, politics, real names,
+addresses and contact details. Everything here is kept and repeated back into
+later conversations, possibly in public, and a character who casually brings up
+someone's diagnosis does real harm whatever the server is about. The exclusion
+is an instruction to a model, so it is a strong default rather than a
+guarantee — which is the other reason `/chat about` exists.
+
+Cognitum had both halves of this and both went wrong in instructive ways. Its
+facts were first-come forever, so a changed job was never learned. Its
+reflection ran every twenty seconds over the same fifteen memories and talked
+itself into a fixation — a dozen near-identical observations in a row in its
+log. Here the impression is revised at most once per remembered conversation,
+and the call is given the previous one with an instruction to keep what still
+holds. Measured with `cmd/chatprobe -notes`: "loud, loyal, easy to wind up"
+became "loud, loyal, easy to wind up but also a softie" after a conversation in
+which someone called him one.
+
+The persona goes into that call. Without it the relays wrote neutral
+caseworker's notes — "seems friendly and observant" — which then sat in her
+prompt as "your take" pulling her voice the same way. With it: "protective
+underneath the bluster".
+
+Warmth moves without a model call, from the tone the summary already reads,
+attributed the way irritation is (`mind.WarmthStep`): a warm one-to-one counts
+most, a warm group conversation a little for everyone, an ordinary one-to-one a
+little — people grow fond of whoever keeps turning up — and a hostile one-to-one
+takes some away. It is rendered as an instruction for whoever present she likes
+most (`mind.WarmthDirective`), phrased as something she would not admit to,
+and never for the person she is also told to be short with: both at once is a
+contradiction the model resolves at random.
+
 ### How she is doing
 
 `mind.Drives` is three numbers — Social, Energy, Interest — derived on read

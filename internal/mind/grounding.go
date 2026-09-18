@@ -51,6 +51,12 @@ type Acquaintance struct {
 	PrevSeen time.Time
 	// Irritation is how much they have got on her nerves, already decayed.
 	Irritation float64
+	// Warmth is how much she has come to like them, already decayed.
+	Warmth float64
+	// Facts are what they have said about themselves, newest first, and
+	// Impression is her own opinion of them. See mind.Fact.
+	Facts      []Fact
+	Impression string
 }
 
 // Familiarity reports how well she knows this person.
@@ -246,6 +252,9 @@ func (g Grounding) renderPeople() string {
 		if away := p.AwayFor(); away > 0 {
 			fmt.Fprintf(&b, ", back after about %s away", roughDuration(away))
 		}
+		if known := renderKnown(p.Facts, p.Impression); known != "" {
+			b.WriteString(". " + known)
+		}
 		b.WriteString(".\n")
 	}
 	return b.String()
@@ -319,6 +328,21 @@ func (g Grounding) presentIDs() []string {
 		}
 	}
 	return ids
+}
+
+// mostLiked is whoever present she is fondest of, other than skip — the
+// person already getting an irritation directive, since being told to be
+// short with someone and to go easy on them in one prompt is a contradiction
+// the model resolves at random.
+func (g Grounding) mostLiked(skip string) (string, float64) {
+	var who string
+	var best float64
+	for _, p := range g.Present {
+		if p.Username != skip && p.Warmth > best {
+			who, best = p.Username, p.Warmth
+		}
+	}
+	return who, best
 }
 
 // mostIrritating is whoever present has most got on her nerves.

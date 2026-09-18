@@ -64,6 +64,7 @@ It’s designed to be practical for server management while providing light, int
   - **/chat status** — Where she is listening, and how the backends are holding up
   - **/chat state** — How she is doing right now, and what that is telling her
   - **/chat role** — What a role means to her — how she treats anyone wearing it
+  - **/chat about** — What she knows and thinks about someone
   - **/chat proactive** — Let her speak first here now and then — greet a regular, bring up an old thread
   - **/chat forget** — Wipe everything she remembers about this server
 
