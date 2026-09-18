@@ -652,6 +652,17 @@ func runAbout(
 			fmt.Fprintf(&b, "- %s: %s (<t:%d:R>)\n", strings.ReplaceAll(f.Key, "_", " "), f.Value, f.At.Unix())
 		}
 	}
+	if len(p.Concerns) > 0 {
+		b.WriteString("\n**What they said they were about to do**\n")
+		for _, c := range p.Concerns {
+			con := mind.Concern{What: c.What, Due: c.Due, Expires: c.Expires, Passed: c.Passed}
+			fmt.Fprintf(&b, "- %s, <t:%d:R> · on her mind `%.2f`", c.What, c.Due.Unix(), con.Salience(now, closeness, 0))
+			if c.Passed > 0 {
+				fmt.Fprintf(&b, " · let it pass %d×", c.Passed)
+			}
+			b.WriteString("\n")
+		}
+	}
 	if mind.Consented(p.Attention) {
 		active := p.LastActiveAt
 		if p.LastSeen.After(active) {

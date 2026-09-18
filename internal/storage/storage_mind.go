@@ -296,7 +296,7 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
 			if p.Tension == 0 && p.TensionAt.IsZero() && p.Closeness == 0 &&
 				p.WelcomeAt.IsZero() && p.LastEvent == "" &&
-				len(p.Facts) == 0 && p.Impression == "" {
+				len(p.Facts) == 0 && p.Impression == "" && len(p.Concerns) == 0 {
 				continue
 			}
 			p.Tension, p.TensionAt = 0, time.Time{}
@@ -304,6 +304,7 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 			p.Welcome, p.WelcomeAt = 0, time.Time{}
 			p.LastEvent, p.LastEventAt = "", time.Time{}
 			p.Facts = nil
+			p.Concerns = nil
 			p.Impression, p.ImpressionAt = "", time.Time{}
 			if err := people.Put(p); err != nil {
 				return err

@@ -30,6 +30,8 @@ const (
 	OnMindPerson OnMindKind = "person"
 	// OnMindSubject is something she remembers happening.
 	OnMindSubject OnMindKind = "subject"
+	// OnMindConcern is something someone told her they were about to do.
+	OnMindConcern OnMindKind = "concern"
 )
 
 // OnMind is one thing on her mind, with how much and why.
@@ -50,6 +52,8 @@ type PersonMind struct {
 	// last seen anywhere she could see.
 	LastExchange time.Time
 	LastActive   time.Time
+	// Concerns are what they told her they were about to do.
+	Concerns []Concern
 }
 
 // Salience tuning.
@@ -140,7 +144,7 @@ func SubjectSalience(m Memory, now time.Time) float64 {
 
 // OnHerMind ranks what is on her mind: people and remembered subjects
 // together, strongest first, above the floor and at most onMindMax of them.
-func OnHerMind(people []PersonMind, memories []Memory, now time.Time) []OnMind {
+func OnHerMind(people []PersonMind, memories []Memory, mood float64, now time.Time) []OnMind {
 	var out []OnMind
 	for _, p := range people {
 		if strings.TrimSpace(p.Name) == "" {
@@ -148,6 +152,14 @@ func OnHerMind(people []PersonMind, memories []Memory, now time.Time) []OnMind {
 		}
 		if s, why := PersonSalience(p, now); s >= onMindFloor {
 			out = append(out, OnMind{Kind: OnMindPerson, Name: p.Name, Salience: s, Why: why})
+		}
+		for _, c := range p.Concerns {
+			if s := c.Salience(now, p.Closeness, mood); s >= onMindFloor {
+				out = append(out, OnMind{
+					Kind: OnMindConcern, Name: p.Name + ": " + c.What, Salience: s,
+					Why: []string{concernTiming(c, now)},
+				})
+			}
 		}
 	}
 
@@ -175,4 +187,12 @@ func OnHerMind(people []PersonMind, memories []Memory, now time.Time) []OnMind {
 		out = out[:onMindMax]
 	}
 	return out
+}
+
+// concernTiming says roughly when a concern is, for a panel.
+func concernTiming(c Concern, now time.Time) string {
+	if d := c.Due.Sub(now); d > 0 {
+		return "in " + roughAbsence(d)
+	}
+	return roughAbsence(now.Sub(c.Due)) + " ago"
 }

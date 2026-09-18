@@ -137,6 +137,7 @@ type PersonNote struct {
 type PersonUpdate struct {
 	Name       string
 	Facts      []Fact
+	Plans      []Plan
 	Impression string
 }
 
@@ -149,11 +150,14 @@ type PersonUpdate struct {
 // in a public channel does real harm, whatever the server is about.
 const notesInstruction = `You keep private notes on the people in a Discord server. You are "you" in the conversation below. Update your notes on the other people in it.
 
-Write only lines in these two forms, and nothing else:
+Write only lines in these three forms, and nothing else:
 FACT <name>: <key> = <value>
+PLAN <name>: <what> | <when>
 IMPRESSION <name>: <one sentence>
 
-FACT is only for something a person plainly said about themselves: their job, their city, a pet, what they are into, a plan they mentioned. Never guess or infer, and never note what someone said about somebody else. The key is one or two words (job, city, pet, hobby, plans); the value is a few words.
+FACT is only for something a person plainly said about themselves: their job, their city, a pet, what they are into. Never guess or infer, and never note what someone said about somebody else. The key is one or two words (job, city, pet, hobby); the value is a few words.
+
+PLAN is only for something a person said they themselves are about to do: an interview, a trip, an exam, a match, a date. Not someone else's plans, and not a habit. <what> is a few words in their terms; <when> is exactly one of: tonight, tomorrow, this weekend, next week, later.
 Never note health, sexuality, religion, politics, real names, addresses, contact details, or anything else a person would not want repeated in public.
 
 IMPRESSION is your own private opinion of the person, in your own voice and as bluntly as you would think it, one short sentence. If you already have one, it is listed below: keep what still holds, and change it only as far as this conversation gives you reason to. Only for people who said enough to judge.
@@ -258,6 +262,14 @@ func ParseNotes(reply string, at time.Time) []PersonUpdate {
 			}
 			u := get(name)
 			u.Facts = append(u.Facts, Fact{Key: key, Value: value, At: at})
+		case "PLAN":
+			what, when, ok := strings.Cut(body, "|")
+			what = strings.TrimSpace(what)
+			if !ok || what == "" {
+				continue
+			}
+			u := get(name)
+			u.Plans = append(u.Plans, Plan{What: what, When: strings.TrimSpace(when)})
 		case "IMPRESSION":
 			get(name).Impression = clipRunes(body, maxImpression)
 		}

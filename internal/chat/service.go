@@ -358,6 +358,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	if err != nil {
 		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_person_record_failed")
 	}
+	s.resolveConcerns(m.GuildID, m.Author.ID, content, person, now)
 
 	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
 	if addressed {

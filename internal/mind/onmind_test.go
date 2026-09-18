@@ -83,7 +83,7 @@ func TestOnHerMindIsShortAndRanked(t *testing.T) {
 		{At: now.Add(-3 * time.Hour), Gist: "cass's cat", Weight: 0.5},
 		{At: now.Add(-4 * time.Hour), Gist: "the event schedule", Weight: 0.5},
 	}
-	got := OnHerMind(people, memories, now)
+	got := OnHerMind(people, memories, 0, now)
 	if len(got) != onMindMax {
 		t.Fatalf("%d things on her mind, want %d", len(got), onMindMax)
 	}

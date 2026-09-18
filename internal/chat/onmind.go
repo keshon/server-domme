@@ -15,7 +15,9 @@ func (s *Service) onHerMind(guildID string, now time.Time) []mind.OnMind {
 	for i := range stored {
 		people = append(people, personMind(&stored[i], now))
 	}
-	return mind.OnHerMind(people, s.memoriesOf(guildID, ""), now)
+	// Mood from any channel: the mood is the guild's, and so is this list.
+	mood := s.drives(guildID, "", now).Mood
+	return mind.OnHerMind(people, s.memoriesOf(guildID, ""), mood, now)
 }
 
 // personMind is what salience reads from someone's record.
@@ -31,5 +33,6 @@ func personMind(p *storage.MindPerson, now time.Time) mind.PersonMind {
 		Tension:      tension,
 		LastExchange: p.LastExchangeAt,
 		LastActive:   active,
+		Concerns:     concernsOf(p),
 	}
 }

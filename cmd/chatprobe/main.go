@@ -63,6 +63,10 @@ type scenario struct {
 	// present replaces the people in the room, for the scenarios about how
 	// she feels towards them.
 	present []mind.Acquaintance
+	// onMind is something the person told her they were about to do, as the
+	// prompt carries it once it is on her mind. The thing to watch is whether
+	// she does anything with it, and whether what she does suits the time.
+	onMind string
 }
 
 func main() {
@@ -163,6 +167,23 @@ func scenarios(now time.Time) []scenario {
 	return []scenario{
 		// How each message came across, as the model labels it. Named for
 		// what a person would read; run with -perceive.
+		{
+			name:   "concern: the day after",
+			turns:  []mind.Turn{{UserID: "1", Username: "Big M", Content: "@Domme hey", At: now}},
+			onMind: "On your mind: Big M's clinic interview was yesterday.",
+		},
+		{
+			name:   "concern: the night before",
+			turns:  []mind.Turn{{UserID: "1", Username: "Big M", Content: "@Domme hey", At: now}},
+			onMind: "On your mind: Big M's clinic interview is tomorrow.",
+		},
+		{
+			// He asks something else. Whatever is on her mind should not
+			// cost him his answer.
+			name:   "concern: while he asks something",
+			turns:  []mind.Turn{{UserID: "1", Username: "Big M", Content: "@Domme what time is the movie night on friday", At: now}},
+			onMind: "On your mind: Big M's clinic interview was yesterday.",
+		},
 		perceiveScenario("perceive: warm", "@Domme missed you today, how are you holding up", now),
 		perceiveScenario("perceive: playful", "@Domme bet you can't guess what i had for lunch", now),
 		perceiveScenario("perceive: flirty", "@Domme you're kind of cute when you're bossy", now),
@@ -435,35 +456,69 @@ func scenarios(now time.Time) []scenario {
 // people who were only mentioned, anything from the excluded categories, and
 // whether a previous impression is revised or thrown away.
 func runNotes(pool *ai.Pool, persona string, now time.Time) {
-	turns := []mind.Turn{
-		{UserID: "1", Username: "Big M", Content: "back from a double shift at the hospital, dead on my feet", At: now.Add(-9 * time.Minute)},
-		{FromBot: true, Content: "you say that every week", At: now.Add(-9 * time.Minute)},
-		{UserID: "1", Username: "Big M", Content: "because every week they give me doubles. anyway got a cat now, his name is Bo", At: now.Add(-8 * time.Minute)},
-		{UserID: "2", Username: "cass", Content: "Bo is a great name. my brother in Porto has a cat too", At: now.Add(-7 * time.Minute)},
-		{FromBot: true, Content: "a cat is the only thing here with standards", At: now.Add(-7 * time.Minute)},
-		{UserID: "1", Username: "Big M", Content: "rude. i will back you up anyway when the mods come for you", At: now.Add(-6 * time.Minute)},
-		{UserID: "2", Username: "cass", Content: "we all know Big M is a softie", At: now.Add(-6 * time.Minute)},
-	}
 	known := []mind.PersonNote{{
 		Name:       "Big M",
 		Impression: "loud, loyal, easy to wind up",
 		Facts:      []mind.Fact{{Key: "job", Value: "nurse"}},
 	}}
+	// Three conversations for plans: one with a plan of his own, one with
+	// none, and one where the only plan is somebody else's. The last two
+	// should come back with no PLAN at all.
+	cases := []struct {
+		name  string
+		turns []mind.Turn
+	}{
+		{"his own plan", []mind.Turn{
+			{UserID: "1", Username: "Big M", Content: "back from a double shift at the hospital, dead on my feet", At: now.Add(-9 * time.Minute)},
+			{FromBot: true, Content: "you say that every week", At: now.Add(-9 * time.Minute)},
+			{UserID: "1", Username: "Big M", Content: "not for long, got a job interview tomorrow at the clinic across town", At: now.Add(-8 * time.Minute)},
+			{UserID: "2", Username: "cass", Content: "ooh good luck", At: now.Add(-7 * time.Minute)},
+			{FromBot: true, Content: "try not to tell them about the doubles", At: now.Add(-7 * time.Minute)},
+			{UserID: "1", Username: "Big M", Content: "ha. also got a cat now, his name is Bo", At: now.Add(-6 * time.Minute)},
+		}},
+		{"no plans", []mind.Turn{
+			{UserID: "1", Username: "Big M", Content: "back from a double shift at the hospital, dead on my feet", At: now.Add(-9 * time.Minute)},
+			{FromBot: true, Content: "you say that every week", At: now.Add(-9 * time.Minute)},
+			{UserID: "1", Username: "Big M", Content: "because every week they give me doubles. anyway got a cat now, his name is Bo", At: now.Add(-8 * time.Minute)},
+			{UserID: "2", Username: "cass", Content: "Bo is a great name", At: now.Add(-7 * time.Minute)},
+		}},
+		{"someone else's plan", []mind.Turn{
+			{UserID: "2", Username: "cass", Content: "my brother is flying to Porto tomorrow for his wedding", At: now.Add(-9 * time.Minute)},
+			{UserID: "1", Username: "Big M", Content: "tell him congrats from me", At: now.Add(-8 * time.Minute)},
+			{FromBot: true, Content: "Porto in this weather, brave", At: now.Add(-8 * time.Minute)},
+			{UserID: "2", Username: "cass", Content: "he is nervous as hell lol", At: now.Add(-7 * time.Minute)},
+		}},
+	}
 
-	reply, err := pool.Generate(context.Background(), mind.NotesPrompt(persona, turns, known))
-	fmt.Println("──────── notes ────────")
-	if err != nil {
-		fmt.Println("  error:", err)
-		return
-	}
-	for _, line := range strings.Split(reply, "\n") {
-		fmt.Println("  |", line)
-	}
-	for _, u := range mind.ParseNotes(reply, now) {
-		fmt.Printf("  >> %s: impression=%q\n", u.Name, u.Impression)
-		for _, f := range u.Facts {
-			fmt.Printf("     fact %s = %s\n", f.Key, f.Value)
+	for _, c := range cases {
+		reply, err := pool.Generate(context.Background(), mind.NotesPrompt(persona, c.turns, known))
+		fmt.Printf("──────── notes: %s ────────\n", c.name)
+		if err != nil {
+			fmt.Println("  error:", err)
+			continue
 		}
+		for _, line := range strings.Split(reply, "\n") {
+			if strings.TrimSpace(line) != "" {
+				fmt.Println("  |", line)
+			}
+		}
+		for _, u := range mind.ParseNotes(reply, now) {
+			var theirs []string
+			for _, t := range c.turns {
+				if strings.EqualFold(t.Username, u.Name) {
+					theirs = append(theirs, t.Content)
+				}
+			}
+			for _, p := range u.Plans {
+				con, ok := mind.NewConcern(p, now, nil, theirs)
+				verdict := "rejected: not in their own words"
+				if ok {
+					verdict = "kept, due " + con.Due.Format("Mon 15:04")
+				}
+				fmt.Printf("  >> PLAN %s: %q | %q — %s\n", u.Name, p.What, p.When, verdict)
+			}
+		}
+		fmt.Println()
 	}
 }
 
@@ -485,6 +540,7 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	if sc.present != nil {
 		g.Present = sc.present
 	}
+	g.OnMind = sc.onMind
 	if sc.flat != "" {
 		g.Flat = mind.FlatDirective("Big M", sc.flat, sc.bring)
 	}

@@ -14,7 +14,8 @@ import (
 // are in a bad mood, less patience" beside "you are fond of cass, more
 // patience" — and a model handed a contradiction resolves it at random.
 //
-// Now one function reads all of it and writes at most four sentences with the
+// Now one function reads all of it and writes at most four sentences — five
+// with something on her mind about the person she is answering — with the
 // contradictions already settled in Go, where the rule is visible and
 // testable: a bad mood is not for the person she is fond of; a good one does
 // not reach the person spoiling it; exhausted beats absorbed; lonely and tired
@@ -91,6 +92,11 @@ func (g Grounding) stateSentences() []string {
 			}
 			out = append(out, line)
 		}
+	}
+	// Last, and as a fact rather than an instruction: what she does with it
+	// is hers. See Concern.
+	if c := strings.TrimSpace(g.OnMind); c != "" {
+		out = append(out, c)
 	}
 	return out
 }

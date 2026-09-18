@@ -62,6 +62,7 @@ func (s *Service) notePeople(ctx context.Context, guildID string, turns []mind.T
 			s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_notes_store_failed")
 			continue
 		}
+		s.noteConcerns(guildID, userID, update.Plans, turns, at)
 		s.log.Info().
 			Str("guild_id", guildID).
 			Str("user_id", userID).

@@ -270,6 +270,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 	s.deferrals.Drop(t.item.ChannelID)
 	s.receptionUsed(t.item.ChannelID, t.item.UserID)
 	s.awaitPayoff(t, reply, spokeAt)
+	s.afterConcern(t.item.GuildID, t.item.UserID, grounding.Concern, reply, spokeAt)
 	s.considerAfterthought(ctx, t, grounding, reply, sentID, spokeAt)
 
 	s.log.Info().
@@ -552,6 +553,9 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	}
 	g.InnerVoice = s.innerVoice
 	g.Perceive = s.perceive
+	if g.Answering() {
+		g.Concern, g.OnMind = s.concernOnMind(t.item.GuildID, t.item.UserID, t.item.Username, g.Drives.Mood, now)
+	}
 	g.Reception = s.receptionFor(t.item.ChannelID, t.item.UserID, t.item.Username, g.Now)
 	if t.item.Trigger == mind.TriggerAfterthought {
 		g.Afterthought = mind.AfterthoughtDirective(t.item.FirstLine)

@@ -980,6 +980,63 @@ mode. Run over the test server's store it read: *Big M kept pushing after
 being left alone* (0.38, three hours ago) above **Big M** himself (0.29, just
 talked, annoyed with him).
 
+### Something they said they were about to do
+
+A person who mentions a job interview tomorrow is, to anyone who cares about
+them, someone whose interview was yesterday. `mind.Concern` is that: something
+on her mind about someone, because of something they said they were going to
+do. It is not a behaviour. Nothing tells her to ask how it went or to wish them
+luck.
+
+**Where they come from.** The notes call, which already reads each settled
+conversation, has a third line shape: `PLAN Big M: clinic interview |
+tomorrow`, for things a person said they themselves are about to do, with the
+time from a fixed list — tonight, tomorrow, this weekend, next week, later. Go
+dates it (`mind.DueFrom`: evenings for the day-sized words, Saturday afternoon
+for a weekend); the model never does date arithmetic. And Go keeps it only if
+it is in that person's own words: half the plan's words, and at least one,
+must appear in something they said (`mind.NewConcern`). A stored concern is
+repeated back to them, so an invented one would be a false belief she acted on
+for days. Plans used to be an ordinary fact — `plans = job interview` — with
+no time in them at all.
+
+**How much it is on her mind.** `Concern.Salience` is timing × care × mood ×
+how often she has let it pass. Timing is a little in the two days before (0.3
+at most: people ask how something went far more than they wish luck
+beforehand), highest just after, halving every two days, gone five days on.
+Care is `0.25 + 0.75 × closeness`. Each time it was on her mind and she let it
+pass leaves 0.6 of it. For a plan due tomorrow evening:
+
+| When | Close to them (0.8) | Indifferent |
+|---|---|---|
+| The night before | 0.15 | 0.04 |
+| The day after | 0.71 | 0.21 |
+| Four days on | 0.21 | 0.06 |
+
+**What it does.** When she is answering that person, the most pressing
+concern is on her mind with the probability of its salience, and then the
+state paragraph ends with it as a fact with its time: "On your mind: Big M's
+clinic interview was yesterday." What she does with it — a question, luck, a
+jab, nothing — is hers; the time phrase is what makes "good luck" or "so how
+did it go" fit. Afterwards Go checks whether her reply raised it (half its
+words): raised, it is done with; let pass, it weakens. Their own message
+closes it too, once it is within six hours of being due — the news arriving
+before she asks. Only for answers, only about the person being answered, and
+only people she has a record of.
+
+`/chat state` lists concerns in **On her mind**, `/chat about` lists
+someone's with their salience and how often she let them pass, and `/chat
+forget` clears them with the rest of her file.
+
+**Measured so far.** Extraction, with `cmd/chatprobe -notes` over three
+conversations — his own interview tomorrow, no plans, and someone else's
+brother flying to a wedding — was right on all three in the one run the relay
+allowed before refusing this machine for the day (a per-IP credit budget):
+`clinic interview | tomorrow` kept and dated, nothing from the other two. That
+is one run, not a measurement. Surfacing has scenarios ready
+(`-only concern:` — the day after, the night before, and while he asks
+something else) and has not been run.
+
 ### One description of how she is
 
 Her state used to reach the model as separate sentences, each written by the

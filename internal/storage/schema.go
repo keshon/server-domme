@@ -198,6 +198,9 @@ type MindPerson struct {
 	Facts        []MindFact `json:"facts,omitempty"`
 	Impression   string     `json:"impression,omitempty"`
 	ImpressionAt time.Time  `json:"impression_at,omitempty"`
+	// Concerns are things they said they were about to do, which she may
+	// have on her mind. See mind.Concern.
+	Concerns []MindConcern `json:"concerns,omitempty"`
 
 	// Attention is how much reaching out they have agreed to — light, keen,
 	// insistent — or empty for none, which is everyone who has not asked.
@@ -216,6 +219,16 @@ type MindPerson struct {
 	ReachDay   string    `json:"reach_day,omitempty"`
 	ReachToday int       `json:"reach_today,omitempty"`
 	Unanswered int       `json:"unanswered,omitempty"`
+}
+
+// MindConcern is something a person said they were about to do; see
+// mind.Concern.
+type MindConcern struct {
+	What    string    `json:"what"`
+	Due     time.Time `json:"due"`
+	Expires time.Time `json:"expires"`
+	Noted   time.Time `json:"noted"`
+	Passed  int       `json:"passed,omitempty"`
 }
 
 // MindFact is one thing a person said about themselves.

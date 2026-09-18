@@ -162,6 +162,12 @@ type Grounding struct {
 	// Perceive asks for one word of how their message came across; see
 	// PerceiveNote.
 	Perceive bool
+	// OnMind is something the person she is answering told her they were
+	// about to do, when it is on her mind now, phrased with its time; and
+	// Concern is what it is, for telling afterwards whether she raised it.
+	// See Concern.
+	OnMind  string
+	Concern string
 	// Afterthought asks for a second message after her own, or is empty.
 	// Build puts it after the conversation, since her own last line is what
 	// it is about; see AfterthoughtDirective.
