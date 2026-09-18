@@ -125,6 +125,11 @@ type Service struct {
 	afterthoughtMu sync.Mutex
 	afterthoughts  map[string]time.Time
 
+	// snubbed holds the questions of hers already counted as ignored, so one
+	// question is never held against someone twice.
+	snubMu  sync.Mutex
+	snubbed map[string]bool
+
 	conv       *mind.Conversations
 	deferrals  *mind.Deferrals
 	encounters *mind.Encounters
@@ -175,6 +180,7 @@ func New(d Deps) *Service {
 		thoughts:   make(map[string]Thought),
 
 		afterthoughts: make(map[string]time.Time),
+		snubbed:       make(map[string]bool),
 		conv:          mind.NewConversations(),
 		deferrals:     mind.NewDeferrals(),
 		encounters:    mind.NewEncounters(),
@@ -280,6 +286,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	// Computed before the message is recorded, because it asks what the
 	// channel looked like just before it arrived.
 	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
+	s.noticeSnub(sess, m, now)
 
 	s.conv.Record(m.ChannelID, mind.Turn{
 		UserID:    m.Author.ID,

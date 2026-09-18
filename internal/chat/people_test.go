@@ -75,3 +75,27 @@ func TestWarmToGrowsFondnessFromAWarmOneToOne(t *testing.T) {
 		t.Errorf("warmth after two warm conversations: %+v", p)
 	}
 }
+
+// She asked Big M something; he replied to John instead. Once, not per
+// message after it.
+func TestObserveNoticesBeingBrushedOffOnce(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := newTestService(t, store, 0.9999)
+	now := time.Now()
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u2", Username: "John", Content: "anyone?", MessageID: "j1", At: now.Add(-2 * time.Minute)})
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "q1", To: "u1", Content: "what did you break?", At: now.Add(-time.Minute)})
+
+	for i := 0; i < 2; i++ {
+		m := replyTo("j1", "yeah i'm here john")
+		m.ID = "snub" + string(rune('a'+i))
+		svc.Observe(testSession(), m)
+	}
+
+	p := store.GetMindPerson(testGuild, "u1")
+	if p == nil || p.Irritation < mind.BrushOffStep-0.01 || p.Irritation > mind.BrushOffStep+0.01 {
+		t.Errorf("irritation after being brushed off = %+v, want one step", p)
+	}
+}

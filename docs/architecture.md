@@ -302,6 +302,31 @@ much larger thing than being asked to forget what happened. The confirmation is
 a typed word rather than a button, because this cannot be undone and there is
 no copy.
 
+### Being brushed off
+
+If she asks someone a question and, within `BrushOffWindow`, they turn and
+speak to somebody else — a Discord reply to another person's message, or an
+@mention of someone else — without having said anything to her in between,
+her irritation with them rises by `BrushOffStep` (`mind.BrushedOff`). That
+is just past the band where she is a little cooler with them, and the
+ninety-minute halflife brings it back under in about a quarter of an hour. Each
+question counts once.
+
+Cognitum had this idea and its version is what not to copy. It expected an
+answer within ninety seconds of anything it said, grew anxious on silence, and
+the anxiety fed on itself with no floor until it was the character's whole
+mood. Silence is usually someone making tea, so it does not count here. Nor
+does an untagged message: it may well be the answer to her question, and she
+cannot tell. Only the unambiguous shape counts, because a snub read wrongly
+means someone treated coldly for nothing. And it feeds the irritation that
+already exists rather than a new feeling, so it decays like everything else
+and cannot become a mood of its own.
+
+Her own turns record who they answered (`Turn.To`), which is what ties a
+question to the person who could ignore it. Turns read back from Discord
+history do not have it, so nothing from before a restart is ever held against
+anyone.
+
 ### What she remembers
 
 `mind.Memory` is one thing that happened in a channel, written once and never

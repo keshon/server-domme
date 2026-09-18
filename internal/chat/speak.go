@@ -135,6 +135,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 		At:        spokeAt,
 		FromBot:   true,
 		MessageID: sentID,
+		To:        t.item.UserID,
 	})
 	// Persisted because the conversation buffer keeps half an hour and the
 	// social drive is measured in hours; see Service.drives.

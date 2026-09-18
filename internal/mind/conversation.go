@@ -60,6 +60,10 @@ type Turn struct {
 	FromBot bool
 	// Mentioned records that this message addressed the bot directly.
 	Mentioned bool
+	// To is who her own message was answering, for her turns only. It is
+	// what lets a question she asked be recognised as ignored; see
+	// BrushedOff.
+	To string
 }
 
 // Conversations holds recent messages per channel.
