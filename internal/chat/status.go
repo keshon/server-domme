@@ -90,6 +90,9 @@ type State struct {
 	// Fatigue is how much she has put herself forward lately in the guild;
 	// see mind.Fatigue.
 	Fatigue float64
+	// OnMind is what is on her mind in the guild, strongest first; see
+	// mind.OnHerMind.
+	OnMind []mind.OnMind
 	// InnerVoice is whether she thinks before speaking, and Thought the
 	// latest thing she thought here, empty until she has.
 	InnerVoice bool
@@ -121,6 +124,7 @@ func (s *Service) StateIn(sess *discordgo.Session, guildID, channelID string) St
 		st.LastSpokeAt = guild.LastSpokeAt
 	}
 	st.Fatigue = s.fatigue(guildID, now)
+	st.OnMind = s.onHerMind(guildID, now)
 
 	st.Proactive = s.store.IsChatProactive(guildID, channelID)
 	st.InnerVoice = s.innerVoice

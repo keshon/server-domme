@@ -439,6 +439,22 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 		b.WriteString("**Wants** nothing in particular\n")
 	}
 
+	// Read-only for now: nothing she does is driven by this list yet, and it
+	// is here so its ranking can be checked against the reader's own sense
+	// of her before anything is. See mind.OnHerMind.
+	if len(st.OnMind) > 0 {
+		b.WriteString("\n**On her mind**\n")
+		for _, m := range st.OnMind {
+			name := "**" + m.Name + "**"
+			if m.Kind == mind.OnMindSubject {
+				name = "*" + m.Name + "*"
+			}
+			fmt.Fprintf(&b, "- %s · %s `%.2f`\n", name, strings.Join(m.Why, ", "), m.Salience)
+		}
+	} else {
+		b.WriteString("\n**On her mind** nothing in particular\n")
+	}
+
 	if len(st.People) > 0 {
 		b.WriteString("\n**Towards the people here**\n```\n")
 		// Two short lines per person rather than one long one. A code block in
@@ -612,6 +628,19 @@ func runAbout(
 	b.WriteString("```\n")
 	if p.LastEvent != "" {
 		fmt.Fprintf(&b, "Last moved by: %s, <t:%d:R>\n", p.LastEvent, p.LastEventAt.Unix())
+	}
+	active := p.LastActiveAt
+	if p.LastSeen.After(active) {
+		active = p.LastSeen
+	}
+	salience, why := mind.PersonSalience(mind.PersonMind{
+		Closeness: closeness, Tension: tension,
+		LastExchange: p.LastExchangeAt, LastActive: active,
+	}, now)
+	if len(why) > 0 {
+		fmt.Fprintf(&b, "On her mind: %.2f — %s\n", salience, strings.Join(why, ", "))
+	} else {
+		b.WriteString("Not on her mind right now\n")
 	}
 
 	if p.Impression != "" {

@@ -95,6 +95,16 @@ func (s *Storage) AttentionSeekers(guildID string) []MindPerson {
 	return out
 }
 
+// MindPeople returns everyone she knows in a guild.
+func (s *Storage) MindPeople(guildID string) []MindPerson {
+	rows := s.mindPeopleByGuild.Find(guildID)
+	out := make([]MindPerson, 0, len(rows))
+	for _, p := range rows {
+		out = append(out, *p)
+	}
+	return out
+}
+
 // SetChatAttentionOff switches reaching out off, or back on, for a guild.
 func (s *Storage) SetChatAttentionOff(guildID string, off bool) error {
 	g := s.guildSettings(guildID)

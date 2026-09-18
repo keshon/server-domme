@@ -948,6 +948,37 @@ This is what keeps the character file from being a constant. The persona is
 static by design, because its properties were measured and are worth keeping
 fixed; what varies per message is the block underneath it.
 
+### What is on her mind
+
+Everything she starts on her own is an event meeting something that matters
+to her: a regular walking back in, a subject coming round, someone she misses
+staying away. The events were modelled; how much the thing they touch
+matters to her was a constant per kind of event — 0.6 for a returning regular,
+0.35 for an old subject — except for reaching out, which already computed it.
+Salience is that second half, computed once, so that later every event can be
+weighed by it instead: stimulus × salience, fed to the one initiative decision.
+
+`mind.OnHerMind` ranks the people she knows and the subjects she remembers in a
+server, at most five, above a floor of 0.15. A person's salience combines
+separate pulls — fond of them, annoyed with them, just talked, misses them,
+around and not talking to her — as independent chances, one minus the product
+of what each leaves, so two reasons count for more than one without anything
+running past 1. A conversation lingers about three hours, longer with someone
+who stirs something in her either way; absence only registers for someone she
+is at least a little close to, because nobody misses an acquaintance. A
+subject is a memory's brightness raised by how much it mattered, and capped at
+0.6: memories fade over days, so everything from today is near full
+brightness, and uncapped the last conversation's subject outranked everyone
+she knows.
+
+It is read-only. `/chat state` lists it as **On her mind**, with the reasons
+and the number, and `/chat about` gives one person's; nothing she does is
+driven by it yet. The ranking has to match the reader's own sense of her
+before anything leans on it — the same reason perception waits in shadow
+mode. Run over the test server's store it read: *Big M kept pushing after
+being left alone* (0.38, three hours ago) above **Big M** himself (0.29, just
+talked, annoyed with him).
+
 ### One description of how she is
 
 Her state used to reach the model as separate sentences, each written by the
