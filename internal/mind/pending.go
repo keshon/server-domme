@@ -56,6 +56,9 @@ type Deferred struct {
 	// Closer marks an approach that closed the topic; answering it, she is
 	// told the conversation has gone flat. See FlatDirective.
 	Closer bool
+	// Journal is the caller's record of this approach, carried so a late
+	// answer completes the same entry the decision opened.
+	Journal uint64
 	// FirstLine is what she has just said, for an afterthought: the second
 	// message is written knowing what the first one was.
 	FirstLine string

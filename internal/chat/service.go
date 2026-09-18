@@ -356,6 +356,12 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	// conversation as it stands when a worker picks it up, so this line will
 	// be in front of her. A second answer would reply to the same burst twice.
 	if s.answering(key) {
+		s.journalOpen(storage.MindJournal{
+			GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
+			MessageID: m.ID, UserID: m.Author.ID, Username: name, Excerpt: content,
+			Trigger: string(trigger), Outcome: outcomeJoined,
+			Reason: "she was already writing to them; that answer sees this line",
+		})
 		return
 	}
 
@@ -384,17 +390,34 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 
 	closer := (trigger == mind.TriggerFollowUp || trigger == mind.TriggerReply) && mind.IsCloser(content)
 
-	outcome := mind.Decide(s.attention, mind.Situation{
+	drives := s.drives(m.GuildID, m.ChannelID, now)
+	regard := s.regardFor(sess, m.GuildID, m.Author.ID)
+	roll := s.roll()
+	outcome, decision := mind.DecideWhy(s.attention, mind.Situation{
 		Trigger:       trigger,
 		Now:           now,
 		FirstApproach: first,
 		IgnoredLast:   ignoredLast,
 		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
-		Drives:        s.drives(m.GuildID, m.ChannelID, now),
+		Drives:        drives,
 		Irritation:    irritation,
-		Regard:        s.regardFor(sess, m.GuildID, m.Author.ID),
+		Regard:        regard,
 		Closer:        closer,
-	}, s.roll())
+	}, roll)
+
+	var warmth float64
+	if person != nil {
+		warmth = mind.WarmthNow(person.Warmth, person.WarmAt, now)
+	}
+	entry := storage.MindJournal{
+		GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
+		MessageID: m.ID, UserID: m.Author.ID, Username: name, Excerpt: content,
+		Trigger: string(trigger), Closer: closer,
+		Rule: decision.Rule, Chance: decision.Chance, Roll: roll,
+		Mood:     mind.MoodWords(drives),
+		Attitude: mind.Attitude(warmth, irritation, regard),
+		Outcome:  outcomeQueued,
+	}
 	// Letting "same" go is not ignoring someone. Recorded as an ignore it
 	// would force her to answer whatever they say next, and a quick follow-up
 	// would count as pestering her.
@@ -411,6 +434,9 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 			Str("channel_id", m.ChannelID).
 			Str("trigger", string(trigger)).
 			Msg("chat_approach_ignored")
+		entry.Outcome = outcomeSilent
+		s.journalOpen(entry)
+		s.count(m.GuildID, countSilent)
 		return
 	}
 
@@ -424,6 +450,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Trigger:   trigger,
 		FormedAt:  now,
 		Closer:    closer,
+		Journal:   s.journalOpen(entry),
 	}
 
 	select {

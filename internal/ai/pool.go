@@ -80,12 +80,19 @@ func (p *Pool) Len() int {
 // attemptsPerTry attempts before moving on, and returns ErrNoBackend when none
 // of them answered.
 func (p *Pool) Generate(ctx context.Context, messages []Message) (string, error) {
+	reply, _, err := p.GenerateNamed(ctx, messages)
+	return reply, err
+}
+
+// GenerateNamed is Generate, also reporting which backend answered, for a
+// caller that keeps a record of its replies.
+func (p *Pool) GenerateNamed(ctx context.Context, messages []Message) (string, string, error) {
 	var lastErr error
 
 	for _, b := range p.ready(time.Now()) {
 		for attempt := 1; attempt <= attemptsPerTry; attempt++ {
 			if ctx.Err() != nil {
-				return "", ctx.Err()
+				return "", "", ctx.Err()
 			}
 
 			reply, err := b.client.Generate(ctx, messages)
@@ -95,7 +102,7 @@ func (p *Pool) Generate(ctx context.Context, messages []Message) (string, error)
 					Str("backend", b.client.Name).
 					Int("attempt", attempt).
 					Msg("ai_generate_succeeded")
-				return reply, nil
+				return reply, b.client.Name, nil
 			}
 
 			lastErr = err
@@ -114,7 +121,7 @@ func (p *Pool) Generate(ctx context.Context, messages []Message) (string, error)
 			// the backend failing. Trying the next one would run past the
 			// deadline the caller set.
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return "", err
+				return "", "", err
 			}
 
 			// Move to the next backend rather than spending the second attempt
@@ -126,9 +133,9 @@ func (p *Pool) Generate(ctx context.Context, messages []Message) (string, error)
 	}
 
 	if lastErr == nil {
-		return "", fmt.Errorf("ai: %w: all backends in cooldown", ErrNoBackend)
+		return "", "", fmt.Errorf("ai: %w: all backends in cooldown", ErrNoBackend)
 	}
-	return "", fmt.Errorf("ai: %w: last error: %w", ErrNoBackend, lastErr)
+	return "", "", fmt.Errorf("ai: %w: last error: %w", ErrNoBackend, lastErr)
 }
 
 // ready returns the backends worth trying now, best score first. A backend in

@@ -36,6 +36,16 @@ func (s *Service) receive(guildID, channelID, userID, name, content string, now 
 		}
 	}
 
+	s.journalReaction(guildID, channelID, userID, kind)
+	switch kind {
+	case mind.ReceptionLiked:
+		s.count(guildID, countLiked)
+	case mind.ReceptionPanned:
+		s.count(guildID, countPanned)
+	case mind.ReceptionRepeating:
+		s.count(guildID, countRepeating)
+	}
+
 	s.log.Info().
 		Str("guild_id", guildID).
 		Str("channel_id", channelID).

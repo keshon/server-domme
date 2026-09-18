@@ -6,6 +6,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/mind"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 // considerAfterthought decides, right after she has spoken, whether a second
@@ -58,6 +59,13 @@ func (s *Service) considerAfterthought(ctx context.Context, t task, g mind.Groun
 	item.FirstLine = reply
 	item.Volunteering = ""
 	item.Attempts = 0
+	item.Journal = s.journalOpen(storage.MindJournal{
+		GuildID: item.GuildID, ChannelID: item.ChannelID, At: at,
+		UserID: item.UserID, Username: item.Username, Excerpt: reply,
+		Trigger: string(mind.TriggerAfterthought), Rule: "a second thought after her own short reply",
+		Mood:    mind.MoodWords(g.Drives),
+		Outcome: outcomeQueued,
+	})
 	followUp := task{item: item, after: sentID}
 
 	delay := mind.AfterthoughtDelay(s.roll())

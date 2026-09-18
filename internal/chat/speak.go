@@ -20,9 +20,15 @@ import (
 // could do — it breaks the character to report its own plumbing. Someone who
 // was busy answers late instead; see mind.Deferred.
 func (s *Service) speak(ctx context.Context, t task) {
+	// Whatever happens below ends up in the journal entry for this approach;
+	// see closeSpoken.
+	sp := &spoken{}
+	defer s.closeSpoken(t, sp)
+	started := time.Now()
+
 	sess := s.session()
 	if sess == nil {
-		s.hold(t, "no session")
+		s.holdSpoken(t, sp, "no gateway session")
 		return
 	}
 
@@ -57,7 +63,9 @@ func (s *Service) speak(ctx context.Context, t task) {
 	genCtx, cancel := context.WithTimeout(ctx, s.generateTimeout)
 	defer cancel()
 
-	reply, err := s.provider.Generate(genCtx, messages)
+	sp.told = grounding.Told()
+	reply, backend, err := s.generate(genCtx, messages)
+	sp.raw, sp.backend = reply, backend
 	if err != nil {
 		// A cancelled root context is a shutdown, not a backend problem.
 		// Holding the approach then would be recording work for a process
@@ -71,7 +79,8 @@ func (s *Service) speak(ctx context.Context, t task) {
 			Int("attempts", t.item.Attempts).
 			Bool("no_backend", errors.Is(err, ai.ErrNoBackend)).
 			Msg("chat_generate_failed")
-		s.hold(t, "generate failed")
+		s.count(t.item.GuildID, countRelayFailed)
+		s.holdSpoken(t, sp, "no relay answered")
 		return
 	}
 
@@ -89,15 +98,16 @@ func (s *Service) speak(ctx context.Context, t task) {
 				Msg("chat_thought_unsplittable")
 			grounding.InnerVoice = false
 			plain := mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget)
-			if reply, err = s.provider.Generate(genCtx, plain); err != nil {
+			if reply, sp.backend, err = s.generate(genCtx, plain); err != nil {
 				if ctx.Err() == nil {
-					s.hold(t, "generate failed")
+					s.holdSpoken(t, sp, "no relay answered")
 				}
 				return
 			}
 		} else {
 			reply = message
 			s.think(t.item.GuildID, t.item.ChannelID, thought)
+			sp.thought = thought
 		}
 	}
 
@@ -110,11 +120,14 @@ func (s *Service) speak(ctx context.Context, t task) {
 			Str("trigger", string(t.item.Trigger)).
 			Bool("closer", t.item.Closer).
 			Msg("chat_declined")
+		s.count(t.item.GuildID, countDeclined)
+		sp.outcome, sp.reason = outcomeDeclined, "decided it did not need an answer (SKIP)"
 		return
 	}
 
 	if t.item.Trigger == mind.TriggerAfterthought {
 		if !s.afterthoughtStands(t, reply) {
+			sp.reason = "second thought declined, repeated her or was overtaken"
 			return
 		}
 		// Every check that could still drop it runs before typing shows, so
@@ -122,9 +135,11 @@ func (s *Service) speak(ctx context.Context, t task) {
 		recent := s.conv.Recent(t.item.ChannelID)
 		if _, repeats := mind.RepeatsHerself(reply, recent); repeats || mind.Echoes(reply, recent) {
 			s.log.Info().Str("channel_id", t.item.ChannelID).Msg("chat_afterthought_withheld")
+			sp.reason = "second thought repeated something already said"
 			return
 		}
 		if !s.typeBriefly(ctx, sess, t) {
+			sp.reason = "the conversation moved on while she typed"
 			return
 		}
 	}
@@ -139,8 +154,11 @@ func (s *Service) speak(ctx context.Context, t task) {
 			Msg("chat_reply_echoed")
 		// Something she was free to decline is not retried later either: a
 		// late answer to "same" is stranger than none.
-		if !grounding.MayDecline {
-			s.hold(t, "echoed")
+		s.count(t.item.GuildID, countEcho)
+		if grounding.MayDecline {
+			sp.reason = "the model echoed their line"
+		} else {
+			s.holdSpoken(t, sp, "the model echoed their line")
 		}
 		return
 	}
@@ -153,15 +171,17 @@ func (s *Service) speak(ctx context.Context, t task) {
 			Str("guild_id", t.item.GuildID).
 			Str("channel_id", t.item.ChannelID).
 			Msg("chat_reply_repeated")
+		s.count(t.item.GuildID, countRepeat)
 		if t.item.Trigger == mind.TriggerAfterthought {
+			sp.reason = "second thought repeated something already said"
 			return
 		}
 		grounding.InnerVoice = false
 		again := append(mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget),
 			ai.Message{Role: ai.RoleSystem, Content: mind.RepeatNote(earlier)})
-		if reply, err = s.provider.Generate(genCtx, again); err != nil {
+		if reply, sp.backend, err = s.generate(genCtx, again); err != nil {
 			if ctx.Err() == nil {
-				s.hold(t, "generate failed")
+				s.holdSpoken(t, sp, "no relay answered")
 			}
 			return
 		}
@@ -170,11 +190,13 @@ func (s *Service) speak(ctx context.Context, t task) {
 				Str("guild_id", t.item.GuildID).
 				Str("channel_id", t.item.ChannelID).
 				Msg("chat_repeat_dropped")
+			sp.reason = "repeated herself twice; silence rather than a loop"
 			return
 		}
 	}
 
 	if grounding.MayDecline && !s.typeBriefly(ctx, sess, t) {
+		sp.reason = "shutting down"
 		return
 	}
 
@@ -195,6 +217,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 			Str("guild_id", t.item.GuildID).
 			Str("channel_id", t.item.ChannelID).
 			Msg("chat_send_failed")
+		sp.reason = "Discord refused the message: " + err.Error()
 		return
 	}
 
@@ -203,6 +226,15 @@ func (s *Service) speak(ctx context.Context, t task) {
 	var sentID string
 	if sent != nil {
 		sentID = sent.ID
+	}
+	sp.outcome, sp.posted, sp.replyID, sp.took = outcomeAnswered, reply, sentID, time.Since(started)
+	switch {
+	case t.item.Trigger == mind.TriggerAfterthought:
+		s.count(t.item.GuildID, countAfterthought)
+	case mind.Volunteered(t.item.Trigger):
+		s.count(t.item.GuildID, countVolunteered)
+	default:
+		s.count(t.item.GuildID, countAnswered)
 	}
 	spokeAt := time.Now()
 	s.conv.Record(t.item.ChannelID, mind.Turn{
@@ -501,6 +533,16 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	return g
 }
 
+// holdSpoken holds an approach for a later attempt and records that it was
+// held — or, for something nobody is owed, that it was dropped.
+func (s *Service) holdSpoken(t task, sp *spoken, reason string) {
+	sp.outcome, sp.reason = outcomeHeld, reason
+	if !mind.Owed(t.item.Trigger) {
+		sp.outcome = outcomeDropped
+	}
+	s.hold(t, reason)
+}
+
 // curtWith reports whether she is short with the person she is answering.
 func (s *Service) curtWith(g mind.Grounding, userID string) bool {
 	for _, p := range g.Present {
@@ -509,6 +551,22 @@ func (s *Service) curtWith(g mind.Grounding, userID string) bool {
 		}
 	}
 	return mind.IsCurt(0, g.Regard)
+}
+
+// namedProvider is a provider that can say which backend answered. The pool
+// is one; a test double need not be.
+type namedProvider interface {
+	GenerateNamed(ctx context.Context, messages []ai.Message) (string, string, error)
+}
+
+// generate asks the provider for a reply and reports which backend gave it,
+// when the provider can say.
+func (s *Service) generate(ctx context.Context, messages []ai.Message) (string, string, error) {
+	if named, ok := s.provider.(namedProvider); ok {
+		return named.GenerateNamed(ctx, messages)
+	}
+	reply, err := s.provider.Generate(ctx, messages)
+	return reply, "", err
 }
 
 // declinable reports whether she may still answer SKIP to this approach:

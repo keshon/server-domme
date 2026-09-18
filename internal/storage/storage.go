@@ -32,14 +32,18 @@ type Storage struct {
 	mindGuilds   *datastore.Collection[*MindGuild]
 	mindMemories *datastore.Collection[*MindMemory]
 	mindChannels *datastore.Collection[*MindChannel]
+	mindJournal  *datastore.Collection[*MindJournal]
+	mindDays     *datastore.Collection[*MindDay]
 
-	cmdLogByGuild       *datastore.Index[*CommandLogEntry]
-	purgeJobsByGuild    *datastore.Index[*PurgeJob]
-	shortLinkByGuild    *datastore.Index[*ShortLink]
-	tasksByGuild        *datastore.Index[*Task]
-	cooldownsByGuild    *datastore.Index[*TaskCooldown]
-	mindPeopleByGuild   *datastore.Index[*MindPerson]
-	mindMemoriesByGuild *datastore.Index[*MindMemory]
+	cmdLogByGuild        *datastore.Index[*CommandLogEntry]
+	purgeJobsByGuild     *datastore.Index[*PurgeJob]
+	shortLinkByGuild     *datastore.Index[*ShortLink]
+	tasksByGuild         *datastore.Index[*Task]
+	cooldownsByGuild     *datastore.Index[*TaskCooldown]
+	mindPeopleByGuild    *datastore.Index[*MindPerson]
+	mindMemoriesByGuild  *datastore.Index[*MindMemory]
+	mindJournalByChannel *datastore.Index[*MindJournal]
+	mindJournalByGuild   *datastore.Index[*MindJournal]
 }
 
 // NewStorage opens the database in dir, creating it if needed. The directory is
@@ -62,6 +66,8 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.mindGuilds = datastore.Register[*MindGuild](db, "mind_guilds")
 	s.mindMemories = datastore.Register[*MindMemory](db, "mind_memories")
 	s.mindChannels = datastore.Register[*MindChannel](db, "mind_channels")
+	s.mindJournal = datastore.Register[*MindJournal](db, "mind_journal")
+	s.mindDays = datastore.Register[*MindDay](db, "mind_days")
 
 	s.cmdLogByGuild = datastore.AddIndex(s.cmdLog, "guild",
 		func(c *CommandLogEntry) []string { return []string{c.GuildID} })
@@ -77,6 +83,10 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 		func(m *MindPerson) []string { return []string{m.GuildID} })
 	s.mindMemoriesByGuild = datastore.AddIndex(s.mindMemories, "guild",
 		func(m *MindMemory) []string { return []string{m.GuildID} })
+	s.mindJournalByChannel = datastore.AddIndex(s.mindJournal, "channel",
+		func(j *MindJournal) []string { return []string{journalChannel(j.GuildID, j.ChannelID)} })
+	s.mindJournalByGuild = datastore.AddIndex(s.mindJournal, "guild",
+		func(j *MindJournal) []string { return []string{j.GuildID} })
 
 	if err := db.Open(); err != nil {
 		return nil, err

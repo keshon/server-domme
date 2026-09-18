@@ -147,19 +147,45 @@ type Situation struct {
 // The two overrides come first and are not probabilistic, because they are the
 // cases where silence would be read as a defect rather than as a choice.
 func Decide(a Attention, s Situation, roll float64) Outcome {
+	outcome, _ := DecideWhy(a, s, roll)
+	return outcome
+}
+
+// Decision is how Decide reached its answer: which rule applied, and for the
+// odds, what they were. Kept for the journal, so "why did she not answer?"
+// has an answer that is not a reconstruction.
+type Decision struct {
+	Rule   string
+	Chance float64
+}
+
+// Decision rules.
+const (
+	RuleCloser        = "closer"
+	RuleFirstApproach = "first approach"
+	RuleIgnoredLast   = "ignored them last time"
+	RuleOdds          = "odds"
+)
+
+// DecideWhy is Decide, reporting how it decided.
+func DecideWhy(a Attention, s Situation, roll float64) (Outcome, Decision) {
 	// A closer inside an exchange she is part of is weighed on its own and
 	// skips the overrides: letting "same" go unanswered is not the silence
 	// that reads as a broken bot, it is how a conversation ends.
 	if s.Closer && (s.Trigger == TriggerFollowUp || s.Trigger == TriggerReply) {
-		chance := a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Irritation) + RegardNudge(s.Regard)
-		if roll < clamp01(chance) {
-			return OutcomeSpeak
+		chance := clamp01(a.CloserChance + s.Drives.Nudge() + IrritationNudge(s.Irritation) + RegardNudge(s.Regard))
+		d := Decision{Rule: RuleCloser, Chance: chance}
+		if roll < chance {
+			return OutcomeSpeak, d
 		}
-		return OutcomeIgnore
+		return OutcomeIgnore, d
 	}
 
-	if s.FirstApproach || s.IgnoredLast {
-		return OutcomeSpeak
+	if s.FirstApproach {
+		return OutcomeSpeak, Decision{Rule: RuleFirstApproach, Chance: 1}
+	}
+	if s.IgnoredLast {
+		return OutcomeSpeak, Decision{Rule: RuleIgnoredLast, Chance: 1}
 	}
 
 	engaged := !s.LastSpokeAt.IsZero() && s.Now.Sub(s.LastSpokeAt) < a.EngagedWindow
@@ -194,7 +220,7 @@ func Decide(a Attention, s Situation, roll float64) Outcome {
 		// already priced into FollowUpChance.
 		chance = a.FollowUpChance + s.Drives.Nudge()
 	default:
-		return OutcomeIgnore
+		return OutcomeIgnore, Decision{Rule: RuleOdds}
 	}
 
 	// Applied to every trigger, including a direct one, and unlike the mood.
@@ -205,10 +231,11 @@ func Decide(a Attention, s Situation, roll float64) Outcome {
 	chance += IrritationNudge(s.Irritation)
 	chance += RegardNudge(s.Regard)
 
-	if roll < clamp01(chance) {
-		return OutcomeSpeak
+	d := Decision{Rule: RuleOdds, Chance: clamp01(chance)}
+	if roll < d.Chance {
+		return OutcomeSpeak, d
 	}
-	return OutcomeIgnore
+	return OutcomeIgnore, d
 }
 
 func clamp01(v float64) float64 {

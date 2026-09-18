@@ -33,6 +33,8 @@ const (
 	subRole    = "role"
 	subSpeakUp = "proactive"
 	subAbout   = "about"
+	subWhy     = "why"
+	optMessage = "message"
 	optUser    = "user"
 	optEnabled = "enabled"
 	optRole    = "role"
@@ -146,6 +148,19 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subWhy,
+				Description: "Why she did what she did about a message — the latest here, or one you name",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        optMessage,
+						Description: "A message link or id — theirs or her reply. Empty for the latest",
+						Required:    false,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subAbout,
 				Description: "What she knows and thinks about someone",
 				Options: []*discordgo.ApplicationCommandOption{
@@ -197,7 +212,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `about`, `role`, `proactive` or `forget`.")
+		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `why`, `about`, `role`, `proactive` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -245,6 +260,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subAbout:
 		return runAbout(context, sub)
+
+	case subWhy:
+		return c.runWhy(context, sub)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -297,6 +315,12 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 		b.WriteString("\n")
 	}
 
+	if today := c.Service.Today(e.GuildID); len(today) > 0 {
+		b.WriteString("\n**Today**\n")
+		b.WriteString(todayLine(today))
+		b.WriteString("\n")
+	}
+
 	status := c.Service.Status()
 	if status.Waiting > 0 || status.Queued > 0 {
 		fmt.Fprintf(&b, "Owed replies: %d held, %d queued\n", status.Waiting, status.Queued)
@@ -321,6 +345,25 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 	}
 
 	return respond(s, e, b.String())
+}
+
+// todayOrder is the order the day's counts are shown in: what she did, then
+// how it went down, then what went wrong.
+var todayOrder = []string{
+	"answered", "silent", "declined", "volunteered", "afterthought",
+	"liked", "panned", "told repeating",
+	"repeat caught", "echo caught", "relay failed",
+}
+
+// todayLine renders the day's counts on one line, leaving out the zeros.
+func todayLine(counts map[string]int) string {
+	var parts []string
+	for _, name := range todayOrder {
+		if n := counts[name]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", name, n))
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 // maxBackendErrorChars caps a quoted backend error. Discord refuses an embed

@@ -64,6 +64,14 @@ func (s *Service) maybeVolunteer(m *discordgo.MessageCreate, name string, person
 		Trigger:      trigger,
 		FormedAt:     now,
 		Volunteering: why,
+		Journal: s.journalOpen(storage.MindJournal{
+			GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
+			MessageID: m.ID, UserID: m.Author.ID, Username: name,
+			Excerpt: m.ContentWithMentionsReplaced(),
+			Trigger: string(trigger), Rule: "spoke first: " + why,
+			Mood:    mind.MoodWords(s.drives(m.GuildID, m.ChannelID, now)),
+			Outcome: outcomeQueued,
+		}),
 	}
 
 	select {

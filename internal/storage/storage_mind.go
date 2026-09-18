@@ -315,6 +315,15 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 			forgotten++
 		}
 
+		// The journal goes too: it carries excerpts of what people said and
+		// what she thought of them, which is exactly what was asked to go.
+		journal := datastore.In(tx, s.mindJournal)
+		for _, j := range datastore.InIndex(tx, s.mindJournalByGuild).Find(guildID) {
+			if err := journal.Delete(j.Key()); err != nil {
+				return err
+			}
+		}
+
 		people := datastore.In(tx, s.mindPeople)
 		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
 			if p.Irritation == 0 && p.IrritatedAt.IsZero() && p.Warmth == 0 &&

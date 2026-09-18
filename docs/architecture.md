@@ -938,6 +938,37 @@ because the name list is per guild and per message, so there is nothing to
 compile once or cache — an earlier version cached compiled patterns in a map
 and was a data race.
 
+### Why she did that
+
+Every question about her behaviour in testing was about one moment — why did
+she ignore me, why that line, was that intentional — and the answer had to be
+rebuilt from the code each time. The journal records it as it happens.
+
+One entry per decision about a message that reached her (`storage.MindJournal`,
+the last 50 per channel): who and what, how it reached her, the rule that
+decided (`mind.DecideWhy`: first approach, ignored last time, a closer's odds,
+the ordinary odds) with the chance and the roll, her mood and her stance
+towards them. An answer carries its entry in the task (`Deferred.Journal`), so
+the same entry is completed however it resolves — answered, declined, dropped,
+held and answered late — with the state instructions it carried
+(`Grounding.Told`), her thought, what the model returned, what was posted,
+which relay answered (`Pool.GenerateNamed`) and how long it took. A reaction to
+her reply is written onto the entry for that reply. Lines that arrive while an
+answer to the same person is already coming get an entry saying so, since
+"why did she not answer my second line" is the same question.
+
+`/chat why` renders an entry in plain words: the latest in the channel, or the
+one about a message given by link or id — theirs or her reply. It is kept in
+the datastore, cleared by `/chat forget` with the memories since it carries
+excerpts of what people said, and trimmed to excerpts for the same reason.
+
+`/chat status` shows today's counts beside it (`storage.MindDay`, in the
+community's timezone): answered, silent, declined, volunteered, afterthoughts,
+liked, panned, told she was repeating, repeats and echoes caught, relay
+failures. Counts rather than the journal, because a busy channel turns fifty
+entries over in an hour and whether a change made her better is a question
+about a day, not about a moment.
+
 ### The character file
 
 `data/character.md` is authored content read at startup: prose, hard limits,

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/mind"
+	"github.com/keshon/server-domme/internal/storage"
 )
 
 // Being switched off and failing to start produce the same silence in a
@@ -84,13 +86,13 @@ func TestEverySubcommandIsOfferedToDiscord(t *testing.T) {
 		offered[opt.Name] = true
 	}
 
-	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState, subForget, subRole, subSpeakUp, subAbout} {
+	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState, subForget, subRole, subSpeakUp, subAbout, subWhy} {
 		if !offered[name] {
 			t.Errorf("%q is handled in Run but never offered in SlashDefinition, so nobody can run it", name)
 		}
 	}
-	if len(offered) != 9 {
-		t.Errorf("SlashDefinition offers %d subcommands, want 9 — an unhandled one fails closed", len(offered))
+	if len(offered) != 10 {
+		t.Errorf("SlashDefinition offers %d subcommands, want 10 — an unhandled one fails closed", len(offered))
 	}
 }
 
@@ -148,5 +150,18 @@ func TestForgetIsGuardedByATypedWord(t *testing.T) {
 	}
 	if confirmOpt.Type != discordgo.ApplicationCommandOptionString {
 		t.Errorf("confirm is a %v, want a string the admin has to type", confirmOpt.Type)
+	}
+}
+
+func TestExplainSaysWhySheStayedQuiet(t *testing.T) {
+	got := explain(storage.MindJournal{
+		Username: "Big M", Excerpt: "took you time to type it heh",
+		Trigger: "follow-up", Rule: mind.RuleOdds, Chance: 0.8, Roll: 0.91,
+		Outcome: "stayed quiet", Mood: "sharp, interested", Attitude: "neutral",
+	})
+	for _, want := range []string{"carried on talking to her, untagged", "odds 80%, rolled 91 → stay quiet", "towards them: neutral"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("explanation missing %q:\n%s", want, got)
+		}
 	}
 }
