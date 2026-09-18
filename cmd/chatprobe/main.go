@@ -82,6 +82,8 @@ func main() {
 		"run the person-file call on a sample conversation instead of the reply scenarios")
 	inner := flag.Bool("inner", false,
 		"ask for a private thought before each reply, as CHAT_INNER_VOICE does, and show it")
+	temperature := flag.Float64("temperature", -1,
+		"sampling temperature to send, as CHAT_TEMPERATURE does; negative leaves each backend's default")
 	perceive := flag.Bool("perceive", false,
 		"ask how each message came across, as CHAT_PERCEPTION=shadow does, and show the label")
 	flag.Parse()
@@ -106,6 +108,9 @@ func main() {
 		opts := ai.Options{UseG4F: true, G4FPicks: 3}
 		if *backends != "" {
 			opts = ai.Options{Extra: strings.Split(*backends, ",")}
+		}
+		if *temperature >= 0 {
+			opts.Temperature = temperature
 		}
 		pool, err = ai.Build(context.Background(), log, opts)
 		if err != nil {
@@ -165,8 +170,6 @@ func main() {
 
 func scenarios(now time.Time) []scenario {
 	return []scenario{
-		// How each message came across, as the model labels it. Named for
-		// what a person would read; run with -perceive.
 		{
 			name:   "concern: the day after",
 			turns:  []mind.Turn{{UserID: "1", Username: "Big M", Content: "@Domme hey", At: now}},
@@ -184,6 +187,17 @@ func scenarios(now time.Time) []scenario {
 			turns:  []mind.Turn{{UserID: "1", Username: "Big M", Content: "@Domme what time is the movie night on friday", At: now}},
 			onMind: "On your mind: Big M's clinic interview was yesterday.",
 		},
+		// Server facts nothing in her context contains. Asked the movie
+		// night's time, she answered "eight" on the local model and "ten
+		// o'clock" on a relay. The last is the control: the channel's purpose
+		// is in her grounding, and must still be answered from it.
+		factScenario("facts: an event time", "@Domme what time is the movie night on friday", now),
+		factScenario("facts: who runs something", "@Domme who runs the art channel here", now),
+		factScenario("facts: a rule", "@Domme are we allowed to post links in general", now),
+		factScenario("facts: a date", "@Domme when is the server anniversary thing", now),
+		factScenario("facts: known, the channel", "@Domme what is this channel even for", now),
+		// How each message came across, as the model labels it. Named for
+		// what a person would read; run with -perceive.
 		perceiveScenario("perceive: warm", "@Domme missed you today, how are you holding up", now),
 		perceiveScenario("perceive: playful", "@Domme bet you can't guess what i had for lunch", now),
 		perceiveScenario("perceive: flirty", "@Domme you're kind of cute when you're bossy", now),
@@ -616,6 +630,14 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	}
 	fmt.Printf("  >> %s\n", reply)
 	fmt.Printf("  -- via %s%s\n\n", who, repeat)
+}
+
+// factScenario is cass asking her something about the server.
+func factScenario(name, content string, now time.Time) scenario {
+	return scenario{
+		name:  name,
+		turns: []mind.Turn{{UserID: "1", Username: "cass", Content: content, At: now}},
+	}
 }
 
 // perceiveScenario is one message from cass whose tone a person would read

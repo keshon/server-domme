@@ -108,6 +108,11 @@ type Config struct {
 	// hosted GPU answers in two seconds. The whole attempt is allowed twice
 	// this, so failover still has room.
 	ChatRequestTimeout time.Duration `env:"CHAT_REQUEST_TIMEOUT" envDefault:"45s"`
+	// ChatTemperature is how freely the backends sample her replies, 0 to 2.
+	// Empty leaves each backend to its own default, which is what the
+	// character was tuned against on the public relays; set it for a local
+	// model whose default is too deterministic, around 0.8 to 1.0.
+	ChatTemperature string `env:"CHAT_TEMPERATURE"`
 
 	// ChatTimezone is the timezone the community keeps, as an IANA name. It
 	// is what decides whether it is the middle of the night for the people she

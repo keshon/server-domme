@@ -66,6 +66,17 @@ type Options struct {
 	// default is sized for the latter.
 	Timeout time.Duration
 
+	// Temperature is how freely every backend samples, sent with each
+	// request; nil leaves each one to its default.
+	//
+	// The relays sample with some freedom of their own, and a character
+	// tuned against them sounds like herself at their defaults. A backend on
+	// someone's own machine is another matter: KoboldCpp's default answered
+	// the same message with the same words, run after run, and a character
+	// who says exactly the same thing to the same situation every time reads
+	// as a machine however good the line is.
+	Temperature *float64
+
 	// Extra holds additional backends as "name|baseURL|model|key" specs, most
 	// preferred first. See ParseBackendSpec.
 	//
@@ -129,10 +140,11 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 			PollinationsBaseURL, PollinationsModel, ""))
 	}
 
-	if opts.Timeout > 0 {
-		for _, c := range clients {
+	for _, c := range clients {
+		if opts.Timeout > 0 {
 			c.HTTP.Timeout = opts.Timeout
 		}
+		c.Temperature = opts.Temperature
 	}
 
 	pool := NewPool(log, clients...)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/keshon/server-domme/internal/ai"
@@ -75,6 +77,7 @@ func buildChatService(
 		CustomAPIKey:    cfg.ChatAPIKey,
 		Extra:           cfg.ChatBackends,
 		Timeout:         cfg.ChatRequestTimeout,
+		Temperature:     temperature(cfg.ChatTemperature, log),
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("chat_backend_build_failed")
@@ -142,4 +145,23 @@ func buildChatService(
 		PerceiveShadow: cfg.ChatPerception == perceptionShadow,
 		CasualSlips:    cfg.ChatCasualSlips,
 	}), ""
+}
+
+// maxTemperature is the top of the range OpenAI-compatible backends accept.
+const maxTemperature = 2
+
+// temperature reads CHAT_TEMPERATURE: nil when it is empty, and nil with a
+// warning when it is not a number in range. A bad value is a misconfiguration,
+// not a reason to refuse to start; she falls back to each backend's default.
+func temperature(raw string, log zerolog.Logger) *float64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	t, err := strconv.ParseFloat(raw, 64)
+	if err != nil || t < 0 || t > maxTemperature {
+		log.Warn().Str("value", raw).Msg("chat_temperature_invalid")
+		return nil
+	}
+	return &t
 }

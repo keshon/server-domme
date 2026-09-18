@@ -47,13 +47,26 @@ func DefaultBudget() Budget {
 // because a model did the opposite unprompted — continuing the transcript in
 // other people's voices is the most common and the most jarring, which is why
 // it is stated first and stated twice.
+//
+// The line on server specifics is the boundary of what she knows. A character
+// who has been somewhere for years is played as knowing everything about it,
+// and asked what time movie night was, what the rule on links was or who ran
+// a channel, she answered with a time, a rule and a name she had never been
+// given — ten times in twelve on a local model, and the relays did the same.
+// It says what to do rather than what she does not know: told plainly that
+// she lacked an answer, earlier wordings sent her into an assistant's
+// "I don't have access to that".
 const outputRules = `How to answer:
 - Write only your own next message. Never write anyone else's lines, and never continue the conversation past your own reply.
 - Do not prefix your message with your own name.
 - One message. No stage directions, no asterisks describing actions, no narration.
 - Keep it short — a sentence or two is normal in chat. Length is earned, not default.
 - Plain text as a person would type it in Discord.
-- If you have nothing worth adding, say something brief rather than padding.`
+- If you have nothing worth adding, say something brief rather than padding.
+- Specifics about this server — times, dates, rules, who runs what — come only from what is written above. For anything else, point them to where it would be (the pins, an announcement, whoever runs it) in your own voice; never supply one yourself.`
+
+// examplesEnd separates the voice examples from the live conversation.
+const examplesEnd = "Those were examples of how you talk, not things that happened. The conversation in this channel starts now."
 
 // Build assembles the messages for one reply.
 //
@@ -80,6 +93,15 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 			ai.Message{Role: ai.RoleUser, Content: ex.User},
 			ai.Message{Role: ai.RoleAssistant, Content: ex.Assistant},
 		)
+	}
+
+	// Where the examples end and the conversation begins. The examples are
+	// turns because that is what keeps the voice (see above), and turns read
+	// as history: answering a request for a script, a local model said "i
+	// already told the other one", about an example; a relay once answered an
+	// example asking for a link instead of the message in front of it.
+	if len(c.Examples) > 0 && limit > 0 {
+		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: examplesEnd})
 	}
 
 	msgs = append(msgs, renderHistory(turns, b.MaxHistoryChars, g.Now)...)

@@ -1436,6 +1436,38 @@ failures. Counts rather than the journal, because a busy channel turns fifty
 entries over in an hour and whether a change made her better is a question
 about a day, not about a moment.
 
+### What she knows about the server
+
+A character who has been somewhere for years is played as knowing everything
+about it. Asked what time movie night was, who ran the art channel, whether
+links were allowed or when the anniversary was, she answered with a time, a
+name, a rule and a date she had never been given — ten times in twelve on a
+local model, and a relay had answered "ten o'clock" to the same question
+before. What she knows about the server is exactly what her grounding says:
+the brief, the channel and its topic, her memories, what people told her.
+
+The boundary is one line of the answer contract (`outputRules`), for every
+character rather than in one character file: specifics about the server come
+only from what is written above, and for anything else she points them to
+where it would be, in her own voice. Phrased as what to do — told plainly that
+she lacked an answer, earlier wordings sent her into an assistant's "I don't
+have access to that". Measured on the same four questions, three runs each:
+the time, the name and the date became "check the pins, cass. i am not the
+calendar." every time; the rule on links became her own attitude ("if it's
+spam, you'll hear about it") twice and the pins once; the one question she
+could answer from her grounding, what the channel is for, was still answered
+from its topic. Once in three she pointed a question she could have answered
+at the pins as well, which is the direction to watch.
+
+The same run turned up the character file's examples being read as history:
+asked for a script, she answered "i already told the other one", about an
+example asking for one. The examples are turns because that is what keeps the
+voice, so a line now marks where they end and the conversation begins
+(`examplesEnd`). With it she refused the script three times in three without
+the reference, and her voice elsewhere read as before; the one visible cost is
+that asked whether she was new she used her example's line word for word each
+time rather than paraphrasing it.
+
 ### The character file
 
 `data/character.md` is authored content read at startup: prose, hard limits,
@@ -1537,7 +1569,16 @@ does the same job with no new software. Port-forwarding an inference server to
 the internet does not belong on this list: these servers authenticate weakly if
 at all, and anyone who finds one owns the GPU behind it.
 
-Two settings exist because of this case. `CHAT_REQUEST_TIMEOUT` raises the
+Three settings exist because of this case. `CHAT_TEMPERATURE` sets how freely
+every backend samples, sent with each request (`ai.Options.Temperature`);
+empty, it is left out, and each backend samples the way it does by default,
+which is what the character was tuned against on the relays. A local model's
+default can be far more deterministic: KoboldCpp answered the same message
+with the same words run after run, and a character who says exactly the same
+thing to the same situation reads as a machine however good the line is.
+Around 0.8 to 1.0 is a start. It is one setting for the pool rather than one
+per kind of call, because nothing measured says her note-taking wants
+different sampling from her speech. `CHAT_REQUEST_TIMEOUT` raises the
 per-backend deadline, since a model on CPU can spend most of a minute on a
 prompt a hosted GPU answers in two seconds, and the whole attempt is allowed
 twice that so failover still fits. The compose file sets

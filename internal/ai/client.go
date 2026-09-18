@@ -40,6 +40,10 @@ type Client struct {
 	Model string
 	// APIKey is sent as a bearer token when set. The free relays ignore it.
 	APIKey string
+	// Temperature is sent with every request when set, and left out when
+	// nil so that each backend samples the way it does by default. See
+	// Options.Temperature.
+	Temperature *float64
 
 	HTTP *http.Client
 }
@@ -56,9 +60,10 @@ func NewClient(name, baseURL, model, apiKey string) *Client {
 }
 
 type chatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Stream      bool      `json:"stream"`
+	Temperature *float64  `json:"temperature,omitempty"`
 }
 
 type chatResponse struct {
@@ -81,7 +86,9 @@ type chatResponse struct {
 
 // Generate implements Provider.
 func (c *Client) Generate(ctx context.Context, messages []Message) (string, error) {
-	body, err := json.Marshal(chatRequest{Model: c.Model, Messages: messages, Stream: false})
+	body, err := json.Marshal(chatRequest{
+		Model: c.Model, Messages: messages, Stream: false, Temperature: c.Temperature,
+	})
 	if err != nil {
 		return "", fmt.Errorf("ai: encode request for %s: %w", c.Name, err)
 	}

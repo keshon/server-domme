@@ -143,3 +143,33 @@ func TestClientGenerateReportsHTTPFailure(t *testing.T) {
 		t.Fatalf("Generate err = %v, want the status code reported", err)
 	}
 }
+
+// Left out when unset, so a relay samples the way she was tuned against;
+// sent as given when set.
+func TestClientSendsTemperatureOnlyWhenSet(t *testing.T) {
+	var raw []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"ok"}}]}`)
+	}))
+	defer srv.Close()
+
+	c := NewClient("test", srv.URL, "m", "")
+	if _, err := c.Generate(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "temperature") {
+		t.Errorf("sent a temperature nobody set: %s", raw)
+	}
+
+	warm := 0.9
+	c.Temperature = &warm
+	if _, err := c.Generate(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	var got chatRequest
+	_ = json.Unmarshal(raw, &got)
+	if got.Temperature == nil || *got.Temperature != 0.9 {
+		t.Errorf("temperature sent as %v, want 0.9", got.Temperature)
+	}
+}

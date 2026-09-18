@@ -65,8 +65,34 @@ func TestBuildCapsTheNumberOfExamples(t *testing.T) {
 	b.MaxExamples = 1
 
 	msgs := Build(c, Grounding{}, nil, b)
-	if len(msgs) != 3 {
-		t.Fatalf("built %d messages, want system plus one exchange", len(msgs))
+	if len(msgs) != 4 {
+		t.Fatalf("built %d messages, want system, one exchange and the end of the examples", len(msgs))
+	}
+}
+
+// Examples are turns, and turns read as history: without a line between them
+// and the conversation, a model answered "i already told the other one" about
+// an example. The marker goes after the last example and before anything live.
+func TestBuildMarksWhereTheExamplesEnd(t *testing.T) {
+	c := testCharacter()
+	turns := []Turn{{UserID: "1", Username: "cass", Content: "hey", At: time.Now()}}
+	msgs := Build(c, Grounding{Now: time.Now()}, turns, DefaultBudget())
+
+	at := -1
+	for i, m := range msgs {
+		if m.Content == examplesEnd {
+			at = i
+		}
+	}
+	if at < 0 {
+		t.Fatal("no line between the examples and the conversation")
+	}
+	if msgs[at-1].Role != ai.RoleAssistant || !strings.Contains(msgs[at+1].Content, "hey") {
+		t.Errorf("the marker is not between the last example and the first live line: %d", at)
+	}
+
+	if got := Build(&Character{Name: "X", Persona: "p"}, Grounding{}, nil, DefaultBudget()); len(got) != 1 {
+		t.Errorf("a character with no examples got a marker for them: %d messages", len(got))
 	}
 }
 
