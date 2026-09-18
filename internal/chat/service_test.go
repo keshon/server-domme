@@ -1179,3 +1179,81 @@ func TestRememberedToneLengthensTheMemory(t *testing.T) {
 			got[0].Weight, plain)
 	}
 }
+
+// Discord's reply with the ping left on lists her among the mentions too. It
+// is still a reply, and only a reply is anchored as one.
+func TestObserveTreatsAPingingReplyAsAReply(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := newTestService(t, store, 0)
+	svc.conv.Record(testChannel, botTurn("m-hers", "sure thing", time.Now().Add(-30*time.Second)))
+
+	m := replyTo("m-hers", `I want you tag me and say "hello butthead"`)
+	m.Mentions = []*discordgo.User{{ID: selfUserID}}
+	svc.Observe(testSession(), m)
+
+	got, ok := queued(svc)
+	if !ok {
+		t.Fatal("ignored a reply that pinged her")
+	}
+	if got.item.Trigger != mind.TriggerReply {
+		t.Errorf("trigger = %q, want %q", got.item.Trigger, mind.TriggerReply)
+	}
+}
+
+func TestOutgoingPingsOnlyThePersonSheIsAnswering(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u2", Username: "John", Content: "hi", At: now.Add(-time.Minute)})
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "Big M", Content: "tag me", At: now})
+
+	at := task{item: mind.Deferred{
+		ChannelID: testChannel, MessageID: "m1", UserID: "u1", Username: "Big M",
+		Trigger: mind.TriggerMention,
+	}}
+	msg := svc.outgoing(at, "@Big M hello butthead, and @John too")
+
+	if msg.Content != "<@u1> hello butthead, and <@u2> too" {
+		t.Errorf("content = %q", msg.Content)
+	}
+	if got := msg.AllowedMentions.Users; len(got) != 1 || got[0] != "u1" {
+		t.Errorf("may ping %v, want only the person she is answering", got)
+	}
+	if len(msg.AllowedMentions.Parse) != 0 {
+		t.Errorf("parses %v, want nothing — no roles, no @everyone", msg.AllowedMentions.Parse)
+	}
+}
+
+// A mention of someone else is rendered but notifies nobody.
+func TestOutgoingNamingSomeoneElsePingsNobody(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u2", Username: "John", Content: "hi", At: time.Now()})
+
+	at := task{item: mind.Deferred{ChannelID: testChannel, MessageID: "m1", UserID: "u1", Username: "Big M"}}
+	msg := svc.outgoing(at, "ask @John")
+
+	if len(msg.AllowedMentions.Users) != 0 {
+		t.Errorf("may ping %v, want nobody", msg.AllowedMentions.Users)
+	}
+}
+
+func TestOutgoingAnchorsAReplyButNotAnAfterthought(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+
+	reply := task{item: mind.Deferred{ChannelID: testChannel, MessageID: "m1", UserID: "u1", Trigger: mind.TriggerReply}}
+	if svc.outgoing(reply, "fine").Reference == nil {
+		t.Error("answered a reply without anchoring it")
+	}
+
+	after := reply
+	after.item.Trigger = mind.TriggerAfterthought
+	after.late = true
+	if svc.outgoing(after, "and stop it").Reference != nil {
+		t.Error("anchored an afterthought")
+	}
+}

@@ -363,14 +363,18 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 func (s *Service) triggerFor(sess *discordgo.Session, m *discordgo.MessageCreate, content string, followsUp bool) (mind.Trigger, bool) {
 	self := selfID(sess)
 
+	// A reply before a mention. Discord's reply with its ping left on also
+	// lists her among the mentions, so checking mentions first classified
+	// every such reply as a plain mention and the reply was never anchored;
+	// see Service.send.
+	if s.repliesToHer(m, self) {
+		return mind.TriggerReply, true
+	}
+
 	for _, u := range m.Mentions {
 		if u.ID == self {
 			return mind.TriggerMention, true
 		}
-	}
-
-	if s.repliesToHer(m, self) {
-		return mind.TriggerReply, true
 	}
 
 	if names := s.namesFor(sess, m.GuildID); mind.SaysName(content, names) {

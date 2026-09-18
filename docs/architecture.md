@@ -479,9 +479,18 @@ A message that has aged out of the buffer counts as needing one: it is gone
 because time passed, which is when an unanchored reply lands with nothing
 around it to explain what it answers.
 
-She does not @mention the person either. Her allowed-mentions are empty so it
-would not ping, and an inline mention reads like a bot addressing a ticket
-where the reply anchor shows the same thing without touching what she says.
+A Discord reply that pings her also lists her among the message's mentions,
+so the reply check runs before the mention check. The other way round, every
+pinging reply was classified as a plain mention and never anchored.
+
+She does not @mention people by default: an inline mention on every line reads
+like a bot addressing a ticket, and the anchor shows the same thing. When she
+does write "@Name" — because she chose to, or because someone asked —
+`mind.ResolveMentions` turns it into a real mention for anyone in the
+conversation. Only the person she is answering can be notified by it. Anyone
+else she names renders as a mention and gets no notification, because letting
+her ping whoever she names makes her an instrument for pinging someone else
+with an insult. Roles, @everyone and @here are never parsed.
 
 ### Speaking first
 

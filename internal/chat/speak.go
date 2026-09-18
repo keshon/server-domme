@@ -265,34 +265,41 @@ func (s *Service) hold(t task, reason string) {
 		Msg("chat_approach_abandoned")
 }
 
-// send posts the reply, anchored to the message it answers.
-//
-// It goes out as a Discord reply for two of the three triggers: answering a
-// reply, and any late answer. A late answer that is not anchored reads as an
-// interruption about nothing, because by then the thing it answers has
-// scrolled away — the anchor is what makes the delay work rather than just
-// being a delay.
+// send posts the reply, anchored to the message it answers when that helps.
 func (s *Service) send(sess *discordgo.Session, t task, content string) (*discordgo.Message, error) {
-	msg := &discordgo.MessageSend{
-		Content: content,
-		// She may address people by name, but nothing she says should ping a
-		// role or the whole server. Replies do not ping the author either: a
-		// notification for every line of a conversation someone is already
-		// reading is noise.
-		AllowedMentions: &discordgo.MessageAllowedMentions{
-			Parse: []discordgo.AllowedMentionType{},
-		},
+	return sess.ChannelMessageSendComplex(t.item.ChannelID, s.outgoing(t, content))
+}
+
+// outgoing builds the message as Discord will receive it.
+//
+// Anchored when a bare message would leave people guessing: a held reply, an
+// answer to someone who replied to her, or a channel where somebody else has
+// spoken since the line she is answering. Not otherwise — see
+// mind.NeedsAnchor. An afterthought never is: it follows her own message, and
+// quoting the original line again would split one thought across two anchors.
+//
+// "@Name" she wrote becomes a real mention for anyone in the conversation, but
+// only the person she is answering can be notified by it. Letting her ping
+// whoever she names would make her an instrument: "tag John and call him a
+// butthead" is one message away. Everyone else she names still renders as a
+// mention and simply gets no notification; roles, @everyone and @here are
+// never parsed at all.
+func (s *Service) outgoing(t task, content string) *discordgo.MessageSend {
+	recent := s.conv.Recent(t.item.ChannelID)
+
+	resolved, named := mind.ResolveMentions(content, mentionable(recent, t.item))
+
+	allowed := &discordgo.MessageAllowedMentions{Parse: []discordgo.AllowedMentionType{}}
+	for _, id := range named {
+		if id == t.item.UserID {
+			allowed.Users = []string{id}
+		}
 	}
 
-	// Anchored when a bare message would leave people guessing: a held reply,
-	// an answer to someone who replied to her, or a channel where somebody
-	// else has spoken since the line she is answering. Not otherwise — see
-	// mind.NeedsAnchor.
-	//
-	// An afterthought never is. It follows her own message, and quoting the
-	// original line again would split one thought across two anchors.
+	msg := &discordgo.MessageSend{Content: resolved, AllowedMentions: allowed}
+
 	anchor := t.late || t.item.Trigger == mind.TriggerReply ||
-		mind.NeedsAnchor(s.conv.Recent(t.item.ChannelID), t.item.MessageID, t.item.UserID)
+		mind.NeedsAnchor(recent, t.item.MessageID, t.item.UserID)
 	if anchor && t.item.Trigger != mind.TriggerAfterthought {
 		msg.Reference = &discordgo.MessageReference{
 			MessageID: t.item.MessageID,
@@ -300,8 +307,28 @@ func (s *Service) send(sess *discordgo.Session, t task, content string) (*discor
 			GuildID:   t.item.GuildID,
 		}
 	}
+	return msg
+}
 
-	return sess.ChannelMessageSendComplex(t.item.ChannelID, msg)
+// mentionable is everyone she could name: the people in the conversation, by
+// the names the conversation shows her, and the person she is answering.
+func mentionable(turns []mind.Turn, item mind.Deferred) []mind.Person {
+	seen := make(map[string]bool)
+	var people []mind.Person
+	add := func(id, name string) {
+		if id == "" || name == "" || seen[id+"\x00"+name] {
+			return
+		}
+		seen[id+"\x00"+name] = true
+		people = append(people, mind.Person{ID: id, Name: name})
+	}
+	add(item.UserID, item.Username)
+	for _, turn := range turns {
+		if !turn.FromBot {
+			add(turn.UserID, turn.Username)
+		}
+	}
+	return people
 }
 
 // ground assembles what she knows about where she is.
