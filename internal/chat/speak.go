@@ -178,6 +178,13 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
+	// Last of all, once nothing can drop it: what is recorded and checked
+	// against next time is what people actually saw.
+	reply = mind.Casual(reply, mind.CasualStyle{
+		Curt:       s.curtWith(grounding, t.item.UserID),
+		SlipChance: s.casualSlips,
+	}, s.roll())
+
 	sent, err := s.send(sess, t, reply)
 	if err != nil {
 		// The reply exists but could not be delivered — a missing permission,
@@ -492,6 +499,16 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 		}
 	}
 	return g
+}
+
+// curtWith reports whether she is short with the person she is answering.
+func (s *Service) curtWith(g mind.Grounding, userID string) bool {
+	for _, p := range g.Present {
+		if p.UserID == userID {
+			return mind.IsCurt(p.Irritation, g.Regard)
+		}
+	}
+	return mind.IsCurt(0, g.Regard)
 }
 
 // declinable reports whether she may still answer SKIP to this approach:

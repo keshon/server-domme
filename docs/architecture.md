@@ -390,6 +390,33 @@ five answered in character ("guess the standards are slipping").
 It is crude and English-only, and applied only to a message answering her,
 which is what keeps "lame" about somebody else's game from counting.
 
+### Typed, not composed
+
+Models write finished prose: a full stop at the end, em-dashes, typographer's
+quotes, the odd semicolon. People in a chat do none of that, and it is the kind
+of tell nobody names but everybody notices. `mind.Casual` evens it out on the
+way to the channel, after every check that could drop a reply, so what is
+recorded and compared against next time is what people actually saw:
+
+- The final full stop goes. People mostly leave it off, which makes one a
+  signal — "yeah." is not "yeah" — so it stays when she is short with the
+  person or cold towards their roles (`mind.IsCurt`), where the curtness is
+  the point. An ellipsis always stays.
+- Em and en dashes become " - ", curly quotes and apostrophes straight ones,
+  "…" three dots, and a semicolon between clauses a comma.
+- With `CHAT_CASUAL_SLIPS` odds (0.2 by default) a message drops the
+  apostrophes from casual contractions: "dont", "im", "thats", "youre". Only
+  those that stay unambiguous — "we're" and "i'll" would become other words —
+  and never when she is curt, where precision is part of the effect.
+
+Anything with a code span or a link is left exactly as written: those are
+copied, not typed. There are deliberately no typos. Invented ones look
+invented, and once a reader has noticed the pattern the whole persona reads as
+a trick.
+
+Done here rather than asked for in the prompt: asked, a model half-complies and
+then drifts back, and a rule about punctuation is prompt spent on punctuation.
+
 ### Not saying the same thing twice
 
 Her own messages are replayed as the model's own turns, which is what lets her

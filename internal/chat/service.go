@@ -77,6 +77,9 @@ type Deps struct {
 	// InnerVoice has her write a private thought before each reply; see
 	// mind.InnerVoiceNote.
 	InnerVoice bool
+	// CasualSlips is the odds a message drops the apostrophes from casual
+	// contractions; see mind.CasualStyle.
+	CasualSlips float64
 	// Roll supplies randomness for the speak-or-stay-quiet decision. Left nil
 	// it uses the global source; a test supplies its own.
 	Roll func() float64
@@ -110,9 +113,10 @@ type Service struct {
 
 	// innerVoice and thoughts: whether she thinks before speaking, and the
 	// latest thought per channel, kept only so /chat state can show it.
-	innerVoice bool
-	thoughtMu  sync.Mutex
-	thoughts   map[string]Thought
+	innerVoice  bool
+	casualSlips float64
+	thoughtMu   sync.Mutex
+	thoughts    map[string]Thought
 
 	// guilds maps a channel to the guild it is in, so the memory writer can
 	// store what it finds. The conversation buffer is keyed by channel alone,
@@ -186,8 +190,9 @@ func New(d Deps) *Service {
 		roll:      roll,
 		guilds:    make(map[string]string),
 
-		innerVoice: d.InnerVoice,
-		thoughts:   make(map[string]Thought),
+		innerVoice:  d.InnerVoice,
+		casualSlips: d.CasualSlips,
+		thoughts:    make(map[string]Thought),
 
 		afterthoughts: make(map[string]time.Time),
 		snubbed:       make(map[string]bool),

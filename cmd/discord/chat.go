@@ -125,5 +125,6 @@ func buildChatService(
 		Location:       location,
 		RequestTimeout: cfg.ChatRequestTimeout,
 		InnerVoice:     cfg.ChatInnerVoice,
+		CasualSlips:    cfg.ChatCasualSlips,
 	}), ""
 }

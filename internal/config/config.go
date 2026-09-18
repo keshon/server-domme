@@ -137,6 +137,11 @@ type Config struct {
 	// back from the same call — but it makes every reply longer to generate
 	// and asks more of the relay's model, so it is off until switched on.
 	ChatInnerVoice bool `env:"CHAT_INNER_VOICE" envDefault:"false"`
+	// ChatCasualSlips is the odds that a message drops the apostrophes from
+	// casual contractions — "dont", "im", "thats" — the way people type. Set
+	// to 0 to keep them always. Never applied while she is short with
+	// someone, where precision is part of the effect.
+	ChatCasualSlips float64 `env:"CHAT_CASUAL_SLIPS" envDefault:"0.2"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids
