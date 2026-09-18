@@ -47,6 +47,9 @@ type scenario struct {
 	// nobody addressed her. The thing to watch is whether she answers the
 	// last line as though it were put to her anyway.
 	volunteering string
+	// reception is how her last line landed, for the scenarios about taking a
+	// reaction; see mind.ReceptionDirective.
+	reception mind.Reception
 	// afterthought is her own last line, for the scenarios that ask for a
 	// second message after it. The thing to watch is how often she declines
 	// and whether what she adds sounds like her rather than a curious bot.
@@ -262,6 +265,31 @@ func scenarios(now time.Time) []scenario {
 			afterthought: "morning",
 		},
 		{
+			// The loop from production: the same joke told three times, the
+			// third after being told she was repeating herself. What to watch
+			// is whether she changes course or tells a fourth.
+			name: "reception: told she is repeating herself",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "@DevBot it's your turn now", At: now.Add(-3 * time.Minute)},
+				{FromBot: true, Content: "fine. why did the chicken join discord? to get pecked at by strangers.", At: now.Add(-3 * time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "hahaha good one. Tell me another one please", At: now.Add(-2 * time.Minute)},
+				{FromBot: true, Content: "why did the chicken join discord? it wanted to be in the group chat.", At: now.Add(-2 * time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "this one is lame meeeh", At: now.Add(-time.Minute)},
+				{FromBot: true, Content: "why did the chicken join discord? to get pecked at by strangers.", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "you are repeating yourself", At: now},
+			},
+			reception: mind.ReceptionRepeating,
+		},
+		{
+			name: "reception: panned",
+			turns: []mind.Turn{
+				{UserID: "1", Username: "Big M", Content: "tell me a joke", At: now.Add(-time.Minute)},
+				{FromBot: true, Content: "why did the chicken join discord? it wanted to be in the group chat.", At: now.Add(-time.Minute)},
+				{UserID: "1", Username: "Big M", Content: "this one is lame meeeh", At: now},
+			},
+			reception: mind.ReceptionPanned,
+		},
+		{
 			name: "late answer",
 			turns: []mind.Turn{{
 				UserID: "1", Username: "cass",
@@ -315,6 +343,9 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	g.AnsweringAfter = sc.late
 	g.Drives = sc.drives
 	g.Volunteering = sc.volunteering
+	if sc.reception != mind.ReceptionNone {
+		g.Reception = mind.ReceptionDirective("Big M", sc.reception)
+	}
 	if sc.afterthought != "" {
 		g.Afterthought = mind.AfterthoughtDirective(sc.afterthought)
 	}

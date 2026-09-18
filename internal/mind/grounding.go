@@ -144,6 +144,9 @@ type Grounding struct {
 	// answer. It is the reason this message exists at all, so Build puts it
 	// after everything else.
 	Volunteering string
+	// Reception is how her last message to this person landed, as an
+	// instruction, or empty. See ReceptionDirective.
+	Reception string
 	// InnerVoice asks her to write a private thought before the message; see
 	// InnerVoiceNote.
 	InnerVoice bool

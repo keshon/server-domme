@@ -99,3 +99,28 @@ func TestObserveNoticesBeingBrushedOffOnce(t *testing.T) {
 		t.Errorf("irritation after being brushed off = %+v, want one step", p)
 	}
 }
+
+// "lame" answering her moves her at once and reaches her next reply to that
+// person; the same word in a message not answering her does nothing.
+func TestObserveTakesAReactionToHerLastLine(t *testing.T) {
+	store := testStore(t)
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatalf("AddChatChannel: %v", err)
+	}
+	svc := newTestService(t, store, 0.9999)
+	now := time.Now()
+	svc.conv.Record(testChannel, mind.Turn{UserID: "u1", Username: "cass", Content: "tell me a joke", At: now.Add(-time.Minute)})
+	svc.conv.Record(testChannel, mind.Turn{FromBot: true, MessageID: "b1", To: "u1", Content: "why did the chicken join discord?", At: now.Add(-30 * time.Second)})
+
+	svc.Observe(testSession(), message("this one is lame meeeh", false))
+
+	if p := store.GetMindPerson(testGuild, "u1"); p == nil || p.Irritation < mind.PannedIrritation-0.01 {
+		t.Errorf("being panned left irritation at %+v", p)
+	}
+	if got := svc.receptionFor(testChannel, "u1", "cass", time.Now()); got == "" {
+		t.Error("her next reply to them is not told how the last one went")
+	}
+	if got := svc.receptionFor(testChannel, "u2", "john", time.Now()); got != "" {
+		t.Errorf("someone else's reply is coloured by it: %q", got)
+	}
+}

@@ -192,6 +192,12 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 		}
 	}
 
+	// How her last line went down, after the mood: it is about this exchange,
+	// which is more particular than how she is doing in general.
+	if r := strings.TrimSpace(g.Reception); r != "" {
+		sb.WriteString("\n\nHow your last message went:\n- " + r + "\n")
+	}
+
 	// Why she is speaking at all, when nobody asked. Last of all: without it
 	// the model reads the transcript, finds no question aimed at her, and
 	// answers whatever was said most recently as though it had been.

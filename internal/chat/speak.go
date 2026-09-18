@@ -110,6 +110,35 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
+	if earlier, repeats := mind.RepeatsHerself(reply, s.conv.Recent(t.item.ChannelID)); repeats {
+		// Asked again once, told what she already said. Not held if it
+		// repeats a second time: a retry later would build the same prompt
+		// and get the same line, and silence is better than a loop.
+		s.log.Warn().
+			Str("guild_id", t.item.GuildID).
+			Str("channel_id", t.item.ChannelID).
+			Msg("chat_reply_repeated")
+		if t.item.Trigger == mind.TriggerAfterthought {
+			return
+		}
+		grounding.InnerVoice = false
+		again := append(mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget),
+			ai.Message{Role: ai.RoleSystem, Content: mind.RepeatNote(earlier)})
+		if reply, err = s.provider.Generate(genCtx, again); err != nil {
+			if ctx.Err() == nil {
+				s.hold(t, "generate failed")
+			}
+			return
+		}
+		if _, still := mind.RepeatsHerself(reply, s.conv.Recent(t.item.ChannelID)); still {
+			s.log.Warn().
+				Str("guild_id", t.item.GuildID).
+				Str("channel_id", t.item.ChannelID).
+				Msg("chat_repeat_dropped")
+			return
+		}
+	}
+
 	sent, err := s.send(sess, t, reply)
 	if err != nil {
 		// The reply exists but could not be delivered — a missing permission,
@@ -143,6 +172,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 		s.log.Warn().Err(err).Str("guild_id", t.item.GuildID).Msg("chat_spoke_record_failed")
 	}
 	s.deferrals.Drop(t.item.ChannelID)
+	s.receptionUsed(t.item.ChannelID, t.item.UserID)
 	s.considerAfterthought(ctx, t, grounding, reply, sentID, spokeAt)
 
 	s.log.Info().
@@ -403,6 +433,7 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	g.AboutThem, g.Regard = s.standing(sess, t.item.GuildID, t.item.UserID, t.item.Username)
 	g.Volunteering = t.item.Volunteering
 	g.InnerVoice = s.innerVoice
+	g.Reception = s.receptionFor(t.item.ChannelID, t.item.UserID, t.item.Username, g.Now)
 	if t.item.Trigger == mind.TriggerAfterthought {
 		g.Afterthought = mind.AfterthoughtDirective(t.item.FirstLine)
 	}

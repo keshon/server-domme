@@ -302,6 +302,43 @@ much larger thing than being asked to forget what happened. The confirmation is
 a typed word rather than a button, because this cannot be undone and there is
 no copy.
 
+### How her last line landed
+
+When someone answers her — a Discord reply to her, or the follow-up from the
+person she was just talking to — `mind.ReadReception` reads the reaction from a
+short word list: laughter or praise, being told it was bad, or being told she is
+repeating herself. It moves her at once (`LikedWarmth` towards them, or
+`PannedIrritation` against them) and her next reply to that person is told how
+it went, as the last block of the system prompt before any reason for speaking
+unprompted. The reaction is used once and forgotten after `ReceptionWindow`.
+
+Everything else she felt moved slowly — pestering, or a summary written after
+the conversation had gone quiet — so within a conversation nothing registered.
+In production she told a joke, was laughed at, told another, was told it was
+lame, told the first one again word for word, and was told she was repeating
+herself: four replies from an identical inner state, and the model had no
+reason to change course. Measured with `cmd/chatprobe -only reception`: told
+she was repeating herself, she owned it in four runs of four ("fair. i walked
+into that") and changed joke in three. Panned, she first came out
+accommodating — "i have others if you are curious" — which is off for her, so
+the directive now tells her not to apologise or offer more; after that, four of
+five answered in character ("guess the standards are slipping").
+
+It is crude and English-only, and applied only to a message answering her,
+which is what keeps "lame" about somebody else's game from counting.
+
+### Not saying the same thing twice
+
+Her own messages are replayed as the model's own turns, which is what lets her
+see what she already said — and which a small model reads the other way, as
+examples to copy. `mind.RepeatsHerself` checks a reply against her lines in the
+live conversation before it is sent: the same line, the same opening five words
+(one joke retold with a new tail), or mostly the same words. Short lines are
+exempt; "no." twice is how people talk. On a repeat the reply is asked for once
+more with what she already said quoted and ruled out. If that repeats too,
+nothing is sent and nothing is held: a retry would build the same prompt and
+get the same line, and silence is better than a loop.
+
 ### Being brushed off
 
 If she asks someone a question and, within `BrushOffWindow`, they turn and

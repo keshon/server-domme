@@ -130,6 +130,11 @@ type Service struct {
 	snubMu  sync.Mutex
 	snubbed map[string]bool
 
+	// receptions is how her last message landed, per channel, until her next
+	// reply to that person uses it. See mind.Reception.
+	receptionMu sync.Mutex
+	receptions  map[string]mind.Received
+
 	conv       *mind.Conversations
 	deferrals  *mind.Deferrals
 	encounters *mind.Encounters
@@ -181,6 +186,7 @@ func New(d Deps) *Service {
 
 		afterthoughts: make(map[string]time.Time),
 		snubbed:       make(map[string]bool),
+		receptions:    make(map[string]mind.Received),
 		conv:          mind.NewConversations(),
 		deferrals:     mind.NewDeferrals(),
 		encounters:    mind.NewEncounters(),
@@ -287,6 +293,9 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	// channel looked like just before it arrived.
 	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
 	s.noticeSnub(sess, m, now)
+	if followsUp || s.repliesToHer(m, selfID(sess)) {
+		s.receive(m.GuildID, m.ChannelID, m.Author.ID, displayName(m), content, now)
+	}
 
 	s.conv.Record(m.ChannelID, mind.Turn{
 		UserID:    m.Author.ID,
