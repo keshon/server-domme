@@ -68,6 +68,32 @@ func (s *Service) speak(ctx context.Context, t task) {
 		return
 	}
 
+	if grounding.InnerVoice && t.item.Trigger != mind.TriggerAfterthought && !mind.Volunteered(t.item.Trigger) {
+		thought, message, ok := mind.SplitThought(reply)
+		if !ok {
+			// Never posted: a private thought reaching the channel cannot be
+			// taken back. Asked again at once without the thought instead —
+			// the usual failure is a model that wrote the thought and stopped,
+			// and waiting for the deferral to retry would make a formatting
+			// slip look like an outage.
+			s.log.Warn().
+				Str("guild_id", t.item.GuildID).
+				Str("channel_id", t.item.ChannelID).
+				Msg("chat_thought_unsplittable")
+			grounding.InnerVoice = false
+			plain := mind.Build(s.character, grounding, s.conv.Recent(t.item.ChannelID), s.budget)
+			if reply, err = s.provider.Generate(genCtx, plain); err != nil {
+				if ctx.Err() == nil {
+					s.hold(t, "generate failed")
+				}
+				return
+			}
+		} else {
+			reply = message
+			s.think(t.item.GuildID, t.item.ChannelID, thought)
+		}
+	}
+
 	if t.item.Trigger == mind.TriggerAfterthought && !s.afterthoughtStands(t, reply) {
 		return
 	}
@@ -375,6 +401,7 @@ func (s *Service) ground(sess *discordgo.Session, t task) mind.Grounding {
 	// prompt than it is worth and harder to act on.
 	g.AboutThem, g.Regard = s.standing(sess, t.item.GuildID, t.item.UserID, t.item.Username)
 	g.Volunteering = t.item.Volunteering
+	g.InnerVoice = s.innerVoice
 	if t.item.Trigger == mind.TriggerAfterthought {
 		g.Afterthought = mind.AfterthoughtDirective(t.item.FirstLine)
 	}

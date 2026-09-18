@@ -462,6 +462,52 @@ most (`mind.WarmthDirective`), phrased as something she would not admit to,
 and never for the person she is also told to be short with: both at once is a
 contradiction the model resolves at random.
 
+### A private thought before she speaks
+
+`CHAT_INNER_VOICE=true` has her write one private line before each answer —
+her reaction to the moment and to the person — inside `<inner>…</inner>`, then
+the message. The thought is split off and never posted; the latest one per
+channel shows in `/chat state`. It is off by default.
+
+Cognitum's liveliest behaviour came from this, as a separate call whose one
+line was fed to the reply as "currently thinking". Here it is the same call:
+the free relays are the bottleneck and a second request per reply would halve
+what they can carry. It still costs something — every reply is longer to
+generate and asks more of the relay's model — which is why it is a knob.
+
+A tag rather than a `THOUGHT:` label, because `ai.Clean` strips a leading label
+and cuts at any later line shaped like one, which would eat the message.
+`mind.SplitThought` refuses to post anything whose thought has no clear end — an
+unclosed tag, or a thought with no message after it — because a private thought
+reaching the channel cannot be taken back. On that failure the reply is asked
+for again at once without the thought, so a formatting slip does not turn into
+a late answer. The closers relays actually wrote (`<inner>` again, `</ inner>`)
+are accepted.
+
+It is not asked for on an afterthought, whose reply is already a line or SKIP,
+nor on something she volunteered, where the reason she is speaking is the
+thought. Nor is a thought carried into the next prompt: a thought fed forward
+is how cognitum's reflection found a subject and could not leave it.
+
+Measured with `cmd/chatprobe -inner` against a baseline run in the same session,
+because the relay's model changes between sessions. What it found:
+
+- Asking what she "makes of this" produced plans — "they want a quick rename
+  snippet; i'll give a minimal example" — and the reply followed the plan into
+  assistant mode. Asking for her reaction to it and to them produced reactions,
+  and some of the best lines seen from her ("google 'python rename files
+  os.rename'. i don't write homework.").
+- With it on, volunteered remarks lost their point: asked to greet a regular
+  back, she thought about what they had missed and answered that instead.
+  Hence the exclusion.
+- It makes her less disciplined about length on some relays: a thought that
+  runs to a paragraph tends to bring a longer, more formal reply with it.
+- The first wording failed to split about one reply in four; the tolerant
+  closers and the immediate plain retry cover both shapes seen.
+
+It is worth trying on a given deployment and watching `/chat state`, not worth
+switching on blind.
+
 ### How she is doing
 
 `mind.Drives` is three numbers — Social, Energy, Interest — derived on read

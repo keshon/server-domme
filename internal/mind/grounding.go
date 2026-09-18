@@ -144,6 +144,9 @@ type Grounding struct {
 	// answer. It is the reason this message exists at all, so Build puts it
 	// after everything else.
 	Volunteering string
+	// InnerVoice asks her to write a private thought before the message; see
+	// InnerVoiceNote.
+	InnerVoice bool
 	// Afterthought asks for a second message after her own, or is empty.
 	// Build puts it after the conversation, since her own last line is what
 	// it is about; see AfterthoughtDirective.

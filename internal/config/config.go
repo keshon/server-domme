@@ -132,6 +132,11 @@ type Config struct {
 	// from whoever she is already talking to. Set it to 0 to require a tag,
 	// a name or a reply every single time.
 	ChatFollowUpChance float64 `env:"CHAT_FOLLOWUP_CHANCE" envDefault:"0.8"`
+	// ChatInnerVoice has her write one private line of what she thinks before
+	// each reply. It costs no extra request — the thought and the message come
+	// back from the same call — but it makes every reply longer to generate
+	// and asks more of the relay's model, so it is off until switched on.
+	ChatInnerVoice bool `env:"CHAT_INNER_VOICE" envDefault:"false"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

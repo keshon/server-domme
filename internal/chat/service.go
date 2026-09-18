@@ -74,6 +74,9 @@ type Deps struct {
 	// The whole attempt is allowed twice this, so a first backend that hangs
 	// until its deadline still leaves a second one time to answer.
 	RequestTimeout time.Duration
+	// InnerVoice has her write a private thought before each reply; see
+	// mind.InnerVoiceNote.
+	InnerVoice bool
 	// Roll supplies randomness for the speak-or-stay-quiet decision. Left nil
 	// it uses the global source; a test supplies its own.
 	Roll func() float64
@@ -104,6 +107,12 @@ type Service struct {
 	budget    mind.Budget
 	location  *time.Location
 	roll      func() float64
+
+	// innerVoice and thoughts: whether she thinks before speaking, and the
+	// latest thought per channel, kept only so /chat state can show it.
+	innerVoice bool
+	thoughtMu  sync.Mutex
+	thoughts   map[string]Thought
 
 	// guilds maps a channel to the guild it is in, so the memory writer can
 	// store what it finds. The conversation buffer is keyed by channel alone,
@@ -161,6 +170,9 @@ func New(d Deps) *Service {
 		location:  d.Location,
 		roll:      roll,
 		guilds:    make(map[string]string),
+
+		innerVoice: d.InnerVoice,
+		thoughts:   make(map[string]Thought),
 
 		afterthoughts: make(map[string]time.Time),
 		conv:          mind.NewConversations(),

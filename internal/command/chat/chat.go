@@ -408,6 +408,11 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 		b.WriteString("```\n")
 	}
 
+	if st.InnerVoice && st.Thought.Text != "" {
+		fmt.Fprintf(&b, "\n**Last thought** (<t:%d:R>, never posted)\n> %s\n",
+			st.Thought.At.Unix(), st.Thought.Text)
+	}
+
 	if len(st.StyleDirective) > 0 {
 		b.WriteString("\n**How she sounds** (from the character file)\n")
 		for _, line := range st.StyleDirective {

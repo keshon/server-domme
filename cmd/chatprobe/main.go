@@ -64,6 +64,8 @@ func main() {
 			"empty uses the g4f relay")
 	notes := flag.Bool("notes", false,
 		"run the person-file call on a sample conversation instead of the reply scenarios")
+	inner := flag.Bool("inner", false,
+		"ask for a private thought before each reply, as CHAT_INNER_VOICE does, and show it")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -125,7 +127,9 @@ func main() {
 			continue
 		}
 		for run := 0; run < *repeat; run++ {
-			runScenario(character, grounding, sc, pool, *dump, *model)
+			g := grounding
+			g.InnerVoice = *inner
+			runScenario(character, g, sc, pool, *dump, *model)
 		}
 	}
 
@@ -351,6 +355,16 @@ func runScenario(character *mind.Character, grounding mind.Grounding, sc scenari
 	}
 	lastReply[sc.name] = reply
 
+	if g.InnerVoice && g.Afterthought == "" && g.Volunteering == "" {
+		thought, message, ok := mind.SplitThought(reply)
+		if !ok {
+			fmt.Printf("  !! unsplittable, would be discarded: %q\n", reply)
+			fmt.Printf("  -- via %s%s\n\n", who, repeat)
+			return
+		}
+		fmt.Printf("  (( %s ))\n", thought)
+		reply = message
+	}
 	fmt.Printf("  >> %s\n", reply)
 	fmt.Printf("  -- via %s%s\n\n", who, repeat)
 }

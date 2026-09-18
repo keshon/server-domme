@@ -51,6 +51,7 @@ services:
       - CHAT_ABOUT_CHANCE=${CHAT_ABOUT_CHANCE:-0.25}
       - CHAT_REPLY_CHANCE=${CHAT_REPLY_CHANCE:-0.92}
       - CHAT_FOLLOWUP_CHANCE=${CHAT_FOLLOWUP_CHANCE:-0.8}
+      - CHAT_INNER_VOICE=${CHAT_INNER_VOICE:-false}
     # Lets the container reach a service listening on the host — an SSH
     # tunnel forwarding a home machine's LLM, for instance. Without it
     # "localhost" inside the container is the container, not the host.

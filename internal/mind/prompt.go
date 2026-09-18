@@ -98,6 +98,18 @@ func Build(c *Character, g Grounding, turns []Turn, b Budget) []ai.Message {
 		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: late})
 	}
 
+	// Last of all, because it changes the shape of what comes back and a
+	// format instruction anywhere earlier is the first thing a model drops.
+	//
+	// Never for an afterthought, whose reply is already a line or SKIP, nor
+	// for something she volunteered: there the reason she is speaking is the
+	// thought, and measured against the relays a second thought talked her out
+	// of it — asked to greet a regular back, she thought about what they had
+	// missed instead and answered that.
+	if g.InnerVoice && g.Afterthought == "" && g.Volunteering == "" {
+		msgs = append(msgs, ai.Message{Role: ai.RoleSystem, Content: InnerVoiceNote})
+	}
+
 	// After the transcript, which ends with her own message. Without a
 	// trailing instruction a model handed a conversation whose last turn is
 	// its own either repeats itself or answers nobody.

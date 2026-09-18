@@ -81,6 +81,10 @@ type State struct {
 	// VolunteeredToday how much of the day's allowance she has used.
 	Proactive        bool
 	VolunteeredToday int
+	// InnerVoice is whether she thinks before speaking, and Thought the
+	// latest thing she thought here, empty until she has.
+	InnerVoice bool
+	Thought    Thought
 }
 
 // Annoyance is one person and how much they have got on her nerves.
@@ -109,6 +113,10 @@ func (s *Service) StateIn(guildID, channelID string) State {
 	}
 
 	st.Proactive = s.store.IsChatProactive(guildID, channelID)
+	st.InnerVoice = s.innerVoice
+	if t, ok := s.lastThought(channelID); ok {
+		st.Thought = t
+	}
 	if ch := s.store.MindChannelState(guildID, channelID); ch.Day == s.day(now) {
 		st.VolunteeredToday = ch.Today
 	}
