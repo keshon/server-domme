@@ -12,9 +12,10 @@ import (
 // Mood is how her day is going, -1 to +1, one per server. It is what lets one
 // bad exchange colour the next conversation without becoming a grudge against
 // someone who had nothing to do with it: every event that moves a bond also
-// moves her mood a little (Shift.Mood), less than it moves the bond and for
-// less long. Someone who gets on her nerves leaves her short with them for the
-// afternoon and a bit short with everyone for an hour or two.
+// moves her mood a little (Shift.Mood), far less than it moves the bond but
+// for longer. Someone who gets on her nerves leaves her sharply short with
+// them for an hour or two, and faintly off with everyone for a few hours
+// after: the funk that outlasts the argument.
 //
 // On top of that each server gets a tone for the day — flat most days, and
 // now and then clearly good or clearly bad — which lifts or lowers both her
@@ -22,9 +23,9 @@ import (
 // rolled, so it holds all day and survives a restart.
 const (
 	// moodHalflife is how long a swing in mood takes to half fade back to
-	// her baseline. Shorter than tension (90 minutes to half, but felt
-	// towards one person for longer because it starts higher), longer than a
-	// conversation: long enough to carry into the next one.
+	// her baseline. Longer than tension's 90 minutes: a spillover starts far
+	// smaller than the feeling towards whoever caused it and lingers faintly
+	// once that has faded. Long enough to carry into the next conversation.
 	moodHalflife = 3 * time.Hour
 	// moodFloor is where a swing that small counts as none.
 	moodFloor = 0.02

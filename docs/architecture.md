@@ -888,9 +888,10 @@ is the sum of three things:
 The spillover is what lets one bad exchange colour the next conversation
 without becoming a grudge against someone who had nothing to do with it.
 Someone pestering her raises her tension with them by 0.34 and lowers her mood
-by 0.05: short with them for the afternoon, and a bit short with everyone for
-an hour or two. Irritation always spills over less than it is felt towards its
-cause (tested). Conversations move her mood once however many people were in
+by 0.05: sharply short with them for an hour or two (tension halves every 90
+minutes), and faintly off with everyone for a few hours after (mood halves
+every three) — the funk that outlasts the argument. Irritation always spills
+over less than it is felt towards its cause (tested). Conversations move her mood once however many people were in
 them, and unlike the bond a group counts: a room that turned hostile sours her
 even when nobody in it can fairly be blamed.
 
@@ -1119,6 +1120,18 @@ over hours rather than minutes.
   (`MindGuild.LastContactAt`). So when a greeting pays off, the need behind it
   is met and the next greeting comes less readily; when it falls flat, the need
   is still there, and whether she tries someone else is up to the roll.
+
+One message moves her mood once. A laugh that also settles something she
+started would otherwise have counted twice — as a laugh, and as the surprise
+— and three times if it answered her reaching out as well, whose events once
+carried a fixed mood share of their own. The surprise is now the only mood
+effect of an outcome; the laugh or pan still moves the bond. An answer to her
+reaching out is appraised by how it landed, not only by how fast: a prompt
+"lame, stop" is not a welcome, and being told to back off is its own event
+rather than an answer. A remark to the room is settled by the room taking the
+subject up — two of her words in someone's message — since a room usually
+answers among itself rather than to her. All three were found by an
+independent audit and each has a regression test.
 
 `TestAGreetingThatPaysOffSatisfiesTheNeedBehindIt` shows the loop end to end:
 alone all afternoon, her odds of greeting the next person are 0.68; after a

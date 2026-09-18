@@ -269,7 +269,7 @@ func (s *Service) speak(ctx context.Context, t task) {
 	}
 	s.deferrals.Drop(t.item.ChannelID)
 	s.receptionUsed(t.item.ChannelID, t.item.UserID)
-	s.awaitPayoff(t, spokeAt)
+	s.awaitPayoff(t, reply, spokeAt)
 	s.considerAfterthought(ctx, t, grounding, reply, sentID, spokeAt)
 
 	s.log.Info().

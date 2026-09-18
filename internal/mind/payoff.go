@@ -57,8 +57,12 @@ func (p Payoff) Value() float64 {
 	}
 }
 
-// PayoffOf reads how an answer to something she started received it.
+// PayoffOf reads how an answer to something she started received it. Being
+// told to back off is an answer, and the opposite of being taken up.
 func PayoffOf(content string) Payoff {
+	if WantsPeace(content) {
+		return PayoffPanned
+	}
 	switch ReadReception(content) {
 	case ReceptionLiked:
 		return PayoffLaughed

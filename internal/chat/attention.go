@@ -111,7 +111,7 @@ func (s *Service) maybeReach(guildID string, channels []string, p storage.MindPe
 	if p.Unanswered > 0 {
 		expected := s.welcomeOf(guildID, p.UserID, now)
 		s.moveMood(guildID, mind.SurpriseMood(mind.Surprise(mind.PayoffIgnored, expected)), now)
-		s.appraise(guildID, p.UserID, mind.EventReachIgnored, now)
+		s.appraiseBond(guildID, p.UserID, mind.EventReachIgnored, now)
 	}
 
 	// Counted when decided, like a volunteered remark: one that then fails
@@ -200,17 +200,25 @@ func (s *Service) noticeExchange(m *discordgo.MessageCreate, person *storage.Min
 
 	// Answered after she came to them: the lesson is how welcome she is,
 	// and an answer inside the hour teaches more than a late one.
-	if person != nil && person.Unanswered > 0 && !person.ReachedAt.IsZero() {
+	//
+	// By how it landed, not only by how fast: a prompt "lame, stop" is not a
+	// welcome. Being told to back off is left to its own event below, which
+	// moves her more than any of these and would double up with them.
+	if person != nil && person.Unanswered > 0 && !person.ReachedAt.IsZero() && !mind.WantsPeace(content) {
+		outcome := mind.PayoffOf(content)
 		e := mind.EventReachAnsweredQuickly
-		if now.Sub(person.ReachedAt) >= answeredQuickly {
+		switch {
+		case outcome == mind.PayoffPanned:
+			e = mind.EventInitiativeDropped
+		case now.Sub(person.ReachedAt) >= answeredQuickly:
 			e = mind.EventReachAnswered
 		}
 		// Surprise against what she expected before this answer taught her
 		// anything: a quick answer from someone who seldom gives one is the
 		// reward, and it is measured before it moves the expectation.
 		expected := s.welcomeOf(m.GuildID, m.Author.ID, now)
-		s.moveMood(m.GuildID, mind.SurpriseMood(mind.Surprise(mind.PayoffOf(content), expected)), now)
-		s.appraise(m.GuildID, m.Author.ID, e, now)
+		s.moveMood(m.GuildID, mind.SurpriseMood(mind.Surprise(outcome, expected)), now)
+		s.appraiseBond(m.GuildID, m.Author.ID, e, now)
 	}
 	if err := s.store.ExchangeMindPerson(m.GuildID, m.Author.ID, m.ChannelID, now); err != nil {
 		s.log.Debug().Err(err).Str("guild_id", m.GuildID).Msg("chat_exchange_record_failed")

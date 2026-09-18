@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func greeted(t *testing.T, svc *Service, at time.Time) uint64 {
 	svc.awaitPayoff(task{item: mind.Deferred{
 		GuildID: testGuild, ChannelID: testChannel, UserID: "u1",
 		Trigger: mind.TriggerReturn, Journal: id,
-	}}, at)
+	}}, "welcome back, it has been a while", at)
 	return id
 }
 
@@ -148,5 +149,68 @@ func TestAGreetingThatPaysOffSatisfiesTheNeedBehindIt(t *testing.T) {
 	}
 	if unsated <= sated {
 		t.Errorf("being ignored left her less inclined than being rewarded: ignored %.2f, rewarded %.2f", unsated, sated)
+	}
+}
+
+// Audit finding: a laugh that settled a greeting moved her mood twice — once
+// as a laugh, once as the surprise. The surprise is now the only mood.
+func TestALaughSettlingAGreetingMovesHerMoodOnce(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	before := svc.drives(testGuild, testChannel, now).Mood
+
+	greeted(t, svc, now)
+	later := now.Add(time.Minute)
+	settles := svc.settlesSomething(testGuild, testChannel, "u1", later)
+	svc.receive(testGuild, testChannel, "u1", "cass", "hahaha", later, settles)
+	svc.settlePayoffs(testChannel, "u1", "hahaha", later)
+
+	got := svc.drives(testGuild, testChannel, later).Mood - before
+	want := mind.SurpriseMood(mind.Surprise(mind.PayoffLaughed, 0.5))
+	if math.Abs(got-want) > 0.01 {
+		t.Errorf("mood moved %+.3f, want only the surprise %+.3f", got, want)
+	}
+	if p := store.GetMindPerson(testGuild, "u1"); p == nil || p.Closeness <= 0 {
+		t.Error("the laugh stopped warming her towards them at all")
+	}
+}
+
+// Audit finding: a prompt but dismissive answer to her reaching out was
+// read as a welcome because it was prompt.
+func TestAPromptPanIsNotAWelcome(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	if err := store.AddChatChannel(testGuild, testChannel); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMindConsent(testGuild, "u1", mind.ConsentOn, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkReached(testGuild, "u1", svc.day(now), now.Add(-5*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	svc.Observe(testSession(), message("that was terrible", true))
+
+	if w := svc.welcomeOf(testGuild, "u1", time.Now()); w >= 0.5 {
+		t.Errorf("a prompt pan raised her welcome to %.2f", w)
+	}
+}
+
+// Audit finding: a remark to the room settled only when someone addressed
+// her, so a room taking the subject up among themselves read as ignoring it.
+func TestTheRoomTakingUpARemarkSettlesIt(t *testing.T) {
+	store := testStore(t)
+	svc := newTestService(t, store, 0)
+	now := time.Now()
+	id := svc.journalOpen(storage.MindJournal{GuildID: testGuild, ChannelID: testChannel, At: now,
+		Trigger: string(mind.TriggerRecall), Outcome: outcomeAnswered})
+	svc.awaitPayoff(task{item: mind.Deferred{GuildID: testGuild, ChannelID: testChannel,
+		Trigger: mind.TriggerRecall, Journal: id}}, "the purge rules argument is back again", now)
+
+	svc.settleRoomPayoffs(testChannel, "lol are we really doing purge rules again", now.Add(time.Minute))
+	if note := payoffNote(svc); !strings.HasPrefix(note, string(mind.PayoffLaughed)) && !strings.HasPrefix(note, string(mind.PayoffEngaged)) {
+		t.Errorf("the room took it up and it read as %q", note)
 	}
 }

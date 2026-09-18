@@ -17,6 +17,18 @@ import (
 // as the last thing that moved her so /chat about can say why she is the way
 // she is with them.
 func (s *Service) appraise(guildID, userID string, e mind.Event, now time.Time) mind.Bond {
+	after := s.appraiseBond(guildID, userID, e, now)
+	if e != "" && userID != "" {
+		s.moveMood(guildID, mind.Appraise(e).Mood, now)
+	}
+	return after
+}
+
+// appraiseBond is appraise without the event's share of her mood, for an
+// event whose effect on her mood is already being carried by something else
+// — a laugh that settles something she started, whose surprise is the mood.
+// One message moves her mood once.
+func (s *Service) appraiseBond(guildID, userID string, e mind.Event, now time.Time) mind.Bond {
 	var after mind.Bond
 	if e == "" || userID == "" {
 		return after
@@ -35,7 +47,6 @@ func (s *Service) appraise(guildID, userID string, e mind.Event, now time.Time) 
 		Str("user_id", userID).
 		Str("event", string(e)).
 		Msg("chat_appraised")
-	s.moveMood(guildID, mind.Appraise(e).Mood, now)
 	return after
 }
 

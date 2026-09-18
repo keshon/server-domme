@@ -20,12 +20,15 @@ type awaiting struct {
 	// expected is what she expected, taken when she spoke: her welcome with
 	// them, or neutral for the room.
 	expected float64
+	// words are what she said, as keywords, for telling whether the room
+	// took a remark up without addressing her.
+	words []string
 }
 
 // awaitPayoff starts watching how something she started is received.
 // Reaching out is not watched here: it learns from its own answered and
 // unanswered counts, which span hours rather than minutes.
-func (s *Service) awaitPayoff(t task, at time.Time) {
+func (s *Service) awaitPayoff(t task, said string, at time.Time) {
 	switch t.item.Trigger {
 	case mind.TriggerReturn, mind.TriggerRecall, mind.TriggerAfterthought:
 	default:
@@ -38,6 +41,7 @@ func (s *Service) awaitPayoff(t task, at time.Time) {
 		guildID: t.item.GuildID, channelID: t.item.ChannelID,
 		trigger: t.item.Trigger, at: at, journal: t.item.Journal,
 		expected: neutral,
+		words:    mind.Keywords(said),
 	}
 	// A remark about a subject is to the room; a greeting or a second
 	// thought is to one person, and it is their reception that counts.
@@ -69,6 +73,64 @@ func (s *Service) settlePayoffs(channelID, userID, content string, now time.Time
 	for _, a := range settled {
 		s.paidOff(a, outcome, now)
 	}
+}
+
+// roomTakeUp is how many of her remark's words someone has to use for it to
+// count as the room taking it up. Two: one shared word is a coincidence in
+// a busy channel.
+const roomTakeUp = 2
+
+// settleRoomPayoffs resolves a remark she made to the room when someone in it
+// takes the subject up without addressing her — which is how a room usually
+// does. Only remarks to the room; a greeting waits for the person greeted.
+func (s *Service) settleRoomPayoffs(channelID, content string, now time.Time) {
+	said := mind.Keywords(content)
+	s.payoffMu.Lock()
+	var settled, kept []awaiting
+	for _, a := range s.payoffs[channelID] {
+		if a.userID == "" && now.Sub(a.at) <= mind.PayoffWindow && shared(a.words, said) >= roomTakeUp {
+			settled = append(settled, a)
+		} else {
+			kept = append(kept, a)
+		}
+	}
+	s.payoffs[channelID] = kept
+	s.payoffMu.Unlock()
+
+	for _, a := range settled {
+		s.paidOff(a, mind.PayoffOf(content), now)
+	}
+}
+
+// shared counts the words two keyword lists have in common.
+func shared(a, b []string) int {
+	in := make(map[string]bool, len(a))
+	for _, w := range a {
+		in[w] = true
+	}
+	n := 0
+	for _, w := range b {
+		if in[w] {
+			n++
+		}
+	}
+	return n
+}
+
+// settlesSomething reports whether a message from userID would settle
+// something she started: a greeting or remark still waiting in the channel,
+// or a reach-out to them still unanswered.
+func (s *Service) settlesSomething(guildID, channelID, userID string, now time.Time) bool {
+	s.payoffMu.Lock()
+	for _, a := range s.payoffs[channelID] {
+		if now.Sub(a.at) <= mind.PayoffWindow && (a.userID == "" || a.userID == userID) {
+			s.payoffMu.Unlock()
+			return true
+		}
+	}
+	s.payoffMu.Unlock()
+	p := s.store.GetMindPerson(guildID, userID)
+	return p != nil && p.Unanswered > 0 && !p.ReachedAt.IsZero()
 }
 
 // expirePayoffs settles as ignored whatever has waited out its window.
@@ -103,7 +165,7 @@ func (s *Service) paidOff(a awaiting, outcome mind.Payoff, now time.Time) {
 	surprise := mind.Surprise(outcome, a.expected)
 	s.moveMood(a.guildID, mind.SurpriseMood(surprise), now)
 	if a.userID != "" {
-		s.appraise(a.guildID, a.userID, mind.PayoffEvent(outcome), now)
+		s.appraiseBond(a.guildID, a.userID, mind.PayoffEvent(outcome), now)
 	}
 
 	note := fmt.Sprintf("%s — expected %.2f, surprise %+.2f", outcome, a.expected, surprise)

@@ -9,8 +9,12 @@ import (
 // receive reads how her last message landed with someone answering it, and
 // lets it move her at once: a laugh warms her a little towards them, being
 // told it was bad annoys her a little, and either way her next reply to them
-// is told. Called on the gateway goroutine; at most one storage write.
-func (s *Service) receive(guildID, channelID, userID, name, content string, now time.Time) {
+// is told. Called on the gateway goroutine.
+//
+// settles is whether the same message settles something she started — a
+// greeting, a remark, reaching out — whose surprise already moves her mood.
+// The reaction then moves only the bond: one message, one effect on her mood.
+func (s *Service) receive(guildID, channelID, userID, name, content string, now time.Time, settles bool) {
 	kind := mind.ReadReception(content)
 	if kind == mind.ReceptionNone {
 		return
@@ -20,7 +24,11 @@ func (s *Service) receive(guildID, channelID, userID, name, content string, now 
 	s.receptions[channelID] = mind.Received{UserID: userID, Username: name, Kind: kind, At: now}
 	s.receptionMu.Unlock()
 
-	s.appraise(guildID, userID, mind.ReceptionEvent(kind), now)
+	if settles {
+		s.appraiseBond(guildID, userID, mind.ReceptionEvent(kind), now)
+	} else {
+		s.appraise(guildID, userID, mind.ReceptionEvent(kind), now)
+	}
 
 	s.journalReaction(guildID, channelID, userID, kind)
 	switch kind {

@@ -342,7 +342,8 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
 	s.noticeSnub(sess, m, now)
 	if followsUp || s.repliesToHer(m, selfID(sess)) {
-		s.receive(m.GuildID, m.ChannelID, m.Author.ID, displayName(m), content, now)
+		s.receive(m.GuildID, m.ChannelID, m.Author.ID, displayName(m), content, now,
+			s.settlesSomething(m.GuildID, m.ChannelID, m.Author.ID, now))
 	}
 
 	s.conv.Record(m.ChannelID, mind.Turn{
@@ -363,8 +364,10 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		s.noticeExchange(m, person, content, now)
 	}
 	if !addressed {
-		// Not aimed at her. The only thing left to decide is whether she has
-		// a reason to say something anyway.
+		// Not aimed at her, but it may be the room taking up something she
+		// said to it. Then the only thing left to decide is whether she has a
+		// reason to say something anyway.
+		s.settleRoomPayoffs(m.ChannelID, content, now)
 		s.maybeVolunteer(m, name, person, now)
 		return
 	}

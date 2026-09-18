@@ -89,8 +89,8 @@ const (
 
 // Shift is what one event does to a bond, and Mood what it does to her
 // generally: the spillover that lets someone getting on her nerves leave her
-// a little short with everyone for a while. Smaller than the bond's share,
-// and it fades sooner; see MoodSwing.
+// a little short with everyone for a while. Far smaller than the bond's
+// share, and it lingers faintly for longer; see MoodSwing.
 type Shift struct {
 	Closeness, Tension, Welcome float64
 	Mood                        float64
@@ -103,7 +103,10 @@ type Shift struct {
 // them is a separate, measured step.
 //
 // Conversations carry no mood here, because they are appraised once for
-// every person in them and the mood is one: see ConversationMood.
+// every person in them and the mood is one: see ConversationMood. Nor do the
+// answers to her reaching out: how they land moves her mood as a surprise
+// against what she expected (see Surprise), and a fixed share here as well
+// moved it twice for one message.
 var appraisals = map[Event]Shift{
 	EventPestered:             {Tension: pesterStep, Mood: -0.05},
 	EventBrushedOff:           {Tension: BrushOffStep, Mood: -0.08},
@@ -114,9 +117,9 @@ var appraisals = map[Event]Shift{
 	EventOrdinaryAlone:        {Closeness: 0.03},
 	EventTenseAlone:           {Tension: 0.2},
 	EventHostileAlone:         {Closeness: -0.15, Tension: 0.4},
-	EventReachAnswered:        {Closeness: 0.02, Welcome: 0.10, Mood: 0.06},
-	EventReachAnsweredQuickly: {Closeness: 0.03, Welcome: 0.15, Mood: 0.10},
-	EventReachIgnored:         {Welcome: -0.12, Mood: -0.06},
+	EventReachAnswered:        {Closeness: 0.02, Welcome: 0.10},
+	EventReachAnsweredQuickly: {Closeness: 0.03, Welcome: 0.15},
+	EventReachIgnored:         {Welcome: -0.12},
 	EventAskedForPeace:        {Welcome: -0.30, Mood: -0.12},
 	// Smaller than reaching out's: a remark in a room they are already in
 	// says less about whether they want her than coming to find them does.
