@@ -297,11 +297,22 @@ the same curve as everything else, resurfaces when that person returns or the
 subject comes up, and needs no special case in recall. Once per episode rather
 than once per push, or the store fills with the same sentence.
 
-`/chat state` shows all of it: the drives as bars, what they are nudging, who
-she is short with, and both sets of directives verbatim. The bars go inside a
-fenced block because Discord renders labels proportionally, so "Energy" and
-"Interest" are different widths and the columns after them do not line up
-otherwise.
+`/chat state` shows how she is right now, for whoever runs the server: her
+mood in words (`mind.MoodWords`) over the drives as bars, what they make her
+want (`mind.Wants`), her stance towards each person in the conversation in a
+word — short with, cool towards, fond of, likes, well disposed to, has little
+time for, neutral (`mind.Attitude`) — with the warmth, irritation and role
+regard behind it, how her last line landed while that still counts, and every
+instruction about her state the next reply would carry, verbatim
+(`Grounding.Told`, built by the same functions as the prompt, and tested to
+match it). The words are for the reader; the model only ever gets the
+instructions.
+
+It used to list the character file's temperament too. That only changes when
+the file does, and on a panel about how she is right now it was the one thing
+that never moved. The bars go inside a fenced block because Discord renders
+labels proportionally, so "Energy" and "Interest" are different widths and the
+columns after them do not line up otherwise.
 
 `/chat forget confirm:yes` wipes what she remembers about a guild, and what she
 holds against the people in it. Irritation goes with the memories rather than

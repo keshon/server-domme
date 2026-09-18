@@ -367,10 +367,13 @@ func respond(s *discordgo.Session, e *discordgo.InteractionCreate, msg string) e
 // told rather than a second copy that can drift from it.
 func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) error {
 	s, e := context.Session, context.Event
-	st := c.Service.StateIn(e.GuildID, e.ChannelID)
+	st := c.Service.StateIn(s, e.GuildID, e.ChannelID)
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "**How she is in <#%s>**\n\n", e.ChannelID)
+	fmt.Fprintf(&b, "**How she is in <#%s>**\n", e.ChannelID)
+	if st.Mood != "" {
+		fmt.Fprintf(&b, "%s\n", st.Mood)
+	}
 
 	// One fenced block rather than a line each. Discord renders labels in a
 	// proportional font, so "Energy" and "Interest" are different widths and
@@ -382,30 +385,38 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 	fmt.Fprintf(&b, "%s\n", gauge("Interest", st.Drives.Interest))
 	b.WriteString("```\n")
 
-	if st.LastSpokeAt.IsZero() {
-		b.WriteString("\nShe has never spoken in this server.\n")
+	if len(st.Wants) > 0 {
+		b.WriteString("**Wants**\n")
+		for _, want := range st.Wants {
+			b.WriteString("- " + want + "\n")
+		}
 	} else {
-		fmt.Fprintf(&b, "\nLast spoke here: <t:%d:R>\n", st.LastSpokeAt.Unix())
+		b.WriteString("**Wants** nothing in particular\n")
 	}
 
-	fmt.Fprintf(&b, "Odds of answering an indirect approach: %+.0f%%\n", st.Nudge*100)
-	fmt.Fprintf(&b, "Remembers %d things here, %d bright enough to come up now\n",
-		st.Memories, st.Recalled)
-	if st.Proactive {
-		fmt.Fprintf(&b, "Speaks first here: on, %d of %d used today\n",
-			st.VolunteeredToday, mind.VolunteerDailyLimit)
-	} else {
-		b.WriteString("Speaks first here: off — she only answers\n")
-	}
-
-	// The directives verbatim, because they are the part that actually reaches
-	// the model. The numbers above are how they were arrived at.
-	if len(st.Irritated) > 0 {
-		b.WriteString("\n**Short with**\n```\n")
-		for _, a := range st.Irritated {
-			fmt.Fprintf(&b, "%s\n", gauge(a.Username, a.Level))
+	if len(st.People) > 0 {
+		b.WriteString("\n**Towards the people here**\n```\n")
+		for _, p := range st.People {
+			fmt.Fprintf(&b, "%-*s %-19s warm %.2f  irked %.2f  role %+.2f\n",
+				labelWidth, clip(p.Username, labelWidth), p.Attitude, p.Warmth, p.Irritation, p.Regard)
 		}
 		b.WriteString("```\n")
+	}
+
+	if st.Reaction != mind.ReceptionNone {
+		fmt.Fprintf(&b, "\n**Last reaction** — %s, from %s\n",
+			mind.ReceptionWords(st.Reaction), st.ReactionFrom)
+	}
+
+	// Verbatim, because this is the part that actually reaches the model; the
+	// numbers above are how it was arrived at.
+	if len(st.Told) > 0 {
+		b.WriteString("\n**What she is being told right now**\n")
+		for _, line := range st.Told {
+			b.WriteString("- " + line + "\n")
+		}
+	} else {
+		b.WriteString("\nNothing about her state is pronounced enough to tell her.\n")
 	}
 
 	if st.InnerVoice && st.Thought.Text != "" {
@@ -413,22 +424,28 @@ func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) erro
 			st.Thought.At.Unix(), st.Thought.Text)
 	}
 
-	if len(st.StyleDirective) > 0 {
-		b.WriteString("\n**How she sounds** (from the character file)\n")
-		for _, line := range st.StyleDirective {
-			b.WriteString("- " + line + "\n")
-		}
-	}
-	if len(st.Directives) > 0 {
-		b.WriteString("\n**Right now** (computed, changes on its own)\n")
-		for _, line := range st.Directives {
-			b.WriteString("- " + line + "\n")
-		}
+	b.WriteString("\n-# ")
+	if st.LastSpokeAt.IsZero() {
+		b.WriteString("never spoken here")
 	} else {
-		b.WriteString("\nNothing about her mood is pronounced enough to be worth telling her.\n")
+		fmt.Fprintf(&b, "last spoke <t:%d:R>", st.LastSpokeAt.Unix())
 	}
+	fmt.Fprintf(&b, " · remembers %d here, %d bright now · indirect odds %+.0f%%",
+		st.Memories, st.Recalled, st.Nudge*100)
+	if st.Proactive {
+		fmt.Fprintf(&b, " · speaks first: %d/%d today", st.VolunteeredToday, mind.VolunteerDailyLimit)
+	}
+	b.WriteString("\n")
 
 	return respond(s, e, b.String())
+}
+
+// clip cuts a name to width runes for a column.
+func clip(s string, width int) string {
+	if r := []rune(s); len(r) > width {
+		return string(r[:width])
+	}
+	return s
 }
 
 // meterWidth is how many blocks a full bar draws.

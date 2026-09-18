@@ -341,6 +341,38 @@ func (g Grounding) presentIDs() []string {
 	return ids
 }
 
+// feelingLines are the instructions about the people present: who she is
+// short with, then who she is fond of, never both for one person.
+func (g Grounding) feelingLines() []string {
+	var out []string
+	annoyed := ""
+	if who, level := g.mostIrritating(); who != "" {
+		if line := IrritationDirective(who, level); line != "" {
+			out = append(out, line)
+			annoyed = who
+		}
+	}
+	if who, level := g.mostLiked(annoyed); who != "" {
+		if line := WarmthDirective(who, level); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// Told is every instruction about her state this grounding puts in a prompt:
+// how she is, how she feels about the people present, and how her last line
+// landed. The same functions Build uses, so what /chat state shows is what
+// the model is told, not a second account of it.
+func (g Grounding) Told() []string {
+	out := append([]string(nil), g.Drives.Directives()...)
+	out = append(out, g.feelingLines()...)
+	if r := strings.TrimSpace(g.Reception); r != "" {
+		out = append(out, r)
+	}
+	return out
+}
+
 // mostLiked is whoever present she is fondest of, other than skip — the
 // person already getting an irritation directive, since being told to be
 // short with someone and to go easy on them in one prompt is a contradiction

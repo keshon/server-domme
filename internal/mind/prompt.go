@@ -171,19 +171,10 @@ func buildSystem(c *Character, g Grounding, b Budget) string {
 	// The person in front of her, before the general mood: being short with
 	// someone specific is more particular than being tired, and the more
 	// particular instruction goes later.
-	annoyed := ""
-	if who, level := g.mostIrritating(); who != "" {
-		if line := IrritationDirective(who, level); line != "" {
-			sb.WriteString("\n\n" + line + "\n")
-			annoyed = who
-		}
-	}
 	// Fondness after annoyance, and never for the same person: see
 	// Grounding.mostLiked.
-	if who, level := g.mostLiked(annoyed); who != "" {
-		if line := WarmthDirective(who, level); line != "" {
-			sb.WriteString("\n\n" + line + "\n")
-		}
+	for _, line := range g.feelingLines() {
+		sb.WriteString("\n\n" + line + "\n")
 	}
 
 	// Last, alone, and phrased as instructions. Everything above is either who

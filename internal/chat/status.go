@@ -1,9 +1,11 @@
 package chat
 
 import (
+	"math"
 	"sort"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/ai"
 	"github.com/keshon/server-domme/internal/mind"
 )
@@ -50,33 +52,37 @@ func (s *Service) CharacterName() string {
 // command that reports it.
 //
 // Every field is derived, not stored, which is the point: this shows the
-// operator the same numbers the prompt was built from rather than a separate
-// copy that can disagree with it.
+// operator the same numbers and the same instructions the prompt is built
+// from rather than a separate copy that can disagree with it.
+//
+// What is left out matters as much. The character file's temperament used to
+// be listed here, and it only changes when the file does — on a panel about
+// how she is right now, it was the one thing that never moved.
 type State struct {
-	// Drives are how she is doing, on 0..1.
+	// Drives are how she is doing, on 0..1, and Mood and Wants are the same
+	// thing in words.
 	Drives mind.Drives
-	// Directives are the instructions those drives produced, verbatim as the
-	// model receives them. Empty means the mood is unremarkable enough to say
-	// nothing, which is the ordinary case.
-	Directives []string
-	// Style is the settled temperament from the character file, and its own
-	// directives.
-	Style          mind.SpeechStyle
-	StyleDirective []string
-	// LastSpokeAt is when she last said anything in this guild, which is what
-	// the social drive is measured from.
+	Mood   string
+	Wants  []string
+	// Nudge is how much the mood is moving the odds of answering an indirect
+	// approach, positive or negative.
+	Nudge float64
+	// People are the people in the conversation and how she stands with
+	// each, the ones she feels most about first.
+	People []Stance
+	// Reaction is how her last message landed, while it still colours her
+	// next reply, and ReactionFrom who it came from.
+	Reaction     mind.Reception
+	ReactionFrom string
+	// Told is every instruction about her state that the next reply here
+	// would carry, verbatim as the model receives it.
+	Told []string
+	// LastSpokeAt is when she last said anything in this guild.
 	LastSpokeAt time.Time
 	// Memories is how many things she still holds about this channel, and how
 	// many of them are bright enough to reach a prompt right now.
 	Memories int
 	Recalled int
-	// Nudge is how much the mood is moving the odds of answering an indirect
-	// approach, positive or negative.
-	Nudge float64
-	// Irritated lists anyone in the conversation she has something against,
-	// worst first. Held per person: being short with one member and ordinary
-	// with the next is the thing being modelled.
-	Irritated []Annoyance
 	// Proactive is whether she may speak first in this channel, and
 	// VolunteeredToday how much of the day's allowance she has used.
 	Proactive        bool
@@ -87,26 +93,26 @@ type State struct {
 	Thought    Thought
 }
 
-// Annoyance is one person and how much they have got on her nerves.
-type Annoyance struct {
-	Username string
-	Level    float64
+// Stance is how she stands with one person.
+type Stance struct {
+	Username   string
+	Attitude   string
+	Warmth     float64
+	Irritation float64
+	Regard     float64
 }
 
 // StateIn reports what she is like in one channel.
-func (s *Service) StateIn(guildID, channelID string) State {
+func (s *Service) StateIn(sess *discordgo.Session, guildID, channelID string) State {
 	now := time.Now()
 	drives := s.drives(guildID, channelID, now)
 
 	st := State{
-		Drives:     drives,
-		Directives: drives.Directives(),
-		Nudge:      drives.Nudge(),
-		Memories:   len(s.store.MindMemories(guildID, channelID)),
-	}
-	if s.character != nil {
-		st.Style = s.character.Style
-		st.StyleDirective = s.character.Style.Directives()
+		Drives:   drives,
+		Mood:     mind.MoodWords(drives),
+		Wants:    mind.Wants(drives),
+		Nudge:    drives.Nudge(),
+		Memories: len(s.store.MindMemories(guildID, channelID)),
 	}
 	if guild := s.store.GetMindGuild(guildID); guild != nil {
 		st.LastSpokeAt = guild.LastSpokeAt
@@ -126,13 +132,33 @@ func (s *Service) StateIn(guildID, channelID string) State {
 	st.Recalled = len(recalled)
 
 	for _, p := range present {
-		if p.Irritation > 0 {
-			st.Irritated = append(st.Irritated, Annoyance{Username: p.Username, Level: p.Irritation})
-		}
+		regard := s.regardFor(sess, guildID, p.UserID)
+		st.People = append(st.People, Stance{
+			Username:   p.Username,
+			Attitude:   mind.Attitude(p.Warmth, p.Irritation, regard),
+			Warmth:     p.Warmth,
+			Irritation: p.Irritation,
+			Regard:     regard,
+		})
 	}
-	sort.SliceStable(st.Irritated, func(i, j int) bool {
-		return st.Irritated[i].Level > st.Irritated[j].Level
+	sort.SliceStable(st.People, func(i, j int) bool {
+		return feeling(st.People[i]) > feeling(st.People[j])
 	})
 
+	g := mind.Grounding{Present: present, Drives: drives, Now: now}
+	s.receptionMu.Lock()
+	r, ok := s.receptions[channelID]
+	s.receptionMu.Unlock()
+	if ok && r.Current(r.UserID, now) {
+		st.Reaction, st.ReactionFrom = r.Kind, r.Username
+		g.Reception = mind.ReceptionDirective(r.Username, r.Kind)
+	}
+	st.Told = g.Told()
+
 	return st
+}
+
+// feeling is how strongly she feels about someone either way, for ordering.
+func feeling(p Stance) float64 {
+	return p.Warmth + p.Irritation + math.Abs(p.Regard)
 }
