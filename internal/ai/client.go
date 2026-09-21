@@ -48,6 +48,35 @@ type Client struct {
 	HTTP *http.Client
 }
 
+// temperatureKey carries a per-call temperature; see WithTemperature.
+type temperatureKey struct{}
+
+// WithTemperature overrides the configured temperature for calls made with
+// the returned context.
+//
+// On the context rather than on Provider because it is the same conversation
+// asked two different things: deciding what she makes of a message wants a
+// steady, low temperature so the JSON comes back parseable and the judgement
+// is not a coin toss, and her voice wants the backend's own. Carried through
+// Pool untouched, so failover keeps it.
+func WithTemperature(ctx context.Context, t float64) context.Context {
+	return context.WithValue(ctx, temperatureKey{}, t)
+}
+
+// rawKey marks a call whose reply is data rather than speech; see WithRaw.
+type rawKey struct{}
+
+// WithRaw has calls made with the returned context skip Clean.
+//
+// Clean exists to make a reply postable, and it does that by cutting any
+// line that opens like "name: " — which is every line of a JSON object. The
+// persona's private appraisal comes back as JSON and is never posted, so it
+// is asked for raw; Do NOT drop this and parse a cleaned reply, the object
+// arrives cut after its first key.
+func WithRaw(ctx context.Context) context.Context {
+	return context.WithValue(ctx, rawKey{}, true)
+}
+
 // NewClient returns a Client with a timeout-bounded HTTP client.
 func NewClient(name, baseURL, model, apiKey string) *Client {
 	return &Client{
@@ -86,8 +115,12 @@ type chatResponse struct {
 
 // Generate implements Provider.
 func (c *Client) Generate(ctx context.Context, messages []Message) (string, error) {
+	temperature := c.Temperature
+	if t, ok := ctx.Value(temperatureKey{}).(float64); ok {
+		temperature = &t
+	}
 	body, err := json.Marshal(chatRequest{
-		Model: c.Model, Messages: messages, Stream: false, Temperature: c.Temperature,
+		Model: c.Model, Messages: messages, Stream: false, Temperature: temperature,
 	})
 	if err != nil {
 		return "", fmt.Errorf("ai: encode request for %s: %w", c.Name, err)
@@ -126,6 +159,9 @@ func (c *Client) Generate(ctx context.Context, messages []Message) (string, erro
 	if err != nil {
 		return "", err
 	}
+	if raw, _ := ctx.Value(rawKey{}).(bool); !raw {
+		reply = Clean(reply)
+	}
 	if reply == "" {
 		return "", fmt.Errorf("ai: %s: %w", c.Name, ErrEmptyReply)
 	}
@@ -148,7 +184,7 @@ func parseReply(name string, raw []byte) (string, error) {
 	}
 
 	if !strings.HasPrefix(text, "{") && !strings.HasPrefix(text, "[") {
-		return Clean(text), nil
+		return text, nil
 	}
 
 	decoder := json.NewDecoder(strings.NewReader(text))
@@ -186,7 +222,7 @@ func parseReply(name string, raw []byte) (string, error) {
 		}
 	}
 
-	return Clean(assembled.String()), nil
+	return assembled.String(), nil
 }
 
 // refusesUntilChanged reports whether a status means the backend will answer

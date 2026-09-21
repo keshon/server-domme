@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
@@ -52,47 +51,19 @@ func TestTrimForEmbedFlattensAndCuts(t *testing.T) {
 	}
 }
 
-func TestMeterDrawsTheRangeAndClampsOutsideIt(t *testing.T) {
-	empty := meter(0)
-	half := meter(0.5)
-	full := meter(1)
-
-	if strings.Count(empty, "█") != 0 {
-		t.Errorf("meter(0) = %s, want no blocks", empty)
-	}
-	if strings.Count(full, "█") != meterWidth {
-		t.Errorf("meter(1) = %s, want a full bar", full)
-	}
-	if n := strings.Count(half, "█"); n != meterWidth/2 {
-		t.Errorf("meter(0.5) drew %d of %d blocks", n, meterWidth)
-	}
-
-	// A drive should never be outside 0..1, but a bar that panics on one
-	// would take the command down with it.
-	for _, v := range []float64{-5, 5} {
-		if got := strings.Count(meter(v), "█"); got < 0 || got > meterWidth {
-			t.Errorf("meter(%v) drew %d blocks", v, got)
-		}
-	}
-}
-
-// A subcommand needs an entry in SlashDefinition and a case in Run, and
-// nothing connects the two. `state` shipped with only the case: Discord never
-// offered it, so the branch was unreachable and the feature was invisible
-// while looking finished from the code.
 func TestEverySubcommandIsOfferedToDiscord(t *testing.T) {
 	offered := make(map[string]bool)
 	for _, opt := range (&ChatCommand{}).SlashDefinition().Options {
 		offered[opt.Name] = true
 	}
 
-	for _, name := range []string{subHere, subSilence, subBrief, subStatus, subState, subForget, subRole, subSpeakUp, subAbout, subWhy} {
+	for _, name := range []string{subChannel, subBrief, subStatus, subForget, subRole, subAbout, subWhy} {
 		if !offered[name] {
 			t.Errorf("%q is handled in Run but never offered in SlashDefinition, so nobody can run it", name)
 		}
 	}
-	if len(offered) != 10 {
-		t.Errorf("SlashDefinition offers %d subcommands, want 10 — an unhandled one fails closed", len(offered))
+	if len(offered) != 7 {
+		t.Errorf("SlashDefinition offers %d subcommands, want 7 — an unhandled one fails closed", len(offered))
 	}
 }
 
@@ -103,26 +74,6 @@ func TestEverySubcommandIsDescribed(t *testing.T) {
 	for _, opt := range (&ChatCommand{}).SlashDefinition().Options {
 		if strings.TrimSpace(opt.Description) == "" {
 			t.Errorf("subcommand %q has no description", opt.Name)
-		}
-	}
-}
-
-func TestGaugesLineUp(t *testing.T) {
-	lines := []string{
-		gauge("Energy", 0.81),
-		gauge("Alone", 0.04),
-		gauge("Interest", 0),
-		gauge("SomebodyWithALongName", 0.5),
-	}
-
-	want := strings.Index(lines[0], "█")
-	if want < 0 {
-		want = strings.Index(lines[0], "░")
-	}
-	for _, line := range lines[1:] {
-		at := strings.IndexAny(line, "█░")
-		if at != want {
-			t.Errorf("bar starts at column %d, want %d:\n%s", at, want, line)
 		}
 	}
 }
@@ -153,37 +104,21 @@ func TestForgetIsGuardedByATypedWord(t *testing.T) {
 	}
 }
 
-func TestExplainSaysWhySheStayedQuiet(t *testing.T) {
+func TestExplainShowsWhatSheMadeOfIt(t *testing.T) {
 	got := explain(storage.MindJournal{
-		Username: "Big M", Excerpt: "took you time to type it heh",
-		Trigger: "follow-up", Rule: mind.RuleOdds, Chance: 0.8, Roll: 0.91,
-		Outcome: "stayed quiet", Mood: "sharp, interested", Attitude: "neutral",
+		Username: "Big M", Excerpt: "sorry.. I learned my lesson",
+		Trigger: "follow-up", Read: "a sincere apology", Feel: "disarmed",
+		Act: "reply", Intent: "accept it without making a thing of it",
+		Outcome: "answered", Posted: "fine. we're good",
 	})
-	for _, want := range []string{"carried on talking to her, untagged", "odds 80%, rolled 91 → stay quiet", "towards them: neutral"} {
+	for _, want := range []string{"carried on talking to her, untagged", "a sincere apology", "to answer — accept it", "we're good"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("explanation missing %q:\n%s", want, got)
 		}
 	}
-}
 
-// The label and the thought are read in the raw reply, tags and all; pulled
-// out into sections of their own as well, they said everything twice.
-func TestExplainShowsTheLabelAndThoughtOnce(t *testing.T) {
-	raw := "<tone>playful</tone>\n<inner>another of their games</inner>\nSKIP"
-	got := explain(storage.MindJournal{
-		Trigger: "follow-up", Outcome: "declined",
-		Perceived: "playful", Thought: "another of their games", Raw: raw,
-	})
-	if strings.Count(got, "another of their games") != 1 {
-		t.Errorf("the thought appears more than once:\n%s", got)
-	}
-	if strings.Contains(got, "Read their message as") {
-		t.Errorf("the label has a section of its own beside the raw reply:\n%s", got)
-	}
-
-	// With no raw reply to read them in, they still show.
-	got = explain(storage.MindJournal{Trigger: "mention", Outcome: "answered", Perceived: "warm", Thought: "nice"})
-	if !strings.Contains(got, "warm") || !strings.Contains(got, "nice") {
-		t.Errorf("without a raw reply the label and thought vanished:\n%s", got)
+	got = explain(storage.MindJournal{Username: "Big M", Trigger: "reach", Why: "I wanted to know what he named it", Outcome: "answered"})
+	if !strings.Contains(got, "went to **Big M** on her own") || !strings.Contains(got, "what he named it") {
+		t.Errorf("a reach does not say why:\n%s", got)
 	}
 }

@@ -29,10 +29,11 @@ services:
       - SHORTLINK_ADDR=${SHORTLINK_ADDR:-:8787}
       - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
       # Chat persona. Off unless CHAT_ENABLED is true, and then still silent
-      # until an admin runs /chat here. CHAT_CHARACTER_PATH points inside the
+      # until an admin runs /chat channel. CHAT_CHARACTER_PATH points inside the
       # mounted volume, so data/character.md has to exist on the host next to
       # this file — without it the persona logs chat_character_load_failed and
-      # stays off.
+      # stays off. Her memory (CHAT_MEMORY_PATH) is inside the same volume,
+      # which is what lets her remember across deploys.
       - CHAT_ENABLED=${CHAT_ENABLED:-false}
       - CHAT_NAME=${CHAT_NAME:-Domme}
       - CHAT_CHARACTER_PATH=${CHAT_CHARACTER_PATH:-./data/character.md}
@@ -46,13 +47,8 @@ services:
       - CHAT_BACKENDS=${CHAT_BACKENDS}
       - CHAT_REQUEST_TIMEOUT=${CHAT_REQUEST_TIMEOUT:-45s}
       - CHAT_TIMEZONE=${CHAT_TIMEZONE:-}
-      - CHAT_MENTION_CHANCE=${CHAT_MENTION_CHANCE:-0.88}
-      - CHAT_NAMED_CHANCE=${CHAT_NAMED_CHANCE:-0.65}
-      - CHAT_ABOUT_CHANCE=${CHAT_ABOUT_CHANCE:-0.25}
-      - CHAT_REPLY_CHANCE=${CHAT_REPLY_CHANCE:-0.92}
-      - CHAT_FOLLOWUP_CHANCE=${CHAT_FOLLOWUP_CHANCE:-0.8}
-      - CHAT_INNER_VOICE=${CHAT_INNER_VOICE:-false}
-      - CHAT_PERCEPTION=${CHAT_PERCEPTION:-off}
+      - CHAT_MEMORY_PATH=${CHAT_MEMORY_PATH:-/usr/project/data/mind}
+      - CHAT_REFLECT_HOUR=${CHAT_REFLECT_HOUR:-5}
       - CHAT_TEMPERATURE=${CHAT_TEMPERATURE:-}
       - CHAT_CASUAL_SLIPS=${CHAT_CASUAL_SLIPS:-0.2}
     # Lets the container reach a service listening on the host — an SSH

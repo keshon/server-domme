@@ -294,7 +294,8 @@ on every push and PR, then cross-compiles all release targets.
 **[invariant]** `README.md` is generated, not hand-edited: change
 `README.md.tmpl` and run `go run ./cmd/discord -readme` from the repo root.
 Editing the output means losing the edit on the next regeneration. The bot
-never writes files at runtime.
+writes no files at runtime except the persona's memory, which lives under
+`CHAT_MEMORY_PATH` and nowhere else; see `internal/memory`.
 
 ## Release notes
 

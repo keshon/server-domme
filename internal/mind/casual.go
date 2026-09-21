@@ -68,13 +68,6 @@ func Casual(reply string, s CasualStyle, roll float64) string {
 	return strings.TrimSpace(out)
 }
 
-// IsCurt reports whether she is being short with someone: cool or worse
-// towards them, or cold towards their roles. The same bands the attitude
-// words use; see Attitude.
-func IsCurt(irritation, regard float64) bool {
-	return irritation > coolAbove || regard < -0.25
-}
-
 // dropFinalStop removes a single full stop at the very end. An ellipsis is
 // kept — "sure..." is a different message from "sure" — and so is anything
 // that is not a full stop.

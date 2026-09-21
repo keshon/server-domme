@@ -121,3 +121,32 @@ four refusals in six.
 		t.Errorf("parsed %d examples, want 1", len(c.Examples))
 	}
 }
+
+// The card that ships is the one she runs on. It has to load, carry the
+// examples that show her warming up, and seed how she sees herself without
+// that seed leaking into the persona sent on every call.
+func TestTheShippedCharacterLoads(t *testing.T) {
+	for _, path := range []string{"../../data/character.md", "../../docker/data/character.md"} {
+		c, err := LoadCharacter("Domme", path)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if len(c.Examples) < 10 || len(c.Avoid) == 0 || c.Lately == "" {
+			t.Errorf("%s: %d examples, %d limits, lately %q", path, len(c.Examples), len(c.Avoid), c.Lately)
+		}
+		if strings.Contains(c.Persona, "Things have been quiet") {
+			t.Errorf("%s: the lately seed is in the persona", path)
+		}
+	}
+}
+
+// A v1 card still loads: its temperament dials are read and ignored.
+func TestATemperSectionIsIgnored(t *testing.T) {
+	c, err := ParseCharacter("Domme", strings.NewReader("Who she is.\n\n## Temper\n\n- warmth: 0.35\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(c.Persona, "warmth") {
+		t.Errorf("the dials reached the persona: %q", c.Persona)
+	}
+}

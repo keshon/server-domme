@@ -35,8 +35,8 @@ const (
 // routinely, and the honest response to "I cannot reach a backend" is not a
 // machine apology in the channel. Someone who was busy answers later; only
 // software announces its own unavailability. The deferral is also what keeps
-// failing distinct from choosing not to answer — Decide returning
-// OutcomeIgnore never lands here, and nothing here is ever re-decided.
+// failing distinct from choosing not to answer — an appraisal that chose
+// to ignore never lands here.
 type Deferred struct {
 	GuildID   string
 	ChannelID string
@@ -49,21 +49,16 @@ type Deferred struct {
 	Content   string
 	Trigger   Trigger
 	FormedAt  time.Time
-	// Volunteering is why she is speaking when nobody asked, empty for an
-	// answer. Carried with the approach because the reason is decided when
-	// the message arrives and only turned into a prompt at reply time.
-	Volunteering string
-	// Closer marks an approach that closed the topic; answering it, she is
-	// told the conversation has gone flat. See FlatDirective.
-	Closer bool
+	// Considered is what she made of it, once she has. An answer held
+	// because the voice call failed keeps its appraisal, so the retry only
+	// speaks: considering it again would write the same notes to memory
+	// twice and might decide differently the second time.
+	Considered *Appraisal
 	// Journal is the caller's record of this approach, carried so a late
 	// answer completes the same entry the decision opened.
-	Journal uint64
-	// FirstLine is what she has just said, for an afterthought: the second
-	// message is written knowing what the first one was.
-	FirstLine string
-	Attempts  int
-	nextTry   time.Time
+	Journal  uint64
+	Attempts int
+	nextTry  time.Time
 }
 
 // Age reports how long the approach has been waiting.

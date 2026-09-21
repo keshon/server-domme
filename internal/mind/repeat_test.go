@@ -1,7 +1,6 @@
 package mind
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -41,29 +40,31 @@ func TestRepeatsHerselfLetsNewThingsAndShortLinesThrough(t *testing.T) {
 	}
 }
 
-func TestReadReceptionOnWhatPeopleActuallyWrote(t *testing.T) {
-	cases := map[string]Reception{
-		"hahaha good one":             ReceptionLiked,
-		"lol":                         ReceptionLiked,
-		"😂":                           ReceptionLiked,
-		"this one is lame meeeh":      ReceptionPanned,
-		"boring":                      ReceptionPanned,
-		"you are repeating yourself":  ReceptionRepeating,
-		"same joke again, lame":       ReceptionRepeating,
-		"Tell me another one please":  ReceptionNone,
-		"ok":                          ReceptionNone,
-		"what did you have for lunch": ReceptionNone,
-	}
-	for content, want := range cases {
-		if got := ReadReception(content); got != want {
-			t.Errorf("ReadReception(%q) = %q, want %q", content, got, want)
+func TestRepeatsHerselfCatchesAnOpeningHabit(t *testing.T) {
+	her := func(lines ...string) []Turn {
+		var turns []Turn
+		for _, l := range lines {
+			turns = append(turns, Turn{UserID: "u", Username: "Big M", Content: "hi"}, Turn{FromBot: true, Content: l})
 		}
+		return turns
 	}
-}
 
-func TestReceptionReachesTheNextReplyAndOnlyThatPersonsReply(t *testing.T) {
-	g := Grounding{Reception: ReceptionDirective("Big M", ReceptionPanned)}
-	if got := buildSystem(nil, g, DefaultBudget()); !strings.Contains(got, "Big M was not impressed") {
-		t.Errorf("reception missing from the prompt:\n%s", got)
+	// The production log: three mornings running, and a relay that opened
+	// every reply with his name.
+	if _, ok := RepeatsHerself("morning. keep it professional, and we won't have any issues",
+		her("morning. keep it professional, or we'll revisit this", "morning. let's see if you can keep it that way")); !ok {
+		t.Error("a third morning was let through")
+	}
+	if _, ok := RepeatsHerself("Big M, I've said my piece.",
+		her("Big M, I'm not here to discuss my feelings.", "Big M, typos happen.")); !ok {
+		t.Error("a third reply opening with his name was let through")
+	}
+
+	// Twice is a coincidence, and short words alone are how people talk.
+	if _, ok := RepeatsHerself("morning again", her("sure thing", "morning to you")); ok {
+		t.Error("a second morning was flagged")
+	}
+	if _, ok := RepeatsHerself("no.", her("no.", "no.")); ok {
+		t.Error("a short no was flagged")
 	}
 }

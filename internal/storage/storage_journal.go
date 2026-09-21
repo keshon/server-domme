@@ -30,45 +30,34 @@ type MindJournal struct {
 	Username  string `json:"username,omitempty"`
 	Excerpt   string `json:"excerpt,omitempty"`
 
-	// Trigger is how the message reached her, Closer whether it closed the
-	// topic, and Rule, Chance and Roll how the decision was reached.
-	Trigger string  `json:"trigger"`
-	Closer  bool    `json:"closer,omitempty"`
-	Rule    string  `json:"rule,omitempty"`
-	Chance  float64 `json:"chance,omitempty"`
-	Roll    float64 `json:"roll,omitempty"`
+	// Trigger is how the message reached her.
+	Trigger string `json:"trigger"`
 
-	// Mood and Attitude are her state at the time, in words.
-	Mood     string `json:"mood,omitempty"`
-	Attitude string `json:"attitude,omitempty"`
+	// Read, Feel, Toward and Mood are what she made of it, and Act and
+	// Intent what she decided to do: the appraisal, in her words. Why is her
+	// reason, for something she started herself. See mind.Appraisal.
+	Read   string `json:"read,omitempty"`
+	Feel   string `json:"feel,omitempty"`
+	Toward string `json:"toward,omitempty"`
+	Mood   string `json:"mood,omitempty"`
+	Act    string `json:"act,omitempty"`
+	Intent string `json:"intent,omitempty"`
+	Why    string `json:"why,omitempty"`
 
-	// Outcome is where it ended — answered, silent, declined, dropped, held —
+	// Outcome is where it ended — answered, silent, reacted, dropped, held —
 	// and Reason why, in a phrase.
 	Outcome string `json:"outcome"`
 	Reason  string `json:"reason,omitempty"`
 
-	// Told are the instructions about her state the reply carried, Thought
-	// her private line, Raw what the model returned and Posted what went
-	// out, both trimmed.
-	Told    []string `json:"told,omitempty"`
-	Thought string   `json:"thought,omitempty"`
-	// Perceived is how the model labelled their message when asked, or
-	// "unreadable" when it was asked and gave no usable word. Shadow only:
-	// nothing acts on it yet. See mind.Perception.
-	Perceived string `json:"perceived,omitempty"`
-	// Payoff is how something she started was received, and what that did
-	// to her, once it is known. See mind.Payoff.
-	Payoff string `json:"payoff,omitempty"`
-	Raw    string `json:"raw,omitempty"`
+	// Posted is what went out, trimmed.
 	Posted string `json:"posted,omitempty"`
 
 	// Backend is which relay answered and Took how long the reply took.
 	Backend string        `json:"backend,omitempty"`
 	Took    time.Duration `json:"took,omitempty"`
 
-	// ReplyID is her message, and Reaction how it landed, when it did.
-	ReplyID  string `json:"reply_id,omitempty"`
-	Reaction string `json:"reaction,omitempty"`
+	// ReplyID is her message.
+	ReplyID string `json:"reply_id,omitempty"`
 }
 
 func (j *MindJournal) Key() string { return guildRowKey(j.GuildID, j.ID) }

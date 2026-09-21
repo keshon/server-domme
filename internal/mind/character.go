@@ -20,10 +20,16 @@ const (
 	// guidance for whoever edits the character next, that guidance either
 	// goes missing or gets paid for a few hundred times a day.
 	headingNotes = "notes"
-	// headingTemper holds the temperament dials: "warmth: 0.7", one per line.
-	// Optional, like everything else in this file — a character with no
-	// temper section simply has no temperament directives.
+	// headingTemper held v1's temperament dials. Dropped on read, so an
+	// older file still loads: numbers rendered as instructions were what made
+	// her a caricature, and v2 has nothing to feed them to. See
+	// docs/persona.md.
 	headingTemper = "temper"
+	// headingLately is who she is lately, in her own words, before she has
+	// reflected on anything. It seeds self.md the first time she speaks in a
+	// guild and is not sent as part of the persona after that; see
+	// memory.Self.
+	headingLately = "lately"
 )
 
 // Example speaker labels inside the examples section.
@@ -60,9 +66,8 @@ type Character struct {
 	Avoid []string
 	// Examples are replayed as conversation turns. See Exchange.
 	Examples []Exchange
-	// Style is her settled temperament, from the file's "## Temper" section.
-	// Unset dials sit at the middle and say nothing; see SpeechStyle.
-	Style SpeechStyle
+	// Lately seeds how she sees herself; see headingLately.
+	Lately string
 }
 
 // LoadCharacter reads a character file from path.
@@ -87,9 +92,8 @@ func LoadCharacter(name, path string) (*Character, error) {
 // error — the file is authored content, and failing to start the bot over a
 // typo in a heading serves nobody.
 func ParseCharacter(name string, r io.Reader) (*Character, error) {
-	// Starts at the middle so a file that sets two dials leaves the other
-	// three saying nothing, rather than reading as cold, humourless and meek.
-	c := &Character{Name: name, Style: DefaultSpeechStyle()}
+	c := &Character{Name: name}
+	var lately strings.Builder
 
 	var persona strings.Builder
 	var pending Exchange
@@ -116,12 +120,10 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 			if item := listItem(trimmed); item != "" {
 				c.Avoid = append(c.Avoid, item)
 			}
-		case headingTemper:
-			// An unreadable dial is skipped rather than fatal. This is
-			// authored content, and refusing to start over a typo in a number
-			// serves nobody.
-			_ = parseDial(listItem(trimmed), &c.Style)
-		case headingNotes:
+		case headingLately:
+			lately.WriteString(line)
+			lately.WriteString("\n")
+		case headingNotes, headingTemper:
 			// Deliberately dropped; see headingNotes.
 		default:
 			persona.WriteString(line)
@@ -134,6 +136,7 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 	flushExchange(c, pending)
 
 	c.Persona = strings.TrimSpace(persona.String())
+	c.Lately = strings.TrimSpace(lately.String())
 	if c.Persona == "" && len(c.Examples) == 0 {
 		return nil, fmt.Errorf("mind: character file has neither persona text nor examples")
 	}

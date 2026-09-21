@@ -10,40 +10,47 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	chatsvc "github.com/keshon/server-domme/internal/chat"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
-	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
 )
 
 // Subcommand names. Renaming one costs every admin their muscle memory and
 // forces a command re-sync, so treat them the way slash names are treated
 // everywhere else here.
+//
+// v2 folded ten into seven: here, silence and proactive were three ways of
+// saying how she behaves in a channel, and state was half of what status is
+// for. See docs/persona.md.
 const (
-	subHere    = "here"
-	subSilence = "silence"
+	subChannel = "channel"
 	subBrief   = "brief"
 	subStatus  = "status"
-	subState   = "state"
 	subForget  = "forget"
 	subRole    = "role"
-	subSpeakUp = "proactive"
 	subAbout   = "about"
 	subWhy     = "why"
+	optMode    = "mode"
 	optMessage = "message"
 	optUser    = "user"
 	optEnabled = "enabled"
 	optRole    = "role"
-	optRegard  = "regard"
 	optNote    = "note"
 	// optConfirm is the word an administrator has to type out. A button would
 	// be one click from the same mistake, and this is not undoable.
 	optConfirm    = "confirm"
 	confirmPhrase = "yes"
+)
+
+// Channel modes, as /chat channel offers them. Each is a step up from the
+// last: she cannot speak first where she does not read.
+const (
+	modeOff     = "off"
+	modeAnswers = "answers"
+	modeFirst   = "speaks-first"
 )
 
 // ChatCommand configures the persona and feeds her every message in the
@@ -88,13 +95,21 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        subHere,
-				Description: "Let her read and reply in this channel",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        subSilence,
-				Description: "Stop her reading this channel",
+				Name:        subChannel,
+				Description: "How she behaves in this channel — or see it, left empty",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        optMode,
+						Description: "off: not reading · answers: reads and answers · speaks-first: may also start things",
+						Required:    false,
+						Choices: []*discordgo.ApplicationCommandOptionChoice{
+							{Name: "off — she does not read this channel", Value: modeOff},
+							{Name: "answers — she reads and answers when she wants to", Value: modeAnswers},
+							{Name: "speaks first — she may also start things here", Value: modeFirst},
+						},
+					},
+				},
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -112,12 +127,7 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subStatus,
-				Description: "Where she is listening, and how the backends are holding up",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        subState,
-				Description: "How she is doing right now, and what that is telling her",
+				Description: "How she is here — mood, the people, what she means to do — and how the backends are",
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -127,21 +137,13 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					{
 						Type:        discordgo.ApplicationCommandOptionRole,
 						Name:        optRole,
-						Description: "The role to set. Leave the rest empty to see what it is now",
+						Description: "The role to set. Leave the note out to see what it is now",
 						Required:    true,
-					},
-					{
-						Type:        discordgo.ApplicationCommandOptionNumber,
-						Name:        optRegard,
-						Description: "-1 to 1. Negative is reserved, positive is forthcoming, 0 clears it",
-						Required:    false,
-						MinValue:    &minRegard,
-						MaxValue:    maxRegard,
 					},
 					{
 						Type:        discordgo.ApplicationCommandOptionString,
 						Name:        optNote,
-						Description: `Said about them verbatim, e.g. "a submissive here, speak to them as one"`,
+						Description: `Said about them verbatim, e.g. "a submissive here, speak to them as one". Empty clears it`,
 						Required:    false,
 					},
 				},
@@ -174,26 +176,13 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        subSpeakUp,
-				Description: "Let her speak first here now and then — greet a regular, bring up an old thread",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionBoolean,
-						Name:        optEnabled,
-						Description: "On or off. Off is the default: she only ever answers",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        subForget,
 				Description: "Wipe everything she remembers about this server",
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Type:        discordgo.ApplicationCommandOptionString,
 						Name:        optConfirm,
-						Description: `Type "yes" — this cannot be undone`,
+						Description: `Type "yes" to confirm`,
 						Required:    true,
 					},
 				},
@@ -208,11 +197,11 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 		return nil
 	}
 
-	s, e, store := context.Session, context.Event, context.Storage
+	s, e := context.Session, context.Event
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `here`, `silence`, `brief`, `status`, `state`, `why`, `about`, `role`, `proactive` or `forget`.")
+		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role` or `forget`.")
 	}
 	sub := data.Options[0]
 
@@ -221,24 +210,8 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	}
 
 	switch sub.Name {
-	case subHere:
-		if err := store.AddChatChannel(e.GuildID, e.ChannelID); err != nil {
-			return respond(s, e, "She is already listening here.")
-		}
-		return respond(s, e, fmt.Sprintf(
-			"She can read <#%s> now, and will answer when it suits her.\n\n"+
-				"Everything posted here is sent to a third-party relay to produce her "+
-				"replies. Use `/chat silence` to take it back.", e.ChannelID))
-
-	case subSilence:
-		if err := store.RemoveChatChannel(e.GuildID, e.ChannelID); err != nil {
-			return respond(s, e, "She was not listening here to begin with.")
-		}
-		// Drop what she is still holding, not just her permission to read on.
-		// The conversation in memory would otherwise still be summarised, and
-		// that sends it to a relay.
-		c.Service.Forget(e.ChannelID)
-		return respond(s, e, fmt.Sprintf("She has stopped reading <#%s>.", e.ChannelID))
+	case subChannel:
+		return c.runChannel(context, sub)
 
 	case subBrief:
 		return runBrief(context, sub)
@@ -246,20 +219,14 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 	case subStatus:
 		return c.runStatus(context)
 
-	case subState:
-		return c.runState(context)
-
 	case subRole:
 		return runRole(context, sub)
 
 	case subForget:
 		return c.runForget(context, sub)
 
-	case subSpeakUp:
-		return runSpeakUp(context, sub)
-
 	case subAbout:
-		return runAbout(context, sub)
+		return c.runAbout(context, sub)
 
 	case subWhy:
 		return c.runWhy(context, sub)
@@ -303,7 +270,7 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 
 	channels := store.GetChatChannels(e.GuildID)
 	if len(channels) == 0 {
-		b.WriteString("Listening in: nowhere yet — `/chat here` in a channel.\n")
+		b.WriteString("Listening in: nowhere yet — `/chat channel mode:answers` in a channel.\n")
 	} else {
 		b.WriteString("Listening in: ")
 		for i, id := range channels {
@@ -326,6 +293,8 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 		fmt.Fprintf(&b, "Owed replies: %d held, %d queued\n", status.Waiting, status.Queued)
 	}
 
+	b.WriteString("\n" + c.stateHere(e.GuildID, e.ChannelID))
+
 	if len(status.Backends) > 0 {
 		b.WriteString("\n**Backends**\n")
 		for _, backend := range status.Backends {
@@ -344,16 +313,13 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 		}
 	}
 
+	b.WriteString("\n-# Her memory is in `" + status.MemoryPath + "` on the host.")
 	return respond(s, e, b.String())
 }
 
 // todayOrder is the order the day's counts are shown in: what she did, then
 // how it went down, then what went wrong.
-var todayOrder = []string{
-	"answered", "silent", "declined", "volunteered", "afterthought",
-	"liked", "panned", "told repeating",
-	"repeat caught", "echo caught", "relay failed",
-}
+var todayOrder = []string{"answered", "reacted", "stayed quiet", "held for later", "dropped"}
 
 // todayLine renders the day's counts on one line, leaving out the zeros.
 func todayLine(counts map[string]int) string {
@@ -403,160 +369,103 @@ func respond(s *discordgo.Session, e *discordgo.InteractionCreate, msg string) e
 	})
 }
 
-// runState reports the character's current inner state.
-//
-// Every number here is derived at the moment it is asked for, from the same
-// call the prompt uses, so what an administrator reads is what the model was
-// told rather than a second copy that can drift from it.
-func (c *ChatCommand) runState(context *cmdadapter.SlashInteractionContext) error {
-	s, e := context.Session, context.Event
-	st := c.Service.StateIn(s, e.GuildID, e.ChannelID)
+// stateHere is how she is in one channel, as her memory has it: her mood,
+// how she has been lately, her dossiers on the people in the conversation,
+// what she means to do, and what she last made of something here. It is read
+// from the same files the next prompt is built from.
+func (c *ChatCommand) stateHere(guildID, channelID string) string {
+	st := c.Service.StateIn(guildID, channelID)
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "**How she is in <#%s>**\n", e.ChannelID)
-	if st.Mood != "" {
-		fmt.Fprintf(&b, "%s\n", st.Mood)
-	}
-
-	// One fenced block rather than a line each. Discord renders labels in a
-	// proportional font, so "Energy" and "Interest" are different widths and
-	// the bars after them do not line up; inside a code block every column
-	// does.
-	b.WriteString("```\n")
-	fmt.Fprintf(&b, "%s\n", gauge("Energy", st.Drives.Energy))
-	fmt.Fprintf(&b, "%s\n", gauge("Alone", st.Drives.Social))
-	fmt.Fprintf(&b, "%s\n", gauge("Interest", st.Drives.Arousal))
-	// Mood runs -1 to +1, so the bar is centred: half full is neutral.
-	fmt.Fprintf(&b, "%-*s %s  %+.2f\n", labelWidth, "Mood", meter((st.Drives.Mood+1)/2), st.Drives.Mood)
-	b.WriteString("```\n")
-
-	if len(st.Wants) > 0 {
-		b.WriteString("**Wants**\n")
-		for _, want := range st.Wants {
-			b.WriteString("- " + want + "\n")
+	fmt.Fprintf(&b, "**How she is in <#%s>**\n", channelID)
+	if st.Self.Mood != "" {
+		fmt.Fprintf(&b, "Mood: %s", st.Self.Mood)
+		if !st.Self.MoodAt.IsZero() {
+			fmt.Fprintf(&b, " (<t:%d:R>)", st.Self.MoodAt.Unix())
 		}
-	} else {
-		b.WriteString("**Wants** nothing in particular\n")
+		b.WriteString("\n")
 	}
-
-	// Read-only for now: nothing she does is driven by this list yet, and it
-	// is here so its ranking can be checked against the reader's own sense
-	// of her before anything is. See mind.OnHerMind.
-	if len(st.OnMind) > 0 {
-		b.WriteString("\n**On her mind**\n")
-		for _, m := range st.OnMind {
-			name := "**" + m.Name + "**"
-			if m.Kind == mind.OnMindSubject {
-				name = "*" + m.Name + "*"
-			}
-			fmt.Fprintf(&b, "- %s · %s `%.2f`\n", name, strings.Join(m.Why, ", "), m.Salience)
-		}
-	} else {
-		b.WriteString("\n**On her mind** nothing in particular\n")
+	if st.Self.Lately != "" {
+		b.WriteString("\n**Lately, in her words**\n> " + trimForQuote(st.Self.Lately, 700) + "\n")
 	}
 
 	if len(st.People) > 0 {
-		b.WriteString("\n**Towards the people here**\n```\n")
-		// Two short lines per person rather than one long one. A code block in
-		// an embed is narrow — narrower still on a phone — and one line
-		// carrying the name, the word and three numbers wrapped mid-row.
+		b.WriteString("\n**The people here**\n")
 		for _, p := range st.People {
-			fmt.Fprintf(&b, "%-*s %s\n", labelWidth, clip(p.Username, labelWidth), p.Attitude)
-			fmt.Fprintf(&b, "  close %.2f  tense %.2f  role %+.2f\n", p.Closeness, p.Tension, p.Regard)
+			fmt.Fprintf(&b, "- **%s**", p.Name)
+			if p.Feeling != "" {
+				b.WriteString(" — " + p.Feeling)
+			}
+			if p.Between != "" {
+				b.WriteString(": " + trimForQuote(p.Between, 200))
+			}
+			b.WriteString("\n")
 		}
-		b.WriteString("```\n")
 	}
 
-	if st.Reaction != mind.ReceptionNone {
-		fmt.Fprintf(&b, "\n**Last reaction** — %s, from %s\n",
-			mind.ReceptionWords(st.Reaction), st.ReactionFrom)
-	}
-
-	// Verbatim, because this is the part that actually reaches the model; the
-	// numbers above are how it was arrived at.
-	if len(st.Told) > 0 {
-		b.WriteString("\n**What she is being told right now**\n")
-		for _, line := range st.Told {
-			b.WriteString("- " + line + "\n")
+	if len(st.Threads) > 0 {
+		b.WriteString("\n**She means to**\n")
+		for _, t := range st.Threads {
+			b.WriteString("- " + t.Text)
+			if t.Person.Name != "" {
+				b.WriteString(" (" + t.Person.Name + ")")
+			}
+			if !t.Due.IsZero() {
+				fmt.Fprintf(&b, " · <t:%d:R>", t.Due.Unix())
+			}
+			b.WriteString("\n")
 		}
-	} else {
-		b.WriteString("\nNothing about her state is pronounced enough to tell her.\n")
 	}
 
-	if st.InnerVoice && st.Thought.Text != "" {
-		fmt.Fprintf(&b, "\n**Her first reaction** (<t:%d:R>, from the model — never posted, changes nothing)\n> %s\n",
-			st.Thought.At.Unix(), st.Thought.Text)
+	if j := st.Last; j != nil {
+		fmt.Fprintf(&b, "\n**Last thing she made of something here** (<t:%d:R>)\n", j.At.Unix())
+		if j.Read != "" {
+			b.WriteString("Read it as: " + j.Read + "\n")
+		}
+		if j.Feel != "" {
+			b.WriteString("Felt: " + j.Feel + "\n")
+		}
 	}
 
 	b.WriteString("\n-# ")
-	if st.LastSpokeAt.IsZero() {
-		b.WriteString("never spoken here")
-	} else {
-		fmt.Fprintf(&b, "last spoke <t:%d:R>", st.LastSpokeAt.Unix())
-	}
-	fmt.Fprintf(&b, " · remembers %d here, %d bright now · indirect odds %+.0f%%",
-		st.Memories, st.Recalled, st.Nudge*100)
 	if st.Proactive {
-		fmt.Fprintf(&b, " · spoke first %d today", st.VolunteeredToday)
+		b.WriteString("may speak first here")
+	} else {
+		b.WriteString("only answers here")
 	}
-	if st.Fatigue > 0 {
-		fmt.Fprintf(&b, " · initiative fatigue %.2f", st.Fatigue)
+	if st.Self.Reflected.IsZero() {
+		b.WriteString(" · has not reflected on a day yet")
+	} else {
+		fmt.Fprintf(&b, " · last reflected <t:%d:R>", st.Self.Reflected.Unix())
 	}
 	b.WriteString("\n")
-
-	return respond(s, e, b.String())
+	return b.String()
 }
 
-// clip cuts a name to width runes for a column.
-func clip(s string, width int) string {
-	if r := []rune(s); len(r) > width {
-		return string(r[:width])
+// trimForQuote shortens text for an embed, on a word.
+func trimForQuote(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > max {
+		cut := string(r[:max])
+		if i := strings.LastIndex(cut, " "); i > 0 {
+			cut = cut[:i]
+		}
+		return cut + "…"
 	}
 	return s
 }
 
-// meterWidth is how many blocks a full bar draws.
-const meterWidth = 10
-
-// labelWidth is what every gauge label is padded to, so the bars all start in
-// the same column.
-const labelWidth = 9
-
-// gauge draws one labelled 0..1 value, for use inside a code block.
+// runForget moves what she remembers about this server aside.
 //
-// The label is padded rather than left where it falls: a column of bare
-// decimals is harder to read at a glance than the shape of them, and that only
-// holds if the shapes are in a column.
-func gauge(label string, v float64) string {
-	if len([]rune(label)) > labelWidth {
-		label = string([]rune(label)[:labelWidth])
-	}
-	return fmt.Sprintf("%-*s %s  %.2f", labelWidth, label, meter(v), v)
-}
-
-// meter draws a 0..1 value as a bar.
-func meter(v float64) string {
-	filled := int(v*meterWidth + 0.5)
-	if filled < 0 {
-		filled = 0
-	}
-	if filled > meterWidth {
-		filled = meterWidth
-	}
-	return strings.Repeat("█", filled) + strings.Repeat("░", meterWidth-filled)
-}
-
-// runForget wipes what she remembers about this server.
-//
-// The confirmation is a typed word rather than a button because this cannot be
-// undone and there is no copy: a button is one misclick from erasing weeks of
-// a character's history, and an administrator who has typed "yes" has at least
-// read the sentence above it.
+// A typed word rather than a button because this is the whole of who she is
+// here: an administrator who has typed "yes" has at least read the sentence
+// above it. Moved aside rather than deleted, so a mistake can be undone by
+// whoever has the host; see memory.Store.Forget.
 func (c *ChatCommand) runForget(
 	context *cmdadapter.SlashInteractionContext,
 	sub *discordgo.ApplicationCommandInteractionDataOption,
 ) error {
-	s, e, store := context.Session, context.Event, context.Storage
+	s, e := context.Session, context.Event
 
 	var confirm string
 	for _, opt := range sub.Options {
@@ -567,33 +476,31 @@ func (c *ChatCommand) runForget(
 	if confirm != confirmPhrase {
 		return respond(s, e, fmt.Sprintf(
 			"Nothing was touched. To wipe what she remembers about this server, "+
-				"run `/chat forget confirm:%s` — it cannot be undone.", confirmPhrase))
+				"run `/chat forget confirm:%s`.", confirmPhrase))
 	}
 
-	forgotten, err := store.ForgetMindMemories(e.GuildID)
-	if err != nil {
-		return fmt.Errorf("chat: forget memories: %w", err)
+	if _, err := c.Service.ForgetGuild(e.GuildID); err != nil {
+		return fmt.Errorf("chat: forget: %w", err)
 	}
-
-	return respond(s, e, fmt.Sprintf(
-		"Forgotten: %d things she remembered about this server, what she knew "+
-			"and thought about the people in it, and how she felt about them.\n\n"+
-			"She still knows who is a regular and who is new — that is counted from "+
-			"messages, not remembered, and wiping it would turn everyone here into a "+
-			"stranger.", forgotten))
+	return respond(s, e,
+		"Forgotten: how she sees herself here, everything she knew and thought about the people "+
+			"in it, what happened, and what she meant to do. The files were moved aside on the host, "+
+			"not deleted.\n\n"+
+			"She still knows who is a regular and who is new — that is counted from messages, not "+
+			"remembered — and who has let her come after them.")
 }
 
-// runAbout shows her file on one person: how well she knows them, how she
-// feels about them, her opinion and what they have told her.
+// runAbout shows her dossier on one person, exactly as it will be put in
+// front of her, and what the bot keeps about them besides.
 //
 // Shown to administrators because it is kept about members without asking
 // them, and the people running a server should be able to see exactly what
 // that amounts to rather than take it on trust.
-func runAbout(
+func (c *ChatCommand) runAbout(
 	context *cmdadapter.SlashInteractionContext,
 	sub *discordgo.ApplicationCommandInteractionDataOption,
 ) error {
-	s, e, store := context.Session, context.Event, context.Storage
+	s, e := context.Session, context.Event
 
 	var userID string
 	for _, opt := range sub.Options {
@@ -602,145 +509,136 @@ func runAbout(
 		}
 	}
 
-	p := store.GetMindPerson(e.GuildID, userID)
-	if p == nil {
+	p, ok, counted := c.Service.About(e.GuildID, userID)
+	if !ok && counted == nil {
 		return respond(s, e, fmt.Sprintf("She has never seen <@%s> say anything.", userID))
 	}
 
-	now := time.Now()
-	who := mind.Acquaintance{Messages: p.Messages}
-
 	var b strings.Builder
-	fmt.Fprintf(&b, "**<@%s>** — %s, %d messages seen, first <t:%d:R>\n",
-		userID, who.Familiarity(), p.Messages, p.FirstSeen.Unix())
+	fmt.Fprintf(&b, "**<@%s>**", userID)
+	if counted != nil {
+		fmt.Fprintf(&b, " — %d messages seen, first <t:%d:R>", counted.Messages, counted.FirstSeen.Unix())
+	}
+	b.WriteString("\n")
 
-	bond := mind.Bond{
-		Closeness: p.Closeness, ClosenessAt: p.ClosenessAt,
-		Tension: p.Tension, TensionAt: p.TensionAt,
-		Welcome: p.Welcome, WelcomeAt: p.WelcomeAt,
-	}
-	closeness, tension, welcome := bond.Now(now)
-
-	b.WriteString("```\n")
-	fmt.Fprintf(&b, "%s\n", gauge("Closeness", closeness))
-	fmt.Fprintf(&b, "%s\n", gauge("Tension", tension))
-	fmt.Fprintf(&b, "%s\n", gauge("Welcome", welcome))
-	b.WriteString("```\n")
-	if p.LastEvent != "" {
-		fmt.Fprintf(&b, "Last moved by: %s, <t:%d:R>\n", p.LastEvent, p.LastEventAt.Unix())
-	}
-	active := p.LastActiveAt
-	if p.LastSeen.After(active) {
-		active = p.LastSeen
-	}
-	salience, why := mind.PersonSalience(mind.PersonMind{
-		Closeness: closeness, Tension: tension,
-		LastExchange: p.LastExchangeAt, LastActive: active,
-	}, now)
-	if len(why) > 0 {
-		fmt.Fprintf(&b, "On her mind: %.2f — %s\n", salience, strings.Join(why, ", "))
+	if !ok {
+		b.WriteString("\nShe has no file on them yet. It starts the first time she talks with them.\n")
 	} else {
-		b.WriteString("Not on her mind right now\n")
+		if p.Feeling != "" {
+			b.WriteString("How she feels about them: " + p.Feeling + "\n")
+		}
+		if p.Who != "" {
+			b.WriteString("\n**Who they are**\n> " + trimForQuote(p.Who, 700) + "\n")
+		}
+		if p.Between != "" {
+			b.WriteString("\n**Between them**\n> " + trimForQuote(p.Between, 500) + "\n")
+		}
+		if len(p.Notes) > 0 {
+			b.WriteString("\n**Her notes**\n")
+			notes := p.Notes
+			if len(notes) > 8 {
+				notes = notes[len(notes)-8:]
+			}
+			for _, n := range notes {
+				b.WriteString("- ")
+				if !n.Day.IsZero() {
+					b.WriteString(n.Day.Format("2 Jan") + " · ")
+				}
+				b.WriteString(trimForQuote(n.Text, 200) + "\n")
+			}
+		}
+		if !p.LastTalked.IsZero() {
+			fmt.Fprintf(&b, "\nLast talked with her <t:%d:R>\n", p.LastTalked.Unix())
+		}
 	}
 
-	if p.Impression != "" {
-		fmt.Fprintf(&b, "**Her take** (<t:%d:R>)\n> %s\n", p.ImpressionAt.Unix(), p.Impression)
-	}
-	if len(p.Facts) > 0 {
-		b.WriteString("\n**What they have told her**\n")
-		for _, f := range p.Facts {
-			fmt.Fprintf(&b, "- %s: %s (<t:%d:R>)\n", strings.ReplaceAll(f.Key, "_", " "), f.Value, f.At.Unix())
+	if counted != nil && chatsvc.Consented(counted.Attention) {
+		b.WriteString("\n**Lets her come after them**")
+		if !counted.ReachedAt.IsZero() {
+			fmt.Fprintf(&b, " · last reached out <t:%d:R>", counted.ReachedAt.Unix())
 		}
-	}
-	if len(p.Concerns) > 0 {
-		b.WriteString("\n**What they said they were about to do**\n")
-		for _, c := range p.Concerns {
-			con := mind.Concern{What: c.What, Due: c.Due, Expires: c.Expires, Passed: c.Passed}
-			fmt.Fprintf(&b, "- %s, <t:%d:R> · on her mind `%.2f`", c.What, c.Due.Unix(), con.Salience(now, closeness, 0))
-			if c.Passed > 0 {
-				fmt.Fprintf(&b, " · let it pass %d×", c.Passed)
-			}
-			b.WriteString("\n")
-		}
-	}
-	if mind.Consented(p.Attention) {
-		active := p.LastActiveAt
-		if p.LastSeen.After(active) {
-			active = p.LastSeen
-		}
-		l := mind.FeelLonging(now, p.LastExchangeAt, active, closeness)
-		fmt.Fprintf(&b, "\n**Lets her come after them** — misses them %.2f", l.Missing)
-		if l.Neglected {
-			b.WriteString(", and they are around ignoring her")
-		}
-		if !p.ReachedAt.IsZero() {
-			fmt.Fprintf(&b, " · last reached out <t:%d:R>", p.ReachedAt.Unix())
-		}
-		if p.Unanswered > 0 {
-			fmt.Fprintf(&b, " · %d unanswered", p.Unanswered)
+		if counted.Unanswered > 0 {
+			fmt.Fprintf(&b, " · %d unanswered", counted.Unanswered)
 		}
 		b.WriteString("\n")
 	}
-
-	if p.Impression == "" && len(p.Facts) == 0 {
-		b.WriteString("\nShe has no opinion of them yet and nothing they have told her. " +
-			"Both are written after a conversation she remembers.\n")
-	}
-
+	b.WriteString("\n-# Her file on them is `people/" + userID + ".md` in her memory, and can be edited by hand.")
 	return respond(s, e, b.String())
 }
 
-// runSpeakUp switches volunteering on or off for this channel.
+// runChannel sets or shows how she behaves in this channel.
 //
-// Per channel rather than per server, because what is welcome differs: a
-// general channel can take her greeting someone back, a support channel
-// cannot take her bringing up last week's argument.
-func runSpeakUp(
+// One setting with three steps rather than three subcommands, because they
+// were never independent: she cannot speak first where she does not read,
+// and silencing a channel always took speaking first with it. Per channel,
+// because what is welcome differs: a general channel can take her starting
+// something, a support channel cannot.
+func (c *ChatCommand) runChannel(
 	context *cmdadapter.SlashInteractionContext,
 	sub *discordgo.ApplicationCommandInteractionDataOption,
 ) error {
 	s, e, store := context.Session, context.Event, context.Storage
 
-	var on bool
+	var mode string
 	for _, opt := range sub.Options {
-		if opt.Name == optEnabled {
-			on = opt.BoolValue()
+		if opt.Name == optMode {
+			mode = opt.StringValue()
 		}
 	}
 
-	if err := store.SetChatProactive(e.GuildID, e.ChannelID, on); err != nil {
-		if errors.Is(err, storage.ErrChatChannelRequired) {
-			return respond(s, e, "She is not listening here yet. `/chat here` first.")
+	switch mode {
+	case "":
+		switch {
+		case store.IsChatProactive(e.GuildID, e.ChannelID):
+			return respond(s, e, fmt.Sprintf("In <#%s> she reads, answers, and may start things herself.", e.ChannelID))
+		case store.IsChatChannel(e.GuildID, e.ChannelID):
+			return respond(s, e, fmt.Sprintf("In <#%s> she reads and answers, and never speaks first.", e.ChannelID))
+		default:
+			return respond(s, e, fmt.Sprintf("She does not read <#%s>.", e.ChannelID))
 		}
-		return fmt.Errorf("chat: set proactive: %w", err)
-	}
 
-	if !on {
-		return respond(s, e, fmt.Sprintf("She will only answer in <#%s> now.", e.ChannelID))
+	case modeOff:
+		if err := store.RemoveChatChannel(e.GuildID, e.ChannelID); err != nil {
+			return respond(s, e, "She was not reading this channel to begin with.")
+		}
+		// Drop what she is still holding, not just her permission to read
+		// on: the live conversation would otherwise still go to a backend
+		// the next time something she started came here.
+		c.Service.Forget(e.ChannelID)
+		return respond(s, e, fmt.Sprintf("She has stopped reading <#%s>.", e.ChannelID))
+
+	case modeAnswers, modeFirst:
+		// Adding a channel she already reads is not an error here: the
+		// point of the mode is where it ends up, not the step taken.
+		_ = store.AddChatChannel(e.GuildID, e.ChannelID)
+		if err := store.SetChatProactive(e.GuildID, e.ChannelID, mode == modeFirst); err != nil {
+			if errors.Is(err, storage.ErrChatChannelRequired) {
+				return respond(s, e, "She could not be let into this channel.")
+			}
+			return fmt.Errorf("chat: set channel mode: %w", err)
+		}
+		msg := fmt.Sprintf("She reads <#%s> now, and answers when she wants to.", e.ChannelID)
+		if mode == modeFirst {
+			msg = fmt.Sprintf("She reads <#%s> now, and may start things herself: following up "+
+				"on something someone told her, saying something into a room gone quiet, now "+
+				"and then joining in when she overhears something. Only with a reason she "+
+				"would stand behind, never at night, and a few times a day at most.", e.ChannelID)
+		}
+		return respond(s, e, msg+"\n\nEverything posted here is sent to the configured "+
+			"model to produce her replies. `/chat channel mode:off` takes it back.")
+
+	default:
+		return respond(s, e, fmt.Sprintf("Unknown mode: %s", mode))
 	}
-	return respond(s, e, fmt.Sprintf(
-		"She may speak first in <#%s> now: noticing a regular who has been gone "+
-			"a while, or bringing up something she remembers when it comes round "+
-			"again.\n\n"+
-			"How often is up to her: every time she puts herself forward she is "+
-			"less inclined to again for a few hours. Never while she is already "+
-			"in the conversation, never when she is worn out, and never more than "+
-			"%d times a day. `/chat proactive enabled:false` stops it.",
-		e.ChannelID, mind.VolunteerDailyMax))
 }
 
-// Regard bounds, as Discord enforces them in the picker so a bad value never
-// reaches the bot.
-var (
-	minRegard = -1.0
-	maxRegard = 1.0
-)
-
-// runRole sets or shows what a Discord role means to the persona.
+// runRole sets or shows what a Discord role means here, in words she is told
+// verbatim about anyone wearing it.
 //
 // Per role rather than per person because a server that has roles has already
-// decided who is what. Asking an operator to rate three hundred members one at
-// a time is asking them not to use it.
+// decided who is what. Words rather than a number: "a submissive here, speak
+// to them as one" is a thing no number encodes, and a number rendered as an
+// instruction is what made v1 a caricature.
 func runRole(
 	context *cmdadapter.SlashInteractionContext,
 	sub *discordgo.ApplicationCommandInteractionDataOption,
@@ -748,16 +646,11 @@ func runRole(
 	s, e, store := context.Session, context.Event, context.Storage
 
 	var roleID, note string
-	var regard float64
 	var setting bool
-
 	for _, opt := range sub.Options {
 		switch opt.Name {
 		case optRole:
 			roleID = opt.Value.(string)
-		case optRegard:
-			regard = opt.FloatValue()
-			setting = true
 		case optNote:
 			note = strings.TrimSpace(opt.StringValue())
 			setting = true
@@ -769,37 +662,19 @@ func runRole(
 
 	if !setting {
 		bias, ok := store.ChatRoleBiases(e.GuildID)[roleID]
-		if !ok {
+		if !ok || strings.TrimSpace(bias.Note) == "" {
 			return respond(s, e, fmt.Sprintf(
 				"<@&%s> means nothing to her in particular. "+
-					"`/chat role role:<role> regard:<-1..1> note:<what they are>` changes that.",
-				roleID))
+					"`/chat role role:<role> note:<what they are here>` changes that.", roleID))
 		}
-		return respond(s, e, describeBias(roleID, bias))
+		return respond(s, e, fmt.Sprintf("About anyone with <@&%s>, she is told:\n> %s", roleID, bias.Note))
 	}
 
-	bias := storage.ChatRoleBias{Regard: regard, Note: note}
-	if err := store.SetChatRoleBias(e.GuildID, roleID, bias); err != nil {
-		return fmt.Errorf("chat: set role bias: %w", err)
+	if err := store.SetChatRoleBias(e.GuildID, roleID, storage.ChatRoleBias{Note: note}); err != nil {
+		return fmt.Errorf("chat: set role note: %w", err)
 	}
-
-	if bias.Regard == 0 && bias.Note == "" {
+	if note == "" {
 		return respond(s, e, fmt.Sprintf("<@&%s> means nothing to her again.", roleID))
 	}
-	return respond(s, e, describeBias(roleID, bias))
-}
-
-// describeBias says what a role is worth, and what it will actually put in
-// front of her — the directive rather than the number, because the number is
-// not what she reads.
-func describeBias(roleID string, bias storage.ChatRoleBias) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "<@&%s>\n```\n%s\n```\n", roleID, gauge("regard", bias.Regard))
-
-	if line := mind.RegardDirective("Someone", bias.Note, bias.Regard); line != "" {
-		b.WriteString("She is told: " + line)
-	} else {
-		b.WriteString("Not enough either way to be worth telling her.")
-	}
-	return b.String()
+	return respond(s, e, fmt.Sprintf("About anyone with <@&%s>, she is told:\n> %s", roleID, note))
 }

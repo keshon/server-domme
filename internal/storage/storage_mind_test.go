@@ -171,164 +171,37 @@ func TestChatBriefRoundTrip(t *testing.T) {
 	}
 }
 
-func TestAddMindMemoryKeepsThemOldestFirst(t *testing.T) {
+// What v1 learned about someone would seed a dossier again the next time she
+// met them, so a forgotten guild has to lose it too.
+func TestForgetMindClearsLegacyNotesAndKeepsWhoPeopleAre(t *testing.T) {
 	store := newTestStore(t)
 	now := time.Now()
-
-	for i, gist := range []string{"first thing", "second thing", "third thing"} {
-		err := store.AddMindMemory(MindMemory{
-			GuildID:   "g1",
-			ChannelID: "c1",
-			At:        now.Add(time.Duration(i) * time.Minute),
-			Gist:      gist,
-		})
-		if err != nil {
-			t.Fatalf("AddMindMemory: %v", err)
+	for _, guild := range []string{"g1", "g2"} {
+		for i := 0; i < 5; i++ {
+			if _, err := store.SeeMindPerson(guild, "u1", "cass", now); err != nil {
+				t.Fatalf("SeeMindPerson: %v", err)
+			}
+		}
+		if err := store.UpdateMindPerson(guild, "u1", now, func(p *MindPerson) {
+			p.Impression = "sharp"
+			p.Facts = []MindFact{{Key: "pet", Value: "a cat"}}
+		}); err != nil {
+			t.Fatalf("UpdateMindPerson: %v", err)
 		}
 	}
 
-	got := store.MindMemories("g1", "c1")
-	if len(got) != 3 {
-		t.Fatalf("got %d memories, want 3", len(got))
+	if err := store.ForgetMind("g1"); err != nil {
+		t.Fatalf("ForgetMind: %v", err)
 	}
-	for i, want := range []string{"first thing", "second thing", "third thing"} {
-		if got[i].Gist != want {
-			t.Errorf("memory %d = %q, want %q", i, got[i].Gist, want)
-		}
-	}
-}
-
-func TestMindMemoriesAreScopedToTheirChannelAndGuild(t *testing.T) {
-	store := newTestStore(t)
-
-	for _, m := range []MindMemory{
-		{GuildID: "g1", ChannelID: "c1", Gist: "in c1"},
-		{GuildID: "g1", ChannelID: "c2", Gist: "in c2"},
-		{GuildID: "g2", ChannelID: "c1", Gist: "another guild"},
-	} {
-		if err := store.AddMindMemory(m); err != nil {
-			t.Fatalf("AddMindMemory: %v", err)
-		}
-	}
-
-	got := store.MindMemories("g1", "c1")
-	if len(got) != 1 || got[0].Gist != "in c1" {
-		t.Errorf("channel scoping leaked: %+v", got)
-	}
-	if all := store.MindMemories("g1", ""); len(all) != 2 {
-		t.Errorf("guild-wide read returned %d, want 2", len(all))
-	}
-}
-
-// A memory with nothing to remember is not a memory.
-func TestAddMindMemoryRefusesAnEmptyGist(t *testing.T) {
-	store := newTestStore(t)
-
-	if err := store.AddMindMemory(MindMemory{GuildID: "g1", Gist: "   "}); err == nil {
-		t.Error("accepted a memory with a blank gist")
-	}
-	if err := store.AddMindMemory(MindMemory{Gist: "something"}); err == nil {
-		t.Error("accepted a memory with no guild")
-	}
-}
-
-func TestMindMemoryWeightAndPeopleSurviveARoundTrip(t *testing.T) {
-	store := newTestStore(t)
-
-	err := store.AddMindMemory(MindMemory{
-		GuildID: "g1", ChannelID: "c1",
-		Gist:   "the row",
-		Weight: 0.8,
-		People: []string{"u1", "u2"},
-	})
-	if err != nil {
-		t.Fatalf("AddMindMemory: %v", err)
-	}
-
-	got := store.MindMemories("g1", "c1")
-	if len(got) != 1 {
-		t.Fatalf("got %d memories", len(got))
-	}
-	if got[0].Weight != 0.8 {
-		t.Errorf("Weight = %v, want 0.8", got[0].Weight)
-	}
-	if len(got[0].People) != 2 {
-		t.Errorf("People = %v, want two of them", got[0].People)
-	}
-}
-
-func TestForgetMindMemoriesClearsMemoriesAndIrritation(t *testing.T) {
-	store := newTestStore(t)
-
-	for _, gist := range []string{"one", "two"} {
-		if err := store.AddMindMemory(MindMemory{GuildID: "g1", ChannelID: "c1", Gist: gist}); err != nil {
-			t.Fatalf("AddMindMemory: %v", err)
-		}
-	}
-	if err := store.UpdateMindPerson("g1", "u1", time.Now(), func(p *MindPerson) {
-		p.Tension, p.TensionAt = 0.8, time.Now()
-		p.Welcome, p.WelcomeAt = 0.9, time.Now()
-	}); err != nil {
-		t.Fatalf("UpdateMindPerson: %v", err)
-	}
-
-	forgotten, err := store.ForgetMindMemories("g1")
-	if err != nil {
-		t.Fatalf("ForgetMindMemories: %v", err)
-	}
-	if forgotten != 2 {
-		t.Errorf("reported %d forgotten, want 2", forgotten)
-	}
-	if got := store.MindMemories("g1", "c1"); len(got) != 0 {
-		t.Errorf("still remembers %d things", len(got))
-	}
-
-	// A feeling with no cause attached is the thing this avoids.
-	person := store.GetMindPerson("g1", "u1")
-	if person == nil {
-		t.Fatal("the person record went too")
-	}
-	if person.Tension != 0 {
-		t.Errorf("still annoyed at %.2f with nothing to point at", person.Tension)
-	}
-}
-
-// How she knows a regular from a stranger is not something an administrator
-// asking her to forget an argument meant to erase.
-func TestForgetMindMemoriesKeepsWhoPeopleAre(t *testing.T) {
-	store := newTestStore(t)
-	now := time.Now()
-
-	for i := 0; i < 5; i++ {
-		if _, err := store.SeeMindPerson("g1", "u1", "cass", now); err != nil {
-			t.Fatalf("SeeMindPerson: %v", err)
-		}
-	}
-
-	if _, err := store.ForgetMindMemories("g1"); err != nil {
-		t.Fatalf("ForgetMindMemories: %v", err)
-	}
-
 	person := store.GetMindPerson("g1", "u1")
 	if person == nil || person.Messages != 5 {
-		t.Errorf("lost how well she knows them: %+v", person)
+		t.Fatalf("lost how well she knows them: %+v", person)
 	}
-}
-
-func TestForgetMindMemoriesLeavesOtherGuildsAlone(t *testing.T) {
-	store := newTestStore(t)
-
-	for _, guild := range []string{"g1", "g2"} {
-		if err := store.AddMindMemory(MindMemory{GuildID: guild, ChannelID: "c1", Gist: "a thing"}); err != nil {
-			t.Fatalf("AddMindMemory: %v", err)
-		}
+	if person.Impression != "" || len(person.Facts) != 0 {
+		t.Errorf("legacy notes survived: %+v", person)
 	}
-
-	if _, err := store.ForgetMindMemories("g1"); err != nil {
-		t.Fatalf("ForgetMindMemories: %v", err)
-	}
-	if got := store.MindMemories("g2", "c1"); len(got) != 1 {
-		t.Errorf("reached into another guild: %d memories left", len(got))
+	if other := store.GetMindPerson("g2", "u1"); other == nil || other.Impression != "sharp" {
+		t.Errorf("reached into another guild: %+v", other)
 	}
 }
 

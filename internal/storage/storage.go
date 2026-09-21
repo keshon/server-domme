@@ -22,15 +22,16 @@ type Storage struct {
 	db  *datastore.DB
 	log zerolog.Logger
 
-	settings     *datastore.Collection[*GuildSettings]
-	cmdLog       *datastore.Collection[*CommandLogEntry]
-	purgeJobs    *datastore.Collection[*PurgeJob]
-	shortLink    *datastore.Collection[*ShortLink]
-	tasks        *datastore.Collection[*Task]
-	cooldowns    *datastore.Collection[*TaskCooldown]
+	settings  *datastore.Collection[*GuildSettings]
+	cmdLog    *datastore.Collection[*CommandLogEntry]
+	purgeJobs *datastore.Collection[*PurgeJob]
+	shortLink *datastore.Collection[*ShortLink]
+	tasks     *datastore.Collection[*Task]
+	cooldowns *datastore.Collection[*TaskCooldown]
+	// mind_guilds and mind_memories were v1's and are no longer registered.
+	// The datastore keeps an unregistered collection on disk untouched, so
+	// rolling back to v1 finds them where it left them.
 	mindPeople   *datastore.Collection[*MindPerson]
-	mindGuilds   *datastore.Collection[*MindGuild]
-	mindMemories *datastore.Collection[*MindMemory]
 	mindChannels *datastore.Collection[*MindChannel]
 	mindJournal  *datastore.Collection[*MindJournal]
 	mindDays     *datastore.Collection[*MindDay]
@@ -43,7 +44,6 @@ type Storage struct {
 	tasksByGuild         *datastore.Index[*Task]
 	cooldownsByGuild     *datastore.Index[*TaskCooldown]
 	mindPeopleByGuild    *datastore.Index[*MindPerson]
-	mindMemoriesByGuild  *datastore.Index[*MindMemory]
 	mindJournalByChannel *datastore.Index[*MindJournal]
 	mindJournalByGuild   *datastore.Index[*MindJournal]
 	welcomeRolesByGuild  *datastore.Index[*WelcomeRole]
@@ -66,8 +66,6 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.tasks = datastore.Register[*Task](db, "tasks")
 	s.cooldowns = datastore.Register[*TaskCooldown](db, "task_cooldowns")
 	s.mindPeople = datastore.Register[*MindPerson](db, "mind_people")
-	s.mindGuilds = datastore.Register[*MindGuild](db, "mind_guilds")
-	s.mindMemories = datastore.Register[*MindMemory](db, "mind_memories")
 	s.mindChannels = datastore.Register[*MindChannel](db, "mind_channels")
 	s.mindJournal = datastore.Register[*MindJournal](db, "mind_journal")
 	s.mindDays = datastore.Register[*MindDay](db, "mind_days")
@@ -86,8 +84,6 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 		func(c *TaskCooldown) []string { return []string{c.GuildID} })
 	s.mindPeopleByGuild = datastore.AddIndex(s.mindPeople, "guild",
 		func(m *MindPerson) []string { return []string{m.GuildID} })
-	s.mindMemoriesByGuild = datastore.AddIndex(s.mindMemories, "guild",
-		func(m *MindMemory) []string { return []string{m.GuildID} })
 	s.mindJournalByChannel = datastore.AddIndex(s.mindJournal, "channel",
 		func(j *MindJournal) []string { return []string{journalChannel(j.GuildID, j.ChannelID)} })
 	s.mindJournalByGuild = datastore.AddIndex(s.mindJournal, "guild",

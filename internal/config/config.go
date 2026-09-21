@@ -121,38 +121,19 @@ type Config struct {
 	// no clock at all. Empty means UTC.
 	ChatTimezone string `env:"CHAT_TIMEZONE"`
 
-	// Chat*Chance are the odds she answers each kind of approach, 0 to 1.
-	// Someone who answers every single time is recognisably a machine, so the
-	// defaults are short of certainty; set them to 1 to take the choice away.
-	ChatMentionChance float64 `env:"CHAT_MENTION_CHANCE" envDefault:"0.88"`
-	ChatNamedChance   float64 `env:"CHAT_NAMED_CHANCE" envDefault:"0.65"`
-	// ChatAboutChance is the odds of chiming in when she is talked about
-	// rather than to. Separate from CHAT_NAMED_CHANCE because the two used to
-	// share one number and should not: being named while someone speaks to
-	// her is a question in all but punctuation, and being mentioned in
-	// passing is not an invitation.
-	ChatAboutChance float64 `env:"CHAT_ABOUT_CHANCE" envDefault:"0.25"`
-	ChatReplyChance float64 `env:"CHAT_REPLY_CHANCE" envDefault:"0.92"`
-	// ChatFollowUpChance is the odds she answers the next untagged message
-	// from whoever she is already talking to. Set it to 0 to require a tag,
-	// a name or a reply every single time.
-	ChatFollowUpChance float64 `env:"CHAT_FOLLOWUP_CHANCE" envDefault:"0.8"`
-	// ChatInnerVoice has her write one private line of what she thinks before
-	// each reply. It costs no extra request — the thought and the message come
-	// back from the same call — but it makes every reply longer to generate
-	// and asks more of the relay's model, so it is off until switched on.
-	ChatInnerVoice bool `env:"CHAT_INNER_VOICE" envDefault:"false"`
-	// ChatPerception has the model label how each message she answers came
-	// across — warm, playful, flirty, needling, hostile, neutral — in the
-	// same call as the reply. "shadow" records the label in the journal
-	// (/chat why) and changes nothing else, so the labels can be checked
-	// against what people meant before anything is allowed to act on them.
-	// Anything else is off.
-	ChatPerception string `env:"CHAT_PERCEPTION" envDefault:"off"`
+	// ChatMemoryPath is the directory her memory lives in: Markdown files,
+	// one directory per guild, readable and editable by hand. See
+	// docs/persona.md. It is the one thing this bot writes outside the
+	// datastore, so in Docker it has to be on a mounted volume or she forgets
+	// everything on every deploy.
+	ChatMemoryPath string `env:"CHAT_MEMORY_PATH" envDefault:"./data/mind"`
+	// ChatReflectHour is the hour, in CHAT_TIMEZONE, after which she looks
+	// back on the day before. Early morning by default, when nobody is
+	// talking to her and the day is over for everyone.
+	ChatReflectHour int `env:"CHAT_REFLECT_HOUR" envDefault:"5"`
 	// ChatCasualSlips is the odds that a message drops the apostrophes from
 	// casual contractions — "dont", "im", "thats" — the way people type. Set
-	// to 0 to keep them always. Never applied while she is short with
-	// someone, where precision is part of the effect.
+	// to 0 to keep them always.
 	ChatCasualSlips float64 `env:"CHAT_CASUAL_SLIPS" envDefault:"0.2"`
 }
 

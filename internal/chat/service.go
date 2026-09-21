@@ -1,16 +1,16 @@
-// Package chat runs the conversational persona: it watches opted-in channels,
-// decides whether the character has anything to say, and speaks through a
-// backend pool when she does.
+// Package chat runs the persona on Discord: it watches the channels she has
+// been let into, hands moments to her mind, and delivers what she decides.
 //
-// The cognition lives in internal/mind and knows nothing about Discord or
-// storage; this package is the wiring. That split is what lets every decision
-// about when to speak be tested without a gateway.
+// The thinking lives in internal/mind and the remembering in internal/memory;
+// this package is the body. It keeps time, keeps the few promises a model
+// cannot be trusted with — see Service.overrule — and never lets anything the
+// model says reach a channel unchecked. See docs/persona.md.
 //
-// Generation never runs on a gateway handler goroutine. A free relay can take
+// Generation never runs on a gateway handler goroutine. A backend can take
 // most of a minute to answer and COMMAND_TIMEOUT is thirty seconds, so a reply
 // built inline would either be killed or would hold a command slot for the
-// duration. Observe therefore does only the cheap deterministic work and hands
-// the rest to workers that main owns.
+// duration. Observe does only cheap work and hands the rest to workers that
+// main owns.
 package chat
 
 import (
@@ -22,6 +22,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/ai"
+	"github.com/keshon/server-domme/internal/memory"
 	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
@@ -29,28 +30,27 @@ import (
 
 // Service tuning.
 const (
-	// workers caps how many replies are generated at once across every guild.
-	// The free relays are the bottleneck rather than this process, and a burst
-	// of concurrent requests is the fastest way to be rate limited by all of
-	// them at once.
+	// workers caps how many moments are handled at once across every guild.
 	workers = 2
-	// queueDepth is how many approaches can wait for a worker. A full queue
-	// does not drop the approach: it becomes a deferral, the same path a
+	// queueDepth is how many moments can wait for a worker. A full queue
+	// does not drop an answer: it becomes a deferral, the same path a
 	// backend failure takes.
 	queueDepth = 32
-	// defaultGenerateTimeout bounds one reply attempt including failover across
-	// backends.
-	defaultGenerateTimeout = 90 * time.Second
-	// retryInterval is how often held approaches are reconsidered.
+	// defaultGenerateTimeout bounds one moment: the appraisal, the voice
+	// and a retry of either.
+	defaultGenerateTimeout = 3 * time.Minute
+	// retryInterval is how often held answers are reconsidered.
 	retryInterval = 15 * time.Second
+	// engagedWindow is how recently she must have spoken for the next line
+	// from the person she answered to count as carrying on with her.
+	engagedWindow = 3 * time.Minute
 )
 
 // SessionFunc resolves the current gateway session.
 //
-// RunSession builds a fresh session on every reconnect, so the retry loop —
-// which outlives any one session — has to ask for it per use. A captured
-// pointer goes stale and its sends target a closed connection. See
-// docs/architecture.md.
+// RunSession builds a fresh session on every reconnect, so anything that
+// outlives one session has to ask for it per use. A captured pointer goes
+// stale and its sends target a closed connection. See docs/architecture.md.
 type SessionFunc func() *discordgo.Session
 
 // Deps are what the service needs from the rest of the bot.
@@ -58,113 +58,100 @@ type Deps struct {
 	Character *mind.Character
 	Provider  ai.Provider
 	Storage   *storage.Storage
+	Memory    *memory.Store
 	Session   SessionFunc
 	Log       zerolog.Logger
-	// Names is every spelling she answers to, most canonical first. Whatever
-	// Discord reports for her in a given guild is added to it per message.
+	// Names is every spelling she answers to, most canonical first. What
+	// Discord calls her in a guild is added per message.
 	Names []string
-	// Attention overrides how readily she answers. The zero value takes the
-	// defaults.
-	Attention mind.Attention
-	// Location is the timezone the community keeps, not the one the host is
-	// racked in. Nil means UTC.
+	// Location is the timezone the community keeps. Nil means UTC.
 	Location *time.Location
 	// RequestTimeout is how long one backend gets. Zero keeps the default.
-	//
-	// The whole attempt is allowed twice this, so a first backend that hangs
-	// until its deadline still leaves a second one time to answer.
 	RequestTimeout time.Duration
-	// InnerVoice has her write a private thought before each reply; see
-	// mind.InnerVoiceNote.
-	InnerVoice bool
-	// PerceiveShadow has the model label how each message she answers came
-	// across, recorded in the journal and acted on nowhere; see
-	// mind.Perception.
-	PerceiveShadow bool
 	// CasualSlips is the odds a message drops the apostrophes from casual
 	// contractions; see mind.CasualStyle.
 	CasualSlips float64
-	// Roll supplies randomness for the speak-or-stay-quiet decision. Left nil
-	// it uses the global source; a test supplies its own.
+	// ReflectHour is the hour, in Location, after which she looks back on
+	// the day before.
+	ReflectHour int
+	// Roll supplies randomness. Left nil it uses the global source; a test
+	// supplies its own.
 	Roll func() float64
+	// Now is the clock. Left nil it is time.Now; a test supplies its own.
+	Now func() time.Time
 }
 
-// task is one approach waiting to be answered.
+// task is one moment waiting for a worker.
 type task struct {
 	item mind.Deferred
-	// late marks a second attempt at something held back, so the reply can
+	// late marks a second attempt at an answer held back, so it can
 	// acknowledge the gap.
 	late bool
-	// after is the id of her own message an afterthought follows. It is only
-	// sent while that message is still the last word; see mind.LastWord.
-	after string
 }
 
 // Service is the running persona.
 type Service struct {
 	generateTimeout time.Duration
 
-	character *mind.Character
-	names     []string
-	provider  ai.Provider
-	store     *storage.Storage
-	session   SessionFunc
-	log       zerolog.Logger
-	attention mind.Attention
-	budget    mind.Budget
-	location  *time.Location
-	roll      func() float64
-
-	// innerVoice and thoughts: whether she thinks before speaking, and the
-	// latest thought per channel, kept only so /chat state can show it.
-	innerVoice  bool
-	perceive    bool
+	mind        *mind.Mind
+	character   *mind.Character
+	names       []string
+	store       *storage.Storage
+	memory      *memory.Store
+	session     SessionFunc
+	log         zerolog.Logger
+	location    *time.Location
 	casualSlips float64
-	thoughtMu   sync.Mutex
-	thoughts    map[string]Thought
+	reflectHour int
+	// settleQuiet is how long someone has to stop typing before she reads
+	// what they said; see settle.
+	settleQuiet time.Duration
+	roll        func() float64
+	now         func() time.Time
 
-	// guilds maps a channel to the guild it is in, so the memory writer can
-	// store what it finds. The conversation buffer is keyed by channel alone,
-	// and a sweep over it has no other way to know where a channel lives.
-	guildMu sync.RWMutex
-	guilds  map[string]string
-
-	// snubbed holds the questions of hers already counted as ignored, so one
-	// question is never held against someone twice.
-	snubMu  sync.Mutex
-	snubbed map[string]bool
-
-	// receptions is how her last message landed, per channel, until her next
-	// reply to that person uses it. See mind.Reception.
-	receptionMu sync.Mutex
-	receptions  map[string]mind.Received
-
-	// replying holds the people she is already writing an answer to, per
-	// channel. See Service.answering.
+	// replying holds the people she is already handling, per channel, so a
+	// burst of lines gets one answer. See Service.answering.
 	replyingMu sync.Mutex
 	replying   map[string]bool
 
-	// payoffs are the things she started, per channel, still waiting to see
-	// how they land. In memory: a restart loses at most ten minutes of them.
-	payoffMu sync.Mutex
-	payoffs  map[string][]awaiting
+	// ignored holds, per person per channel, whether she let their last
+	// direct approach go. See Service.overrule.
+	ignoredMu sync.Mutex
+	ignored   map[string]bool
 
-	conv       *mind.Conversations
-	deferrals  *mind.Deferrals
-	encounters *mind.Encounters
+	// overheard is when she last considered a remark not aimed at her, per
+	// channel. See Service.overhear.
+	overheardMu sync.Mutex
+	overheard   map[string]time.Time
+
+	// life is what she started today and when, per guild. See initiative.go.
+	lifeMu sync.Mutex
+	life   map[string]*lifeState
+
+	// reflected counts attempts to reflect on a day, so a day the model
+	// cannot make sense of is not retried forever. See reflect.go.
+	reflectMu sync.Mutex
+	reflected map[string]int
+
+	conv      *mind.Conversations
+	deferrals *mind.Deferrals
 
 	work chan task
 }
 
 // New returns a service ready to observe and run.
 func New(d Deps) *Service {
-	attention := d.Attention
-	if attention.MentionChance == 0 && attention.NamedChance == 0 && attention.ReplyChance == 0 {
-		attention = mind.DefaultAttention()
-	}
 	roll := d.Roll
 	if roll == nil {
 		roll = rand.Float64
+	}
+	now := d.Now
+	if now == nil {
+		now = time.Now
+	}
+	loc := d.Location
+	if loc == nil {
+		loc = time.UTC
 	}
 
 	names := d.Names
@@ -172,74 +159,57 @@ func New(d Deps) *Service {
 		names = append([]string{d.Character.Name}, names...)
 	}
 
-	// Twice the per-backend deadline, so a first backend that hangs until its
-	// own timeout still leaves a second one room to answer rather than being
-	// cancelled on the way in.
+	// Two backends' worth of deadline per call, and two calls to a moment.
 	generateTimeout := defaultGenerateTimeout
-	if d.RequestTimeout > 0 && 2*d.RequestTimeout > generateTimeout {
-		generateTimeout = 2 * d.RequestTimeout
+	if d.RequestTimeout > 0 && 4*d.RequestTimeout > generateTimeout {
+		generateTimeout = 4 * d.RequestTimeout
 	}
 
 	return &Service{
 		generateTimeout: generateTimeout,
 
-		character: d.Character,
-		names:     mind.CleanNames(names),
-		provider:  d.Provider,
-		store:     d.Storage,
-		session:   d.Session,
-		log:       d.Log,
-		attention: attention,
-		budget:    mind.DefaultBudget(),
-		location:  d.Location,
-		roll:      roll,
-		guilds:    make(map[string]string),
-
-		innerVoice:  d.InnerVoice,
-		perceive:    d.PerceiveShadow,
+		mind:        &mind.Mind{Character: d.Character, Provider: d.Provider, Memory: d.Memory},
+		character:   d.Character,
+		names:       mind.CleanNames(names),
+		store:       d.Storage,
+		memory:      d.Memory,
+		session:     d.Session,
+		log:         d.Log,
+		location:    loc,
 		casualSlips: d.CasualSlips,
-		thoughts:    make(map[string]Thought),
+		reflectHour: d.ReflectHour,
+		settleQuiet: settleQuiet,
+		roll:        roll,
+		now:         now,
 
-		snubbed:    make(map[string]bool),
-		receptions: make(map[string]mind.Received),
-		replying:   make(map[string]bool),
-		payoffs:    make(map[string][]awaiting),
-		conv:       mind.NewConversations(),
-		deferrals:  mind.NewDeferrals(),
-		encounters: mind.NewEncounters(),
-		work:       make(chan task, queueDepth),
+		replying:  make(map[string]bool),
+		ignored:   make(map[string]bool),
+		overheard: make(map[string]time.Time),
+		life:      make(map[string]*lifeState),
+		reflected: make(map[string]int),
+		conv:      mind.NewConversations(),
+		deferrals: mind.NewDeferrals(),
+		work:      make(chan task, queueDepth),
 	}
 }
 
-// Run starts the workers and the deferral retry loop, returning when ctx ends.
+// Run starts the workers and the loops, returning when ctx ends.
 func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-
-	for i := 0; i < workers; i++ {
+	run := func(f func(context.Context)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.workLoop(ctx)
+			f(ctx)
 		}()
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s.retryLoop(ctx)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s.rememberLoop(ctx)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s.attentionLoop(ctx)
-	}()
+	for i := 0; i < workers; i++ {
+		run(s.workLoop)
+	}
+	run(s.retryLoop)
+	run(s.lifeLoop)
+	run(s.reflectLoop)
 
 	s.log.Info().Int("workers", workers).Msg("chat_service_started")
 	wg.Wait()
@@ -252,14 +222,222 @@ func (s *Service) workLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case t := <-s.work:
-			s.speak(ctx, t)
-			s.doneAnswering(encounterKey(t.item.GuildID, t.item.ChannelID, t.item.UserID))
+			s.handle(ctx, t)
+			s.doneAnswering(answerKey(t.item.GuildID, t.item.ChannelID, t.item.UserID))
 		}
 	}
 }
 
-// answering reports whether an answer to this person in this channel is
-// already queued or being written.
+// retryLoop re-attempts answers that no backend would produce at the time.
+func (s *Service) retryLoop(ctx context.Context) {
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			for _, item := range s.deferrals.Due(s.now()) {
+				select {
+				case s.work <- task{item: item, late: true}:
+				case <-ctx.Done():
+					return
+				default:
+					s.deferrals.Hold(item, s.now())
+				}
+			}
+		}
+	}
+}
+
+// Observe takes one message from any channel the bot can see.
+//
+// It runs on the gateway handler goroutine, so everything here is in memory
+// or a single storage write. Nothing here talks to a backend.
+func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.GuildID == "" || m.Author == nil || m.Author.Bot {
+		return
+	}
+	self := selfID(sess)
+	if self != "" && m.Author.ID == self {
+		return
+	}
+	if !s.store.IsChatChannel(m.GuildID, m.ChannelID) {
+		// Not a channel she reads. The only thing taken from it is that an
+		// opted-in person was around, never what they said.
+		s.noteActivity(m)
+		return
+	}
+
+	now := s.now()
+	content := strings.TrimSpace(m.ContentWithMentionsReplaced())
+	if content == "" {
+		return
+	}
+	name := displayNameOf(m.Author, m.Member)
+
+	// Before the message is recorded: it asks what the channel looked like
+	// just before this arrived.
+	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
+
+	s.conv.Record(m.ChannelID, mind.Turn{
+		UserID:    m.Author.ID,
+		Username:  name,
+		Content:   content,
+		At:        now,
+		MessageID: m.ID,
+		Mentioned: mentions(m.Message, self),
+	})
+	if _, err := s.store.SeeMindPerson(m.GuildID, m.Author.ID, name, now); err != nil {
+		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_person_record_failed")
+	}
+
+	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
+	if !addressed {
+		if s.overhear(m.GuildID, m.ChannelID, content, now) {
+			trigger = mind.TriggerOverheard
+		} else {
+			return
+		}
+	} else if err := s.store.ExchangeMindPerson(m.GuildID, m.Author.ID, m.ChannelID, now); err != nil {
+		// Speaking to her answers any reach she made; see initiative.go.
+		s.log.Debug().Err(err).Str("guild_id", m.GuildID).Msg("chat_exchange_record_failed")
+	}
+
+	key := answerKey(m.GuildID, m.ChannelID, m.Author.ID)
+	if s.answering(key) {
+		// The moment already on its way is built from the conversation as
+		// it stands when a worker picks it up, so this line will be in it.
+		return
+	}
+
+	item := mind.Deferred{
+		GuildID:   m.GuildID,
+		ChannelID: m.ChannelID,
+		MessageID: m.ID,
+		UserID:    m.Author.ID,
+		Username:  name,
+		Content:   content,
+		Trigger:   trigger,
+		FormedAt:  now,
+	}
+	select {
+	case s.work <- task{item: item}:
+		s.startAnswering(key)
+	default:
+		if mind.Owed(trigger) {
+			s.deferrals.Hold(item, now)
+		}
+		s.log.Debug().Str("guild_id", m.GuildID).Msg("chat_queue_full_deferred")
+	}
+}
+
+// Overhearing tuning. A remark not aimed at her costs two model calls to
+// consider, and the answer is nearly always to stay out of it; these keep
+// that from being a call per message in a busy room.
+const (
+	overhearEvery  = 10 * time.Minute
+	overhearChance = 0.3
+	overhearWords  = 4
+)
+
+// overhear decides whether a remark not aimed at her is worth her
+// considering at all. Only in a channel where she may speak up, only now and
+// then, and never something too short to have anything in it.
+func (s *Service) overhear(guildID, channelID, content string, now time.Time) bool {
+	if !s.store.IsChatProactive(guildID, channelID) || len(strings.Fields(content)) < overhearWords {
+		return false
+	}
+	if last := s.lastSpokeAt(channelID); !last.IsZero() && now.Sub(last) < engagedWindow {
+		// She is in the middle of something here; a remark between two
+		// other people is not hers to take.
+		return false
+	}
+	s.overheardMu.Lock()
+	defer s.overheardMu.Unlock()
+	if now.Sub(s.overheard[channelID]) < overhearEvery || s.roll() >= overhearChance {
+		return false
+	}
+	s.overheard[channelID] = now
+	return true
+}
+
+// triggerFor classifies how a message addressed her, if it did.
+func (s *Service) triggerFor(sess *discordgo.Session, m *discordgo.MessageCreate, content string, followsUp bool) (mind.Trigger, bool) {
+	self := selfID(sess)
+	// A reply before a mention: a reply with its ping on also lists her
+	// among the mentions, and has to be anchored as a reply.
+	if s.repliesToHer(m, self) {
+		return mind.TriggerReply, true
+	}
+	for _, u := range m.Mentions {
+		if u.ID == self {
+			return mind.TriggerMention, true
+		}
+	}
+	// Her name, spoken to her or about her. Which it was is the appraisal's
+	// to read; v1's word list for it is what put her into conversations
+	// about her and kept her out of ones addressed to her.
+	if mind.SaysName(content, s.namesFor(sess, m.GuildID)) {
+		return mind.TriggerNamed, true
+	}
+	if followsUp {
+		return mind.TriggerFollowUp, true
+	}
+	return "", false
+}
+
+// repliesToHer reports whether m is a Discord reply to something she said.
+//
+// Two ways, because neither is enough alone: ReferencedMessage is documented
+// by discordgo as best-effort and replies without it were silently dropped in
+// production; MessageReference is always there but carries only an id, which
+// is matched against her own recent messages.
+func (s *Service) repliesToHer(m *discordgo.MessageCreate, self string) bool {
+	if m.ReferencedMessage != nil && m.ReferencedMessage.Author != nil {
+		return m.ReferencedMessage.Author.ID == self
+	}
+	if m.MessageReference == nil || m.MessageReference.MessageID == "" {
+		return false
+	}
+	for _, turn := range s.conv.Recent(m.ChannelID) {
+		if turn.FromBot && turn.MessageID == m.MessageReference.MessageID {
+			return true
+		}
+	}
+	return false
+}
+
+// followsUp reports whether this message carries on an exchange she is in:
+// nobody but this person has spoken since she last did, she did so recently,
+// and she was talking to them.
+//
+// "Nobody else since" rather than "she spoke last", because people type in
+// bursts; once anyone else has spoken, the thread is not hers to assume.
+func (s *Service) followsUp(channelID, userID string, now time.Time) bool {
+	turns := s.conv.Recent(channelID)
+	i := len(turns) - 1
+	for i >= 0 && !turns[i].FromBot && turns[i].UserID == userID {
+		i--
+	}
+	if i < 0 || !turns[i].FromBot || now.Sub(turns[i].At) > engagedWindow {
+		return false
+	}
+	if to := turns[i].To; to != "" {
+		return to == userID
+	}
+	// A turn read back from history does not record who it answered; the
+	// last person to speak before her is who she was answering.
+	for j := i - 1; j >= 0; j-- {
+		if !turns[j].FromBot {
+			return turns[j].UserID == userID
+		}
+	}
+	return false
+}
+
+// answering reports whether a moment from this person here is already on its
+// way to her.
 func (s *Service) answering(key string) bool {
 	s.replyingMu.Lock()
 	defer s.replyingMu.Unlock()
@@ -278,331 +456,45 @@ func (s *Service) doneAnswering(key string) {
 	s.replyingMu.Unlock()
 }
 
-// retryLoop re-attempts approaches that no backend would answer at the time.
-func (s *Service) retryLoop(ctx context.Context) {
-	ticker := time.NewTicker(retryInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.expirePayoffs(time.Now())
-			for _, item := range s.deferrals.Due(time.Now()) {
-				select {
-				case s.work <- task{item: item, late: true}:
-				case <-ctx.Done():
-					return
-				default:
-					// Workers are busy. Put it back rather than lose it.
-					s.deferrals.Hold(item, time.Now())
-				}
-			}
-		}
+// Forget drops what she holds about a channel in memory.
+//
+// Called when a channel is silenced. Being told to stop reading a channel has
+// to take the live conversation with it, or it would still be sent to a
+// backend the next time something she started went there.
+func (s *Service) Forget(channelID string) {
+	if channelID == "" {
+		return
 	}
+	s.conv.Forget(channelID)
+	s.deferrals.Drop(channelID)
 }
 
-// Observe takes one message from a watched channel.
-//
-// It runs on the gateway handler goroutine, so everything here is either in
-// memory or a single storage write. Nothing in this function talks to a
-// backend.
-func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.GuildID == "" || m.Author == nil {
-		return
-	}
-	// Never converse with another bot. Two personas in one channel answer each
-	// other forever, and every turn of it costs a backend request.
-	if m.Author.Bot {
-		return
-	}
-	if selfID(sess) != "" && m.Author.ID == selfID(sess) {
-		return
-	}
-	if !s.store.IsChatChannel(m.GuildID, m.ChannelID) {
-		// Not a channel she reads. The only thing taken from it is that an
-		// opted-in person was active, never what they said.
-		s.noteActivity(m)
-		return
-	}
-
-	s.noteGuild(m.GuildID, m.ChannelID)
-
-	now := time.Now()
-	content := strings.TrimSpace(m.ContentWithMentionsReplaced())
-	if content == "" {
-		return
-	}
-
-	name := displayName(m)
-
-	// Computed before the message is recorded, because it asks what the
-	// channel looked like just before it arrived.
-	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
-	s.noticeSnub(sess, m, now)
-	if followsUp || s.repliesToHer(m, selfID(sess)) {
-		s.receive(m.GuildID, m.ChannelID, m.Author.ID, displayName(m), content, now,
-			s.settlesSomething(m.GuildID, m.ChannelID, m.Author.ID, now))
-	}
-
-	s.conv.Record(m.ChannelID, mind.Turn{
-		UserID:    m.Author.ID,
-		Username:  name,
-		Content:   content,
-		At:        now,
-		MessageID: m.ID,
-	})
-
-	person, err := s.store.SeeMindPerson(m.GuildID, m.Author.ID, name, now)
+// ForgetGuild moves everything she remembers about a guild aside and clears
+// her journal there. It returns where the memory went.
+func (s *Service) ForgetGuild(guildID string) (string, error) {
+	aside, err := s.memory.Forget(guildID, s.now())
 	if err != nil {
-		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_person_record_failed")
+		return "", err
 	}
-	s.resolveConcerns(m.GuildID, m.Author.ID, content, person, now)
-
-	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
-	if addressed {
-		s.noticeExchange(m, person, content, now)
+	if err := s.store.ForgetMind(guildID); err != nil {
+		return aside, err
 	}
-	if !addressed {
-		// Not aimed at her, but it may be the room taking up something she
-		// said to it. Then the only thing left to decide is whether she has a
-		// reason to say something anyway.
-		s.settleRoomPayoffs(m.ChannelID, content, now)
-		s.maybeVolunteer(m, name, person, now)
-		return
-	}
-
-	key := encounterKey(m.GuildID, m.ChannelID, m.Author.ID)
-
-	// Already writing them an answer: that answer is built from the
-	// conversation as it stands when a worker picks it up, so this line will
-	// be in front of her. A second answer would reply to the same burst twice.
-	if s.answering(key) {
-		s.journalOpen(storage.MindJournal{
-			GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
-			MessageID: m.ID, UserID: m.Author.ID, Username: name, Excerpt: content,
-			Trigger: string(trigger), Outcome: outcomeJoined,
-			Reason: "she was already writing to them; that answer sees this line",
-		})
-		return
-	}
-
-	first, ignoredLast := s.encounters.Approach(key)
-
-	// Pressing again straight after being passed over is what raises
-	// irritation. Countable behaviour rather than a judgement about tone,
-	// which would need a model call per message to make badly.
-	irritation := s.irritationWith(m.GuildID, m.Author.ID, now)
-	if ignoredLast && s.encounters.IgnoredDirectly(key) && s.pressedAgainQuickly(m.ChannelID, m.Author.ID, now) {
-		wasNoticeable := mind.IrritationNoticeable(irritation)
-		_, irritation, _ = s.appraise(m.GuildID, m.Author.ID, mind.EventPestered, now).Now(now)
-
-		// Only as it crosses into mattering, so an episode leaves one memory
-		// rather than one per push. Without it the feeling has no cause
-		// attached: asked what is wrong, she would have a number and nothing
-		// to say about it.
-		if !wasNoticeable && mind.IrritationNoticeable(irritation) {
-			s.rememberIrritation(m.GuildID, m.ChannelID, name, m.Author.ID, now)
-		}
-	}
-
-	closer := (trigger == mind.TriggerFollowUp || trigger == mind.TriggerReply) && mind.IsCloser(content)
-
-	drives := s.drives(m.GuildID, m.ChannelID, now)
-	regard := s.regardFor(sess, m.GuildID, m.Author.ID)
-	var warmth float64
-	if person != nil {
-		warmth = mind.ClosenessNow(person.Closeness, person.ClosenessAt, now)
-	}
-	roll := s.roll()
-	outcome, decision := mind.DecideWhy(s.attention, mind.Situation{
-		Trigger:       trigger,
-		Now:           now,
-		FirstApproach: first,
-		IgnoredLast:   ignoredLast,
-		LastSpokeAt:   s.lastSpokeAt(m.ChannelID),
-		Drives:        drives,
-		Tension:       irritation,
-		Regard:        regard,
-		Closeness:     warmth,
-		Closer:        closer,
-	}, roll)
-	entry := storage.MindJournal{
-		GuildID: m.GuildID, ChannelID: m.ChannelID, At: now,
-		MessageID: m.ID, UserID: m.Author.ID, Username: name, Excerpt: content,
-		Trigger: string(trigger), Closer: closer,
-		Rule: decision.Rule, Chance: decision.Chance, Roll: roll,
-		Mood:     mind.MoodWords(drives),
-		Attitude: mind.Attitude(warmth, irritation, regard),
-		Outcome:  outcomeQueued,
-	}
-	// Letting "same" go is not ignoring someone. Recorded as an ignore it
-	// would force her to answer whatever they say next, and a quick follow-up
-	// would count as pestering her.
-	if !closer || outcome != mind.OutcomeIgnore {
-		s.encounters.Record(key, outcome, trigger)
-	}
-
-	if outcome == mind.OutcomeIgnore {
-		// Logged at info rather than debug: from outside, a deliberate silence
-		// and a broken bot look identical, and this line is the only way to
-		// tell them apart afterwards.
-		s.log.Info().
-			Str("guild_id", m.GuildID).
-			Str("channel_id", m.ChannelID).
-			Str("trigger", string(trigger)).
-			Msg("chat_approach_ignored")
-		entry.Outcome = outcomeSilent
-		s.journalOpen(entry)
-		s.count(m.GuildID, countSilent)
-		return
-	}
-
-	item := mind.Deferred{
-		GuildID:   m.GuildID,
-		ChannelID: m.ChannelID,
-		MessageID: m.ID,
-		UserID:    m.Author.ID,
-		Username:  name,
-		Content:   content,
-		Trigger:   trigger,
-		FormedAt:  now,
-		Closer:    closer,
-		Journal:   s.journalOpen(entry),
-	}
-
-	select {
-	case s.work <- task{item: item}:
-		s.startAnswering(key)
-	default:
-		// Everything is busy. Holding it takes the same path a failed backend
-		// does, so a busy moment produces a late answer rather than none.
-		s.deferrals.Hold(item, now)
-		s.log.Debug().Str("guild_id", m.GuildID).Msg("chat_queue_full_deferred")
-	}
-}
-
-// triggerFor classifies how a message addressed the character, if it did.
-func (s *Service) triggerFor(sess *discordgo.Session, m *discordgo.MessageCreate, content string, followsUp bool) (mind.Trigger, bool) {
-	self := selfID(sess)
-
-	// A reply before a mention. Discord's reply with its ping left on also
-	// lists her among the mentions, so checking mentions first classified
-	// every such reply as a plain mention and the reply was never anchored;
-	// see Service.send.
-	if s.repliesToHer(m, self) {
-		return mind.TriggerReply, true
-	}
-
-	for _, u := range m.Mentions {
-		if u.ID == self {
-			return mind.TriggerMention, true
-		}
-	}
-
-	if names := s.namesFor(sess, m.GuildID); mind.SaysName(content, names) {
-		// Being spoken to by name and being talked about both put her name in
-		// the text, and they deserve very different odds: one is a question in
-		// all but punctuation, the other is not an invitation at all.
-		if mind.ClassifyAddress(content, names) == mind.AddressedToHer {
-			return mind.TriggerNamed, true
-		}
-		return mind.TriggerAbout, true
-	}
-
-	if followsUp {
-		return mind.TriggerFollowUp, true
-	}
-
-	return "", false
-}
-
-// repliesToHer reports whether m is a Discord reply to something she said.
-//
-// Two ways, because neither is sufficient alone. ReferencedMessage carries the
-// author but discordgo documents it as best-effort — "the backend did not
-// attempt to fetch the message that was being replied to" — and a reply whose
-// target it omitted was being silently ignored in production. MessageReference
-// is always present on a reply but carries only an id, so it is matched
-// against the ids of her own recent messages, which is why sent messages
-// record theirs. See mind.Turn.MessageID.
-func (s *Service) repliesToHer(m *discordgo.MessageCreate, self string) bool {
-	if m.ReferencedMessage != nil && m.ReferencedMessage.Author != nil {
-		return m.ReferencedMessage.Author.ID == self
-	}
-	if m.MessageReference == nil || m.MessageReference.MessageID == "" {
-		return false
-	}
-	for _, turn := range s.conv.Recent(m.ChannelID) {
-		if turn.FromBot && turn.MessageID == m.MessageReference.MessageID {
-			return true
-		}
-	}
-	return false
-}
-
-// followsUp reports whether this message continues an exchange she is already
-// in: nobody but this person has spoken since she last did, she did so
-// recently, and she was talking to them.
-//
-// All three conditions carry weight. "Nobody else since" is what keeps her
-// out of a conversation between two other people — once someone else has
-// spoken, the thread is no longer hers to assume. "Talking to them" stops her
-// fielding a bystander's unrelated remark. The window stops a reply arriving
-// against a conversation everyone has left.
-//
-// Nobody else since, rather than her speaking last: people type in bursts. It
-// used to require her message to be the very last one, so only the first line
-// of a burst counted, and once she let one pass everything after it — "hey",
-// "stop ignoring me" — was not an approach at all until they tagged her.
-func (s *Service) followsUp(channelID, userID string, now time.Time) bool {
-	turns := s.conv.Recent(channelID)
-
-	i := len(turns) - 1
-	for i >= 0 && !turns[i].FromBot && turns[i].UserID == userID {
-		i--
-	}
-	if i < 0 || !turns[i].FromBot || now.Sub(turns[i].At) > s.attention.EngagedWindow {
-		return false
-	}
-	if to := turns[i].To; to != "" {
-		return to == userID
-	}
-
-	// A turn read back from history does not record who it answered; the
-	// last person to speak before her is who she was answering.
-	for j := i - 1; j >= 0; j-- {
-		if turns[j].FromBot {
-			continue
-		}
-		return turns[j].UserID == userID
-	}
-	return false
+	return aside, nil
 }
 
 // namesFor is every name she answers to in one guild, most canonical first.
-//
-// Resolved per guild rather than once at startup because two of the three
-// sources are per guild: the nickname is set on the member, and the account
-// name can be changed under a running process. Discord's names come first —
-// they are what members actually see and what a mention expands to, so they
-// are the identity, and CHAT_NAME is an alias for it rather than the other way
-// round.
+// Per guild, because a nickname is set per guild.
 func (s *Service) namesFor(sess *discordgo.Session, guildID string) []string {
-	return mind.CleanNames(append(s.discordNames(sess, guildID), s.names...))
+	return mind.CleanNames(append(discordNames(sess, guildID), s.names...))
 }
 
-// discordNames reports what Discord calls her here: the guild nickname, the
-// display name and the account username, in the order a member is most likely
-// to use. Missing state yields fewer names rather than an error — a cache miss
-// costs a name-drop she does not notice, not a broken reply.
-func (s *Service) discordNames(sess *discordgo.Session, guildID string) []string {
+// discordNames is what Discord calls her here: the guild nickname, the
+// display name and the account username.
+func discordNames(sess *discordgo.Session, guildID string) []string {
 	self := selfID(sess)
 	if self == "" {
 		return nil
 	}
-
 	var names []string
 	if guildID != "" {
 		if member, err := sess.State.Member(guildID, self); err == nil && member != nil && member.Nick != "" {
@@ -618,10 +510,9 @@ func (s *Service) discordNames(sess *discordgo.Session, guildID string) []string
 	return names
 }
 
-// DisplayName is the name members see on her messages in a guild: the nickname
-// when one is set, otherwise the account name.
+// DisplayName is the name members see on her messages in a guild.
 func (s *Service) DisplayName(sess *discordgo.Session, guildID string) string {
-	if names := s.discordNames(sess, guildID); len(names) > 0 {
+	if names := discordNames(sess, guildID); len(names) > 0 {
 		return names[0]
 	}
 	if len(s.names) > 0 {
@@ -641,9 +532,8 @@ func (s *Service) lastSpokeAt(channelID string) time.Time {
 	return time.Time{}
 }
 
-// encounterKey identifies a person within a channel, so being ignored in one
-// place does not force a reply in another.
-func encounterKey(guildID, channelID, userID string) string {
+// answerKey identifies a person within a channel.
+func answerKey(guildID, channelID, userID string) string {
 	return guildID + ":" + channelID + ":" + userID
 }
 
@@ -654,19 +544,9 @@ func selfID(sess *discordgo.Session) string {
 	return sess.State.User.ID
 }
 
-// displayName prefers the per-guild nickname, which is what everyone else in
-// the channel sees and therefore what she should call them.
-func displayName(m *discordgo.MessageCreate) string {
-	return displayNameOf(m.Author, m.Member)
-}
-
-// displayNameOf resolves the name to show for a message author: the guild
-// nickname, then the display name, then the account name.
-//
-// Shared with the history backfill, which has the same author and member but
-// not a MessageCreate to hand. Two copies of this would drift, and the drift
-// would show up as the same person appearing under two names in one
-// transcript.
+// displayNameOf resolves the name to show for an author: the guild nickname,
+// then the display name, then the account name. Shared with the backfill, so
+// the same person never appears under two names in one transcript.
 func displayNameOf(author *discordgo.User, member *discordgo.Member) string {
 	if member != nil && member.Nick != "" {
 		return member.Nick
@@ -678,97 +558,4 @@ func displayNameOf(author *discordgo.User, member *discordgo.Member) string {
 		return author.GlobalName
 	}
 	return author.Username
-}
-
-// noteGuild records which guild a channel belongs to.
-func (s *Service) noteGuild(guildID, channelID string) {
-	if guildID == "" || channelID == "" {
-		return
-	}
-	s.guildMu.Lock()
-	s.guilds[channelID] = guildID
-	s.guildMu.Unlock()
-}
-
-// guildOf returns the guild a channel is in, or "" if the bot has not seen a
-// message there this run.
-func (s *Service) guildOf(channelID string) string {
-	s.guildMu.RLock()
-	defer s.guildMu.RUnlock()
-	return s.guilds[channelID]
-}
-
-// Forget drops what she is holding about a channel.
-//
-// Called when a channel is silenced. Being told to stop reading a channel has
-// to take the conversation with it: the turns already in memory would
-// otherwise still be summarised into a memory, and summarising sends them to a
-// relay — the one thing opting out is supposed to prevent.
-func (s *Service) Forget(channelID string) {
-	if channelID == "" {
-		return
-	}
-	s.conv.Forget(channelID)
-	s.deferrals.Drop(channelID)
-
-	s.guildMu.Lock()
-	delete(s.guilds, channelID)
-	s.guildMu.Unlock()
-}
-
-// irritationWith is how much this person has got on her nerves right now,
-// decayed from what was stored.
-func (s *Service) irritationWith(guildID, userID string, now time.Time) float64 {
-	person := s.store.GetMindPerson(guildID, userID)
-	if person == nil {
-		return 0
-	}
-	return mind.TensionNow(person.Tension, person.TensionAt, now)
-}
-
-// pressedAgainQuickly reports whether this person spoke again within the
-// pester window, which is what distinguishes pushing from starting a new
-// conversation later.
-func (s *Service) pressedAgainQuickly(channelID, userID string, now time.Time) bool {
-	turns := s.conv.Recent(channelID)
-
-	// Walk back past the message being handled, which is already recorded.
-	for i := len(turns) - 2; i >= 0; i-- {
-		if turns[i].UserID != userID {
-			continue
-		}
-		return now.Sub(turns[i].At) <= mind.PesterWindow
-	}
-	return false
-}
-
-// rememberIrritation records why she is short with someone.
-//
-// Deterministic: the bot watched it happen, so there is nothing to summarise
-// and no backend call to make. It goes through the ordinary memory store so it
-// decays, resurfaces and is recalled exactly like anything else she remembers.
-func (s *Service) rememberIrritation(guildID, channelID, name, userID string, at time.Time) {
-	if name == "" {
-		name = "someone"
-	}
-	m := mind.IrritationMemory(name, userID, at)
-
-	err := s.store.AddMindMemory(storage.MindMemory{
-		GuildID:   guildID,
-		ChannelID: channelID,
-		At:        m.At,
-		Gist:      m.Gist,
-		Detail:    m.Detail,
-		Weight:    m.Weight,
-		People:    m.People,
-	})
-	if err != nil {
-		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_irritation_memory_failed")
-		return
-	}
-	s.log.Info().
-		Str("guild_id", guildID).
-		Str("channel_id", channelID).
-		Str("who", name).
-		Msg("chat_irritated")
 }

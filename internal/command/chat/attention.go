@@ -8,7 +8,6 @@ import (
 	chatsvc "github.com/keshon/server-domme/internal/chat"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/perm"
-	"github.com/keshon/server-domme/internal/mind"
 )
 
 const optWholeServer = "whole_server"
@@ -87,7 +86,7 @@ func (c *AttentionCommand) Run(ctx interface{}) error {
 	if enabled == nil {
 		on := false
 		if p := store.GetMindPerson(e.GuildID, userID); p != nil {
-			on = mind.Consented(p.Attention)
+			on = chatsvc.Consented(p.Attention)
 		}
 		msg := "Off: she never comes after you."
 		if on {
@@ -101,7 +100,7 @@ func (c *AttentionCommand) Run(ctx interface{}) error {
 
 	value := ""
 	if *enabled {
-		value = mind.ConsentOn
+		value = chatsvc.ConsentOn
 	}
 	if err := store.SetMindConsent(e.GuildID, userID, value, time.Now()); err != nil {
 		return fmt.Errorf("chat: set consent: %w", err)

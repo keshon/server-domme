@@ -12,17 +12,11 @@ import (
 	chatsvc "github.com/keshon/server-domme/internal/chat"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord"
+	"github.com/keshon/server-domme/internal/memory"
 	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
-
-// perceptionShadow is the CHAT_PERCEPTION value that records how the model
-// read each message without acting on it.
-const perceptionShadow = "shadow"
-
-// perceptionOff is the default CHAT_PERCEPTION value.
-const perceptionOff = "off"
 
 // buildChatService assembles the conversational persona, or returns nil and
 // the reason why.
@@ -110,19 +104,17 @@ func buildChatService(
 		}
 	}
 
-	// Only "shadow" does anything yet. Anything else is off, and said so:
-	// "on" reads like it should work, and silently doing nothing for it
-	// cost a test session.
-	if p := cfg.ChatPerception; p != perceptionShadow && p != perceptionOff {
-		log.Warn().Str("value", p).Str("accepted", perceptionShadow).Msg("chat_perception_unknown")
+	// Her memory is the one thing she cannot do without and the one thing
+	// this bot writes as plain files, so a directory that cannot be created
+	// is a reason to leave her off rather than to run her amnesiac.
+	mem, err := memory.Open(cfg.ChatMemoryPath, location)
+	if err != nil {
+		log.Error().Err(err).Str("path", cfg.ChatMemoryPath).Msg("chat_memory_open_failed")
+		return nil, fmt.Sprintf(
+			"her memory directory `%s` could not be created. In Docker it has to be "+
+				"on a mounted volume the bot can write to; set `CHAT_MEMORY_PATH` to one.",
+			cfg.ChatMemoryPath)
 	}
-
-	attention := mind.DefaultAttention()
-	attention.MentionChance = cfg.ChatMentionChance
-	attention.NamedChance = cfg.ChatNamedChance
-	attention.AboutChance = cfg.ChatAboutChance
-	attention.ReplyChance = cfg.ChatReplyChance
-	attention.FollowUpChance = cfg.ChatFollowUpChance
 
 	log.Info().
 		Str("character", character.Name).
@@ -135,15 +127,14 @@ func buildChatService(
 		Character:      character,
 		Provider:       pool,
 		Storage:        store,
+		Memory:         mem,
 		Session:        bot.Session,
 		Log:            log,
 		Names:          names,
-		Attention:      attention,
 		Location:       location,
 		RequestTimeout: cfg.ChatRequestTimeout,
-		InnerVoice:     cfg.ChatInnerVoice,
-		PerceiveShadow: cfg.ChatPerception == perceptionShadow,
 		CasualSlips:    cfg.ChatCasualSlips,
+		ReflectHour:    cfg.ChatReflectHour,
 	}), ""
 }
 

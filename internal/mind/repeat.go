@@ -30,6 +30,9 @@ const (
 // turns, and returns the earlier line.
 func RepeatsHerself(reply string, turns []Turn) (string, bool) {
 	words := strings.Fields(echoKey(reply))
+	if earlier, tic := openingHabit(words, turns); tic {
+		return earlier, true
+	}
 	if len(words) < repeatMinWords {
 		return "", false
 	}
@@ -49,11 +52,56 @@ func RepeatsHerself(reply string, turns []Turn) (string, bool) {
 	return "", false
 }
 
+// habitRuns is how many of her lines in a row opening the same way make a
+// habit. Two is a coincidence; the third is a tic the reader has noticed.
+const habitRuns = 2
+
+// openingHabit reports whether reply opens the way each of her last
+// habitRuns lines did.
+//
+// The word checks above miss it because the tails differ. In production she
+// opened "morning." three times running, and a relay opened a dozen replies
+// in a row with "Big M, …"; both read as a machine long before anything she
+// said did. The opening is the first word when it is a real word, else the
+// first two, so "no" and "i" alone never count.
+func openingHabit(words []string, turns []Turn) (string, bool) {
+	open := opening(words)
+	if open == "" {
+		return "", false
+	}
+	var seen int
+	var first string
+	for i := len(turns) - 1; i >= 0 && seen < habitRuns; i-- {
+		if !turns[i].FromBot {
+			continue
+		}
+		if opening(strings.Fields(echoKey(turns[i].Content))) != open {
+			return "", false
+		}
+		seen++
+		first = turns[i].Content
+	}
+	return first, seen == habitRuns
+}
+
+func opening(words []string) string {
+	switch {
+	case len(words) == 0:
+		return ""
+	case len([]rune(words[0])) >= 5:
+		return words[0]
+	case len(words) >= 2:
+		return words[0] + " " + words[1]
+	default:
+		return ""
+	}
+}
+
 // RepeatNote asks for the reply again without the repetition.
 func RepeatNote(earlier string) string {
 	return fmt.Sprintf(
-		"You already said %q in this conversation. Do not say it again or anything shaped "+
-			"like it. Say something new — or, if you are out of material, say so in your own way.",
+		"You already said %q in this conversation. Do not say it again, anything shaped "+
+			"like it, or anything that opens the same way. Say something new — or, if you are out of material, say so in your own way.",
 		strings.TrimSpace(earlier))
 }
 

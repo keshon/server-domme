@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -171,5 +172,39 @@ func TestClientSendsTemperatureOnlyWhenSet(t *testing.T) {
 	_ = json.Unmarshal(raw, &got)
 	if got.Temperature == nil || *got.Temperature != 0.9 {
 		t.Errorf("temperature sent as %v, want 0.9", got.Temperature)
+	}
+}
+
+// The persona's private appraisal comes back as JSON, and Clean cuts every
+// line that opens like "name: " — which is every line of an object. Asked
+// raw, it arrives whole; asked the ordinary way, it is cleaned as speech. The
+// per-call temperature reaches the wire either way.
+func TestRawAndTemperatureArePerCall(t *testing.T) {
+	object := "{\n\"read\": \"sincere\",\n\"act\": \"reply\"\n}"
+	var sent []float64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Temperature *float64 `json:"temperature"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Temperature != nil {
+			sent = append(sent, *body.Temperature)
+		}
+		reply, _ := json.Marshal(object)
+		_, _ = fmt.Fprintf(w, `{"choices":[{"message":{"role":"assistant","content":%s}}]}`, reply)
+	}))
+	defer srv.Close()
+	c := NewClient("test", srv.URL, "m", "")
+
+	raw, err := c.Generate(WithRaw(WithTemperature(context.Background(), 0.4)), nil)
+	if err != nil || raw != object {
+		t.Fatalf("raw came back as %q, %v", raw, err)
+	}
+	cleaned, err := c.Generate(context.Background(), nil)
+	if err != nil || cleaned == object {
+		t.Fatalf("an ordinary call was not cleaned: %q, %v", cleaned, err)
+	}
+	if len(sent) != 1 || sent[0] != 0.4 {
+		t.Errorf("temperatures sent: %v", sent)
 	}
 }

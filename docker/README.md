@@ -83,7 +83,7 @@ cause is `chat_backend_build_failed`, meaning no relay could be reached at
 startup.
 
 Enabling it is only the first of two gates — she stays silent until an
-administrator runs `/chat here` in a specific channel. That second gate matters,
+administrator runs `/chat channel` in a specific channel. That second gate matters,
 because replies are produced by third-party relay services, so every message in
 an opted-in channel is sent to them.
 

@@ -48,8 +48,8 @@ func TestForgetClearsTheJournal(t *testing.T) {
 	if _, err := s.AddMindJournal(MindJournal{GuildID: "g", ChannelID: "c", Excerpt: "something private"}); err != nil {
 		t.Fatalf("AddMindJournal: %v", err)
 	}
-	if _, err := s.ForgetMindMemories("g"); err != nil {
-		t.Fatalf("ForgetMindMemories: %v", err)
+	if err := s.ForgetMind("g"); err != nil {
+		t.Fatalf("ForgetMind: %v", err)
 	}
 	if got := s.MindJournalIn("g", "c"); len(got) != 0 {
 		t.Errorf("journal survived forget: %+v", got)

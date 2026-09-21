@@ -1,17 +1,248 @@
-// Package mind builds what the bot says from what it knows.
+// Package mind is the persona's thinking: what she makes of a moment, what
+// she wants to do about it, the words she says, and what she makes of a day
+// when she looks back on it.
 //
-// The organising idea, carried over from the cognitum experiment: the language
-// model is a speech cortex, not a brain. It is handed an assembled picture of
-// who the character is, where she is and who she is talking to, and its only
-// job is to put that into words. Every decision about whether there is
-// anything to say belongs on this side of the boundary, in ordinary Go that
-// can be read, tested and stepped through.
+// v1 of this package held the premise that the language model is a speech
+// cortex and nothing else, and kept every judgement in Go as a number or a
+// word list. That is what retired it: numbers turned into instructions made
+// her a caricature, word lists could not read an apology, and with no memory
+// of what she had said she disowned her own words. v2 turns it round — the
+// model interprets, appraises and remembers, in prose, and the code keeps
+// time, memory and the few promises a model cannot be trusted with. See
+// docs/persona.md; do not reintroduce emotional scalars here.
 //
-// That split is also why personality here is not a set of numbers rendered
-// into instructions. An earlier version of this package turned trait floats
-// into lines like "Speak warmly and welcoming", which is how a character
-// becomes a generic assistant: prose describing a voice is a much weaker
-// signal to a language model than examples of that voice. So the character is
-// authored text plus example exchanges (see Character), and numbers are kept
-// for deciding when she speaks rather than how she sounds.
+// Everything a moment needs is in a Scene; everything she knows comes from
+// the memory store. Nothing here knows about Discord.
 package mind
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/keshon/server-domme/internal/ai"
+	"github.com/keshon/server-domme/internal/memory"
+)
+
+// Temperatures. Deciding wants a steady hand: the same moment should not be
+// read as an insult on one call and a joke on the next, and the JSON has to
+// come back parseable. The voice wants the backend's own.
+const (
+	thinkingTemperature = 0.4
+	// reflectTemperature is a little warmer: a day summary written at 0.4
+	// comes out as a list of what happened rather than what it meant.
+	reflectTemperature = 0.6
+)
+
+// Recall limits: how much of her past goes in front of her at once. Small on
+// purpose — the point is that the right thing surfaces, not that she arrives
+// holding a dossier.
+const (
+	recallDays     = 14
+	recallMoments  = 8
+	recentSummary  = 3
+	transcriptTail = 6
+)
+
+// ErrUnreadable is returned when the model answered but not in the shape
+// asked for. It is not a backend failure: retrying the same prompt tends to
+// get the same shape back, so callers fall back rather than hold.
+var ErrUnreadable = errors.New("mind: the model's answer could not be read")
+
+// Mind is one persona: who she is, what she speaks through, and what she
+// remembers.
+type Mind struct {
+	Character *Character
+	Provider  ai.Provider
+	Memory    *memory.Store
+}
+
+// Scene is everything about a moment that is not in her memory: where she is,
+// what is being said, and who she is answering or going to.
+type Scene struct {
+	GuildID      string
+	GuildName    string
+	ChannelID    string
+	ChannelName  string
+	ChannelTopic string
+	// Brief is what an administrator told her the server is.
+	Brief string
+	// SelfName is what people here call her.
+	SelfName string
+	Now      time.Time
+
+	// Turns are the live conversation in the channel, oldest first.
+	Turns []Turn
+
+	// Trigger is how the moment reached her, and UserID and Username who
+	// it is about: who she is answering, or who she is going to.
+	Trigger  Trigger
+	UserID   string
+	Username string
+	// MessageID is the message she is answering, when there is one.
+	MessageID string
+	// Late is how long she has taken to get to it, for an answer held back
+	// by a backend that would not answer.
+	Late time.Duration
+
+	// Roles are what an administrator says about people here, by user id:
+	// the note set for a role they hold. Standing a server decided, which
+	// she takes as given rather than something she worked out.
+	Roles map[string]string
+}
+
+// Known is what her memory holds that matters for a scene.
+type Known struct {
+	Self memory.Self
+	// People are the dossiers of everyone in the scene, the person it is
+	// about first. Someone she has no dossier on is present by name alone.
+	People []memory.Person
+	// Days are the summaries of the last few days she reflected on.
+	Days []memory.Day
+	// Recalled are moments from the past that bear on this one.
+	Recalled []memory.Moment
+	// Threads are the things she means to do, numbered from 1 in the order
+	// given, which is how the model refers back to them.
+	Threads []memory.Thread
+}
+
+// Know gathers what she remembers that bears on a scene, with the dossiers of
+// anyone in also — the people she might go to, for an initiative.
+func (m *Mind) Know(s Scene, also ...string) (Known, error) {
+	var k Known
+	var err error
+
+	if k.Self, err = m.Memory.Self(s.GuildID); err != nil {
+		return k, err
+	}
+	if k.Self.Lately == "" && m.Character != nil {
+		k.Self.Lately = m.Character.Lately
+	}
+
+	ids := presentIDs(s)
+	for _, id := range also {
+		if id != "" && !contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	for _, id := range ids {
+		p, ok, err := m.Memory.Person(s.GuildID, id)
+		if err != nil {
+			return k, err
+		}
+		if !ok {
+			p = memory.Person{ID: id, Name: nameOf(s, id)}
+		}
+		if name := nameOf(s, id); name != "" {
+			p.Name = name
+		}
+		k.People = append(k.People, p)
+	}
+
+	days, err := m.Memory.Days(s.GuildID, s.Now, recentSummary+1)
+	if err != nil {
+		return k, err
+	}
+	for _, d := range days {
+		if d.Summary != "" && dayDiff(d.Date, s.Now) > 0 {
+			k.Days = append(k.Days, d)
+		}
+	}
+
+	// Moments inside the live transcript are already in front of her;
+	// recalled ones start where it does.
+	before := s.Now
+	if len(s.Turns) > 0 {
+		before = s.Turns[0].At
+	}
+	k.Recalled, err = m.Memory.Recall(s.GuildID, s.Now, before, topicWords(s.Turns), ids, recallDays, recallMoments)
+	if err != nil {
+		return k, err
+	}
+
+	threads, err := m.Memory.Threads(s.GuildID)
+	if err != nil {
+		return k, err
+	}
+	k.Threads = memory.Unfinished(threads)
+	return k, nil
+}
+
+// presentIDs is everyone in the scene, the person it is about first.
+func presentIDs(s Scene) []string {
+	seen := make(map[string]bool)
+	var ids []string
+	add := func(id string) {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	add(s.UserID)
+	for i := len(s.Turns) - 1; i >= 0; i-- {
+		if !s.Turns[i].FromBot {
+			add(s.Turns[i].UserID)
+		}
+	}
+	return ids
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// nameOf is what someone is called in the scene.
+func nameOf(s Scene, id string) string {
+	if id == s.UserID && s.Username != "" {
+		return s.Username
+	}
+	for i := len(s.Turns) - 1; i >= 0; i-- {
+		if s.Turns[i].UserID == id && s.Turns[i].Username != "" {
+			return s.Turns[i].Username
+		}
+	}
+	return ""
+}
+
+// topicWords are the words of the end of the conversation, which decide what
+// comes back from further away.
+func topicWords(turns []Turn) []string {
+	if len(turns) > transcriptTail {
+		turns = turns[len(turns)-transcriptTail:]
+	}
+	var b strings.Builder
+	for _, t := range turns {
+		b.WriteString(t.Content + " ")
+	}
+	return memory.Keywords(b.String())
+}
+
+// generate asks the provider, reporting which backend answered when the
+// provider can say.
+func (m *Mind) generate(ctx context.Context, msgs []ai.Message) (string, string, error) {
+	type named interface {
+		GenerateNamed(ctx context.Context, messages []ai.Message) (string, string, error)
+	}
+	if p, ok := m.Provider.(named); ok {
+		return p.GenerateNamed(ctx, msgs)
+	}
+	reply, err := m.Provider.Generate(ctx, msgs)
+	return reply, "", err
+}
+
+// name is what she is called in a scene.
+func (m *Mind) name(s Scene) string {
+	if s.SelfName != "" {
+		return s.SelfName
+	}
+	if m.Character != nil {
+		return m.Character.Name
+	}
+	return "her"
+}

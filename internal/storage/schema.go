@@ -170,41 +170,16 @@ type MindPerson struct {
 	// long enough to be worth remarking on is not decided here — see
 	// mind.Acquaintance.
 	PrevSeen time.Time `json:"prev_seen,omitempty"`
-	// Tension is how much this person has got on her nerves, 0..1, as it
-	// stood at IrritatedAt. It is stored undecayed and decayed on read, so
-	// there is nothing to sweep and a restart loses nothing — see
-	// mind.IrritationNow.
-	//
-	// Per person rather than per guild on purpose: being short with one member
-	// and perfectly ordinary with the next is the thing that separates someone
-	// annoyed from a bot in a bad mode.
-	Tension   float64   `json:"irritation,omitempty"`
-	TensionAt time.Time `json:"irritated_at,omitempty"`
-	// Closeness is how much she has come to like them, 0..1, as it stood at
-	// WarmAt. Stored and decayed the same way as Irritation, only slower.
-	Closeness   float64   `json:"warmth,omitempty"`
-	ClosenessAt time.Time `json:"warm_at,omitempty"`
-	// Welcome is how they have taken it when she came to them, as it stood
-	// at WelcomeAt; unset reads as neutral. See mind.Bond.
-	Welcome   float64   `json:"welcome,omitempty"`
-	WelcomeAt time.Time `json:"welcome_at,omitempty"`
-	// LastEvent is the last thing that moved how she feels about them, and
-	// LastEventAt when — so "why is she like this with me" has an answer.
-	LastEvent   string    `json:"last_event,omitempty"`
-	LastEventAt time.Time `json:"last_event_at,omitempty"`
-	// Facts are what they have said about themselves, newest first, and
-	// Impression is her one-line opinion of them. Both are written after a
-	// conversation is remembered; see mind.NotesPrompt.
-	Facts        []MindFact `json:"facts,omitempty"`
-	Impression   string     `json:"impression,omitempty"`
-	ImpressionAt time.Time  `json:"impression_at,omitempty"`
-	// Concerns are things they said they were about to do, which she may
-	// have on her mind. See mind.Concern.
-	Concerns []MindConcern `json:"concerns,omitempty"`
+	// Facts and Impression are what v1 learned about them. Read only, to
+	// seed her dossier on them the first time v2 meets them — what she thinks
+	// of people lives in the memory directory now, see memory.Person — and
+	// cleared by ForgetMind so a forgotten guild is not re-seeded from here.
+	Facts      []MindFact `json:"facts,omitempty"`
+	Impression string     `json:"impression,omitempty"`
 
-	// Attention is how much reaching out they have agreed to — light, keen,
-	// insistent — or empty for none, which is everyone who has not asked.
-	// See mind.TriggerReach.
+	// Attention is whether they agreed to be reached — any value is yes,
+	// empty is no, which is everyone who has not asked. See
+	// mind.TriggerReach.
 	Attention string `json:"attention,omitempty"`
 	// LastExchangeAt is when they last spoke to her, and LastChatChannel
 	// where; LastActiveAt when they were last seen anywhere in the server,
@@ -221,16 +196,6 @@ type MindPerson struct {
 	Unanswered int       `json:"unanswered,omitempty"`
 }
 
-// MindConcern is something a person said they were about to do; see
-// mind.Concern.
-type MindConcern struct {
-	What    string    `json:"what"`
-	Due     time.Time `json:"due"`
-	Expires time.Time `json:"expires"`
-	Noted   time.Time `json:"noted"`
-	Passed  int       `json:"passed,omitempty"`
-}
-
 // MindFact is one thing a person said about themselves.
 type MindFact struct {
 	Key   string    `json:"key"`
@@ -239,35 +204,6 @@ type MindFact struct {
 }
 
 func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }
-
-// MindGuild is the character's own state in one guild, as opposed to what it
-// knows about the people in it.
-//
-// One row per guild, holding only what cannot be recomputed. The live
-// conversation comes back from Discord on demand (see chat.Service.backfill)
-// and the drives are derived on read from these timestamps, so nothing here is
-// a second copy of something Discord already stores.
-type MindGuild struct {
-	GuildID string `json:"guild_id"`
-	// LastSpokeAt is when she last said something here. It is what separates
-	// a quiet hour from a quiet week, which the conversation buffer cannot:
-	// that only keeps thirty minutes.
-	LastSpokeAt time.Time `json:"last_spoke_at,omitempty"`
-	// LastContactAt is when someone last spoke to her here. It, not her own
-	// speaking, is what satisfies her need for company: talking into a room
-	// that does not answer cures no loneliness. See mind.MoodInput.
-	LastContactAt time.Time `json:"last_contact_at,omitempty"`
-	// Initiative is how much she has put herself forward lately, as of
-	// InitiativeAt; decayed on read. See mind.Fatigue.
-	Initiative   float64   `json:"initiative,omitempty"`
-	InitiativeAt time.Time `json:"initiative_at,omitempty"`
-	// MoodSwing is how far events have moved her mood from its baseline, as
-	// of MoodSwingAt; decayed on read. See mind.MoodSwing.
-	MoodSwing   float64   `json:"mood_swing,omitempty"`
-	MoodSwingAt time.Time `json:"mood_swing_at,omitempty"`
-}
-
-func (m *MindGuild) Key() string { return m.GuildID }
 
 // MindChannel is what she has volunteered in one channel, kept so the daily
 // budget survives a restart. Held in memory it would reset on every deploy,
@@ -284,29 +220,6 @@ type MindChannel struct {
 }
 
 func (m *MindChannel) Key() string { return guildScopedKey(m.GuildID, m.ChannelID) }
-
-// MindMemory is one thing the character remembers happening in a channel.
-//
-// Append-only, so the key zero-pads its id and lexicographic order is
-// chronological — the same shape as the command log, and for the same reason.
-// Records are never rewritten: what fades is how much of one is rendered, not
-// what is stored. See mind.Memory.
-type MindMemory struct {
-	ID        uint64    `json:"id"`
-	GuildID   string    `json:"guild_id"`
-	ChannelID string    `json:"channel_id"`
-	At        time.Time `json:"at"`
-	Gist      string    `json:"gist"`
-	Detail    string    `json:"detail,omitempty"`
-	// Weight is how much the moment mattered, 0..1. It slows the memory's
-	// decay rather than raising its brightness.
-	Weight float64 `json:"weight,omitempty"`
-	// People are the user ids who were there, which is what lets a memory
-	// return because of who is in the room rather than what is being said.
-	People []string `json:"people,omitempty"`
-}
-
-func (m *MindMemory) Key() string { return guildRowKey(m.GuildID, m.ID) }
 
 // TaskCooldown blocks a member from drawing another task until Until passes.
 type TaskCooldown struct {

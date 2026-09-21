@@ -20,8 +20,8 @@ var messageID = regexp.MustCompile(`(\d{15,21})\s*$`)
 // own reply.
 //
 // This is the answer to "was that intentional or a bug?" without anyone
-// reading the code: which rule applied, the odds and the roll, her state, the
-// instructions she was given, what the model returned and what was posted.
+// reading the code: what she made of it, what she decided, and what was
+// posted.
 func (c *ChatCommand) runWhy(
 	context *cmdadapter.SlashInteractionContext,
 	sub *discordgo.ApplicationCommandInteractionDataOption,
@@ -59,7 +59,9 @@ func (c *ChatCommand) runWhy(
 	return respond(s, e, explain(*entry))
 }
 
-// explain renders one journal entry in plain words.
+// explain renders one journal entry in plain words: what reached her, what
+// she made of it, what she decided and what came of it. The appraisal is
+// the model's own words, shown as they were.
 func explain(j storage.MindJournal) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "**Why** · <t:%d:R>\n", j.At.Unix())
@@ -68,20 +70,30 @@ func explain(j storage.MindJournal) string {
 	if who == "" {
 		who = "someone"
 	}
-	fmt.Fprintf(&b, "**%s** %s", who, triggerWords(j.Trigger))
-	if j.Closer {
-		b.WriteString(" — a message that closes the topic")
-	}
-	b.WriteString("\n")
+	fmt.Fprintf(&b, "%s\n", triggerWords(j.Trigger, who))
 	if j.Excerpt != "" {
 		fmt.Fprintf(&b, "> %s\n", j.Excerpt)
 	}
 
-	fmt.Fprintf(&b, "\n**Decision** %s\n", decisionWords(j))
-	if j.Mood != "" || j.Attitude != "" {
-		fmt.Fprintf(&b, "**Her state** %s", j.Mood)
-		if j.Attitude != "" {
-			fmt.Fprintf(&b, " · towards them: %s", j.Attitude)
+	if j.Why != "" {
+		fmt.Fprintf(&b, "\n**Her reason** %s\n", j.Why)
+	}
+	if j.Read != "" {
+		fmt.Fprintf(&b, "\n**How she read it** %s\n", j.Read)
+	}
+	if j.Feel != "" {
+		fmt.Fprintf(&b, "**How it landed** %s\n", j.Feel)
+	}
+	if j.Toward != "" {
+		fmt.Fprintf(&b, "**Towards them** %s\n", j.Toward)
+	}
+	if j.Mood != "" {
+		fmt.Fprintf(&b, "**Her mood after** %s\n", j.Mood)
+	}
+	if j.Act != "" {
+		fmt.Fprintf(&b, "\n**Decided** %s", actWords(j.Act))
+		if j.Intent != "" {
+			fmt.Fprintf(&b, " — %s", j.Intent)
 		}
 		b.WriteString("\n")
 	}
@@ -98,86 +110,43 @@ func explain(j storage.MindJournal) string {
 	}
 	b.WriteString("\n")
 
-	if len(j.Told) > 0 {
-		b.WriteString("\n**She was told**\n")
-		for _, line := range j.Told {
-			b.WriteString("- " + line + "\n")
-		}
-	}
-	// The label and the thought are both in what the model returned, tags
-	// and all, which reads more plainly than the same text pulled out into
-	// sections of its own. Shown apart only when there is no raw reply to
-	// read them in.
-	rawShown := j.Raw != "" && strings.TrimSpace(j.Raw) != strings.TrimSpace(j.Posted)
-	if rawShown {
-		fmt.Fprintf(&b, "\n**The model returned**\n```\n%s\n```\n", strings.ReplaceAll(j.Raw, "```", "'''"))
-		if j.Perceived != "" || j.Thought != "" {
-			b.WriteString("-# <tone> is shadow perception, recorded and not acted on; " +
-				"<inner> is her first reaction, which changes nothing\n")
-		}
-	} else {
-		if j.Perceived != "" {
-			fmt.Fprintf(&b, "\n**Read their message as** %s\n-# shadow: recorded, not acted on\n", j.Perceived)
-		}
-		if j.Thought != "" {
-			fmt.Fprintf(&b, "\n**Her first reaction** (from the model — changes nothing)\n> %s\n", j.Thought)
-		}
-	}
 	if j.Posted != "" {
 		fmt.Fprintf(&b, "**Posted**\n> %s\n", j.Posted)
-	}
-	if j.Reaction != "" {
-		fmt.Fprintf(&b, "\n**How it landed** %s\n", mind.ReceptionWords(mind.Reception(j.Reaction)))
-	}
-	if j.Payoff != "" {
-		fmt.Fprintf(&b, "\n**How it paid off** %s\n", j.Payoff)
 	}
 	return trimForEmbedBody(b.String())
 }
 
-func triggerWords(t string) string {
+func triggerWords(t, who string) string {
 	switch mind.Trigger(t) {
 	case mind.TriggerMention:
-		return "tagged her"
+		return "**" + who + "** tagged her"
 	case mind.TriggerReply:
-		return "replied to her message"
+		return "**" + who + "** replied to her message"
 	case mind.TriggerNamed:
-		return "spoke to her by name"
-	case mind.TriggerAbout:
-		return "talked about her"
+		return "**" + who + "** said her name"
 	case mind.TriggerFollowUp:
-		return "carried on talking to her, untagged"
-	case mind.TriggerReturn:
-		return "came back after a long time away"
-	case mind.TriggerRecall:
-		return "raised something she remembers"
-	case mind.TriggerAfterthought:
-		return "got a short reply from her, and she had a second thought"
+		return "**" + who + "** carried on talking to her, untagged"
+	case mind.TriggerOverheard:
+		return "She overheard **" + who + "**"
+	case mind.TriggerReach:
+		return "She went to **" + who + "** on her own"
+	case mind.TriggerStart:
+		return "She spoke up on her own"
 	default:
-		return "reached her"
+		return "**" + who + "** reached her"
 	}
 }
 
-func decisionWords(j storage.MindJournal) string {
-	switch j.Rule {
-	case mind.RuleFirstApproach:
-		return "always answers someone's first approach"
-	case mind.RuleIgnoredLast:
-		return "had let their last approach go, so this one is always answered"
-	case mind.RuleCloser, mind.RuleOdds:
-		verdict := "answer"
-		if j.Outcome == "stayed quiet" {
-			verdict = "stay quiet"
-		}
-		kind := "odds"
-		if j.Rule == mind.RuleCloser {
-			kind = "odds for a closer"
-		}
-		return fmt.Sprintf("%s %.0f%%, rolled %.0f → %s", kind, j.Chance*100, j.Roll*100, verdict)
-	case "":
-		return "none recorded"
+func actWords(act string) string {
+	switch mind.Act(act) {
+	case mind.ActReply:
+		return "to answer"
+	case mind.ActReact:
+		return "to react and say nothing"
+	case mind.ActIgnore:
+		return "to let it go"
 	default:
-		return j.Rule
+		return act
 	}
 }
 

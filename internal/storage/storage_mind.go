@@ -137,175 +137,32 @@ func (s *Storage) GetChatBrief(guildID string) string {
 	return s.guildSettings(guildID).ChatBrief
 }
 
-// MarkMindSpoke records that the character spoke in a guild.
+// ForgetMind deletes what the datastore holds about a guild that is hers
+// rather than operational: the journal of her decisions, which carries
+// excerpts of what people said, and what v1 learned about people, which
+// would otherwise seed a dossier again the next time she meets them. Her
+// memory proper is the memory directory's to forget; see memory.Store.Forget.
 //
-// Stored rather than derived because the conversation buffer keeps thirty
-// minutes and this has to answer "how long has she been alone", which is a
-// question measured in hours. See mind.DeriveDrives.
-func (s *Storage) MarkMindSpoke(guildID string, at time.Time) error {
+// Message counts, consent and reach bookkeeping survive: those are how she
+// knows a regular from a stranger and whom she may go to, and wiping them is
+// a larger thing than being asked to forget what happened.
+func (s *Storage) ForgetMind(guildID string) error {
 	if guildID == "" {
-		return nil
+		return fmt.Errorf("storage: forget needs a guild")
 	}
-	if err := s.UpdateMindGuild(guildID, func(g *MindGuild) { g.LastSpokeAt = at }); err != nil {
-		return fmt.Errorf("storage: mark mind spoke: %w", err)
-	}
-	return nil
-}
-
-// UpdateMindGuild applies change to her state in a guild in a transaction,
-// creating it if there is none.
-func (s *Storage) UpdateMindGuild(guildID string, change func(*MindGuild)) error {
-	if guildID == "" {
-		return fmt.Errorf("storage: mind guild needs a guild")
-	}
-	return s.db.Update(func(tx *datastore.Tx) error {
-		col := datastore.In(tx, s.mindGuilds)
-		g, ok := col.Get(guildID)
-		if !ok {
-			g = &MindGuild{GuildID: guildID}
-		}
-		change(g)
-		return col.Put(g)
-	})
-}
-
-// GetMindGuild returns the character's state in a guild, or nil when she has
-// never spoken there.
-func (s *Storage) GetMindGuild(guildID string) *MindGuild {
-	got, ok := s.mindGuilds.Get(guildID)
-	if !ok {
-		return nil
-	}
-	return got
-}
-
-// mindMemoryLimit is how many memories a guild keeps. Generous, because a row
-// is two sentences and the read path already drops anything too dim to be
-// worth rendering — this only stops the collection growing without bound over
-// years.
-const mindMemoryLimit = 500
-
-// AddMindMemory records something worth remembering.
-//
-// Append-and-trim in one transaction, the same shape as SetCommand: the index
-// is read inside the transaction so the rows trimmed against are the rows the
-// commit sees.
-func (s *Storage) AddMindMemory(m MindMemory) error {
-	if m.GuildID == "" || strings.TrimSpace(m.Gist) == "" {
-		return fmt.Errorf("storage: mind memory needs a guild and a gist")
-	}
-	if m.At.IsZero() {
-		m.At = time.Now()
-	}
-
-	entry := &m
-	return s.db.Update(func(tx *datastore.Tx) error {
-		entry.ID = tx.NextID("mindmem:" + entry.GuildID)
-		col := datastore.In(tx, s.mindMemories)
-		if err := col.Put(entry); err != nil {
-			return err
-		}
-		existing := datastore.InIndex(tx, s.mindMemoriesByGuild).Find(entry.GuildID)
-		return trimOldest(col, existing, mindMemoryLimit)
-	})
-}
-
-// MindMemories returns a channel's memories, oldest first.
-//
-// Filtered by channel in Go rather than by a second index: a guild holds at
-// most mindMemoryLimit rows, and an index per channel would cost a write on
-// every message to save a scan of a few hundred records on a read that only
-// happens when she is about to speak.
-func (s *Storage) MindMemories(guildID, channelID string) []MindMemory {
-	rows := s.mindMemoriesByGuild.Find(guildID)
-	out := make([]MindMemory, 0, len(rows))
-	for _, r := range rows {
-		if channelID != "" && r.ChannelID != channelID {
-			continue
-		}
-		out = append(out, *r)
-	}
-	return out
-}
-
-// NoteMindPerson replaces what she knows about someone: their facts, already
-// merged by the caller, and her impression when impression is not empty.
-//
-// Whole-list replacement rather than a merge here, because merging is a
-// decision about which value wins and that belongs with the rest of the
-// cognition in mind.MergeFacts, not in storage.
-func (s *Storage) NoteMindPerson(guildID, userID string, facts []MindFact, impression string, at time.Time) error {
-	if guildID == "" || userID == "" {
-		return fmt.Errorf("storage: notes need a guild and a user")
-	}
-
-	return s.db.Update(func(tx *datastore.Tx) error {
-		col := datastore.In(tx, s.mindPeople)
-
-		person, ok := col.Get(guildScopedKey(guildID, userID))
-		if !ok {
-			person = &MindPerson{GuildID: guildID, UserID: userID, FirstSeen: at}
-		}
-		person.Facts = facts
-		if impression != "" {
-			person.Impression = impression
-			person.ImpressionAt = at
-		}
-		return col.Put(person)
-	})
-}
-
-// ForgetMindMemories deletes everything she remembers about a guild, and
-// clears what she holds for and against the people in it: irritation, warmth,
-// facts and impressions. It reports how many memories went.
-//
-// Feelings go with the memories deliberately. Clearing one without the other
-// leaves her short with someone, or fond of them, for a reason she can no
-// longer name — a feeling with no cause attached, which is the exact failure
-// the irritation memory was added to prevent.
-//
-// Message counts and first-seen stamps survive. Those are how she knows a
-// regular from a stranger, and wiping them turns everyone in the server into a
-// newcomer, which is a much larger thing than an administrator asking her to
-// forget what happened.
-func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
-	if guildID == "" {
-		return 0, fmt.Errorf("storage: forget memories needs a guild")
-	}
-
-	var forgotten int
 	err := s.db.Update(func(tx *datastore.Tx) error {
-		memories := datastore.In(tx, s.mindMemories)
-		for _, m := range datastore.InIndex(tx, s.mindMemoriesByGuild).Find(guildID) {
-			if err := memories.Delete(m.Key()); err != nil {
-				return err
-			}
-			forgotten++
-		}
-
-		// The journal goes too: it carries excerpts of what people said and
-		// what she thought of them, which is exactly what was asked to go.
 		journal := datastore.In(tx, s.mindJournal)
 		for _, j := range datastore.InIndex(tx, s.mindJournalByGuild).Find(guildID) {
 			if err := journal.Delete(j.Key()); err != nil {
 				return err
 			}
 		}
-
 		people := datastore.In(tx, s.mindPeople)
 		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
-			if p.Tension == 0 && p.TensionAt.IsZero() && p.Closeness == 0 &&
-				p.WelcomeAt.IsZero() && p.LastEvent == "" &&
-				len(p.Facts) == 0 && p.Impression == "" && len(p.Concerns) == 0 {
+			if len(p.Facts) == 0 && p.Impression == "" {
 				continue
 			}
-			p.Tension, p.TensionAt = 0, time.Time{}
-			p.Closeness, p.ClosenessAt = 0, time.Time{}
-			p.Welcome, p.WelcomeAt = 0, time.Time{}
-			p.LastEvent, p.LastEventAt = "", time.Time{}
-			p.Facts = nil
-			p.Concerns = nil
-			p.Impression, p.ImpressionAt = "", time.Time{}
+			p.Facts, p.Impression = nil, ""
 			if err := people.Put(p); err != nil {
 				return err
 			}
@@ -313,9 +170,9 @@ func (s *Storage) ForgetMindMemories(guildID string) (int, error) {
 		return nil
 	})
 	if err != nil {
-		return 0, fmt.Errorf("storage: forget memories: %w", err)
+		return fmt.Errorf("storage: forget mind: %w", err)
 	}
-	return forgotten, nil
+	return nil
 }
 
 // SetChatRoleBias records what a role means to the persona. A zero regard with
@@ -362,7 +219,7 @@ func (s *Storage) ChatRoleBiases(guildID string) map[string]ChatRoleBias {
 // ErrChatChannelRequired is returned when proactivity is asked for in a
 // channel she has not been let into. Its text is shown to the administrator,
 // which is why it carries no package prefix.
-var ErrChatChannelRequired = errors.New("she has to be let into this channel with /chat here first")
+var ErrChatChannelRequired = errors.New("she has to be let into this channel with /chat channel first")
 
 // SetChatProactive lets her speak unprompted in a channel, or stops her.
 //
