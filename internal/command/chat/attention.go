@@ -70,7 +70,7 @@ func (c *AttentionCommand) Run(ctx interface{}) error {
 	}
 
 	if wholeServer != nil && *wholeServer {
-		if !perm.IsAdministrator(s, e.Member, context.Config) {
+		if !perm.IsAdministrator(s, e.GuildID, e.Member, context.Config) {
 			return respond(s, e, "Only administrators can change this for the whole server. Leave `whole_server` off to change it for yourself.")
 		}
 		if enabled == nil {

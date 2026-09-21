@@ -501,5 +501,5 @@ func unlinked(rendered string) []string {
 // command's permission check, which only ran when the modal was opened.
 func isAdmin(context *cmdadapter.ComponentInteractionContext) bool {
 	e := context.Event
-	return e.Member != nil && perm.IsAdministrator(context.Session, e.Member, context.Config)
+	return e.Member != nil && perm.IsAdministrator(context.Session, e.GuildID, e.Member, context.Config)
 }
