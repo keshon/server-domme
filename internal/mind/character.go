@@ -20,11 +20,6 @@ const (
 	// guidance for whoever edits the character next, that guidance either
 	// goes missing or gets paid for a few hundred times a day.
 	headingNotes = "notes"
-	// headingTemper held v1's temperament dials. Dropped on read, so an
-	// older file still loads: numbers rendered as instructions were what made
-	// her a caricature, and v2 has nothing to feed them to. See
-	// docs/persona.md.
-	headingTemper = "temper"
 	// headingLately is who she is lately, in her own words, before she has
 	// reflected on anything. It seeds self.md the first time she speaks in a
 	// guild and is not sent as part of the persona after that; see
@@ -123,7 +118,7 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 		case headingLately:
 			lately.WriteString(line)
 			lately.WriteString("\n")
-		case headingNotes, headingTemper:
+		case headingNotes:
 			// Deliberately dropped; see headingNotes.
 		default:
 			persona.WriteString(line)

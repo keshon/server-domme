@@ -137,11 +137,9 @@ func (s *Storage) GetChatBrief(guildID string) string {
 	return s.guildSettings(guildID).ChatBrief
 }
 
-// ForgetMind deletes what the datastore holds about a guild that is hers
-// rather than operational: the journal of her decisions, which carries
-// excerpts of what people said, and what v1 learned about people, which
-// would otherwise seed a dossier again the next time she meets them. Her
-// memory proper is the memory directory's to forget; see memory.Store.Forget.
+// ForgetMind deletes the journal of her decisions in a guild, which carries
+// excerpts of what people said. Her memory proper is the memory directory's
+// to forget; see memory.Store.Forget.
 //
 // Message counts, consent and reach bookkeeping survive: those are how she
 // knows a regular from a stranger and whom she may go to, and wiping them is
@@ -154,16 +152,6 @@ func (s *Storage) ForgetMind(guildID string) error {
 		journal := datastore.In(tx, s.mindJournal)
 		for _, j := range datastore.InIndex(tx, s.mindJournalByGuild).Find(guildID) {
 			if err := journal.Delete(j.Key()); err != nil {
-				return err
-			}
-		}
-		people := datastore.In(tx, s.mindPeople)
-		for _, p := range datastore.InIndex(tx, s.mindPeopleByGuild).Find(guildID) {
-			if len(p.Facts) == 0 && p.Impression == "" {
-				continue
-			}
-			p.Facts, p.Impression = nil, ""
-			if err := people.Put(p); err != nil {
 				return err
 			}
 		}

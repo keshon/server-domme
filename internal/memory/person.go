@@ -27,7 +27,10 @@ type Person struct {
 	// between the two of them.
 	Who     string
 	Between string
-	Notes   []Note
+	// Kept is what stays with her about them: the few moments that define
+	// them for her, chosen and replaced when she reflects. See MaxKept.
+	Kept  []Note
+	Notes []Note
 }
 
 // Note is one dated thing she noted about someone.
@@ -47,8 +50,14 @@ const (
 
 	headWho     = "who they are"
 	headBetween = "between us"
+	headKept    = "what stays with me"
 	headNotes   = "notes"
 )
+
+// MaxKept is how many moments stay with her about one person. A handful,
+// the way people remember each other: a few defining episodes and a general
+// sense, rather than a log.
+const MaxKept = 5
 
 // MaxNotes is how many dated notes a dossier keeps. Reflection folds what
 // matters into the paragraphs above them, so the oldest are dropped rather
@@ -84,6 +93,9 @@ func (s *Store) UpdatePerson(guildID, userID string, change func(*Person)) error
 	}
 	p.ID = userID
 	change(&p)
+	if len(p.Kept) > MaxKept {
+		p.Kept = p.Kept[len(p.Kept)-MaxKept:]
+	}
 	if len(p.Notes) > MaxNotes {
 		p.Notes = p.Notes[len(p.Notes)-MaxNotes:]
 	}
@@ -147,6 +159,9 @@ func readPerson(path string, loc *time.Location) (Person, error) {
 	if p.ID == "" {
 		p.ID = strings.TrimSuffix(filepath.Base(path), ".md")
 	}
+	for _, item := range bullets(parts[headKept]) {
+		p.Kept = append(p.Kept, parseNote(item, loc))
+	}
 	for _, item := range bullets(parts[headNotes]) {
 		p.Notes = append(p.Notes, parseNote(item, loc))
 	}
@@ -164,6 +179,22 @@ func parseNote(item string, loc *time.Location) Note {
 	return Note{Text: item}
 }
 
+// writeNotes writes a section of dated bullets, or nothing when empty.
+func writeNotes(b *strings.Builder, heading string, notes []Note, loc *time.Location) {
+	if len(notes) == 0 {
+		return
+	}
+	b.WriteString("## " + heading + "\n\n")
+	for _, n := range notes {
+		b.WriteString("- ")
+		if !n.Day.IsZero() {
+			b.WriteString(n.Day.In(loc).Format(dayLayout) + " ")
+		}
+		b.WriteString(oneLine(n.Text) + "\n")
+	}
+	b.WriteString("\n")
+}
+
 func renderPerson(p Person, loc *time.Location) string {
 	var body strings.Builder
 	if w := strings.TrimSpace(p.Who); w != "" {
@@ -172,16 +203,8 @@ func renderPerson(p Person, loc *time.Location) string {
 	if b := strings.TrimSpace(p.Between); b != "" {
 		body.WriteString("## Between us\n\n" + b + "\n\n")
 	}
-	if len(p.Notes) > 0 {
-		body.WriteString("## Notes\n\n")
-		for _, n := range p.Notes {
-			body.WriteString("- ")
-			if !n.Day.IsZero() {
-				body.WriteString(n.Day.In(loc).Format(dayLayout) + " ")
-			}
-			body.WriteString(oneLine(n.Text) + "\n")
-		}
-	}
+	writeNotes(&body, "What stays with me", p.Kept, loc)
+	writeNotes(&body, "Notes", p.Notes, loc)
 	return renderDoc([]field{
 		{keyName, p.Name},
 		{keyID, p.ID},

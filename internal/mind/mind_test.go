@@ -238,27 +238,32 @@ func TestVoiceStatesTheDecisionAfterTheTranscript(t *testing.T) {
 }
 
 func TestReflectRewritesOnlyThePeopleInTheDay(t *testing.T) {
-	m, _ := newMind(t, `{
+	m, p := newMind(t, `{
   "summary": "Big M shared his project. I was kinder than I planned.",
   "lately": "Something to talk about, for once.",
   "people": [
-    {"id": "123", "who": "Runs the server; builds odd tools.", "between": "Warming up.", "feeling": "fond, a little"},
-    {"id": "666", "who": "invented", "between": "invented", "feeling": "invented"}
+    {"person": 1, "who": "Runs the server; builds odd tools.", "between": "Warming up.", "feeling": "fond, a little",
+     "stays": ["he showed me the code city before anyone else"]},
+    {"person": 2, "who": "invented", "between": "invented", "feeling": "invented"}
   ],
   "done": [1],
-  "threads": [{"text": "ask what he named it", "person_id": "123", "hours": 20}]
+  "threads": [{"text": "ask what he named it", "person": 1, "hours": 20}]
 }`)
 	if err := m.Memory.AddThread(guildID, memory.Thread{Text: "say hi to the new one"}); err != nil {
 		t.Fatal(err)
 	}
 	s := sceneWith(him("code city", noon))
-	if err := m.Said(s, Appraisal{Intent: "encourage him"}, "that's clever", ""); err != nil {
+	if err := m.Said(s, Appraisal{Intent: "encourage him", Weight: 0.8}, "that's clever", ""); err != nil {
 		t.Fatal(err)
 	}
 
 	did, err := m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour))
 	if err != nil || !did {
 		t.Fatalf("reflect: %v %v", did, err)
+	}
+	prompt := p.sent[0][1].Content
+	if strings.Contains(prompt, "123") || !strings.Contains(prompt, "Person 1. ### Big M") || !strings.Contains(prompt, "it stayed with her") {
+		t.Errorf("the reflection prompt:\n%s", prompt)
 	}
 	day, _ := m.Memory.Day(guildID, noon)
 	if day.Summary != "Big M shared his project. I was kinder than I planned." {
@@ -268,16 +273,81 @@ func TestReflectRewritesOnlyThePeopleInTheDay(t *testing.T) {
 	if me.Lately != "Something to talk about, for once." {
 		t.Errorf("lately is %q", me.Lately)
 	}
-	if p, _, _ := m.Memory.Person(guildID, "123"); p.Who != "Runs the server; builds odd tools." || p.Feeling != "fond, a little" {
-		t.Errorf("his dossier is %+v", p)
+	his, _, _ := m.Memory.Person(guildID, "123")
+	if his.Who != "Runs the server; builds odd tools." || his.Feeling != "fond, a little" ||
+		len(his.Kept) != 1 || his.Kept[0].Text != "he showed me the code city before anyone else" {
+		t.Errorf("his dossier is %+v", his)
 	}
-	if _, ok, _ := m.Memory.Person(guildID, "666"); ok {
-		t.Error("a person who was not in the day got a dossier")
+	people, _ := m.Memory.People(guildID)
+	if len(people) != 1 {
+		t.Errorf("a person who was not in the day got a dossier: %+v", people)
 	}
 	threads, _ := m.Memory.Threads(guildID)
 	open := memory.Unfinished(threads)
 	if len(open) != 1 || open[0].Text != "ask what he named it" || open[0].Person.ID != "123" {
 		t.Errorf("open threads are %+v", open)
+	}
+}
+
+// A Discord id is a stable identifier for a real account; no prompt carries
+// one, however much of her memory is in it.
+func TestNoPromptCarriesAnID(t *testing.T) {
+	const id = "365177820663513089"
+	m, p := newMind(t,
+		`{"act":"reply","intent":"hi","weight":0.9,"later":"ask him","note":"has a cat"}`,
+		"hi",
+		`{"choice": 1, "why": "x", "intent": "y"}`,
+		`{"summary":"s","lately":"l","people":[],"done":[],"threads":[]}`,
+	)
+	s := sceneWith(Turn{UserID: id, Username: "Big M", Content: "hello", At: noon})
+	s.UserID = id
+	s.Roles = map[string]string{id: "a regular"}
+	k, _ := m.Know(s)
+	a, err := m.Consider(context.Background(), s, k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Absorb(s, a)
+	k, _ = m.Know(s)
+	if _, _, err := m.Speak(context.Background(), s, k, a, ""); err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Said(s, a, "hi", "")
+	k, _ = m.Know(Scene{GuildID: guildID, Now: noon}, id)
+	_, _ = m.Initiate(context.Background(), Scene{GuildID: guildID, Now: noon}, k,
+		[]Opening{{Trigger: TriggerReach, ChannelName: "chat", UserID: id, Username: "Big M"}})
+	_, _ = m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour))
+
+	if len(p.sent) != 4 {
+		t.Fatalf("%d calls made", len(p.sent))
+	}
+	for _, msgs := range p.sent {
+		for _, msg := range msgs {
+			if strings.Contains(msg.Content, id) {
+				t.Fatalf("an id reached the model:\n%s", msg.Content)
+			}
+		}
+	}
+}
+
+// Weight is what makes a moment outlast its fortnight.
+func TestAMomentThatHitHardOutlastsSmallTalk(t *testing.T) {
+	m, _ := newMind(t)
+	month := noon.Add(-30 * 24 * time.Hour)
+	for _, mo := range []memory.Moment{
+		{At: month, People: []memory.Ref{{ID: "123", Name: "Big M"}}, Text: "he said he could not stand me", Weight: 0.9},
+		{At: month.Add(time.Minute), People: []memory.Ref{{ID: "123", Name: "Big M"}}, Text: "he said hi", Weight: 0.1},
+	} {
+		if err := m.Memory.AddMoment(guildID, mo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	k, err := m.Know(sceneWith(him("hey", noon)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(k.Recalled) != 1 || k.Recalled[0].Text != "he said he could not stand me" {
+		t.Fatalf("recalled %+v", k.Recalled)
 	}
 }
 
@@ -296,5 +366,40 @@ func TestInitiateOnlyActsOnARealChoice(t *testing.T) {
 		if err != nil || plan.Choice != want {
 			t.Errorf("%s: choice %d, %v; want %d", reply, plan.Choice, err, want)
 		}
+	}
+}
+
+// Seen in production: a quote inside a value, left unescaped, cost a whole
+// appraisal.
+func TestAnAppraisalWithUnescapedQuotesIsStillRead(t *testing.T) {
+	a, ok := parseAppraisal("{\n  \"read\": \"He's testing her with a soft, \"haha\"-shielded compliment.\",\n  \"feel\": \"A little tired of it.\",\n  \"act\": \"reply\",\n  \"intent\": \"take it lightly\",\n  \"later_hours\": 12\n}")
+	if !ok || a.Act != ActReply || a.Read != `He's testing her with a soft, "haha"-shielded compliment.` || a.LaterHours != 12 {
+		t.Fatalf("read as %+v, %v", a, ok)
+	}
+}
+
+// Seen in production: one impression noted six times in fifteen minutes.
+func TestARewordedNoteIsNotKeptTwice(t *testing.T) {
+	m, _ := newMind(t)
+	s := sceneWith(him("hi", noon))
+	for _, note := range []string{
+		"He persists in trying to engage even when she's not reciprocating, but doesn't escalate when ignored.",
+		"He's persistent in trying to engage, even when she's not reciprocating, but doesn't escalate when rebuffed.",
+		"Works on a code-city visualiser.",
+	} {
+		if err := m.Absorb(s, Appraisal{Note: note}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, _, _ := m.Memory.Person(guildID, "123")
+	if len(p.Notes) != 2 {
+		t.Fatalf("notes: %+v", p.Notes)
+	}
+}
+
+func TestTheSameClosingLineIsARepeat(t *testing.T) {
+	turns := []Turn{her("because 9 8 1. now, if youre done, i was in the middle of something", noon)}
+	if _, ok := RepeatsHerself("Thats a reach, even for you. Now, if you'll excuse me, I was in the middle of something", turns); !ok {
+		t.Error("the same sign-off twice was let through")
 	}
 }

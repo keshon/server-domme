@@ -45,7 +45,7 @@ func RepeatsHerself(reply string, turns []Turn) (string, bool) {
 		if len(before) < repeatMinWords {
 			continue
 		}
-		if sameOpening(words, before) || overlap(words, before) >= repeatOverlap {
+		if sameOpening(words, before) || sameEnding(words, before) || overlap(words, before) >= repeatOverlap {
 			return t.Content, true
 		}
 	}
@@ -103,6 +103,21 @@ func RepeatNote(earlier string) string {
 		"You already said %q in this conversation. Do not say it again, anything shaped "+
 			"like it, or anything that opens the same way. Say something new — or, if you are out of material, say so in your own way.",
 		strings.TrimSpace(earlier))
+}
+
+// sameEnding reports whether two lines close on the same words. In production
+// two replies in a row ended "if you'll excuse me, i was in the middle of
+// something" after different openings, which the other checks let through.
+func sameEnding(a, b []string) bool {
+	if len(a) < repeatOpening || len(b) < repeatOpening {
+		return false
+	}
+	for i := 1; i <= repeatOpening; i++ {
+		if a[len(a)-i] != b[len(b)-i] {
+			return false
+		}
+	}
+	return true
 }
 
 func sameOpening(a, b []string) bool {

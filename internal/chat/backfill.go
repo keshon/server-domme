@@ -60,6 +60,12 @@ func (s *Service) backfill(sess *discordgo.Session, channelID string) {
 // prompt read, so the order is flipped here rather than anywhere later.
 func (s *Service) historyToTurns(sess *discordgo.Session, messages []*discordgo.Message) []mind.Turn {
 	self := selfID(sess)
+	var guildID string
+	if len(messages) > 0 && messages[0] != nil && sess != nil && sess.State != nil {
+		if ch, err := sess.State.Channel(messages[0].ChannelID); err == nil && ch != nil {
+			guildID = ch.GuildID
+		}
+	}
 
 	turns := make([]mind.Turn, 0, len(messages))
 	for i := len(messages) - 1; i >= 0; i-- {
@@ -77,10 +83,7 @@ func (s *Service) historyToTurns(sess *discordgo.Session, messages []*discordgo.
 			continue
 		}
 
-		content := m.Content
-		if !fromBot {
-			content = m.ContentWithMentionsReplaced()
-		}
+		content := plain(sess, guildID, m)
 		if content == "" {
 			// An attachment, embed or sticker with no text. There is nothing
 			// for a language model to read in it.

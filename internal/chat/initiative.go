@@ -377,11 +377,11 @@ func (s *Service) noteActivity(m *discordgo.MessageCreate) {
 }
 
 // ConsentOn is the value /attention stores for someone who agreed to be
-// reached. Any non-empty value is consent, so what v1 stored still counts.
+// reached.
 const ConsentOn = "on"
 
 // Consented reports whether a stored consent value is a yes.
-func Consented(v string) bool { return v != "" }
+func Consented(v string) bool { return v == ConsentOn }
 
 // reachChannel is where to find someone: where they last talked to her, if
 // she still listens there, or else the first channel she listens in.
@@ -446,7 +446,8 @@ func roughly(d time.Duration) string {
 func channelNames(sess *discordgo.Session, channels []string) map[string]string {
 	out := make(map[string]string, len(channels))
 	for _, c := range channels {
-		out[c] = c
+		// Never the id: it would go in front of the model as a name.
+		out[c] = "a channel"
 		if sess != nil && sess.State != nil {
 			if ch, err := sess.State.Channel(c); err == nil && ch != nil {
 				out[c] = ch.Name

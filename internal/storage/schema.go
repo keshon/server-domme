@@ -170,16 +170,8 @@ type MindPerson struct {
 	// long enough to be worth remarking on is not decided here — see
 	// mind.Acquaintance.
 	PrevSeen time.Time `json:"prev_seen,omitempty"`
-	// Facts and Impression are what v1 learned about them. Read only, to
-	// seed her dossier on them the first time v2 meets them — what she thinks
-	// of people lives in the memory directory now, see memory.Person — and
-	// cleared by ForgetMind so a forgotten guild is not re-seeded from here.
-	Facts      []MindFact `json:"facts,omitempty"`
-	Impression string     `json:"impression,omitempty"`
-
-	// Attention is whether they agreed to be reached — any value is yes,
-	// empty is no, which is everyone who has not asked. See
-	// mind.TriggerReach.
+	// Attention is whether they agreed to be reached: chat.ConsentOn, or
+	// empty for everyone who has not asked. See mind.TriggerReach.
 	Attention string `json:"attention,omitempty"`
 	// LastExchangeAt is when they last spoke to her, and LastChatChannel
 	// where; LastActiveAt when they were last seen anywhere in the server,
@@ -194,13 +186,6 @@ type MindPerson struct {
 	ReachDay   string    `json:"reach_day,omitempty"`
 	ReachToday int       `json:"reach_today,omitempty"`
 	Unanswered int       `json:"unanswered,omitempty"`
-}
-
-// MindFact is one thing a person said about themselves.
-type MindFact struct {
-	Key   string    `json:"key"`
-	Value string    `json:"value"`
-	At    time.Time `json:"at"`
 }
 
 func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }

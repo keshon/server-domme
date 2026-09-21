@@ -139,14 +139,3 @@ func TestTheShippedCharacterLoads(t *testing.T) {
 		}
 	}
 }
-
-// A v1 card still loads: its temperament dials are read and ignored.
-func TestATemperSectionIsIgnored(t *testing.T) {
-	c, err := ParseCharacter("Domme", strings.NewReader("Who she is.\n\n## Temper\n\n- warmth: 0.35\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(c.Persona, "warmth") {
-		t.Errorf("the dials reached the persona: %q", c.Persona)
-	}
-}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -368,5 +369,41 @@ func TestSheReflectsOnYesterdayOnce(t *testing.T) {
 	day, _ := h.memory.Day(testGuild, yesterday)
 	if day.Summary != "a quiet day" || len(h.provider.sent) != 1 {
 		t.Fatalf("summary %q after %d calls", day.Summary, len(h.provider.sent))
+	}
+}
+
+// A Discord id is a stable identifier for a real account, and the model has
+// no business seeing one. Everything a message can carry one in is rewritten.
+func TestIDsNeverReachTheModel(t *testing.T) {
+	h := newHarness(t, appraisal(`"act":"ignore"`))
+	if err := h.sess.State.GuildAdd(&discordgo.Guild{ID: testGuild, Name: "Test",
+		Channels: []*discordgo.Channel{{ID: testChannel, GuildID: testGuild, Name: "chat"}, {ID: "148773639602962435", GuildID: testGuild, Name: "general"}},
+		Roles:    []*discordgo.Role{{ID: "248773639602962435", Name: "sub"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m := message("m1", "@Domme <@365177820663513089> said hi in <#148773639602962435> to <@&248773639602962435> <:salutt:998877665544332211> "+
+		"see https://discord.com/channels/1/2/3 and his id is 365177820663513089", true)
+	m.Mentions = append(m.Mentions, &discordgo.User{ID: "365177820663513089", Username: "Big N"})
+	h.svc.Observe(h.sess, m)
+	tk, ok := h.take()
+	if !ok {
+		t.Fatal("nothing queued")
+	}
+	h.svc.handle(context.Background(), tk)
+
+	id := regexp.MustCompile(`\d{17,20}`)
+	for _, msgs := range h.provider.sent {
+		for _, msg := range msgs {
+			if found := id.FindString(msg.Content); found != "" {
+				t.Fatalf("an id reached the model: %s in\n%s", found, msg.Content)
+			}
+		}
+	}
+	prompt := h.provider.sent[0][1].Content
+	for _, want := range []string{"@Big N", "#general", "@sub", ":salutt:"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("%q missing from what she read:\n%s", want, prompt)
+		}
 	}
 }

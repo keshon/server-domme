@@ -22,15 +22,12 @@ type Storage struct {
 	db  *datastore.DB
 	log zerolog.Logger
 
-	settings  *datastore.Collection[*GuildSettings]
-	cmdLog    *datastore.Collection[*CommandLogEntry]
-	purgeJobs *datastore.Collection[*PurgeJob]
-	shortLink *datastore.Collection[*ShortLink]
-	tasks     *datastore.Collection[*Task]
-	cooldowns *datastore.Collection[*TaskCooldown]
-	// mind_guilds and mind_memories were v1's and are no longer registered.
-	// The datastore keeps an unregistered collection on disk untouched, so
-	// rolling back to v1 finds them where it left them.
+	settings     *datastore.Collection[*GuildSettings]
+	cmdLog       *datastore.Collection[*CommandLogEntry]
+	purgeJobs    *datastore.Collection[*PurgeJob]
+	shortLink    *datastore.Collection[*ShortLink]
+	tasks        *datastore.Collection[*Task]
+	cooldowns    *datastore.Collection[*TaskCooldown]
 	mindPeople   *datastore.Collection[*MindPerson]
 	mindChannels *datastore.Collection[*MindChannel]
 	mindJournal  *datastore.Collection[*MindJournal]

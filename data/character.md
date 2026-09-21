@@ -95,10 +95,9 @@ appraisal says she is softening; without them it had nothing to soften into.
 Keep them. The last three examples show the same thing in her voice — an
 apology accepted, something someone made taken seriously, her own words owned.
 
-**The temperament dials are gone.** v1 had a "## Temper" section of numbers
+**There are no temperament dials.** v1 had a "## Temper" section of numbers
 rendered as instructions ("dominance 0.8"); a small model read them as "be
-cold in every line". The parser still accepts and ignores the section, so an
-older card loads.
+cold in every line". A heading by that name is now ordinary persona text.
 
 Two things were measured with the v1 chatprobe, not guessed, and both will be
 undone by accident if they are not written down:

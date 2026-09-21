@@ -50,6 +50,9 @@ type Appraisal struct {
 	Remember   string
 	Later      string
 	LaterHours float64
+	// Weight is how much the moment got to her, 0 to 1. It decides how long
+	// the moment stays with her; see memory.Recall.
+	Weight float64
 	// BackOff is them asking her to leave them alone — stop pinging them,
 	// stop coming after them. The caller withdraws their consent to be
 	// reached. Read by the model rather than a word list: v1's list could not
@@ -86,11 +89,12 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "act": "reply" or "react" or "ignore",
   "emoji": "one emoji, only if act is react",
   "intent": "if act is reply: what she wants to get across and how she comes at it — the gist, not the wording",
-  "note": "a new fact about them worth keeping, or empty",
+  "note": "a new FACT about their life they just told her — what they do, have, plan, like — or empty. Not an impression of how they are acting right now: that goes in toward and between",
   "between": "if how things stand between them just changed: one sentence on where it stands now; otherwise empty",
-  "remember": "something from this moment she would remember later, or empty",
+  "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
   "later": "something she means to follow up on with them later, or empty",
   "later_hours": "how many hours from now, if later is set",
+  "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk,
   "back_off": true only if they are asking her to leave them alone or stop coming after them
 }`
 
@@ -163,6 +167,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Remember:   str(obj, "remember"),
 		Later:      str(obj, "later"),
 		LaterHours: num(obj, "later_hours"),
+		Weight:     clampUnit(num(obj, "weight")),
 		BackOff:    strings.EqualFold(str(obj, "back_off"), "true"),
 	}
 	switch act := strings.ToLower(str(obj, "act")); {
@@ -259,7 +264,7 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 
 	if a.Remember != "" {
 		err := m.Memory.AddMoment(s.GuildID, memory.Moment{
-			At: now, Channel: s.ChannelName, People: m.refs(s), Text: a.Remember,
+			At: now, Channel: s.ChannelName, People: m.refs(s), Text: a.Remember, Weight: a.Weight,
 		})
 		if err != nil {
 			return err
@@ -284,14 +289,21 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 	return nil
 }
 
+// hasNote reports whether a note says what one already there does. Mostly
+// the same words counts: in production the same impression was noted six
+// times in fifteen minutes, reworded each time.
 func hasNote(notes []memory.Note, text string) bool {
+	words := strings.Fields(echoKey(text))
 	for _, n := range notes {
-		if strings.EqualFold(oneLine(n.Text), oneLine(text)) {
+		if overlap(words, strings.Fields(echoKey(n.Text))) >= noteOverlap {
 			return true
 		}
 	}
 	return false
 }
+
+// noteOverlap is the share of words that makes two notes the same note.
+const noteOverlap = 0.6
 
 // refs is who a moment is with: the person it is about.
 func (m *Mind) refs(s Scene) []memory.Ref {
@@ -331,7 +343,7 @@ func (m *Mind) Said(s Scene, a Appraisal, text, why string) error {
 		b.WriteString(" — meant: " + oneLine(a.Intent))
 	}
 	return m.Memory.AddMoment(s.GuildID, memory.Moment{
-		At: s.Now, Channel: s.ChannelName, People: m.refs(s), Text: b.String(),
+		At: s.Now, Channel: s.ChannelName, People: m.refs(s), Text: b.String(), Weight: a.Weight,
 	})
 }
 
@@ -351,8 +363,13 @@ func (m *Mind) LetGo(s Scene, a Appraisal) error {
 		text += " — I read it as: " + oneLine(a.Read)
 	}
 	return m.Memory.AddMoment(s.GuildID, memory.Moment{
-		At: s.Now, Channel: s.ChannelName, People: m.refs(s), Text: text,
+		At: s.Now, Channel: s.ChannelName, People: m.refs(s), Text: text, Weight: a.Weight,
 	})
+}
+
+// clampUnit keeps a weight in 0..1, whatever the model wrote.
+func clampUnit(v float64) float64 {
+	return max(0, min(1, v))
 }
 
 // theirLine is what the person she is answering said since she last spoke,

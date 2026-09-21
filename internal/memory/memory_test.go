@@ -214,3 +214,26 @@ func TestForgetMovesAside(t *testing.T) {
 		t.Fatalf("guilds after forget: %v", s.Guilds())
 	}
 }
+
+func TestWeightAndWhatStaysRoundTrip(t *testing.T) {
+	s := open(t)
+	at := time.Date(2026, 9, 19, 13, 34, 0, 0, s.Location())
+	if err := s.AddMoment(guild, Moment{At: at, Text: "an argument", Weight: 0.8}); err != nil {
+		t.Fatal(err)
+	}
+	day, _ := s.Day(guild, at)
+	if len(day.Moments) != 1 || day.Moments[0].Weight != 0.8 {
+		t.Fatalf("moments %+v", day.Moments)
+	}
+	var kept []Note
+	for i := 0; i < MaxKept+2; i++ {
+		kept = append(kept, Note{Day: at, Text: "moment " + string(rune('a'+i))})
+	}
+	if err := s.UpdatePerson(guild, "123", func(p *Person) { p.Kept = kept }); err != nil {
+		t.Fatal(err)
+	}
+	p, _, _ := s.Person(guild, "123")
+	if len(p.Kept) != MaxKept || p.Kept[0].Text != "moment c" || len(p.Notes) != 0 {
+		t.Fatalf("kept %+v notes %+v", p.Kept, p.Notes)
+	}
+}

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/memory"
 	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
 )
@@ -292,7 +291,6 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 		sc.ChannelTopic = channel.Topic
 	}
 	sc.Roles = s.roleNotes(sess, sc.GuildID, sc)
-	s.seedFromV1(sc.GuildID, sc)
 	return sc
 }
 
@@ -320,29 +318,6 @@ func (s *Service) roleNotes(sess *discordgo.Session, guildID string, sc mind.Sce
 		}
 	}
 	return out
-}
-
-// seedFromV1 starts a dossier from what v1 learned about someone, the first
-// time v2 meets them, so upgrading does not make every regular a stranger.
-func (s *Service) seedFromV1(guildID string, sc mind.Scene) {
-	for _, id := range sceneIDs(sc) {
-		if _, ok, err := s.memory.Person(guildID, id); err != nil || ok {
-			continue
-		}
-		old := s.store.GetMindPerson(guildID, id)
-		if old == nil || (old.Impression == "" && len(old.Facts) == 0) {
-			continue
-		}
-		err := s.memory.UpdatePerson(guildID, id, func(p *memory.Person) {
-			p.Name, p.FirstMet, p.Who = old.Username, old.FirstSeen, old.Impression
-			for _, f := range old.Facts {
-				p.Notes = append(p.Notes, memory.Note{Day: f.At, Text: f.Key + ": " + f.Value})
-			}
-		})
-		if err != nil {
-			s.log.Debug().Err(err).Str("guild_id", guildID).Msg("chat_seed_failed")
-		}
-	}
 }
 
 // sceneIDs is everyone in a scene.

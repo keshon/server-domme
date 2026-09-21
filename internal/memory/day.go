@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -22,6 +23,9 @@ type Moment struct {
 	Channel string
 	People  []Ref
 	Text    string
+	// Weight is how much it got to her, 0 to 1, as she judged it at the
+	// time. It is what makes a moment outlast its fortnight; see Recall.
+	Weight float64
 }
 
 // Ref is a person as a moment names them: the id that finds their dossier and
@@ -44,6 +48,9 @@ const (
 	headSummary = "summary"
 	headMoments = "moments"
 )
+
+// weightTag marks a moment's weight among its tags: "weight 0.8".
+const weightTag = "weight "
 
 // momentLine reads "14:05 [#chat; Big M:123] text". The bracket is optional
 // so a line a person added by hand still reads.
@@ -201,6 +208,8 @@ func parseMoment(item string, date time.Time, loc *time.Location) (Moment, bool)
 		case part == "":
 		case strings.HasPrefix(part, "#"):
 			m.Channel = strings.TrimPrefix(part, "#")
+		case strings.HasPrefix(part, weightTag):
+			m.Weight, _ = strconv.ParseFloat(strings.TrimPrefix(part, weightTag), 64)
 		default:
 			// The id is after the last colon: a name may contain one, an id
 			// never does.
@@ -242,6 +251,9 @@ func renderMoment(m Moment, loc *time.Location) string {
 			tags = append(tags, name)
 		}
 	}
+	if m.Weight > 0 {
+		tags = append(tags, weightTag+strconv.FormatFloat(m.Weight, 'f', 1, 64))
+	}
 	line := m.At.In(loc).Format(clockLayout) + " "
 	if len(tags) > 0 {
 		line += "[" + strings.Join(tags, "; ") + "] "
@@ -249,9 +261,24 @@ func renderMoment(m Moment, loc *time.Location) string {
 	return line + oneLine(m.Text)
 }
 
+// Fading. An ordinary moment is gone from recall after FadeAfter; one that
+// got to her at LastingWeight or more stays recallable for as long as the
+// caller looks back. What is lost from recall is not lost: reflection has
+// carried the gist into a day's summary and the dossiers by then.
+const (
+	FadeAfter     = 14 * 24 * time.Hour
+	LastingWeight = 0.5
+)
+
 // Recall picks the moments from the last days worth bringing back for what is
 // happening now: those about the people present, those sharing words with the
-// conversation, and those recent enough to still be on her mind.
+// conversation, those recent enough to still be on her mind, and those that
+// got to her.
+//
+// Weight works the way it does in people: a moment that hit hard fades more
+// slowly — its recency lasts up to five times as long — and counts for more
+// on its own, so an argument from last month can outrank small talk from
+// yesterday.
 //
 // Keyword overlap rather than embeddings because an embedding is a model call
 // per moment, and the relays this has to run on do not all offer one. It is
@@ -280,10 +307,11 @@ func (s *Store) Recall(guildID string, now, before time.Time, words, people []st
 	var all []scored
 	for _, day := range recent {
 		for _, m := range day.Moments {
-			if !m.At.Before(before) {
+			age := now.Sub(m.At)
+			if !m.At.Before(before) || (age > FadeAfter && m.Weight < LastingWeight) {
 				continue
 			}
-			score := recency(now.Sub(m.At))
+			score := recency(age, m.Weight) + 0.8*m.Weight
 			for _, p := range m.People {
 				if present[p.ID] {
 					score += 1.0
@@ -314,13 +342,14 @@ func (s *Store) Recall(guildID string, now, before time.Time, words, people []st
 	return out, nil
 }
 
-// recency is how much a moment's age alone keeps it on her mind: all of it
-// within the hour, half after a day and a half, little after a week.
-func recency(age time.Duration) float64 {
+// recency is how much a moment's age keeps it on her mind: all of it within
+// the hour, half after a day and a half for an ordinary moment, and up to
+// five times as slow for one that got to her.
+func recency(age time.Duration, weight float64) float64 {
 	if age < time.Hour {
 		return 1
 	}
-	return math.Exp(-age.Hours() / 52)
+	return math.Exp(-age.Hours() / (52 * (1 + 4*weight)))
 }
 
 // Keywords are the words in text worth matching on: lowercased, four letters

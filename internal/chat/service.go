@@ -270,7 +270,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	now := s.now()
-	content := strings.TrimSpace(m.ContentWithMentionsReplaced())
+	content := strings.TrimSpace(plain(sess, m.GuildID, m.Message))
 	if content == "" {
 		return
 	}

@@ -16,11 +16,11 @@ const reflectShape = `Answer with one JSON object and nothing else:
   "summary": "what the day was, for her — what happened and what it meant, 2 to 4 sentences, first person",
   "lately": "her account of how she has been lately, rewritten to take this day in — first person, under 120 words",
   "people": [
-    {"id": "their id", "who": "who they are, as she knows them now — a short paragraph", "between": "where things stand between her and them now — one or two sentences", "feeling": "how she feels about them, a few words"}
+    {"person": their number, "who": "who they are, as she knows them now — a short paragraph", "between": "where things stand between her and them now — one or two sentences", "feeling": "how she feels about them, a few words", "stays": ["the few moments with them that stay with her — at most 5, each one sentence, first person; keep the old ones that still matter, replace the ones that do not"]}
   ],
   "done": [numbers of the things she meant to do that are done or no longer worth doing],
   "threads": [
-    {"text": "something she now means to do", "person_id": "who it is about, or empty", "hours": hours from now until it is worth doing}
+    {"text": "something she now means to do", "person": the number of who it is about, or 0, "hours": hours from now until it is worth doing}
   ]
 }`
 
@@ -31,6 +31,7 @@ const reflectRules = `How to look back:
 - Be honest and specific: what actually happened, what she said, how people were with her, and what that means for her.
 - Let people change in her eyes. Someone who kept at it in good faith deserves more warmth than a first impression gave them; someone who was unkind has earned some distance. Keep what is still true from before.
 - Write only about people who appear in the day. Keep facts they told her.
+- What stays with her about someone is what she would still remember in a year: the moments that hit hardest, good or bad, marked "it stayed with her". Small talk does not stay.
 - Keep what she said her own: if she said something, she said it.
 - Do not invent anything that is not in the day.`
 
@@ -111,9 +112,9 @@ func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self,
 		user.WriteString("- " + renderMoment(mo, day.Date.Add(36*time.Hour)) + "\n")
 	}
 	if len(people) > 0 {
-		user.WriteString("\nThe people in it, as she knew them before today (id in brackets):")
-		for _, p := range people {
-			fmt.Fprintf(&user, "\n\n[%s] %s", p.ID, renderPerson(p, "", now))
+		user.WriteString("\nThe people in it, as she knew them before today:")
+		for i, p := range people {
+			fmt.Fprintf(&user, "\n\nPerson %d. %s", i+1, renderPerson(p, "", now))
 		}
 		user.WriteString("\n")
 	}
@@ -131,9 +132,12 @@ func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self,
 	}
 }
 
-// applyReflection writes what reflection concluded. A person the model named
-// who was not in the day is ignored: reflection rewrites only the people it
-// was shown, so a hallucinated id cannot overwrite someone's dossier.
+// applyReflection writes what reflection concluded.
+//
+// People are referred to by the number they were shown under, never by their
+// Discord id: an id is a stable identifier for a real account and the model
+// has no business seeing one. A number outside the list is ignored, so a
+// hallucinated person cannot overwrite anyone's dossier.
 func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[string]any, people []memory.Person, open []memory.Thread) error {
 	if summary := str(obj, "summary"); summary != "" {
 		if err := m.Memory.SetSummary(guildID, date, summary); err != nil {
@@ -150,18 +154,24 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 		return err
 	}
 
-	shown := make(map[string]memory.Person, len(people))
-	for _, p := range people {
-		shown[p.ID] = p
+	shown := func(entry map[string]any) (memory.Person, bool) {
+		n := int(num(entry, "person"))
+		if n < 1 || n > len(people) {
+			return memory.Person{}, false
+		}
+		return people[n-1], true
 	}
 	for _, entry := range objects(obj, "people") {
-		id := str(entry, "id")
-		p, ok := shown[id]
+		p, ok := shown(entry)
 		if !ok {
 			continue
 		}
 		who, between, feeling := str(entry, "who"), str(entry, "between"), str(entry, "feeling")
-		err := m.Memory.UpdatePerson(guildID, id, func(d *memory.Person) {
+		stays, hasStays := texts(entry, "stays")
+		err := m.Memory.UpdatePerson(guildID, p.ID, func(d *memory.Person) {
+			if hasStays {
+				d.Kept = keep(d.Kept, stays, date)
+			}
 			if d.Name == "" {
 				d.Name = p.Name
 			}
@@ -198,7 +208,7 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 			due = now.Add(min(time.Duration(hours*float64(time.Hour)), laterMax))
 		}
 		t := memory.Thread{Due: due, Text: text}
-		if p, ok := shown[str(entry, "person_id")]; ok {
+		if p, ok := shown(entry); ok {
 			t.Person = memory.Ref{ID: p.ID, Name: p.Name}
 		}
 		if err := m.Memory.AddThread(guildID, t); err != nil {
@@ -206,4 +216,24 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 		}
 	}
 	return nil
+}
+
+// keep is what stays with her about someone after reflecting: the model's
+// list, in its order, with a moment she already kept keeping the day it
+// happened rather than taking the day she last thought about it.
+func keep(old []memory.Note, stays []string, date time.Time) []memory.Note {
+	var out []memory.Note
+	for _, text := range stays {
+		n := memory.Note{Day: date, Text: text}
+		for _, o := range old {
+			if strings.EqualFold(oneLine(o.Text), oneLine(text)) {
+				n.Day = o.Day
+			}
+		}
+		out = append(out, n)
+	}
+	if len(out) > memory.MaxKept {
+		out = out[:memory.MaxKept]
+	}
+	return out
 }

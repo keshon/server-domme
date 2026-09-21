@@ -68,6 +68,7 @@ said and meant — her open intentions, and the transcript. It answers:
   "between":  "how things stand between them now, if it changed",
   "remember": "something from this moment worth remembering",
   "later":    "something she means to follow up on", "later_hours": 24,
+  "weight":   "0..1, how much it got to her",
   "back_off": "true if they asked her to leave them alone"
 }
 ```
@@ -130,13 +131,19 @@ whatever she has lived through:
 | How she has been lately | about 900 characters, rewritten nightly |
 | A dossier per person in the scene | two paragraphs and the last 6 notes; the file keeps 20 |
 | What the last days meant | the summaries of 3 days |
-| Moments recalled | 8, from the last 14 days, by who is here and what is being said |
+| What stays with her about each person | 5 defining moments, chosen at night |
+| Moments recalled | 8, by who is here, what is being said, how recent and how much it hit |
 | What she means to do | 12 open at most |
 | The live conversation | the channel buffer: half an hour, at least 8 lines |
 
-That is how she forgets. A moment older than two weeks never comes back as
-itself; what survives is what reflection carried into a day's summary, her
-account of herself, or someone's dossier — the gist kept, the detail let go.
+That is how she forgets. Every moment carries a weight, 0 to 1, that her
+appraisal gives it: small talk is light, hurt, pride and real warmth are
+heavy. A light moment fades from recall in about a day and a half and is
+gone after two weeks; a heavy one fades up to five times as slowly, counts
+for more on its own, and stays recallable for three months. What survives
+after that is what reflection carried into a day's summary, her account of
+herself, or the few moments that stay with her about someone — the gist kept,
+the detail let go.
 On disk the files stay, at roughly a megabyte a year, for a person to read.
 
 What is not there yet is a layer for long ago. Months on, an event lives only
@@ -151,7 +158,8 @@ that had moments the day before is reflected on in one call: the day's lines,
 her self-description, the dossiers of everyone who appeared, her open
 intentions. She writes a short summary of the day into its file, rewrites her
 self-description, rewrites the "who they are" and "between us" paragraphs of
-each dossier, and closes or opens intentions. A dossier keeps its last 20
+each dossier, chooses the few moments with each person that stay with her,
+and closes or opens intentions. A dossier keeps its last 20
 dated notes; what matters in older ones is expected to have been folded into
 the paragraphs by then.
 
@@ -201,6 +209,15 @@ checks, the backend pool, the authored character file and its examples, and
 emotional scalar, the drives, the bond, the appraisal table, the
 afterthought and volunteer gates, perception and inner-voice modes, and the
 per-trigger odds.
+
+## Discord ids never reach the model
+
+Memory files keep Discord ids, because that is what finds someone's dossier.
+Nothing sent to a model does. Message text has user, role and channel
+mentions, custom emoji, message links and pasted ids rewritten to names or
+words before it is recorded (`chat.plain`); reflection refers to people by
+the number they were listed under; a channel the cache cannot name is "a
+channel". `TestNoPromptCarriesAnID` and `TestIDsNeverReachTheModel` hold it.
 
 ## Measuring
 

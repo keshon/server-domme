@@ -171,37 +171,21 @@ func TestChatBriefRoundTrip(t *testing.T) {
 	}
 }
 
-// What v1 learned about someone would seed a dossier again the next time she
-// met them, so a forgotten guild has to lose it too.
-func TestForgetMindClearsLegacyNotesAndKeepsWhoPeopleAre(t *testing.T) {
+// How she knows a regular from a stranger is not something an administrator
+// asking her to forget an argument meant to erase.
+func TestForgetMindKeepsWhoPeopleAre(t *testing.T) {
 	store := newTestStore(t)
 	now := time.Now()
-	for _, guild := range []string{"g1", "g2"} {
-		for i := 0; i < 5; i++ {
-			if _, err := store.SeeMindPerson(guild, "u1", "cass", now); err != nil {
-				t.Fatalf("SeeMindPerson: %v", err)
-			}
-		}
-		if err := store.UpdateMindPerson(guild, "u1", now, func(p *MindPerson) {
-			p.Impression = "sharp"
-			p.Facts = []MindFact{{Key: "pet", Value: "a cat"}}
-		}); err != nil {
-			t.Fatalf("UpdateMindPerson: %v", err)
+	for i := 0; i < 5; i++ {
+		if _, err := store.SeeMindPerson("g1", "u1", "cass", now); err != nil {
+			t.Fatalf("SeeMindPerson: %v", err)
 		}
 	}
-
 	if err := store.ForgetMind("g1"); err != nil {
 		t.Fatalf("ForgetMind: %v", err)
 	}
-	person := store.GetMindPerson("g1", "u1")
-	if person == nil || person.Messages != 5 {
+	if person := store.GetMindPerson("g1", "u1"); person == nil || person.Messages != 5 {
 		t.Fatalf("lost how well she knows them: %+v", person)
-	}
-	if person.Impression != "" || len(person.Facts) != 0 {
-		t.Errorf("legacy notes survived: %+v", person)
-	}
-	if other := store.GetMindPerson("g2", "u1"); other == nil || other.Impression != "sharp" {
-		t.Errorf("reached into another guild: %+v", other)
 	}
 }
 

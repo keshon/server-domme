@@ -2,6 +2,7 @@ package mind
 
 import (
 	"encoding/json"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -22,9 +23,42 @@ func decodeObject(reply string) (map[string]any, bool) {
 	}
 	var out map[string]any
 	if err := json.Unmarshal([]byte(reply[start:end+1]), &out); err != nil {
-		return nil, false
+		return looseObject(reply[start : end+1])
 	}
 	return out, true
+}
+
+// looseLine is one "key": value line of an object written a key per line.
+var looseLine = regexp.MustCompile(`^\s*"([A-Za-z_]+)"\s*:\s*(.*?)\s*,?\s*$`)
+
+// looseObject reads an object that is not valid JSON but is laid out the way
+// models lay one out: a key per line, string values quoted.
+//
+// The usual fault is a quote inside a value left unescaped — "read": "he is
+// testing her with a "haha"-shielded compliment" — which was seen in
+// production and cost a whole appraisal. Read a line at a time, the value is
+// everything between the first and last quote on its line, so the inner
+// ones survive. Lists and nested objects are not attempted; the appraisal
+// has none, and reflection is asked again rather than half read.
+func looseObject(text string) (map[string]any, bool) {
+	out := make(map[string]any)
+	for _, line := range strings.Split(text, "\n") {
+		m := looseLine.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		value := m[2]
+		if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) && len(value) >= 2 {
+			out[m[1]] = strings.ReplaceAll(value[1:len(value)-1], `\"`, `"`)
+			continue
+		}
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			out[m[1]] = f
+		} else {
+			out[m[1]] = value
+		}
+	}
+	return out, len(out) > 0
 }
 
 // str reads a string field, trimmed. A missing field, null, or one of the
@@ -90,4 +124,20 @@ func numbers(obj map[string]any, key string) []int {
 		}
 	}
 	return out
+}
+
+// texts reads a field holding a list of strings, reporting whether the field
+// was there at all: an empty list is a decision, a missing one is not.
+func texts(obj map[string]any, key string) ([]string, bool) {
+	list, ok := obj[key].([]any)
+	if !ok {
+		return nil, false
+	}
+	var out []string
+	for _, item := range list {
+		if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+			out = append(out, strings.TrimSpace(s))
+		}
+	}
+	return out, true
 }

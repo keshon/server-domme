@@ -39,7 +39,9 @@ const (
 // purpose — the point is that the right thing surfaces, not that she arrives
 // holding a dossier.
 const (
-	recallDays     = 14
+	// recallDays is how far back recall looks at all. Ordinary moments
+	// fade from it well before; see memory.FadeAfter.
+	recallDays     = 90
 	recallMoments  = 8
 	recentSummary  = 3
 	transcriptTail = 6

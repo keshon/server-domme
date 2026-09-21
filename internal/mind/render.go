@@ -107,7 +107,7 @@ func renderPerson(p memory.Person, role string, now time.Time) string {
 	if role = strings.TrimSpace(role); role != "" {
 		b.WriteString("\nWhat the server says about them: " + oneLine(role))
 	}
-	if p.Who == "" && p.Between == "" && len(p.Notes) == 0 && p.LastTalked.IsZero() {
+	if p.Who == "" && p.Between == "" && len(p.Kept) == 0 && len(p.Notes) == 0 && p.LastTalked.IsZero() {
 		b.WriteString("\nShe does not know them yet.")
 		return b.String()
 	}
@@ -120,21 +120,34 @@ func renderPerson(p memory.Person, role string, now time.Time) string {
 	if p.Feeling != "" {
 		b.WriteString("\nHow she feels about them: " + p.Feeling)
 	}
+	if len(p.Kept) > 0 {
+		b.WriteString("\nWhat stays with her about them:")
+		for _, n := range p.Kept {
+			b.WriteString("\n- " + dated(n, now))
+		}
+	}
 	notes := p.Notes
 	if len(notes) > maxNotesShown {
 		notes = notes[len(notes)-maxNotesShown:]
 	}
+	if len(notes) > 0 {
+		b.WriteString("\nWhat she has noted:")
+	}
 	for _, n := range notes {
-		if n.Day.IsZero() {
-			b.WriteString("\n- " + oneLine(n.Text))
-		} else {
-			b.WriteString("\n- (" + ago(now.Sub(n.Day)) + ") " + oneLine(n.Text))
-		}
+		b.WriteString("\n- " + dated(n, now))
 	}
 	if !p.LastTalked.IsZero() {
 		b.WriteString("\nLast talked with her: " + ago(now.Sub(p.LastTalked)) + ".")
 	}
 	return b.String()
+}
+
+// dated is a note with how long ago it was.
+func dated(n memory.Note, now time.Time) string {
+	if n.Day.IsZero() {
+		return oneLine(n.Text)
+	}
+	return "(" + ago(now.Sub(n.Day)) + ") " + oneLine(n.Text)
 }
 
 // renderMoment is one remembered moment.
@@ -156,8 +169,16 @@ func renderMoment(m memory.Moment, now time.Time) string {
 	if len(where) > 0 {
 		head += " (" + strings.Join(where, ", ") + ")"
 	}
-	return head + ": " + clip(m.Text, maxMomentChars)
+	line := head + ": " + clip(m.Text, maxMomentChars)
+	if m.Weight >= stayedWith {
+		line += " (it stayed with her)"
+	}
+	return line
 }
+
+// stayedWith is the weight at which a moment is shown as one that got to
+// her, so the model reads it as more than a line in a log.
+const stayedWith = 0.7
 
 // renderThread is one intention.
 func renderThread(t memory.Thread, now time.Time) string {
