@@ -35,7 +35,8 @@ var (
 const voiceRules = `How to write:
 - Write only your own next message. Never write anyone else's lines, and never continue the conversation past your own reply.
 - Do not prefix your message with your own name, and do not start with the other person's name unless you are calling them.
-- One message. No stage directions, no asterisks describing actions, no narration.
+- To speak to someone other than the person you are answering, tag them: @Name.
+- One message. Only if you would genuinely send two in a row, put a blank line between them. No stage directions, no asterisks describing actions, no narration.
 - Keep it short — a sentence or two is normal in chat. Length is earned.
 - Plain text as a person would type it in Discord.
 - Specifics about this server — channels, times, rules, who runs what — come only from what is written above. Never make one up.`
@@ -186,6 +187,8 @@ func decided(s Scene, a Appraisal, why string) string {
 		fmt.Fprintf(&b, "Nobody asked you anything: you are going to %s yourself, and they may not be in this conversation at all. Tag them with @%s.", who, who)
 	case TriggerStart:
 		b.WriteString("Nobody asked you anything: you are starting this yourself.")
+	case TriggerThen:
+		b.WriteString("A little after your last message, one more thing occurs to you, and you send it as its own message. Do not repeat or restate what you already said.")
 	default:
 		if s.Late > 0 {
 			fmt.Fprintf(&b, "You are answering %s %s late — you were not around. Acknowledge the gap the way a person would, without explaining it. ", who, gap(s.Late))

@@ -143,8 +143,10 @@ func newHarness(t *testing.T, replies ...string) *harness {
 		Roll:      func() float64 { return 0 },
 		Now:       func() time.Time { return clock },
 	})
-	// The tests drive a fixed clock; settling is its own concern.
+	// The tests drive a fixed clock; settling and typing are their own
+	// concern, and nothing here sleeps.
 	svc.settleQuiet = 0
+	svc.sleep = func(context.Context, time.Duration) bool { return true }
 	return &harness{svc: svc, store: store, memory: mem, provider: p, discord: d, sess: sess}
 }
 
@@ -405,5 +407,114 @@ func TestIDsNeverReachTheModel(t *testing.T) {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("%q missing from what she read:\n%s", want, prompt)
 		}
+	}
+}
+
+// From production: Big M tagged Big N to introduce her, and "Big N, welcome"
+// reached the channel as plain text.
+func TestSheCanTagWhoeverTheyTagged(t *testing.T) {
+	h := newHarness(t)
+	sc := mind.Scene{
+		GuildID: testGuild, ChannelID: testChannel, Trigger: mind.TriggerReply,
+		UserID: bigM, Username: "Big M", MessageID: "m1",
+		Turns: []mind.Turn{{UserID: bigM, Username: "Big M", MessageID: "m1",
+			Content: "fiiine... @Big N meet @Domme", Tagged: []mind.Person{{ID: "u2", Name: "Big N"}}}},
+	}
+	msg := h.svc.outgoing(sc, "Big N, welcome. Big M, you did the thing.")
+	if msg.Content != "<@u2>, welcome. <@u1>, you did the thing." {
+		t.Errorf("content %q", msg.Content)
+	}
+	if got := msg.AllowedMentions.Users; len(got) != 2 {
+		t.Errorf("may notify %v", got)
+	}
+
+	// Someone nobody tagged stays unnotified, however she names them.
+	sc.Turns = append(sc.Turns, mind.Turn{UserID: "u3", Username: "cass", Content: "hi"})
+	msg = h.svc.outgoing(sc, "@cass, you too")
+	for _, id := range msg.AllowedMentions.Users {
+		if id == "u3" {
+			t.Errorf("she could notify someone nobody tagged: %v", msg.AllowedMentions.Users)
+		}
+	}
+}
+
+// A second thought is born with the reply and sent once its moment comes —
+// as its own message, not anchored, and remembered as hers.
+func TestASecondThoughtFollowsHerReply(t *testing.T) {
+	h := newHarness(t,
+		appraisal(`"act":"reply","intent":"say it is clever","then":"ask what the ugly neighbourhoods look like","then_after":40`),
+		"that's clever, actually",
+		"what do the ugly neighbourhoods look like",
+	)
+	h.say(t, "m1", "@Domme I made an app that shows code as a city", true)
+
+	h.svc.dueThoughts(context.Background())
+	if got := h.discord.posted(); len(got) != 1 {
+		t.Fatalf("the thought went out before its moment: %q", got)
+	}
+	h.svc.now = func() time.Time { return clock.Add(time.Minute) }
+	h.svc.dueThoughts(context.Background())
+	posted := h.discord.posted()
+	if len(posted) != 2 || posted[1] != "what do the ugly neighbourhoods look like" {
+		t.Fatalf("posted %q", posted)
+	}
+	day, _ := h.memory.Day(testGuild, clock)
+	if last := day.Moments[len(day.Moments)-1].Text; !strings.Contains(last, "a moment later I added") {
+		t.Errorf("the second thought was not remembered: %q", last)
+	}
+}
+
+// If they answered in the meantime, the moment has passed.
+func TestASecondThoughtIsDroppedOnceTheyAnswer(t *testing.T) {
+	h := newHarness(t,
+		appraisal(`"act":"reply","intent":"say it is clever","then":"ask about the name","then_after":40`),
+		"that's clever, actually",
+		"so what is it called",
+	)
+	h.say(t, "m1", "@Domme I made an app that shows code as a city", true)
+	h.svc.conv.Record(testChannel, mind.Turn{UserID: bigM, Username: "Big M", Content: "thanks!", At: clock.Add(10 * time.Second)})
+
+	h.svc.now = func() time.Time { return clock.Add(time.Minute) }
+	h.svc.dueThoughts(context.Background())
+	if got := h.discord.posted(); len(got) != 1 {
+		t.Fatalf("a second thought landed after his answer: %q", got)
+	}
+}
+
+func TestTwoParagraphsGoOutAsTwoMessages(t *testing.T) {
+	h := newHarness(t, appraisal(`"act":"reply","intent":"hi"`), "huh. that's clever.\n\nwhat's it called")
+	h.say(t, "m1", "@Domme look at this", true)
+	posted := h.discord.posted()
+	if len(posted) != 2 || posted[0] != "huh. that's clever" || posted[1] != "what's it called" {
+		t.Fatalf("posted %q", posted)
+	}
+	if !h.svc.conv.Recent(testChannel)[len(h.svc.conv.Recent(testChannel))-1].FromBot {
+		t.Error("the second part was not recorded as hers")
+	}
+}
+
+func TestSecondThoughtsAreRationedPerHour(t *testing.T) {
+	h := newHarness(t)
+	for i := 0; i < thoughtsPerHour; i++ {
+		if !h.svc.mayThink(testGuild) {
+			t.Fatalf("refused thought %d", i+1)
+		}
+		h.svc.thought(testGuild)
+	}
+	if h.svc.mayThink(testGuild) {
+		t.Error("one more second thought than the hour allows")
+	}
+	h.svc.now = func() time.Time { return clock.Add(61 * time.Minute) }
+	if !h.svc.mayThink(testGuild) {
+		t.Error("the hour passed and she still may not")
+	}
+}
+
+func TestTypingTakesAsLongAsTypingWould(t *testing.T) {
+	if typingTime("ok") >= typingTime("a much longer message that takes a while to type out") {
+		t.Error("a longer message is not slower to type")
+	}
+	if typingTime(strings.Repeat("x", 5000)) != typeMax {
+		t.Error("a long message is held past the typing indicator")
 	}
 }

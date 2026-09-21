@@ -33,3 +33,18 @@ func TestResolveMentions(t *testing.T) {
 		}
 	}
 }
+
+func TestTagVocativesTagsANameSheCallsSomeoneBy(t *testing.T) {
+	people := []Person{{ID: "n", Name: "Big N"}, {ID: "m", Name: "Big M"}}
+	for in, want := range map[string]string{
+		"Big N, welcome. Big M, you did the thing.": "@Big N, welcome. @Big M, you did the thing.",
+		"welcome. Big N, sit down":                  "welcome. @Big N, sit down",
+		"Big M did the thing, Big N":                "Big M did the thing, Big N",
+		"@Big N, hi":                                "@Big N, hi",
+		"Big Nate, hi":                              "Big Nate, hi",
+	} {
+		if got := TagVocatives(in, people); got != want {
+			t.Errorf("TagVocatives(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

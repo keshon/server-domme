@@ -50,6 +50,13 @@ type Appraisal struct {
 	Remember   string
 	Later      string
 	LaterHours float64
+	// Then is something she will want to add a moment after her reply — a
+	// question the reply leaves her curious about, a thought that comes on
+	// its heels — and ThenAfter how long after. Usually empty: a person who
+	// double-texts every time has a rhythm as mechanical as one who never
+	// does. See chat.Service.secondThought.
+	Then      string
+	ThenAfter time.Duration
 	// Weight is how much the moment got to her, 0 to 1. It decides how long
 	// the moment stays with her; see memory.Recall.
 	Weight float64
@@ -94,6 +101,8 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
   "later": "something she means to follow up on with them later, or empty",
   "later_hours": "how many hours from now, if later is set",
+  "then": "only if she would naturally send one more message a little after her reply — a question it leaves her curious about, a thought that follows on, a jab — the gist of it; usually empty",
+  "then_after": seconds until she sends it, 5 to 600,
   "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk,
   "back_off": true only if they are asking her to leave them alone or stop coming after them
 }`
@@ -168,6 +177,8 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Later:      str(obj, "later"),
 		LaterHours: num(obj, "later_hours"),
 		Weight:     clampUnit(num(obj, "weight")),
+		Then:       str(obj, "then"),
+		ThenAfter:  thenAfter(num(obj, "then_after")),
 		BackOff:    strings.EqualFold(str(obj, "back_off"), "true"),
 	}
 	switch act := strings.ToLower(str(obj, "act")); {
@@ -323,6 +334,8 @@ func (m *Mind) Said(s Scene, a Appraisal, text, why string) error {
 	var b strings.Builder
 	quoted := clip(oneLine(text), maxMomentChars)
 	switch {
+	case s.Trigger == TriggerThen:
+		fmt.Fprintf(&b, "a moment later I added: %q", quoted)
 	case Initiated(s.Trigger):
 		if s.Username != "" && s.Trigger == TriggerReach {
 			fmt.Fprintf(&b, "I went to %s myself and said: %q", s.Username, quoted)
@@ -339,7 +352,7 @@ func (m *Mind) Said(s Scene, a Appraisal, text, why string) error {
 			fmt.Fprintf(&b, "said to %s: %q", nameOr(s.Username), quoted)
 		}
 	}
-	if a.Intent != "" && !Initiated(s.Trigger) {
+	if a.Intent != "" && !Initiated(s.Trigger) && s.Trigger != TriggerThen {
 		b.WriteString(" — meant: " + oneLine(a.Intent))
 	}
 	return m.Memory.AddMoment(s.GuildID, memory.Moment{
@@ -365,6 +378,23 @@ func (m *Mind) LetGo(s Scene, a Appraisal) error {
 	return m.Memory.AddMoment(s.GuildID, memory.Moment{
 		At: s.Now, Channel: s.ChannelName, People: m.refs(s), Text: text, Weight: a.Weight,
 	})
+}
+
+// Bounds on a second thought's delay. Under a few seconds it is one message
+// split in two; past ten minutes it is not a second thought but a new
+// conversation, which is what intentions are for.
+const (
+	thenMin     = 5 * time.Second
+	thenMax     = 10 * time.Minute
+	thenDefault = 30 * time.Second
+)
+
+// thenAfter reads the delay the model gave, in seconds.
+func thenAfter(seconds float64) time.Duration {
+	if seconds <= 0 {
+		return thenDefault
+	}
+	return min(max(time.Duration(seconds*float64(time.Second)), thenMin), thenMax)
 }
 
 // clampUnit keeps a weight in 0..1, whatever the model wrote.

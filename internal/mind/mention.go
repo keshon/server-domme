@@ -76,6 +76,45 @@ func ResolveMentions(text string, people []Person) (string, []string) {
 	return out.String(), used
 }
 
+// TagVocatives turns a name she calls someone by at the start of a sentence —
+// "Big N, welcome" — into "@Big N, welcome", for anyone in people. Models
+// address people the way they write letters, without the @, and in a chat
+// that reads as talking about someone rather than to them. Only a name
+// followed by a comma counts: "Big M did the thing" is about him, and stays
+// as written.
+func TagVocatives(text string, people []Person) string {
+	if len(people) == 0 {
+		return text
+	}
+	sorted := append([]Person(nil), people...)
+	sort.SliceStable(sorted, func(i, j int) bool { return len(sorted[i].Name) > len(sorted[j].Name) })
+
+	var out strings.Builder
+	start := true
+	for i := 0; i < len(text); {
+		if start {
+			for _, p := range sorted {
+				name := strings.TrimSpace(p.Name)
+				if name != "" && hasNamePrefix(text[i:], name) && strings.HasPrefix(text[i+len(name):], ",") {
+					out.WriteString("@")
+					break
+				}
+			}
+		}
+		r, size := utf8.DecodeRuneInString(text[i:])
+		out.WriteString(text[i : i+size])
+		i += size
+		switch {
+		case r == '.' || r == '!' || r == '?' || r == '\n':
+			start = true
+		case unicode.IsSpace(r):
+		default:
+			start = false
+		}
+	}
+	return out.String()
+}
+
 // hasNamePrefix reports whether s opens with name, ignoring case, and the name
 // ends there rather than running on into a longer word.
 func hasNamePrefix(s, name string) bool {

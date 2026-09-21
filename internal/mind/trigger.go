@@ -34,6 +34,9 @@ const (
 	// TriggerStart is her starting something in a channel on her own: an
 	// intention come due, or a quiet room.
 	TriggerStart Trigger = "start"
+	// TriggerThen is a second thought: something she decided to add a moment
+	// after her own reply, when she made it. See Appraisal.Then.
+	TriggerThen Trigger = "then"
 )
 
 // Direct reports whether someone plainly addressed her. A direct approach
@@ -47,7 +50,7 @@ func Direct(t Trigger) bool {
 // answer is owed. Something she started belongs to its moment: delivered
 // late it is stranger than never said at all.
 func Owed(t Trigger) bool {
-	return t != TriggerReach && t != TriggerStart && t != TriggerOverheard
+	return t != TriggerReach && t != TriggerStart && t != TriggerOverheard && t != TriggerThen
 }
 
 // Initiated reports whether she started this herself rather than answering.

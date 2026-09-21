@@ -186,7 +186,7 @@ func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.
 	if err := sess.ChannelTyping(sc.ChannelID); err != nil {
 		s.log.Debug().Err(err).Str("channel_id", sc.ChannelID).Msg("chat_typing_failed")
 	}
-	sent, err := s.deliver(sess, sc, reply)
+	sent, err := s.deliver(ctx, sess, sc, reply, s.now())
 	if err != nil {
 		s.log.Warn().Err(err).Str("channel_id", sc.ChannelID).Msg("chat_send_failed")
 		entry.Outcome, entry.Reason = outcomeDropped, "Discord refused the message: "+err.Error()

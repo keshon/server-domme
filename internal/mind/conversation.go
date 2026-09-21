@@ -60,10 +60,12 @@ type Turn struct {
 	FromBot bool
 	// Mentioned records that this message addressed the bot directly.
 	Mentioned bool
-	// To is who her own message was answering, for her turns only. It is
-	// what lets a question she asked be recognised as ignored; see
-	// BrushedOff.
+	// To is who her own message was answering, for her turns only.
 	To string
+	// Tagged are the people this message mentioned, other than her. They
+	// are who she may tag back when she answers it; see
+	// chat.Service.outgoing.
+	Tagged []Person
 }
 
 // Conversations holds recent messages per channel.
@@ -319,4 +321,15 @@ func LastSession(turns []Turn, gap time.Duration) []Turn {
 		start--
 	}
 	return turns[start:]
+}
+
+// LastWord reports whether her message is still the latest in the
+// conversation. A second thought is only sent while it is; see
+// chat.Service.sendThought.
+func LastWord(turns []Turn, messageID string) bool {
+	if len(turns) == 0 || messageID == "" {
+		return false
+	}
+	last := turns[len(turns)-1]
+	return last.FromBot && last.MessageID == messageID
 }

@@ -180,6 +180,23 @@ The guards are safety limits, not personality: never between 23:00 and
 09:00, a daily cap per guild, nobody tagged without their consent, nothing
 more to someone who has left two reaches unanswered until they speak again.
 
+## A second thought, and typing like a person
+
+The appraisal may carry `then`: something she will want to add a little
+after her reply — a question it leaves her curious about, a thought on its
+heels — and `then_after`, how many seconds later (5 to 600). It is born with
+the reply, so there is no extra call to decide it; usually it is empty. It
+waits in a queue the service owns and is sent only while her reply is still
+the last word in the channel: if the person has answered, or anyone else has
+spoken, the moment has passed and it is dropped. At most two an hour per
+server, never after a late answer, and remembered as "a moment later I
+added" like anything else she says.
+
+A reply the voice writes as two paragraphs goes out as two messages, the
+second typed after the first is seen. Every message waits after its typing
+indicator about as long as a person would take to type it — a second plus
+60 ms a character, at most eight — less the time the model already took.
+
 ## The rails the code keeps
 
 The model decides; the code keeps a few promises the model cannot be trusted

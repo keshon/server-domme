@@ -142,7 +142,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 		return
 	}
 
-	sent, err := s.deliver(sess, scene, reply)
+	sent, err := s.deliver(ctx, sess, scene, reply, started)
 	if err != nil {
 		s.log.Warn().Err(err).Str("channel_id", scene.ChannelID).Msg("chat_send_failed")
 		entry.Outcome, entry.Reason = outcomeDropped, "Discord refused the message: "+err.Error()
@@ -154,6 +154,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 	}
 	entry.Outcome, entry.Posted, entry.ReplyID = outcomeAnswered, excerpt(sent.text, journalReply), sent.id
 	entry.Took = s.now().Sub(started)
+	s.secondThought(scene, a, sent)
 	s.log.Info().
 		Str("guild_id", scene.GuildID).
 		Str("channel_id", scene.ChannelID).

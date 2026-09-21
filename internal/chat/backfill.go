@@ -98,9 +98,27 @@ func (s *Service) historyToTurns(sess *discordgo.Session, messages []*discordgo.
 			MessageID: m.ID,
 			FromBot:   fromBot,
 			Mentioned: mentions(m, self),
+			Tagged:    tagged(sess, guildID, m, self),
 		})
 	}
 	return turns
+}
+
+// tagged is who a message mentioned, other than her and other bots, by the
+// names people see.
+func tagged(sess *discordgo.Session, guildID string, m *discordgo.Message, self string) []mind.Person {
+	var out []mind.Person
+	for _, u := range m.Mentions {
+		if u == nil || u.ID == self || u.Bot {
+			continue
+		}
+		var member *discordgo.Member
+		if sess != nil && sess.State != nil {
+			member, _ = sess.State.Member(guildID, u.ID)
+		}
+		out = append(out, mind.Person{ID: u.ID, Name: displayNameOf(u, member)})
+	}
+	return out
 }
 
 // mentions reports whether a historical message addressed the bot.

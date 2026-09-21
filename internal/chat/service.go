@@ -108,6 +108,9 @@ type Service struct {
 	settleQuiet time.Duration
 	roll        func() float64
 	now         func() time.Time
+	// sleep waits between typing and sending; a test replaces it so
+	// nothing actually sleeps.
+	sleep func(context.Context, time.Duration) bool
 
 	// replying holds the people she is already handling, per channel, so a
 	// burst of lines gets one answer. See Service.answering.
@@ -127,6 +130,12 @@ type Service struct {
 	// life is what she started today and when, per guild. See initiative.go.
 	lifeMu sync.Mutex
 	life   map[string]*lifeState
+
+	// thoughts are second thoughts waiting their moment, and thoughtTimes
+	// when she sent them lately, per guild. See then.go.
+	thoughtMu    sync.Mutex
+	thoughts     []pendingThought
+	thoughtTimes map[string][]time.Time
 
 	// reflected counts attempts to reflect on a day, so a day the model
 	// cannot make sense of is not retried forever. See reflect.go.
@@ -181,15 +190,18 @@ func New(d Deps) *Service {
 		settleQuiet: settleQuiet,
 		roll:        roll,
 		now:         now,
+		sleep:       sleep,
 
 		replying:  make(map[string]bool),
 		ignored:   make(map[string]bool),
 		overheard: make(map[string]time.Time),
 		life:      make(map[string]*lifeState),
 		reflected: make(map[string]int),
-		conv:      mind.NewConversations(),
-		deferrals: mind.NewDeferrals(),
-		work:      make(chan task, queueDepth),
+
+		thoughtTimes: make(map[string][]time.Time),
+		conv:         mind.NewConversations(),
+		deferrals:    mind.NewDeferrals(),
+		work:         make(chan task, queueDepth),
 	}
 }
 
@@ -210,6 +222,7 @@ func (s *Service) Run(ctx context.Context) {
 	run(s.retryLoop)
 	run(s.lifeLoop)
 	run(s.reflectLoop)
+	run(s.thoughtLoop)
 
 	s.log.Info().Int("workers", workers).Msg("chat_service_started")
 	wg.Wait()
@@ -287,6 +300,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		At:        now,
 		MessageID: m.ID,
 		Mentioned: mentions(m.Message, self),
+		Tagged:    tagged(sess, m.GuildID, m.Message, self),
 	})
 	if _, err := s.store.SeeMindPerson(m.GuildID, m.Author.ID, name, now); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_person_record_failed")
