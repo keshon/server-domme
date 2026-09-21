@@ -63,6 +63,21 @@ func (a *Adapter) ObserveMessage(ctx *MessageContext) bool {
 	return true
 }
 
+// ModalSubmit forwards a modal submission to the wrapped command.
+//
+// Every optional capability has to be forwarded here by hand: the dispatcher
+// unwraps with command.Root, which stops at this Adapter, and asserts the
+// interface on it. Without this method no modal ever reached its command —
+// the dispatcher logged modal_handler_missing and Discord showed "Something
+// went wrong" — which is how /welcome template shipped broken. A new
+// capability interface needs a forwarder here and a line in adapter_test.go.
+func (a *Adapter) ModalSubmit(ctx *ComponentInteractionContext) error {
+	if mh, ok := a.Cmd.(ModalSubmitHandler); ok {
+		return mh.ModalSubmit(ctx)
+	}
+	return nil
+}
+
 func (a *Adapter) Component(ctx *ComponentInteractionContext) error {
 	if ch, ok := a.Cmd.(ComponentInteractionHandler); ok {
 		return ch.Component(ctx)
