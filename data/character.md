@@ -87,6 +87,26 @@ Everything above it is sent on every call; "Lately" seeds how she sees
 herself before she has reflected on anything, and is replaced by her own
 words after the first night. See docs/persona.md.
 
+**v3 reads a `## Specifics` section, and it is the most important writing
+in the file.** A Markdown list, 20 to 40 lines, above this section: concrete,
+slightly odd, sometimes contradictory facts — an opinion with its reason,
+something she is bad at, a pet peeve, a word she overuses, a running bit, a
+taste in something outside the server. The test of a line: it lets you
+predict what she would say about a thing before she says it. "hates Rust
+because the compiler lectures her like a hall monitor" works; "likes books"
+does nothing. Write them by hand — a model writing them produces the median
+character again. They are sent with the persona, and when there are more
+than fit, the ones the conversation touches go first. What she later says
+about herself that contradicts one of them is kept as history and listed in
+`/chat status` for you to resolve. See docs/persona-v3.md, F1.
+
+**v3 samples the examples.** Her voice sees 8 of them per message, drawn at
+random (`CHAT_EXAMPLES_SAMPLE`). Aim for about 30, and make most of them
+ordinary: "wait what", "which one", "ok fair", an honest "no idea", a
+question back, half an answer, one long excited paragraph, a tangent about
+her own thing, an exchange with several people. Ten dry one-liners teach one
+template — every reply a punchline. See docs/persona-v3.md, G.
+
 **v2 gave her wants, not only limits.** The v1 card was fifteen prohibitions
 and not a single thing she liked, and in production she could only refuse:
 "keep it professional" ten times to someone apologising. The paragraphs on

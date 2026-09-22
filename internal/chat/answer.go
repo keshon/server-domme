@@ -149,7 +149,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 		return
 	}
 	s.deferrals.Drop(scene.ChannelID)
-	if err := s.mind.Said(scene, a, sent.text, ""); err != nil {
+	if err := s.mind.Said(scene, a, sent.text, "", sent.id); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", scene.GuildID).Msg("chat_memory_write_failed")
 	}
 	entry.Outcome, entry.Posted, entry.ReplyID = outcomeAnswered, excerpt(sent.text, journalReply), sent.id

@@ -27,16 +27,22 @@ type Person struct {
 	// between the two of them.
 	Who     string
 	Between string
+	// FeelingFrom, WhoFrom and BetweenFrom are where each came from. All
+	// three are interpretations; see Source.
+	FeelingFrom Source
+	WhoFrom     Source
+	BetweenFrom Source
 	// Kept is what stays with her about them: the few moments that define
 	// them for her, chosen and replaced when she reflects. See MaxKept.
 	Kept  []Note
 	Notes []Note
 }
 
-// Note is one dated thing she noted about someone.
+// Note is one dated thing she noted about someone, and where it came from.
 type Note struct {
-	Day  time.Time
-	Text string
+	Day    time.Time
+	Text   string
+	Source Source
 }
 
 // Person sections and front matter keys. Headings are what a person reading
@@ -47,6 +53,9 @@ const (
 	keyFirstMet   = "first_met"
 	keyLastTalked = "last_talked"
 	keyFeeling    = "feeling"
+	keyFeelingSrc = "feeling_from"
+	keyWhoSrc     = "who_from"
+	keyBetweenSrc = "between_from"
 
 	headWho     = "who they are"
 	headBetween = "between us"
@@ -156,6 +165,9 @@ func readPerson(path string, loc *time.Location) (Person, error) {
 		Who:        parts[headWho],
 		Between:    parts[headBetween],
 	}
+	p.FeelingFrom, _ = ParseSource(fields[keyFeelingSrc])
+	p.WhoFrom, _ = ParseSource(fields[keyWhoSrc])
+	p.BetweenFrom, _ = ParseSource(fields[keyBetweenSrc])
 	if p.ID == "" {
 		p.ID = strings.TrimSuffix(filepath.Base(path), ".md")
 	}
@@ -168,15 +180,17 @@ func readPerson(path string, loc *time.Location) (Person, error) {
 	return p, nil
 }
 
-// parseNote reads "2026-09-19 text". A note without a date — one a person
-// added by hand — keeps its text and simply has no day.
+// parseNote reads "2026-09-19 text · stated msg 1234". A note without a
+// date or a source — one a person added by hand — keeps its text and simply
+// has neither.
 func parseNote(item string, loc *time.Location) Note {
+	item, src := splitSource(item)
 	if len(item) > len(dayLayout) && item[len(dayLayout)] == ' ' {
 		if day, err := time.ParseInLocation(dayLayout, item[:len(dayLayout)], loc); err == nil {
-			return Note{Day: day, Text: strings.TrimSpace(item[len(dayLayout)+1:])}
+			return Note{Day: day, Text: strings.TrimSpace(item[len(dayLayout)+1:]), Source: src}
 		}
 	}
-	return Note{Text: item}
+	return Note{Text: item, Source: src}
 }
 
 // writeNotes writes a section of dated bullets, or nothing when empty.
@@ -190,7 +204,7 @@ func writeNotes(b *strings.Builder, heading string, notes []Note, loc *time.Loca
 		if !n.Day.IsZero() {
 			b.WriteString(n.Day.In(loc).Format(dayLayout) + " ")
 		}
-		b.WriteString(oneLine(n.Text) + "\n")
+		b.WriteString(withSource(n.Text, n.Source) + "\n")
 	}
 	b.WriteString("\n")
 }
@@ -211,5 +225,8 @@ func renderPerson(p Person, loc *time.Location) string {
 		{keyFirstMet, formatTime(p.FirstMet)},
 		{keyLastTalked, formatTime(p.LastTalked)},
 		{keyFeeling, p.Feeling},
+		{keyFeelingSrc, p.FeelingFrom.String()},
+		{keyWhoSrc, p.WhoFrom.String()},
+		{keyBetweenSrc, p.BetweenFrom.String()},
 	}, body.String())
 }

@@ -139,6 +139,10 @@ func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self,
 // has no business seeing one. A number outside the list is ignored, so a
 // hallucinated person cannot overwrite anyone's dossier.
 func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[string]any, people []memory.Person, open []memory.Thread) error {
+	// Everything reflection writes is her interpretation of the day.
+	from := memory.OnDay(memory.Interpreted, date.Format("2006-01-02"))
+	refuse := func(kind, reason string) { m.refuse(guildID, "", kind, reason) }
+
 	if summary := str(obj, "summary"); summary != "" {
 		if err := m.Memory.SetSummary(guildID, date, summary); err != nil {
 			return err
@@ -164,37 +168,47 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 	for _, entry := range objects(obj, "people") {
 		p, ok := shown(entry)
 		if !ok {
+			refuse(proposalPerson, "no such person in the day")
 			continue
 		}
 		who, between, feeling := str(entry, "who"), str(entry, "between"), str(entry, "feeling")
 		stays, hasStays := texts(entry, "stays")
 		err := m.Memory.UpdatePerson(guildID, p.ID, func(d *memory.Person) {
 			if hasStays {
-				d.Kept = keep(d.Kept, stays, date)
+				d.Kept = keep(d.Kept, stays, date, from)
 			}
 			if d.Name == "" {
 				d.Name = p.Name
 			}
 			if who != "" {
-				d.Who = who
+				if mayOverwrite(d.WhoFrom, memory.Interpreted) {
+					d.Who, d.WhoFrom = who, from
+				} else {
+					refuse(proposalPerson, "who they are: would overwrite a stronger kind")
+				}
 			}
 			if between != "" {
-				d.Between = between
+				if mayOverwrite(d.BetweenFrom, memory.Interpreted) {
+					d.Between, d.BetweenFrom = between, from
+				} else {
+					refuse(proposalBetween, "would overwrite a stronger kind")
+				}
 			}
 			if feeling != "" {
-				d.Feeling = feeling
+				d.Feeling, d.FeelingFrom = clip(feeling, maxToward), from
 			}
 		})
 		if err != nil {
 			return err
 		}
 	}
-
 	for _, n := range numbers(obj, "done") {
-		if n >= 1 && n <= len(open) {
-			if err := m.Memory.CloseThread(guildID, open[n-1].Key()); err != nil {
-				return err
-			}
+		if n < 1 || n > len(open) {
+			refuse(proposalThread, "closed a thread that does not exist")
+			continue
+		}
+		if err := m.Memory.CloseThread(guildID, open[n-1].Key()); err != nil {
+			return err
 		}
 	}
 	for _, entry := range objects(obj, "threads") {
@@ -207,8 +221,13 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 		if hours > 0 {
 			due = now.Add(min(time.Duration(hours*float64(time.Hour)), laterMax))
 		}
-		t := memory.Thread{Due: due, Text: text}
-		if p, ok := shown(entry); ok {
+		t := memory.Thread{Due: due, Text: clip(text, maxLaterChars), Source: from}
+		if n := int(num(entry, "person")); n != 0 {
+			p, ok := shown(entry)
+			if !ok {
+				refuse(proposalThread, "about a person not in the day")
+				continue
+			}
 			t.Person = memory.Ref{ID: p.ID, Name: p.Name}
 		}
 		if err := m.Memory.AddThread(guildID, t); err != nil {
@@ -221,10 +240,10 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 // keep is what stays with her about someone after reflecting: the model's
 // list, in its order, with a moment she already kept keeping the day it
 // happened rather than taking the day she last thought about it.
-func keep(old []memory.Note, stays []string, date time.Time) []memory.Note {
+func keep(old []memory.Note, stays []string, date time.Time, from memory.Source) []memory.Note {
 	var out []memory.Note
 	for _, text := range stays {
-		n := memory.Note{Day: date, Text: text}
+		n := memory.Note{Day: date, Text: text, Source: from}
 		for _, o := range old {
 			if strings.EqualFold(oneLine(o.Text), oneLine(text)) {
 				n.Day = o.Day

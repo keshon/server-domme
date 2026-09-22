@@ -299,6 +299,13 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 
 	b.WriteString("\n" + c.stateHere(e.GuildID, e.ChannelID))
 
+	if conflicts := c.Service.Conflicts(e.GuildID); len(conflicts) > 0 {
+		b.WriteString("\n**Said against her card** — the card stays canon; change it, or remove the line from `me.md`\n")
+		for _, f := range conflicts {
+			fmt.Fprintf(&b, "- she said: %s\n  card: %s\n", trimForQuote(f.Text, maxConflictChars), trimForQuote(f.Conflict, maxConflictChars))
+		}
+	}
+
 	if len(status.Backends) > 0 {
 		b.WriteString("\n**Backends**, in the order she tries them\n")
 		b.WriteString(backendLines(status.Backends))
@@ -434,6 +441,9 @@ func (c *ChatCommand) stateHere(guildID, channelID string) string {
 }
 
 // trimForQuote shortens text for an embed, on a word.
+// maxConflictChars caps each side of a conflict shown in /chat status.
+const maxConflictChars = 160
+
 func trimForQuote(s string, max int) string {
 	s = strings.Join(strings.Fields(s), " ")
 	if r := []rune(s); len(r) > max {

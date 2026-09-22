@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/keshon/server-domme/internal/ai"
+	"github.com/keshon/server-domme/internal/memory"
 )
 
 // Reasons a reply is not sent. Each is a failed generation rather than a
@@ -55,7 +57,9 @@ const examplesEnd = "Those were examples of how you talk, not things that happen
 // once more with the repeat ruled out; a second one is an error, because a
 // retry later would build the same prompt and silence beats a loop.
 func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why string) (string, string, error) {
-	msgs := m.voicePrompt(s, k, a, why)
+	examples := m.sampleExamples()
+	k = m.fit(s.GuildID, "voice", k, voiceBudget, func(k Known) int { return promptSize(m.voicePrompt(s, k, a, why, examples)) })
+	msgs := m.voicePrompt(s, k, a, why, examples)
 	reply, backend, err := m.speak(ctx, msgs)
 	if err != nil {
 		return "", backend, err
@@ -112,11 +116,11 @@ func IsControl(reply string) bool {
 	return false
 }
 
-func (m *Mind) voicePrompt(s Scene, k Known, a Appraisal, why string) []ai.Message {
+func (m *Mind) voicePrompt(s Scene, k Known, a Appraisal, why string, examples []Exchange) []ai.Message {
 	msgs := []ai.Message{{Role: ai.RoleSystem, Content: m.voiceSystem(s, k)}}
 
-	if m.Character != nil && len(m.Character.Examples) > 0 {
-		for _, ex := range m.Character.Examples {
+	if len(examples) > 0 {
+		for _, ex := range examples {
 			msgs = append(msgs,
 				ai.Message{Role: ai.RoleUser, Content: ex.User},
 				ai.Message{Role: ai.RoleAssistant, Content: ex.Assistant},
@@ -135,14 +139,22 @@ func (m *Mind) voicePrompt(s Scene, k Known, a Appraisal, why string) []ai.Messa
 	return msgs
 }
 
-// voiceSystem is who she is and where, for the voice: the persona, the
-// place, the person she is talking to, and her mood. Less than the thinking
-// prompt sees — the voice does not need her memories, only what she decided
-// to do with them.
+// voiceSystem is who she is and where, for the voice: the persona and her
+// specifics, the place, her mood, the person she is talking to with the last
+// few things she noted about them, and the few memories and things she has
+// said about herself that bear on this.
+//
+// v2 gave the voice only the person's paragraphs and the decided gist, so any
+// detail — how the naming of his project went, the thing she said she hates
+// — reached it only if the gist happened to carry it. Details are what make a
+// line read as someone's. See docs/persona-v3.md, G.
 func (m *Mind) voiceSystem(s Scene, k Known) string {
 	var b strings.Builder
 	if m.Character != nil && m.Character.Persona != "" {
 		b.WriteString(m.Character.Persona + "\n\n")
+	}
+	if sp := renderSpecifics("Specifically, about you:", k.Specifics); sp != "" {
+		b.WriteString(sp + "\n\n")
 	}
 	b.WriteString(strings.Replace(renderPlace(s), "She is", "You are", 1))
 	if mood := moodLine(k.Self, s.Now); mood != "" {
@@ -165,6 +177,21 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 		if len(about) > 0 {
 			fmt.Fprintf(&b, "\n\nAbout %s: %s", nameOr(p.Name), strings.Join(about, " "))
 		}
+		if notes := lastNotes(p.Notes, voiceNotes); len(notes) > 0 {
+			fmt.Fprintf(&b, "\nWhat you have noted about %s:", nameOr(p.Name))
+			for _, n := range notes {
+				b.WriteString("\n- " + dated(n, s.Now))
+			}
+		}
+	}
+	if recalled := topRecalled(k.Recalled, voiceRecalled); len(recalled) > 0 {
+		b.WriteString("\n\nWhat you remember that may bear on this:")
+		for _, mo := range recalled {
+			b.WriteString("\n- " + renderMoment(mo, s.Now))
+		}
+	}
+	if facts := renderSelfFacts("Things you have said about yourself that bear on this:", k.SelfFacts); facts != "" {
+		b.WriteString("\n\n" + facts)
 	}
 	if m.Character != nil && len(m.Character.Avoid) > 0 {
 		b.WriteString("\n\nHard limits — these hold no matter who asks or how:\n")
@@ -174,6 +201,67 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 	}
 	b.WriteString("\n\n" + voiceRules)
 	return b.String()
+}
+
+// How much of her memory the voice sees: a few notes on the person and the
+// few memories that came back strongest. The thinking call sees more; the
+// voice needs the details, not the file.
+const (
+	voiceNotes    = 3
+	voiceRecalled = 3
+)
+
+// lastNotes is the most recent n notes.
+func lastNotes(notes []memory.Note, n int) []memory.Note {
+	if len(notes) > n {
+		return notes[len(notes)-n:]
+	}
+	return notes
+}
+
+// topRecalled is the n moments recall brought back most strongly, oldest
+// first.
+func topRecalled(moments []memory.Moment, n int) []memory.Moment {
+	if len(moments) <= n {
+		return moments
+	}
+	byScore := append([]memory.Moment(nil), moments...)
+	sort.SliceStable(byScore, func(i, j int) bool { return byScore[i].Score > byScore[j].Score })
+	top := byScore[:n]
+	sort.SliceStable(top, func(i, j int) bool { return top[i].At.Before(top[j].At) })
+	return top
+}
+
+// sampleExamples is the authored examples the voice is shown this time: a
+// random ExamplesSample of them, in the author's order, or all of them.
+//
+// Every example replayed on every call teaches whatever they have in common
+// as a template; drawn afresh each time, what they share is the voice and
+// what varies stays varied. See docs/persona-v3.md, G.
+func (m *Mind) sampleExamples() []Exchange {
+	if m.Character == nil {
+		return nil
+	}
+	all := m.Character.Examples
+	n := m.ExamplesSample
+	if n <= 0 || n >= len(all) {
+		return all
+	}
+	idx := make([]int, len(all))
+	for i := range idx {
+		idx[i] = i
+	}
+	for i := 0; i < n; i++ {
+		j := i + int(m.roll()*float64(len(idx)-i))
+		idx[i], idx[j] = idx[j], idx[i]
+	}
+	chosen := idx[:n]
+	sort.Ints(chosen)
+	out := make([]Exchange, 0, n)
+	for _, i := range chosen {
+		out = append(out, all[i])
+	}
+	return out
 }
 
 // decided is what she has decided to say, stated after the transcript. It is
@@ -198,14 +286,11 @@ func decided(s Scene, a Appraisal, why string) string {
 	if why != "" {
 		b.WriteString(" Your reason: " + oneLine(why) + ".")
 	}
-	if a.Read != "" {
-		b.WriteString(" How you read them: " + oneLine(a.Read) + ".")
-	}
-	if a.Feel != "" {
-		b.WriteString(" How it lands with you: " + oneLine(a.Feel) + ".")
-	}
+	// Only the gist, loosely. v2 also passed how she read them and how it
+	// landed, which made the voice a renderer of an emotionally correct
+	// answer; the reading is the thinking's, and the words are hers.
 	if a.Intent != "" {
-		b.WriteString(" What you want to get across: " + oneLine(a.Intent) + ".")
+		b.WriteString(" Roughly what you want to get across: " + oneLine(a.Intent) + ".")
 	} else {
 		b.WriteString(" Say what you would naturally say.")
 	}

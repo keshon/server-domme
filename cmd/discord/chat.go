@@ -144,6 +144,8 @@ func buildChatService(
 		RequestTimeout: cfg.ChatRequestTimeout,
 		CasualSlips:    cfg.ChatCasualSlips,
 		ReflectHour:    cfg.ChatReflectHour,
+		SelfFacts:      cfg.ChatSelfFacts,
+		ExamplesSample: cfg.ChatExamplesSample,
 	}), ""
 }
 

@@ -194,7 +194,7 @@ func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.
 	}
 	entry.Outcome, entry.Posted, entry.ReplyID = outcomeAnswered, excerpt(sent.text, journalReply), sent.id
 
-	if err := s.mind.Said(sc, a, sent.text, plan.Why); err != nil {
+	if err := s.mind.Said(sc, a, sent.text, plan.Why, sent.id); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_write_failed")
 	}
 	if o.Thread != nil {

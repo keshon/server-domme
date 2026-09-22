@@ -144,6 +144,13 @@ type Config struct {
 	// casual contractions — "dont", "im", "thats" — the way people type. Set
 	// to 0 to keep them always.
 	ChatCasualSlips float64 `env:"CHAT_CASUAL_SLIPS" envDefault:"0.2"`
+	// ChatSelfFacts is whether what she says about herself becomes true of
+	// her: read out of her own messages each night into me.md. See
+	// docs/persona-v3.md, F2.
+	ChatSelfFacts bool `env:"CHAT_SELF_FACTS" envDefault:"true"`
+	// ChatExamplesSample is how many of the character file's examples her
+	// voice is shown on each message, drawn at random; 0 shows all of them.
+	ChatExamplesSample int `env:"CHAT_EXAMPLES_SAMPLE" envDefault:"8"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

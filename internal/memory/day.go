@@ -26,6 +26,15 @@ type Moment struct {
 	// Weight is how much it got to her, 0 to 1, as she judged it at the
 	// time. It is what makes a moment outlast its fortnight; see Recall.
 	Weight float64
+	// Said is the id of her own message, when the moment is something she
+	// said. It is what a self-fact cites; see Me.
+	Said string
+	// Kind is observed for what happened — something said, something she
+	// did — and interpreted for what she chose to remember in her own words.
+	// Empty reads as observed.
+	Kind Kind
+	// Score is how strongly Recall brought it back. Not stored.
+	Score float64
 }
 
 // Ref is a person as a moment names them: the id that finds their dossier and
@@ -49,8 +58,13 @@ const (
 	headMoments = "moments"
 )
 
-// weightTag marks a moment's weight among its tags: "weight 0.8".
-const weightTag = "weight "
+// Moment tags beyond channel and people: "weight 0.8", "said 1234" for her
+// own message, and "interpreted" for a moment in her own words.
+const (
+	weightTag      = "weight "
+	saidTag        = "said "
+	interpretedTag = "interpreted"
+)
 
 // momentLine reads "14:05 [#chat; Big M:123] text". The bracket is optional
 // so a line a person added by hand still reads.
@@ -210,6 +224,10 @@ func parseMoment(item string, date time.Time, loc *time.Location) (Moment, bool)
 			m.Channel = strings.TrimPrefix(part, "#")
 		case strings.HasPrefix(part, weightTag):
 			m.Weight, _ = strconv.ParseFloat(strings.TrimPrefix(part, weightTag), 64)
+		case strings.HasPrefix(part, saidTag) && safeName(strings.TrimPrefix(part, saidTag)):
+			m.Said = strings.TrimPrefix(part, saidTag)
+		case part == interpretedTag:
+			m.Kind = Interpreted
 		default:
 			// The id is after the last colon: a name may contain one, an id
 			// never does.
@@ -253,6 +271,12 @@ func renderMoment(m Moment, loc *time.Location) string {
 	}
 	if m.Weight > 0 {
 		tags = append(tags, weightTag+strconv.FormatFloat(m.Weight, 'f', 1, 64))
+	}
+	if m.Said != "" {
+		tags = append(tags, saidTag+m.Said)
+	}
+	if m.Kind == Interpreted {
+		tags = append(tags, interpretedTag)
 	}
 	line := m.At.In(loc).Format(clockLayout) + " "
 	if len(tags) > 0 {
@@ -327,6 +351,7 @@ func (s *Store) Recall(guildID string, now, before time.Time, words, people []st
 				}
 				score += math.Min(1.2, 0.4*float64(hits))
 			}
+			m.Score = score
 			all = append(all, scored{m, score})
 		}
 	}

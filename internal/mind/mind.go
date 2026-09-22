@@ -18,11 +18,13 @@ package mind
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"strings"
 	"time"
 
 	"github.com/keshon/server-domme/internal/ai"
 	"github.com/keshon/server-domme/internal/memory"
+	"github.com/rs/zerolog"
 )
 
 // Temperatures. Deciding wants a steady hand: the same moment should not be
@@ -64,6 +66,27 @@ type Mind struct {
 	// for it. See docs/persona-v3.md, workstream A.
 	Voice  ai.Provider
 	Memory *memory.Store
+
+	// SelfFacts is whether what she says about herself becomes true of her;
+	// see ReflectSelf. Off, there is no me.md. docs/persona-v3.md, F2.
+	SelfFacts bool
+	// ExamplesSample is how many of the authored examples the voice is shown
+	// on a call, drawn at random; zero shows them all. See voicePrompt.
+	ExamplesSample int
+	// Roll supplies randomness; nil uses the global source. One source for
+	// the code's randomness, so a run can be repeated.
+	Roll func() float64
+	// Log is where refused proposals and trimmed prompts are reported. The
+	// zero logger reports nothing.
+	Log zerolog.Logger
+}
+
+// roll is a random number in [0,1).
+func (m *Mind) roll() float64 {
+	if m.Roll != nil {
+		return m.Roll()
+	}
+	return rand.Float64()
 }
 
 // Scene is everything about a moment that is not in her memory: where she is,
@@ -113,6 +136,13 @@ type Known struct {
 	// Threads are the things she means to do, numbered from 1 in the order
 	// given, which is how the model refers back to them.
 	Threads []memory.Thread
+	// Specifics are the author's concrete facts about her that go in front
+	// of her this time: all of them while they fit their budget, otherwise
+	// those that bear on the conversation first. See pickSpecifics.
+	Specifics []string
+	// SelfFacts are the things she has said about herself that bear on the
+	// conversation, best match first. See pickSelfFacts.
+	SelfFacts []memory.SelfFact
 }
 
 // Know gathers what she remembers that bears on a scene, with the dossiers of
@@ -174,6 +204,18 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 		return k, err
 	}
 	k.Threads = memory.Unfinished(threads)
+
+	words := topicWords(s.Turns)
+	if m.Character != nil {
+		k.Specifics = pickSpecifics(m.Character.Specifics, words)
+	}
+	if m.SelfFacts {
+		me, err := m.Memory.Me(s.GuildID)
+		if err != nil {
+			return k, err
+		}
+		k.SelfFacts = pickSelfFacts(me.Facts, words)
+	}
 	return k, nil
 }
 

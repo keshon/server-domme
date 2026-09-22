@@ -125,7 +125,7 @@ func TestWhatSheSaidComesBackToHerAsHers(t *testing.T) {
 	m, p := newMind(t, `{"act":"reply","read":"asking if I meant it","intent":"yes, I meant it"}`, "yes. still think it's clever")
 	s := sceneWith(him("an app that shows a codebase as a city, what do you think?", noon))
 	a := Appraisal{Act: ActReply, Intent: "tell him the idea is genuinely clever"}
-	if err := m.Said(s, a, "that's a clever one, honestly", ""); err != nil {
+	if err := m.Said(s, a, "that's a clever one, honestly", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -253,7 +253,7 @@ func TestReflectRewritesOnlyThePeopleInTheDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := sceneWith(him("code city", noon))
-	if err := m.Said(s, Appraisal{Intent: "encourage him", Weight: 0.8}, "that's clever", ""); err != nil {
+	if err := m.Said(s, Appraisal{Intent: "encourage him", Weight: 0.8}, "that's clever", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -298,7 +298,9 @@ func TestNoPromptCarriesAnID(t *testing.T) {
 		"hi",
 		`{"choice": 1, "why": "x", "intent": "y"}`,
 		`{"summary":"s","lately":"l","people":[],"done":[],"threads":[]}`,
+		`{"facts":[{"text":"says hi first","line":1}]}`,
 	)
+	m.SelfFacts = true
 	s := sceneWith(Turn{UserID: id, Username: "Big M", Content: "hello", At: noon})
 	s.UserID = id
 	s.Roles = map[string]string{id: "a regular"}
@@ -312,13 +314,19 @@ func TestNoPromptCarriesAnID(t *testing.T) {
 	if _, _, err := m.Speak(context.Background(), s, k, a, ""); err != nil {
 		t.Fatal(err)
 	}
-	_ = m.Said(s, a, "hi", "")
+	_ = m.Said(s, a, "hi", "", "465177820663513089")
 	k, _ = m.Know(Scene{GuildID: guildID, Now: noon}, id)
 	_, _ = m.Initiate(context.Background(), Scene{GuildID: guildID, Now: noon}, k,
 		[]Opening{{Trigger: TriggerReach, ChannelName: "chat", UserID: id, Username: "Big M"}})
 	_, _ = m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour))
+	if _, err := m.ReflectSelf(context.Background(), guildID, noon); err != nil {
+		t.Fatal(err)
+	}
+	if me, _ := m.Memory.Me(guildID); len(me.Facts) != 1 {
+		t.Fatalf("self-facts %+v", me.Facts)
+	}
 
-	if len(p.sent) != 4 {
+	if len(p.sent) != 5 {
 		t.Fatalf("%d calls made", len(p.sent))
 	}
 	for _, msgs := range p.sent {

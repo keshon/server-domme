@@ -79,6 +79,12 @@ type Deps struct {
 	// ReflectHour is the hour, in Location, after which she looks back on
 	// the day before.
 	ReflectHour int
+	// SelfFacts is whether what she says about herself becomes true of her;
+	// see mind.Mind.SelfFacts.
+	SelfFacts bool
+	// ExamplesSample is how many authored examples her voice sees per
+	// message; see mind.Mind.ExamplesSample.
+	ExamplesSample int
 	// Roll supplies randomness. Left nil it uses the global source; a test
 	// supplies its own.
 	Roll func() float64
@@ -193,7 +199,10 @@ func New(d Deps) *Service {
 	s := &Service{
 		generateTimeout: generateTimeout,
 
-		mind:        &mind.Mind{Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory},
+		mind: &mind.Mind{
+			Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory,
+			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Roll: roll, Log: d.Log,
+		},
 		character:   d.Character,
 		names:       mind.CleanNames(names),
 		store:       d.Storage,

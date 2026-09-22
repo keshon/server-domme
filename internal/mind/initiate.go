@@ -71,6 +71,9 @@ func (m *Mind) Initiate(ctx context.Context, s Scene, k Known, openings []Openin
 	if m.Character != nil && m.Character.Persona != "" {
 		sys.WriteString("\n\nWho she is:\n" + m.Character.Persona)
 	}
+	if sp := renderSpecifics("Specifically:", k.Specifics); sp != "" {
+		sys.WriteString("\n\n" + sp)
+	}
 	sys.WriteString("\n\n" + initiativeRules + "\n\n" + planShape)
 
 	var user strings.Builder

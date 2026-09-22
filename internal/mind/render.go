@@ -41,6 +41,10 @@ func renderWorld(s Scene, k Known) string {
 		}
 	}
 
+	if facts := renderSelfFacts("Things she has said about herself that bear on this:", k.SelfFacts); facts != "" {
+		b.WriteString("\n\n" + facts)
+	}
+
 	if len(k.People) > 0 {
 		b.WriteString("\n\nPeople in this:")
 		for _, p := range k.People {

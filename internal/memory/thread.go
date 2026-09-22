@@ -21,6 +21,9 @@ type Thread struct {
 	Person Ref
 	Text   string
 	Done   bool
+	// Source is what it came from: an intention is always her
+	// interpretation of a moment, or of a day she reflected on.
+	Source Source
 }
 
 // Key identifies a thread for closing it. The text and the person, since
@@ -142,7 +145,8 @@ func readThreads(path string, loc *time.Location) ([]Thread, error) {
 		if match == nil {
 			continue
 		}
-		t := Thread{Done: match[1] != " ", Text: strings.TrimSpace(match[4])}
+		text, src := splitSource(strings.TrimSpace(match[4]))
+		t := Thread{Done: match[1] != " ", Text: text, Source: src}
 		if match[2] != "" {
 			t.Due, _ = time.ParseInLocation(minuteLayout, match[2], loc)
 		}
@@ -187,7 +191,7 @@ func renderThreads(all []Thread, loc *time.Location) string {
 			}
 			b.WriteString("[" + name + "] ")
 		}
-		b.WriteString(oneLine(t.Text) + "\n")
+		b.WriteString(withSource(t.Text, t.Source) + "\n")
 	}
 	return b.String()
 }

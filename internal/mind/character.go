@@ -25,6 +25,11 @@ const (
 	// guild and is not sent as part of the persona after that; see
 	// memory.Self.
 	headingLately = "lately"
+	// headingSpecifics is a list of concrete facts about her: opinions with a
+	// reason, tastes, things she is bad at, words she overuses. Kept apart
+	// from the persona so they can be chosen by what the conversation is
+	// about when there are too many to send. See docs/persona-v3.md, F1.
+	headingSpecifics = "specifics"
 )
 
 // Example speaker labels inside the examples section.
@@ -63,6 +68,10 @@ type Character struct {
 	Examples []Exchange
 	// Lately seeds how she sees herself; see headingLately.
 	Lately string
+	// Specifics are the concrete facts the author wrote about her; see
+	// headingSpecifics. They are the one kind of memory marked authored,
+	// and nothing she says overwrites them.
+	Specifics []string
 }
 
 // LoadCharacter reads a character file from path.
@@ -82,10 +91,11 @@ func LoadCharacter(name, path string) (*Character, error) {
 //
 // The format is Markdown so the file stays pleasant to write by hand: prose
 // under any heading becomes part of the persona, "## Avoid" becomes the limits
-// list, "## Examples" holds alternating "user:" and "her:" lines, and
-// "## Notes" is dropped. An unrecognised heading is persona rather than an
-// error — the file is authored content, and failing to start the bot over a
-// typo in a heading serves nobody.
+// list, "## Specifics" a list of concrete facts about her, "## Examples"
+// holds alternating "user:" and "her:" lines, and "## Notes" is dropped. An
+// unrecognised heading is persona rather than an error — the file is
+// authored content, and failing to start the bot over a typo in a heading
+// serves nobody.
 func ParseCharacter(name string, r io.Reader) (*Character, error) {
 	c := &Character{Name: name}
 	var lately strings.Builder
@@ -114,6 +124,10 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 		case headingAvoid:
 			if item := listItem(trimmed); item != "" {
 				c.Avoid = append(c.Avoid, item)
+			}
+		case headingSpecifics:
+			if item := listItem(trimmed); item != "" {
+				c.Specifics = append(c.Specifics, item)
 			}
 		case headingLately:
 			lately.WriteString(line)

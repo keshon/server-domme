@@ -71,17 +71,25 @@ type Appraisal struct {
 
 // thinkingRules are how she thinks, stated to the model that thinks for her.
 //
-// Each line answers a failure seen in production with v1 (September 2026):
-// "she owns what she said" is the log where she disowned her own replies,
-// "good faith softens her" the one where ten apologies met "keep it
-// professional" ten times, "do not invent" the "#help" channel that never
-// existed. Rewording them is fine; dropping one brings its failure back.
+// Each line answers a failure seen in production (September 2026): "she owns
+// what she said" is the log where v1 disowned her own replies, "good faith
+// softens her" the one where ten apologies met "keep it professional" ten
+// times, "do not invent" the "#help" channel that never existed. Rewording
+// them is fine; dropping one brings its failure back.
+//
+// v3 changed two. Face value replaced reading "what they mean under the
+// words" in every message, which made her a perceptive therapist on every
+// line — itself a tell. And "she knows only what is written here" became a
+// rule about inventing, with what is written about her named as hers to
+// draw on: with nothing of her own she had nothing to say. See
+// docs/persona-v3.md, D and F3.
 const thinkingRules = `How to think:
-- Read people the way she would: what they want, what they mean under the words, whether they are joking, testing, hurt or sincere. Take them at their word unless there is a reason not to.
+- Read people the way someone skimming a chat does: take what they say at face value. Whether they are joking or sincere is usually plain from the words; read into it only when something is off.
 - She is one continuous person. Every line marked YOU in the conversation, and everything her memories say she said, is hers: she said it and meant it at the time. She can change her mind and say so, but she never claims someone else wrote her words.
 - Feelings move the way a person's do. Good faith, apology and persistence soften her; being pushed, mocked or used cools her. One exchange does not decide everything, and she does not carry one grudge through every line.
 - She has a life and wants of her own. She can be curious, amused, warm, bored or busy — not only guarded.
-- She knows only what is written here. She does not invent channels, rules, events or facts about people.
+- She does not invent events or facts — about this server, its channels and rules, its people, or anything else. What is written here about her — who she is, her specifics, what she has said about herself — is true and hers to draw on.
+- She does not pass judgement on someone's work or words behind their back. An opinion about a person goes to that person, or nowhere.
 - Someone she is talking with who asks her something directly nearly always gets some answer, even a short one. Ignoring is for when there is truly nothing to say, or a snub she would stand behind.
 - Reacting with an emoji instead of words is for a message that needs acknowledging and nothing more.`
 
@@ -89,7 +97,7 @@ const thinkingRules = `How to think:
 // model; keys it leaves out read as empty.
 const appraisalShape = `Answer with one JSON object and nothing else:
 {
-  "read": "what they mean or want, reading between the lines — one sentence",
+  "read": "what they are saying or want, taken at face value unless something is off — one sentence",
   "feel": "how it lands with her, honestly — a few words",
   "toward": "how she feels about them now — a few words",
   "mood": "her mood after this — a few words",
@@ -110,6 +118,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
 // Consider asks what she makes of a moment. It does not write anything down;
 // see Absorb, which the caller runs once it has applied its rails.
 func (m *Mind) Consider(ctx context.Context, s Scene, k Known) (Appraisal, error) {
+	k = m.fit(s.GuildID, "consider", k, thinkBudget, func(k Known) int { return promptSize(m.considerPrompt(s, k)) })
 	msgs := m.considerPrompt(s, k)
 	ctx = ai.WithRaw(ai.WithTemperature(ctx, thinkingTemperature))
 	reply, backend, err := m.generate(ctx, msgs)
@@ -133,6 +142,9 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 		"and what she wants to do about it.", name, name)
 	if m.Character != nil && m.Character.Persona != "" {
 		sys.WriteString("\n\nWho she is:\n" + m.Character.Persona)
+	}
+	if sp := renderSpecifics("Specifically:", k.Specifics); sp != "" {
+		sys.WriteString("\n\n" + sp)
 	}
 	sys.WriteString("\n\n" + thinkingRules + "\n\n" + appraisalShape)
 
@@ -235,6 +247,7 @@ const laterMax = 7 * 24 * time.Hour
 // asked about. Reflection folds it into the paragraphs later.
 func (m *Mind) Absorb(s Scene, a Appraisal) error {
 	now := s.Now
+	refuse := func(kind, reason string) { m.refuse(s.GuildID, a.Backend, kind, reason) }
 	if a.Mood != "" {
 		err := m.Memory.UpdateSelf(s.GuildID, func(me *memory.Self) {
 			me.Mood, me.MoodAt = a.Mood, now
@@ -244,6 +257,20 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 		})
 		if err != nil {
 			return err
+		}
+	}
+
+	// What the appraisal says about the person rests on the message being
+	// appraised: what they told her is stated, what she made of it is
+	// interpreted. Both only about someone who actually spoke here.
+	told := memory.Message(memory.Stated, s.MessageID)
+	madeOf := memory.Message(memory.Interpreted, s.MessageID)
+	present := inScene(s, s.UserID)
+	if !present {
+		for kind, v := range map[string]string{proposalNote: a.Note, proposalFeeling: a.Toward, proposalBetween: a.Between} {
+			if v != "" {
+				refuse(kind, "they did not speak in the scene")
+			}
 		}
 	}
 
@@ -258,14 +285,25 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			if s.Trigger != TriggerOverheard && !Initiated(s.Trigger) {
 				p.LastTalked = now
 			}
+			if !present {
+				return
+			}
 			if a.Toward != "" {
-				p.Feeling = a.Toward
+				p.Feeling, p.FeelingFrom = clip(a.Toward, maxToward), madeOf
 			}
 			if a.Between != "" {
-				p.Between = a.Between
+				if mayOverwrite(p.BetweenFrom, memory.Interpreted) {
+					p.Between, p.BetweenFrom = a.Between, madeOf
+				} else {
+					refuse(proposalBetween, "would overwrite a stronger kind")
+				}
 			}
-			if a.Note != "" && !hasNote(p.Notes, a.Note) {
-				p.Notes = append(p.Notes, memory.Note{Day: now, Text: a.Note})
+			if a.Note != "" {
+				if hasNote(p.Notes, a.Note) {
+					refuse(proposalNote, "already noted")
+				} else {
+					p.Notes = append(p.Notes, memory.Note{Day: now, Text: clip(a.Note, maxNoteChars), Source: told})
+				}
 			}
 		})
 		if err != nil {
@@ -275,7 +313,8 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 
 	if a.Remember != "" {
 		err := m.Memory.AddMoment(s.GuildID, memory.Moment{
-			At: now, Channel: s.ChannelName, People: m.refs(s), Text: a.Remember, Weight: a.Weight,
+			At: now, Channel: s.ChannelName, People: m.refs(s), Text: clip(a.Remember, maxMomentChars),
+			Weight: a.Weight, Kind: memory.Interpreted,
 		})
 		if err != nil {
 			return err
@@ -283,6 +322,10 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 	}
 
 	if a.Later != "" {
+		if s.UserID != "" && !present {
+			refuse(proposalLater, "they did not speak in the scene")
+			return nil
+		}
 		due := laterDefault
 		if a.LaterHours > 0 {
 			due = time.Duration(a.LaterHours * float64(time.Hour))
@@ -291,7 +334,8 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			due = laterMax
 		}
 		err := m.Memory.AddThread(s.GuildID, memory.Thread{
-			Due: now.Add(due), Person: memory.Ref{ID: s.UserID, Name: s.Username}, Text: a.Later,
+			Due: now.Add(due), Person: memory.Ref{ID: s.UserID, Name: s.Username},
+			Text: clip(a.Later, maxLaterChars), Source: madeOf,
 		})
 		if err != nil {
 			return err
@@ -330,7 +374,10 @@ func (m *Mind) refs(s Scene) []memory.Ref {
 // Every message she sends goes through here. It is the single most important
 // write in the package: it is what lets her own a thing she said yesterday
 // instead of reading it back as someone else's. See docs/persona.md.
-func (m *Mind) Said(s Scene, a Appraisal, text, why string) error {
+//
+// messageID is her message's id: what makes the moment the source a
+// self-fact can cite. Empty when there is none to give.
+func (m *Mind) Said(s Scene, a Appraisal, text, why, messageID string) error {
 	var b strings.Builder
 	quoted := clip(oneLine(text), maxMomentChars)
 	switch {
@@ -357,6 +404,7 @@ func (m *Mind) Said(s Scene, a Appraisal, text, why string) error {
 	}
 	return m.Memory.AddMoment(s.GuildID, memory.Moment{
 		At: s.Now, Channel: s.ChannelName, People: m.refs(s), Text: b.String(), Weight: a.Weight,
+		Said: messageID,
 	})
 }
 

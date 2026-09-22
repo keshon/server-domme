@@ -144,7 +144,7 @@ func (s *Service) sendThought(ctx context.Context, t pendingThought) {
 	}
 	s.thought(sc.GuildID)
 	entry.Outcome, entry.Posted, entry.ReplyID = outcomeAnswered, excerpt(sent.text, journalReply), sent.id
-	if err := s.mind.Said(sc, a, sent.text, ""); err != nil {
+	if err := s.mind.Said(sc, a, sent.text, "", sent.id); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_write_failed")
 	}
 	s.log.Info().Str("guild_id", sc.GuildID).Str("channel_id", sc.ChannelID).Msg("chat_thought_sent")

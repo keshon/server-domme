@@ -55,6 +55,8 @@ func main() {
 	own := flag.Bool("own", false, "carry the conversation on with v2's lines instead of the ones in the log")
 	reflect := flag.Bool("reflect", true, "reflect on each day as the log moves past it")
 	backends := flag.String("backends", "", "backends as in CHAT_BACKENDS; default the g4f relay")
+	selfFacts := flag.Bool("self-facts", true, "read her own words for facts about herself when reflecting, as CHAT_SELF_FACTS")
+	examples := flag.Int("examples", 8, "examples her voice sees per message, as CHAT_EXAMPLES_SAMPLE; 0 for all")
 	voiceBackends := flag.String("voice-backends", "", "names from -backends her voice prefers, in order, as in CHAT_VOICE_BACKENDS; run one at a time to rank relays on holding her voice")
 	flag.Parse()
 
@@ -106,7 +108,10 @@ func main() {
 	}
 
 	p := &probe{
-		mind:    &mind.Mind{Character: character, Provider: pool, Voice: pool.Voice(), Memory: store},
+		mind: &mind.Mind{
+			Character: character, Provider: pool, Voice: pool.Voice(), Memory: store,
+			SelfFacts: *selfFacts, ExamplesSample: *examples,
+		},
 		botName: *botName,
 		own:     *own,
 		reflect: *reflect,
@@ -129,6 +134,7 @@ type probe struct {
 
 	turns   []mind.Turn
 	replies int
+	said    int
 	day     time.Time
 }
 
@@ -253,7 +259,7 @@ func (p *probe) answer(asker mind.Turn, trigger mind.Trigger, at time.Time, orig
 	}
 	reply = mind.Casual(reply, mind.CasualStyle{}, 1)
 	fmt.Printf("   v2: %s\n   -- meant: %s  [%s]\n\n", reply, a.Intent, backend)
-	if err := p.mind.Said(sc, a, reply, ""); err != nil {
+	if err := p.mind.Said(sc, a, reply, "", p.nextID()); err != nil {
 		fmt.Printf("   ! said: %v\n", err)
 	}
 	return reply
@@ -272,7 +278,14 @@ func (p *probe) recordHers(text string, at time.Time, to string, trigger mind.Tr
 			sc.Username = t.Username
 		}
 	}
-	_ = p.mind.Said(sc, mind.Appraisal{}, text, "")
+	_ = p.mind.Said(sc, mind.Appraisal{}, text, "", p.nextID())
+}
+
+// nextID is a message id for a line of hers. The log carries none, and
+// self-facts cite her lines by id, so the replay makes them up.
+func (p *probe) nextID() string {
+	p.said++
+	return fmt.Sprintf("probe%d", p.said)
 }
 
 // live is the conversation as the bot's buffer would hold it: the last half
@@ -311,6 +324,25 @@ func (p *probe) reflectOn(day, now time.Time) {
 		d, _ := p.mind.Memory.Day(probeGuild, day)
 		me, _ := p.mind.Memory.Self(probeGuild)
 		fmt.Printf("══ she looks back on %s:\n   %s\n   lately: %s\n\n", day.Format("02.01"), d.Summary, me.Lately)
+	}
+	if !p.mind.SelfFacts {
+		return
+	}
+	did, err = p.mind.ReflectSelf(ctx, probeGuild, day)
+	switch {
+	case err != nil:
+		fmt.Printf("══ reading her own words on %s failed: %v\n\n", day.Format("02.01"), err)
+	case did:
+		me, _ := p.mind.Memory.Me(probeGuild)
+		fmt.Printf("══ what she has said about herself, as of %s:\n", day.Format("02.01"))
+		for _, f := range me.Facts {
+			line := "   - " + f.Text
+			if f.Conflict != "" {
+				line += "   (against the card: " + f.Conflict + ")"
+			}
+			fmt.Println(line)
+		}
+		fmt.Println()
 	}
 }
 

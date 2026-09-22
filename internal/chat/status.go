@@ -128,6 +128,17 @@ func (s *Service) StateIn(guildID, channelID string) State {
 	return st
 }
 
+// Conflicts are the things she has said about herself that contradict her
+// character card, waiting for the author: the card stays canon, and both
+// are shown to her until the author changes one. See memory.SelfFact.
+func (s *Service) Conflicts(guildID string) []memory.SelfFact {
+	me, err := s.memory.Me(guildID)
+	if err != nil {
+		return nil
+	}
+	return me.Conflicts()
+}
+
 // About is her dossier on someone, and the bookkeeping the datastore holds.
 func (s *Service) About(guildID, userID string) (memory.Person, bool, *storage.MindPerson) {
 	p, ok, err := s.memory.Person(guildID, userID)

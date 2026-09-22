@@ -761,7 +761,7 @@ owns her words.
   Rust has grown on you"). The model reconciles them the way a person does —
   changed her mind, was in a mood, was joking.
 - The conflict is **flagged for the author**: `/chat status` lists open
-  conflicts, and they are written to a `conflicts.md` per guild. The author
+  conflicts, and they are kept in their own section of `me.md`. The author
   resolves it by changing the card deliberately, or by marking the statement
   a slip. For an experiment, which of the two it was matters, and the
   contradictions become part of her history instead of corruption.
@@ -862,7 +862,7 @@ without its row.
 | self-facts | `me.md` per guild | prose; grows and is pruned by reflection |
 | specifics | `character.md` | authored |
 | provenance of each item | alongside the item, in the same file | a person reading `self.md` should see where a line came from without another file |
-| conflicts with the card | `conflicts.md` per guild | for the author to resolve |
+| conflicts with the card | `me.md` per guild, under *In conflict with the card* | beside the facts they are; the author resolves one by changing the card or removing the line |
 | dropped proposals | log, and the journal entry of the moment | the rejection rate is a measurement |
 
 ## Switches
@@ -1173,3 +1173,9 @@ Architecture changes after the freeze, with the evidence for each.
   of the list when every preferred voice backend is down, instead of
   leaving her silent. Reliability over a pure voice; the fallback is visible
   in the journal's backend field.
+- 22 Sep 2026 — step 2, while building: conflicts with the card live in
+  their own section of `me.md` rather than a separate `conflicts.md`, so a
+  conflict and the fact it is stay one line in one file. Reflection is two
+  calls for now — the day and the people; self-facts — and the third, life
+  and wants, lands with step 7. The prompt budget covers the appraisal and
+  the voice; initiative, a call every few hours at most, is not trimmed yet.
