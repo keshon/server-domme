@@ -2,6 +2,7 @@ package mind
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -300,5 +301,78 @@ func TestAnImpulseComesFromSomethingShown(t *testing.T) {
 		if res, err := m.IdleThink(context.Background(), in); err != nil || res.Impulse != nil {
 			t.Errorf("%s: impulse %+v, %v", reply, res.Impulse, err)
 		}
+	}
+}
+
+// A third question in a row is asked for again; if the retry is a question
+// too, the question is cut when something comes before it.
+func TestAThirdQuestionInARowIsNotSent(t *testing.T) {
+	asking := sceneWith(
+		Turn{UserID: "1", Username: "Big M", Content: "i built a music bot", At: noon},
+		Turn{FromBot: true, Content: "what's the hardest part?", At: noon},
+		Turn{UserID: "1", Username: "Big M", Content: "network hiccups", At: noon},
+		Turn{FromBot: true, Content: "how do you handle them?", At: noon},
+		Turn{UserID: "1", Username: "Big M", Content: "a chain of parsers", At: noon},
+	)
+	m, p := newMind(t, "smart. how do you balance speed and reliability?", "a chain is how i'd do it too")
+	m.StyleCheck = true
+	got, _, err := m.Speak(context.Background(), asking, Known{}, Appraisal{Act: ActReply}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "a chain is how i'd do it too" {
+		t.Errorf("sent %q", got)
+	}
+	if !strings.Contains(p.sent[1][len(p.sent[1])-1].Content, "ends in a question") {
+		t.Error("the retry was not told what was wrong")
+	}
+
+	// Both a question: the shorter is kept, and its question cut.
+	m, _ = newMind(t, "smart. how do you balance it?", "that's a sound approach. do you retry first?")
+	m.StyleCheck = true
+	if got, _, _ := m.Speak(context.Background(), asking, Known{}, Appraisal{Act: ActReply}, ""); got != "smart." {
+		t.Errorf("a question after two was sent: %q", got)
+	}
+
+	// Two questions in a row are fine; so is a question after an answer.
+	m, p = newMind(t, "how many parsers?")
+	m.StyleCheck = true
+	once := sceneWith(Turn{FromBot: true, Content: "what's the hardest part?", At: noon}, Turn{UserID: "1", Username: "Big M", Content: "network", At: noon})
+	if got, _, _ := m.Speak(context.Background(), once, Known{}, Appraisal{Act: ActReply}, ""); got != "how many parsers?" || len(p.sent) != 1 {
+		t.Errorf("a second question was checked: %q after %d calls", got, len(p.sent))
+	}
+}
+
+func TestDropQuestionsKeepsWhatCameBefore(t *testing.T) {
+	for in, want := range map[string]string{
+		"that makes sense. how do you handle it? do you ever break it?": "that makes sense.",
+		"smart.\n\nwhat's your fallback?":                               "smart.",
+		"how do you handle it?":                                         "how do you handle it?",
+		"fair. i'd do the same":                                         "fair. i'd do the same",
+	} {
+		if got := dropQuestions(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Saying she is building something does not make her be building it.
+func TestAClaimOfDoingIsNotASelfFact(t *testing.T) {
+	m, _ := newMind(t, `{"facts":[
+		{"text":"is building a city generator","line":1,"doing":true},
+		{"text":"hates mornings","line":2}
+	]}`)
+	day := noon.Add(-24 * time.Hour)
+	for i, text := range []string{`I spoke up on my own: "i'm building a city generator"`, `Big M: "morning"` + saidArrow + `"i hate mornings"`} {
+		if err := m.Memory.AddMoment(guildID, memory.Moment{At: day.Add(time.Duration(i) * time.Minute), Said: fmt.Sprintf("m%d", i), Text: text}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := m.ReflectSelf(context.Background(), guildID, day); err != nil {
+		t.Fatal(err)
+	}
+	me, _ := m.Memory.Me(guildID)
+	if len(me.Facts) != 1 || me.Facts[0].Text != "hates mornings" {
+		t.Errorf("facts %+v", me.Facts)
 	}
 }

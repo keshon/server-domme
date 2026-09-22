@@ -1217,6 +1217,16 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 22 Sep 2026 — second live log: told about a music bot, she asked a
+  question in seven replies running, and a second thought announced "i'm
+  working on something". The style check (G) now counts questions: a
+  reply ending in one after two of hers that did is asked for again once,
+  and if it still asks, the question is cut where a sentence comes before
+  it. J5 of the doings proposal, ahead of the rest of it: a self-fact that
+  says she is doing or making something is refused, since nothing she does
+  exists yet. Without a body, her voice now holds for 30 minutes of
+  silence rather than the 3-minute engaged window (A); a five-minute
+  pause had changed her voice mid-conversation.
 - 22 Sep 2026 — the town, guarded (F3): a channel Discord marks
   age-restricted, or a thread in one, is closed to her whatever its mode —
   not read, walked, answered or started in — and `/chat channel` refuses

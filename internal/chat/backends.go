@@ -18,10 +18,15 @@ import (
 //
 // With a body, a session is a stretch online: one voice for as long as she is
 // online, reset when she goes away or to sleep, so a change of voice happens
-// while she is gone. Without one, a session is the engaged window: she has
-// spoken somewhere within it. Bot-wide, not per channel, so she never speaks
-// in two voices in two channels at once.
-const voiceSession = engagedWindow
+// while she is gone. Without one, a session lasts while she has spoken
+// somewhere within voiceSession. Bot-wide, not per channel, so she never
+// speaks in two voices in two channels at once.
+//
+// Half an hour, not the three-minute engaged window it once was: an ordinary
+// pause in a conversation outlasts three minutes, and in production a
+// five-minute one changed her voice mid-conversation, from lowercase and
+// short to capitals and "That makes sense".
+const voiceSession = 30 * time.Minute
 
 // speak is mind.Speak through the voice she has been using.
 func (s *Service) speak(ctx context.Context, sc mind.Scene, k mind.Known, a mind.Appraisal, why string) (string, string, error) {

@@ -17,9 +17,16 @@ import (
 //
 // A reply off the shape is asked for once more, with the reason named; the
 // closer of the two is kept, and what is still too long is cut at a sentence
-// boundary, the way someone deletes the second half before sending. Casual
-// does the surface — punctuation, contractions; this does the length and the
-// words. See docs/persona-v3.md, G.
+// boundary, the way someone deletes the second half before sending.
+//
+// A third question in a row is off the shape too. Asking back after every
+// answer is an interview, and the most assistant-like thing a character can
+// do: in production, told about a music bot, she asked seven questions in
+// seven replies and gave no take of her own. Counted over her own lines in
+// the conversation, not over what they mean.
+//
+// Casual does the surface — punctuation, contractions; this does the length,
+// the words and the questions. See docs/persona-v3.md, G.
 type Style struct {
 	// MaxWords is the longest she writes: her longest example, stretched.
 	// Zero checks no length.
@@ -64,6 +71,9 @@ type offStyle struct {
 	// Long is that it runs past MaxWords with no sentence boundary to cut
 	// at inside it — the part a cut cannot fix.
 	Long bool
+	// Questions is that it ends in a question after questionRun of her
+	// lines in a row already did.
+	Questions bool
 	// Words is its length.
 	Words int
 }
@@ -76,7 +86,58 @@ func (o offStyle) misses() int {
 	if o.Long {
 		n++
 	}
+	if o.Questions {
+		n++
+	}
 	return n
+}
+
+// questionRun is how many of her lines in a row may end in a question before
+// one more is off her style.
+const questionRun = 2
+
+// askedInARow reports whether her last questionRun lines in the conversation
+// all ended in a question.
+func askedInARow(turns []Turn) bool {
+	n := 0
+	for i := len(turns) - 1; i >= 0 && n < questionRun; i-- {
+		if !turns[i].FromBot {
+			continue
+		}
+		if !endsInQuestion(turns[i].Content) {
+			return false
+		}
+		n++
+	}
+	return n == questionRun
+}
+
+// endsInQuestion reports whether text ends with a question mark, past any
+// closing quote or markup.
+func endsInQuestion(text string) bool {
+	return strings.HasSuffix(strings.TrimRight(text, " \t\n)\"'*_"), "?")
+}
+
+// dropQuestions cuts the questions a reply ends with, when something comes
+// before them: "that's a sound approach. how do you balance it?" is sent as
+// "that's a sound approach." A reply that is nothing but a question is left
+// as it is.
+func dropQuestions(reply string) string {
+	reply = strings.TrimSpace(reply)
+	if !endsInQuestion(reply) {
+		return reply
+	}
+	ends := append(sentenceEnds(reply), len(reply))
+	for i := len(ends) - 2; i >= 0; i-- {
+		head := strings.TrimSpace(reply[:ends[i]])
+		if head == "" {
+			break
+		}
+		if !endsInQuestion(head) {
+			return head
+		}
+	}
+	return reply
 }
 
 // check measures a reply against the style.
@@ -188,6 +249,9 @@ func styleNote(o offStyle) string {
 	if o.Long {
 		parts = append(parts, "it is far longer than anything you write in chat")
 	}
+	if o.Questions {
+		parts = append(parts, "it ends in a question, and so did each of your last messages here")
+	}
 	return "You were about to send that, and did not: " + strings.Join(parts, ", and ") +
 		". Write your message again, the way you would actually type it."
 }
@@ -198,7 +262,13 @@ func styleNote(o offStyle) string {
 // length. Each miss is logged: how often a backend misses is a measurement.
 func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, backend string) (string, string) {
 	st := m.Character.Style()
-	first := st.check(reply)
+	asked := askedInARow(s.Turns)
+	check := func(r string) offStyle {
+		o := st.check(r)
+		o.Questions = asked && endsInQuestion(r)
+		return o
+	}
+	first := check(reply)
 	if first.misses() == 0 {
 		return st.cut(reply), backend
 	}
@@ -206,7 +276,7 @@ func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, b
 	again := append(msgs, ai.Message{Role: ai.RoleAssistant, Content: reply}, ai.Message{Role: ai.RoleSystem, Content: styleNote(first)})
 	if retry, b, err := m.speak(ctx, again); err == nil && usable(retry, s.Turns) == nil {
 		if _, repeats := RepeatsHerself(retry, s.Turns); !repeats {
-			second := st.check(retry)
+			second := check(retry)
 			if second.misses() < first.misses() || (second.misses() == first.misses() && second.Words < first.Words) {
 				reply, backend, kept = retry, b, true
 			}
@@ -217,8 +287,12 @@ func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, b
 		Str("backend", backend).
 		Str("phrase", first.Phrase).
 		Bool("long", first.Long).
+		Bool("questions", first.Questions).
 		Int("words", first.Words).
 		Bool("retry_kept", kept).
 		Msg("mind_reply_restyled")
+	if check(reply).Questions {
+		reply = dropQuestions(reply)
+	}
 	return st.cut(reply), backend
 }

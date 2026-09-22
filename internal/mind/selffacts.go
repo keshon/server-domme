@@ -23,12 +23,13 @@ const selfFactRules = `How to read them:
 - Skip anything about other people, and anything she was only asked or told.
 - Skip what she already said before, unless she now says otherwise.
 - Each fact one short line in the third person, the way it would read on a card about her: "hates Rust — the compiler lectures her".
+- Mark a fact that says she is doing, making, building, working on or in the middle of something — a project, a job, a plan underway — with "doing": true.
 - Usually there is nothing new. An empty list is the common answer.`
 
 const selfFactShape = `Answer with one JSON object and nothing else:
 {
   "facts": [
-    {"text": "the fact, one short line", "line": the number of her line it comes from, "replaces": the number of an earlier fact it overturns or 0, "contradicts": the number of a specific it contradicts or 0}
+    {"text": "the fact, one short line", "line": the number of her line it comes from, "replaces": the number of an earlier fact it overturns or 0, "contradicts": the number of a specific it contradicts or 0, "doing": true if it says she is doing or making something}
   ]
 }`
 
@@ -131,6 +132,16 @@ func (m *Mind) applySelfFacts(guildID, backend string, date time.Time, obj map[s
 			line := int(num(entry, "line"))
 			if line < 1 || line > len(hers) {
 				refuse("cites no line of hers")
+				continue
+			}
+			if strings.EqualFold(str(entry, "doing"), "true") {
+				// Saying she is building something does not make her be
+				// building it: what she does has to exist to be true of
+				// her, and nothing she does exists yet. In production she
+				// claimed a project from her voice examples, and kept
+				// defending it days later. The line stays in the day as
+				// something she said. See docs/persona-v3-doings.md, J5.
+				refuse("claims something she is doing, and she is doing nothing on record")
 				continue
 			}
 			f := memory.SelfFact{Day: day, Text: text, Source: memory.Message(memory.Stated, hers[line-1].Said)}
