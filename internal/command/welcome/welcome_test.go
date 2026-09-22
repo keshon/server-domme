@@ -106,7 +106,7 @@ func TestPlanPartChecksBeforeAnythingIsPosted(t *testing.T) {
 
 func TestUnlinkedFlagsChannelNamesThatMatchNothing(t *testing.T) {
 	got := unlinked("see <#1> and #roleplay, then #1 fan. also# not")
-	if len(got) != 2 || got[0] != "#roleplay" || got[1] != "#1" {
+	if len(got) != 2 || got[0] != "#roleplay" || got[1] != "#1…" {
 		t.Errorf("unlinked = %v", got)
 	}
 }
@@ -157,5 +157,15 @@ func TestGuildChannelsIncludeOpenThreads(t *testing.T) {
 	got := Render("see #introduction and #Domme Icons Full List", Vars{}, guildChannels(s, "g"))
 	if got != "see <#1> and <#7>" {
 		t.Errorf("rendered %q", got)
+	}
+}
+
+// An unmatched name with more words after it is quoted as a start, not as
+// the whole of it.
+func TestUnlinkedMarksANameThatMayGoOn(t *testing.T) {
+	got := unlinked("the list here: #Domme Icons Full List . and #roleplay, and #gone")
+	want := []string{"#Domme…", "#roleplay", "#gone"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("unlinked = %v, want %v", got, want)
 	}
 }

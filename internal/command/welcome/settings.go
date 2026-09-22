@@ -142,6 +142,7 @@ func (c *WelcomeCommand) ModalSubmit(context *cmdadapter.ComponentInteractionCon
 	}
 
 	text := strings.TrimSpace(modalValue(data.Components, modalField))
+	text = linkArchived(s, e.GuildID, text, guildChannels(s, e.GuildID))
 	err := store.UpdateWelcomeRole(e.GuildID, roleID, func(w *storage.WelcomeRole) {
 		if kind == kindIntro {
 			w.IntroTemplate = text

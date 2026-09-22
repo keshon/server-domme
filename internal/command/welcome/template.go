@@ -44,6 +44,7 @@ type Channel struct {
 // this every channel in a pasted template would arrive as plain grey text.
 // A name that matches no channel is left as it was written.
 func Render(template string, v Vars, channels []Channel) string {
+	template = invisible.Replace(template)
 	out := strings.NewReplacer(
 		placeUser, "<@"+v.UserID+">",
 		placeName, v.Name,
@@ -52,6 +53,13 @@ func Render(template string, v Vars, channels []Channel) string {
 	).Replace(template)
 	return linkChannels(out, channels)
 }
+
+// invisible removes characters Discord puts into copied text that nobody can
+// see: a mention pasted from Discord arrives as "\u2060#name". Invisible, but
+// in the way — the warning about unmatched names looks for a "#" after a
+// space, and did not see one. The zero-width joiner stays: emoji are built
+// with it.
+var invisible = strings.NewReplacer("\u2060", "", "\u200b", "", "\ufeff", "")
 
 // linkChannels turns "#name" into "<#id>" for channels that exist, longest
 // name first so "#roles-info" is not taken for "#roles".

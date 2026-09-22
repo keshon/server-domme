@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
@@ -471,8 +472,65 @@ func guildChannels(s *discordgo.Session, guildID string) []Channel {
 }
 
 // unlinkedHint is said after names that matched nothing.
-const unlinkedHint = " — those stay plain text. A thread Discord has archived is not " +
-	"found by name: paste the thread's link into the template instead, and Discord shows it as a link."
+const unlinkedHint = " — those stay plain text. Archived threads are looked up when a text is " +
+	"saved; if one is still not found, paste the thread's link into the template, and Discord shows it as a link."
+
+// linkArchived writes links to archived threads into a template being
+// saved, for "#names" nothing open matches.
+//
+// Discord keeps only open threads in the state, and a thread goes quiet and
+// is archived after a few days — the kind of thread a welcome points at, a
+// list or a guide, most of all. Looking them up costs a request per channel,
+// which is fine once when an administrator saves a text and not fine every
+// time someone joins. So it is done here, and what it finds is written into
+// the saved text as "<#id>", which Discord links whether the thread is open
+// or not. Names that are also a channel's or an open thread's are left to
+// Render, as before, and placeholders are left as they are.
+func linkArchived(s *discordgo.Session, guildID, text string, known []Channel) string {
+	if len(unlinked(Render(text, Vars{}, known))) == 0 {
+		return text
+	}
+	taken := make(map[string]bool, len(known))
+	for _, c := range known {
+		taken[strings.ToLower(c.Name)] = true
+	}
+	var archived []Channel
+	for _, t := range archivedThreads(s, guildID) {
+		if !taken[strings.ToLower(t.Name)] {
+			archived = append(archived, t)
+		}
+	}
+	if len(archived) == 0 {
+		return text
+	}
+	return linkChannels(invisible.Replace(text), archived)
+}
+
+// archivedThreads are the public archived threads under the guild's
+// channels, the most recent hundred of each. A channel the bot cannot read
+// is skipped.
+func archivedThreads(s *discordgo.Session, guildID string) []Channel {
+	g, err := s.State.Guild(guildID)
+	if err != nil || g == nil {
+		return nil
+	}
+	var out []Channel
+	for _, c := range g.Channels {
+		switch c.Type {
+		case discordgo.ChannelTypeGuildText, discordgo.ChannelTypeGuildNews, discordgo.ChannelTypeGuildForum, discordgo.ChannelTypeGuildMedia:
+		default:
+			continue
+		}
+		list, err := s.ThreadsArchived(c.ID, nil, 100)
+		if err != nil || list == nil {
+			continue
+		}
+		for _, t := range list.Threads {
+			out = append(out, Channel{ID: t.ID, Name: t.Name})
+		}
+	}
+	return out
+}
 
 func randomGif(gifs []string) string {
 	if len(gifs) == 0 {
@@ -502,10 +560,20 @@ func mentionRoleIDs(ids []string) string {
 // text is ever posted.
 var unlinkedChannel = regexp.MustCompile(`(?:^|\s)#([^\s#<>.,!?;:]+)`)
 
+// A name that matches nothing has no known end: "#Domme Icons Full List"
+// might be a thread called "Domme" followed by words. So only its first word
+// is quoted, with "…" when another word follows, so the partial name does not
+// read as the whole of it.
 func unlinked(rendered string) []string {
 	var out []string
-	for _, m := range unlinkedChannel.FindAllStringSubmatch(rendered, -1) {
-		out = append(out, "#"+m[1])
+	for _, m := range unlinkedChannel.FindAllStringSubmatchIndex(rendered, -1) {
+		name := "#" + rendered[m[2]:m[3]]
+		if rest := rendered[m[3]:]; strings.HasPrefix(rest, " ") {
+			if next, _ := utf8.DecodeRuneInString(strings.TrimLeft(rest, " ")); isNameRune(next) {
+				name += "…"
+			}
+		}
+		out = append(out, name)
 	}
 	return out
 }
