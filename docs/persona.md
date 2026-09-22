@@ -1,5 +1,8 @@
 # The persona, v2
 
+> What comes next is specced in [persona-v3.md](persona-v3.md). Until a part of
+> it lands, this document describes what is running.
+
 This replaces the design described in earlier versions of
 [architecture.md](architecture.md#the-chat-persona). The Discord plumbing
 around it — two opt-in gates, deferred answers, the backfill, typing, the
