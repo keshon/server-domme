@@ -462,7 +462,7 @@ func (m *Mind) Said(s Scene, a Appraisal, text, why, messageID string) error {
 		}
 	default:
 		if said := theirLine(s); said != "" {
-			fmt.Fprintf(&b, "%s: %q"+saidArrow+"%q", nameOr(s.Username), clip(said, 160), quoted)
+			fmt.Fprintf(&b, "%s: %q"+saidArrow+"%q", nameOr(s.Username), said, quoted)
 		} else {
 			fmt.Fprintf(&b, "said to %s: %q", nameOr(s.Username), quoted)
 		}
@@ -487,7 +487,7 @@ func (m *Mind) LetGo(s Scene, a Appraisal) error {
 	if a.Act == ActReact {
 		what = "I only reacted " + a.Emoji
 	}
-	text := fmt.Sprintf("%s: %q → %s", nameOr(s.Username), clip(said, 160), what)
+	text := fmt.Sprintf("%s: %q → %s", nameOr(s.Username), said, what)
 	if a.Read != "" {
 		text += " — I read it as: " + oneLine(a.Read)
 	}
@@ -519,7 +519,14 @@ func clampUnit(v float64) float64 {
 }
 
 // theirLine is what the person she is answering said since she last spoke,
-// run together: a burst is one approach.
+// run together: a burst is one approach. Kept to maxTheirLine from the end,
+// with "…" where older lines were dropped.
+//
+// From the end because the newest line is the one she answered. Clipped from
+// the start, a seven-line burst over seven minutes was remembered as its first
+// four lines — half of them to someone else — and the line she actually
+// answered, "we are not ignoring you, will explain everything later", was
+// gone from her memory of it.
 func theirLine(s Scene) string {
 	var parts []string
 	for i := len(s.Turns) - 1; i >= 0; i-- {
@@ -528,11 +535,36 @@ func theirLine(s Scene) string {
 			break
 		}
 		if t.UserID == s.UserID {
-			parts = append([]string{oneLine(t.Content)}, parts...)
+			parts = append(parts, oneLine(t.Content))
 		}
 	}
-	return strings.Join(parts, " / ")
+	if len(parts) == 0 {
+		return ""
+	}
+	// parts is newest first. The newest always goes in, clipped if it alone
+	// is too long; older ones while they fit.
+	kept := []string{clip(parts[0], maxTheirLine)}
+	size := len([]rune(kept[0]))
+	for _, p := range parts[1:] {
+		size += len([]rune(p)) + len(theirJoin)
+		if size > maxTheirLine {
+			kept = append(kept, "…")
+			break
+		}
+		kept = append(kept, p)
+	}
+	for i, j := 0, len(kept)-1; i < j; i, j = i+1, j-1 {
+		kept[i], kept[j] = kept[j], kept[i]
+	}
+	return strings.Join(kept, theirJoin)
 }
+
+// maxTheirLine is how much of what someone said a moment keeps, and
+// theirJoin what runs a burst's lines together.
+const (
+	maxTheirLine = 160
+	theirJoin    = " / "
+)
 
 func nameOr(name string) string {
 	if name == "" {

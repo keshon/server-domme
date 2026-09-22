@@ -376,3 +376,51 @@ func TestAClaimOfDoingIsNotASelfFact(t *testing.T) {
 		t.Errorf("facts %+v", me.Facts)
 	}
 }
+
+// A burst is remembered by its end: the newest line is the one she answered.
+// The production case: seven lines over seven minutes, remembered as the
+// first four, without the one her reply was to.
+func TestABurstIsRememberedByItsEnd(t *testing.T) {
+	var turns []Turn
+	turns = append(turns, Turn{FromBot: true, Content: "what's the link about", At: noon})
+	for _, line := range []string{
+		"@Pewcifer this is how I see it",
+		`just print the channel name without "#"`,
+		"it cannot be - channel name can't contain spaces",
+		"waait, it's link to a thread? oh ffs",
+		"hmm it complicates things, I can parse channels but not threads",
+		"let me think about it",
+		"nah it's doable, since we have ID, I'm thinking how to seamlessly make chats and threads parsing",
+		"we are not ignoring you, will explain everything later",
+	} {
+		turns = append(turns, Turn{UserID: "1", Username: "Big M", Content: line, At: noon})
+	}
+	s := sceneWith(turns...)
+	s.UserID, s.Username = "1", "Big M"
+	got := theirLine(s)
+	if !strings.HasSuffix(got, "we are not ignoring you, will explain everything later") {
+		t.Errorf("the line she answered is gone: %q", got)
+	}
+	if !strings.HasPrefix(got, "…") || strings.Contains(got, "Pewcifer") {
+		t.Errorf("older lines not dropped from the start: %q", got)
+	}
+	if n := len([]rune(got)); n > maxTheirLine+len(theirJoin)+1 {
+		t.Errorf("%d runes", n)
+	}
+
+	m, _ := newMind(t)
+	if err := m.Said(s, Appraisal{Act: ActReply}, "take your time, but don't let it drift", "", "m9"); err != nil {
+		t.Fatal(err)
+	}
+	day, _ := m.Memory.Day(guildID, noon)
+	if len(day.Moments) != 1 || !strings.Contains(day.Moments[0].Text, "will explain everything later") {
+		t.Errorf("remembered %+v", day.Moments)
+	}
+
+	// A short burst is kept whole, in order.
+	s = sceneWith(Turn{UserID: "1", Username: "Big M", Content: "hey", At: noon}, Turn{UserID: "1", Username: "Big M", Content: "you there?", At: noon})
+	s.UserID = "1"
+	if got := theirLine(s); got != "hey / you there?" {
+		t.Errorf("short burst %q", got)
+	}
+}
