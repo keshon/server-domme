@@ -672,3 +672,29 @@ func TestNewStorageAcceptsMissingAndExistingDir(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 }
+
+// Purges run only where an administrator allowed them.
+func TestPurgeIsAllowedOnlyWhereListed(t *testing.T) {
+	s := newTestStore(t)
+	if s.IsPurgeAllowed("g", "c") || len(s.GetPurgeChannels("g")) != 0 {
+		t.Fatal("allowed before anything was listed")
+	}
+	if err := s.SetPurgeAllowed("g", "c", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPurgeAllowed("g", "c", true); err != nil {
+		t.Fatal(err)
+	}
+	if !s.IsPurgeAllowed("g", "c") || s.IsPurgeAllowed("g", "other") || s.IsPurgeAllowed("other", "c") {
+		t.Error("allowed in the wrong place")
+	}
+	if got := s.GetPurgeChannels("g"); len(got) != 1 {
+		t.Errorf("listed twice: %v", got)
+	}
+	if err := s.SetPurgeAllowed("g", "c", false); err != nil {
+		t.Fatal(err)
+	}
+	if s.IsPurgeAllowed("g", "c") {
+		t.Error("still allowed after being taken off")
+	}
+}

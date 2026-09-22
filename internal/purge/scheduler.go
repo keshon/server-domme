@@ -31,11 +31,22 @@ func RunScheduler(ctx context.Context, store *storage.Storage, session SessionFu
 			Str("mode", job.Mode).
 			Logger()
 
+		// Jobs from before the list of channels purges are allowed in keep
+		// running: an administrator set each one up deliberately. Their
+		// channel goes on the list, and taking it off stops the job.
+		if !store.IsPurgeAllowed(job.GuildID, job.ChannelID) {
+			if err := store.SetPurgeAllowed(job.GuildID, job.ChannelID, true); err != nil {
+				jobLog.Error().Err(err).Msg("purge_channel_allow_failed")
+				continue
+			}
+			jobLog.Info().Msg("purge_channel_grandfathered")
+		}
+
 		switch job.Mode {
 		case storage.PurgeModeDelayed:
 			scheduleDelayed(ctx, store, session, jobLog, job)
 		case storage.PurgeModeRecurring:
-			scheduleRecurring(ctx, session, jobLog, job)
+			scheduleRecurring(ctx, store, session, jobLog, job)
 		default:
 			jobLog.Error().Msg("purge_job_mode_unknown")
 		}
@@ -69,6 +80,10 @@ func runDelayed(store *storage.Storage, session SessionFunc, log zerolog.Logger,
 		log.Warn().Msg("purge_skipped_no_session")
 		return
 	}
+	if !store.IsPurgeAllowed(job.GuildID, job.ChannelID) {
+		log.Info().Msg("purge_skipped_not_allowed")
+		return
+	}
 	log.Info().Msg("purge_delayed_running")
 	purge.DeleteMessages(s, job.ChannelID, nil, nil, nil)
 
@@ -79,7 +94,7 @@ func runDelayed(store *storage.Storage, session SessionFunc, log zerolog.Logger,
 	log.Info().Msg("purge_delayed_done")
 }
 
-func scheduleRecurring(ctx context.Context, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
+func scheduleRecurring(ctx context.Context, store *storage.Storage, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
 	dur, err := time.ParseDuration(job.OlderThan)
 	if err != nil {
 		log.Error().Str("older_than", job.OlderThan).Err(err).Msg("purge_older_than_invalid")
@@ -111,10 +126,12 @@ func scheduleRecurring(ctx context.Context, session SessionFunc, log zerolog.Log
 					log.Warn().Msg("purge_skipped_no_session")
 					continue
 				}
-				start := time.Now().Add(-dur)
-				now := time.Now()
+				if !store.IsPurgeAllowed(job.GuildID, job.ChannelID) {
+					log.Info().Msg("purge_recurring_stopped_not_allowed")
+					return
+				}
 				log.Debug().Msg("purge_recurring_tick")
-				purge.DeleteMessages(s, job.ChannelID, &start, &now, stopChan)
+				purge.DeleteOlderThan(s, job.ChannelID, dur, stopChan)
 			}
 		}
 	}()

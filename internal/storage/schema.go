@@ -52,6 +52,10 @@ type GuildSettings struct {
 	// never speaks in: the streets she walks. Never also in ChatChannels.
 	// See docs/persona-v3.md, F3.
 	ChatReads []string `json:"chat_reads,omitempty"`
+	// PurgeChannels lists the channels /purge may delete messages in. A
+	// purge anywhere else is refused: deleting a channel's history is not
+	// undoable, and one command in the wrong channel should not be enough.
+	PurgeChannels []string `json:"purge_channels,omitempty"`
 	// WelcomeGifs are the links /welcome picks from at random, shared by
 	// every role.
 	WelcomeGifs []string `json:"welcome_gifs,omitempty"`

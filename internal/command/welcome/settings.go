@@ -163,7 +163,7 @@ func (c *WelcomeCommand) ModalSubmit(context *cmdadapter.ComponentInteractionCon
 
 	msg := fmt.Sprintf("Saved the %s text for <@&%s>. With you in it, it reads:\n\n%s", kind, roleID, rendered)
 	if missing := unlinked(rendered); len(missing) > 0 {
-		msg += "\n\n⚠️ No channel matches " + strings.Join(missing, ", ") + " — those stay plain text."
+		msg += "\n\n⚠️ No channel or thread matches " + strings.Join(missing, ", ") + unlinkedHint
 	}
 	if TooLong(rendered) {
 		msg += "\n\n⚠️ It is over Discord's 2000 characters with a name in it, and will be refused until shortened."
@@ -225,7 +225,7 @@ func runPreview(context *cmdadapter.SlashInteractionContext, opts options) error
 		rendered := Render(p.template, v, channels)
 		b.WriteString(rendered + "\n")
 		if missing := unlinked(rendered); len(missing) > 0 {
-			b.WriteString("⚠️ No channel matches " + strings.Join(missing, ", ") + "\n")
+			b.WriteString("⚠️ No channel or thread matches " + strings.Join(missing, ", ") + unlinkedHint + "\n")
 		}
 	}
 	if gifs := store.WelcomeGifs(e.GuildID); len(gifs) > 0 {

@@ -449,17 +449,30 @@ func roleName(s *discordgo.Session, guildID, roleID string) string {
 	return "member"
 }
 
+// guildChannels are the channels and threads a template may name. Threads
+// are kept apart from channels in Discord's guild state, and a thread's name
+// can have spaces in it ("#Domme Icons Full List"); Render matches whole
+// names, longest first, so the spaces need nothing special once the thread
+// is in the list. Only threads Discord still has open are there: an archived
+// one is not in the state, and is linked by pasting its link instead.
 func guildChannels(s *discordgo.Session, guildID string) []Channel {
 	g, err := s.State.Guild(guildID)
 	if err != nil || g == nil {
 		return nil
 	}
-	out := make([]Channel, 0, len(g.Channels))
+	out := make([]Channel, 0, len(g.Channels)+len(g.Threads))
 	for _, c := range g.Channels {
 		out = append(out, Channel{ID: c.ID, Name: c.Name})
 	}
+	for _, t := range g.Threads {
+		out = append(out, Channel{ID: t.ID, Name: t.Name})
+	}
 	return out
 }
+
+// unlinkedHint is said after names that matched nothing.
+const unlinkedHint = " — those stay plain text. A thread Discord has archived is not " +
+	"found by name: paste the thread's link into the template instead, and Discord shows it as a link."
 
 func randomGif(gifs []string) string {
 	if len(gifs) == 0 {

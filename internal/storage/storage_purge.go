@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"slices"
 	"time"
 )
 
@@ -53,4 +54,30 @@ func (s *Storage) AllPurgeJobs() []PurgeJob {
 		jobs = append(jobs, *j)
 	}
 	return jobs
+}
+
+// SetPurgeAllowed puts a channel on the guild's list of channels /purge may
+// delete messages in, or takes it off.
+func (s *Storage) SetPurgeAllowed(guildID, channelID string, allowed bool) error {
+	g := s.guildSettings(guildID)
+	g.PurgeChannels = slices.DeleteFunc(g.PurgeChannels, func(c string) bool { return c == channelID })
+	if allowed {
+		g.PurgeChannels = append(g.PurgeChannels, channelID)
+	}
+	return s.settings.Put(g)
+}
+
+// IsPurgeAllowed reports whether /purge may delete messages in a channel.
+func (s *Storage) IsPurgeAllowed(guildID, channelID string) bool {
+	return slices.Contains(s.guildSettings(guildID).PurgeChannels, channelID)
+}
+
+// GetPurgeChannels lists the channels /purge may delete messages in, never
+// nil.
+func (s *Storage) GetPurgeChannels(guildID string) []string {
+	channels := s.guildSettings(guildID).PurgeChannels
+	if channels == nil {
+		return []string{}
+	}
+	return channels
 }

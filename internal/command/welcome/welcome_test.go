@@ -143,3 +143,19 @@ func TestEverySubcommandIsHandled(t *testing.T) {
 		}
 	}
 }
+
+// Threads are kept apart from channels in the guild's state; a template
+// can name either.
+func TestGuildChannelsIncludeOpenThreads(t *testing.T) {
+	s := &discordgo.Session{State: discordgo.NewState()}
+	if err := s.State.GuildAdd(&discordgo.Guild{ID: "g",
+		Channels: []*discordgo.Channel{{ID: "1", GuildID: "g", Name: "introduction"}},
+		Threads:  []*discordgo.Channel{{ID: "7", GuildID: "g", Name: "Domme Icons Full List", Type: discordgo.ChannelTypeGuildPublicThread}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := Render("see #introduction and #Domme Icons Full List", Vars{}, guildChannels(s, "g"))
+	if got != "see <#1> and <#7>" {
+		t.Errorf("rendered %q", got)
+	}
+}

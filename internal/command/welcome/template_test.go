@@ -37,3 +37,24 @@ func TestRenderLeavesWhatItCannotLink(t *testing.T) {
 		}
 	}
 }
+
+// A thread's name can have spaces in it. Matched whole and longest first, it
+// links like a channel does, and a channel whose name starts the same is
+// still itself.
+func TestRenderLinksThreadsWithSpaces(t *testing.T) {
+	withThreads := append(append([]Channel(nil), channels...),
+		Channel{ID: "7", Name: "Domme Icons Full List"},
+		Channel{ID: "8", Name: "domme"},
+	)
+	cases := map[string]string{
+		"icons are in #Domme Icons Full List, pick one": "icons are in <#7>, pick one",
+		"see #domme icons full list.":                   "see <#7>.",
+		"ask in #domme first":                           "ask in <#8> first",
+		"#Domme Icons Full Listing":                     "<#8> Icons Full Listing",
+	}
+	for in, want := range cases {
+		if got := Render(in, Vars{UserID: "42"}, withThreads); got != want {
+			t.Errorf("Render(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

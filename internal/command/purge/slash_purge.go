@@ -98,8 +98,20 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        subChannel,
+				Description: "Allow or forbid purges in this channel — or see whether they are allowed, left empty",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionBoolean,
+						Name:        optAllowed,
+						Description: "true: purges may run here · false: forbidden, and any job here is stopped",
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "jobs",
-				Description: "List all active purge jobs",
+				Description: "List all active purge jobs and the channels purges are allowed in",
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -122,7 +134,7 @@ func (c *PurgeCommand) Run(ctx interface{}) error {
 	data := event.ApplicationCommandData()
 	if len(data.Options) == 0 {
 		return context.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
-			Description: "Please select a subcommand: `auto`, `now`, `jobs`, or `stop`.",
+			Description: "Please select a subcommand: `auto`, `now`, `channel`, `jobs`, or `stop`.",
 		})
 	}
 
@@ -132,6 +144,8 @@ func (c *PurgeCommand) Run(ctx interface{}) error {
 		return runPurgeAuto(context, sub)
 	case "now":
 		return runPurgeNow(context, sub)
+	case subChannel:
+		return runPurgeChannel(context, sub)
 	case "jobs":
 		return runPurgeJobs(context)
 	case "stop":
@@ -160,6 +174,10 @@ func runPurgeAuto(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applic
 		case "notify_all":
 			notifyAll = strings.ToLower(opt.StringValue()) == "true"
 		}
+	}
+
+	if !storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
+		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: notAllowed})
 	}
 
 	if strings.ToLower(confirm) != "yes" {
@@ -227,9 +245,10 @@ func runPurgeAuto(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applic
 			case <-stopChan:
 				return
 			case <-ticker.C:
-				start := time.Now().Add(-dur)
-				now := time.Now()
-				DeleteMessages(session, event.ChannelID, &now, &start, stopChan)
+				if !storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
+					return
+				}
+				DeleteOlderThan(session, event.ChannelID, dur, stopChan)
 			}
 		}
 	}()
@@ -254,11 +273,24 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 		}
 	}
 
+	if !storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
+		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: notAllowed})
+	}
+
 	if strings.ToLower(confirm) != "yes" {
 		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
 		})
 	}
+
+	ActiveDeletionsMu.Lock()
+	if _, exists := ActiveDeletions[event.ChannelID]; exists {
+		ActiveDeletionsMu.Unlock()
+		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			Description: "A purge job is already running in this channel.",
+		})
+	}
+	ActiveDeletionsMu.Unlock()
 
 	if delayStr == "0s" {
 		delayStr = "10s"
@@ -295,17 +327,31 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 		}
 	}
 
+	// Registered for the whole countdown, not only the deleting: /purge stop
+	// and /purge channel allowed:false close it. The countdown used to be a
+	// time.Sleep, which nothing could interrupt — stopping a scheduled purge
+	// cleared its record and the purge still ran.
+	stopChan := make(chan struct{})
+	ActiveDeletionsMu.Lock()
+	ActiveDeletions[event.ChannelID] = stopChan
+	ActiveDeletionsMu.Unlock()
+
 	go func() {
-		time.Sleep(dur)
-		stopChan := make(chan struct{})
-		ActiveDeletionsMu.Lock()
-		ActiveDeletions[event.ChannelID] = stopChan
-		ActiveDeletionsMu.Unlock()
+		timer := time.NewTimer(dur)
+		defer timer.Stop()
+		select {
+		case <-stopChan:
+			return
+		case <-timer.C:
+		}
+		if storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
+			DeleteMessages(session, event.ChannelID, nil, nil, stopChan)
+		}
 
-		DeleteMessages(session, event.ChannelID, nil, nil, stopChan)
-
 		ActiveDeletionsMu.Lock()
-		delete(ActiveDeletions, event.ChannelID)
+		if ActiveDeletions[event.ChannelID] == stopChan {
+			delete(ActiveDeletions, event.ChannelID)
+		}
 		ActiveDeletionsMu.Unlock()
 		if err := storage.ClearDeletionJob(event.GuildID, event.ChannelID); err != nil {
 			ctx.AppLog.Error().
@@ -323,13 +369,15 @@ func runPurgeJobs(ctx *cmdadapter.SlashInteractionContext) error {
 	storage := ctx.Storage
 
 	jobs, err := storage.GetDeletionJobsList(event.GuildID)
+	allowed := allowedList(storage.GetPurgeChannels(event.GuildID))
 	if err != nil || len(jobs) == 0 {
 		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
-			Description: "No active purge jobs found.",
+			Description: "No active purge jobs found.\n\n" + allowed,
 		})
 	}
 
 	var sb strings.Builder
+	sb.WriteString(allowed + "\n\n")
 	sb.WriteString("☢️ **Active Message Purge Jobs**\n\n")
 	for _, job := range jobs {
 		sb.WriteString("<#" + job.ChannelID + ">\n")
@@ -369,6 +417,63 @@ func runPurgeStop(ctx *cmdadapter.SlashInteractionContext) error {
 		})
 	}
 	return nil
+}
+
+// /purge channel and its option.
+const (
+	subChannel = "channel"
+	optAllowed = "allowed"
+)
+
+// notAllowed is the answer to a purge in a channel not on the list.
+const notAllowed = "Purges are not allowed in this channel. An administrator allows them here with " +
+	"`/purge channel allowed:true` — deliberately a separate step, because a purge cannot be undone."
+
+// runPurgeChannel allows or forbids purges in the channel it is run in, or
+// says which it is. Forbidding also stops and clears any job here.
+func runPurgeChannel(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
+	session, event, storage := ctx.Session, ctx.Event, ctx.Storage
+	var opt *discordgo.ApplicationCommandInteractionDataOption
+	for _, o := range sub.Options {
+		if o.Name == optAllowed {
+			opt = o
+		}
+	}
+	respond := func(msg string) error {
+		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: msg})
+	}
+	if opt == nil {
+		if storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
+			return respond(fmt.Sprintf("Purges are allowed in <#%s>.", event.ChannelID))
+		}
+		return respond(fmt.Sprintf("Purges are not allowed in <#%s>.", event.ChannelID))
+	}
+	if opt.BoolValue() {
+		if err := storage.SetPurgeAllowed(event.GuildID, event.ChannelID, true); err != nil {
+			return fmt.Errorf("purge: allow channel: %w", err)
+		}
+		return respond(fmt.Sprintf("Purges are now allowed in <#%s>. `/purge now` and `/purge auto` work here.", event.ChannelID))
+	}
+	stopDeletion(event.ChannelID)
+	if err := storage.ClearDeletionJob(event.GuildID, event.ChannelID); err != nil {
+		return fmt.Errorf("purge: clear job: %w", err)
+	}
+	if err := storage.SetPurgeAllowed(event.GuildID, event.ChannelID, false); err != nil {
+		return fmt.Errorf("purge: forbid channel: %w", err)
+	}
+	return respond(fmt.Sprintf("Purges are no longer allowed in <#%s>, and any purge job here was stopped.", event.ChannelID))
+}
+
+// allowedList says where purges are allowed.
+func allowedList(channels []string) string {
+	if len(channels) == 0 {
+		return "Purges are allowed nowhere yet — `/purge channel allowed:true` in a channel."
+	}
+	parts := make([]string, 0, len(channels))
+	for _, c := range channels {
+		parts = append(parts, "<#"+c+">")
+	}
+	return "Purges are allowed in: " + strings.Join(parts, ", ")
 }
 
 var (
@@ -415,6 +520,20 @@ func parseDuration(input string) (time.Duration, error) {
 	}
 
 	return total, nil
+}
+
+// DeleteOlderThan deletes a channel's messages older than age: what a
+// recurring purge does on each tick.
+//
+// One place for it, because the two callers had the window wrong in opposite
+// ways. DeleteMessages keeps what falls between its start and end; /purge auto
+// passed them reversed and deleted nothing, and the scheduler passed
+// [now-age, now] and deleted the newest messages instead of the oldest — a
+// recurring "older than 1d" purge, replayed after a restart, wiped the last
+// day of the channel every thirty seconds.
+func DeleteOlderThan(s *discordgo.Session, channelID string, age time.Duration, stopChan <-chan struct{}) {
+	cutoff := time.Now().Add(-age)
+	DeleteMessages(s, channelID, nil, &cutoff, stopChan)
 }
 
 func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *time.Time, stopChan <-chan struct{}) {
