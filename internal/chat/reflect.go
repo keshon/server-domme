@@ -67,6 +67,11 @@ func (s *Service) reflectDue(ctx context.Context) {
 					return s.mind.ReflectSelf(ctx, guildID, date)
 				})
 			}
+			if s.idleMind && s.lifeDue(guildID, date) && s.tryReflect(key+":life") {
+				s.reflectPass(ctx, guildID, key, "life", func(ctx context.Context) (bool, error) {
+					return s.mind.ReflectLife(ctx, guildID, date, now)
+				})
+			}
 		}
 	}
 }
@@ -83,6 +88,16 @@ func (s *Service) reflectPass(ctx context.Context, guildID, key, pass string, ru
 	if did {
 		s.log.Info().Str("guild_id", guildID).Str("day", key).Str("pass", pass).Msg("chat_reflected")
 	}
+}
+
+// lifeDue reports whether her life and wants have yet to take in a day.
+func (s *Service) lifeDue(guildID string, date time.Time) bool {
+	self, err := s.memory.Self(guildID)
+	if err != nil {
+		return false
+	}
+	y, m, d := date.Date()
+	return self.LifeThrough.Before(time.Date(y, m, d, 0, 0, 0, 0, date.Location()))
 }
 
 // selfFactsDue reports whether her words on a day have yet to be read for

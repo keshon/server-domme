@@ -58,6 +58,9 @@ type Deferred struct {
 	Considered *Appraisal
 	// Thread is what she meant to follow up on, for TriggerSight.
 	Thread *memory.Thread
+	// ReactOnly marks a remark overheard in a room where she only answers:
+	// she may react to it, and not speak.
+	ReactOnly bool
 	// Journal is the caller's record of this approach, carried so a late
 	// answer completes the same entry the decision opened.
 	Journal  uint64

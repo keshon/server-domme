@@ -64,6 +64,15 @@ func (s *Service) noticeFor(guildID string, now time.Time) *noticeCache {
 			add(f.Text)
 		}
 	}
+	// What she saw on her walks lately: a remark about the dragon sketch
+	// gets her attention because she saw it.
+	if day, err := s.memory.Day(guildID, now); err == nil {
+		for _, mo := range day.Moments {
+			if mo.Walk {
+				add(mo.Text)
+			}
+		}
+	}
 	s.noticed[guildID] = c
 	return c
 }
@@ -96,6 +105,28 @@ func (s *Service) dueFollowUp(guildID, userID string, now time.Time) *memory.Thr
 		return &th
 	}
 	return nil
+}
+
+// mayReactFirst decides whether a remark in a room where she only answers
+// gets her attention enough to react to: with ReactFirst on, rested, and
+// only what touches something of hers. Never in a room she only reads.
+func (s *Service) mayReactFirst(guildID, channelID, authorID, content string, now time.Time) bool {
+	if !s.reactFirst || s.store.IsChatProactive(guildID, channelID) || s.battery() <= batteryFull {
+		return false
+	}
+	s.overheardMu.Lock()
+	recent := now.Sub(s.overheard[channelID]) < overhearEvery
+	s.overheardMu.Unlock()
+	if recent || !s.interesting(guildID, authorID, content, now) {
+		return false
+	}
+	if !s.mayStart(guildID, now.In(s.location)) {
+		return false
+	}
+	s.overheardMu.Lock()
+	s.overheard[channelID] = now
+	s.overheardMu.Unlock()
+	return true
 }
 
 // interesting reports whether an overheard remark touches something of

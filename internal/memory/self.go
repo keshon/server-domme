@@ -30,7 +30,50 @@ type Self struct {
 	Reflected time.Time
 	// Feelings are what is still with her, each fading on its own.
 	Feelings []Feeling
+	// OnMind is what is on her mind right now, and OnMindAt since when:
+	// one line from the idle mind, lasting until the next.
+	OnMind   string
+	OnMindAt time.Time
+	// Life is what has been going on in her days, each item resting on
+	// moments she observed. See LifeItem.
+	Life []LifeItem
+	// Wants are what she wants lately, with why.
+	Wants []Want
+	// LifeThrough is the last day her life and wants were reflected on.
+	LifeThrough time.Time
 }
+
+// LifeItem is one ongoing thing in her days — something she keeps noticing
+// around the server, something that has been annoying her — advanced only
+// from what actually happened. Sources are the moments it rests on, as
+// "2026-09-22 14:05"; an item that loses them all is gone rather than kept
+// as something she simply knows. See docs/persona-v3.md, F3 and I.
+type LifeItem struct {
+	Text     string
+	Since    time.Time
+	Advanced time.Time
+	Sources  []string
+}
+
+// Want is something she wants lately, and why: a reason to steer a
+// conversation or start one, where a thread is only a chore.
+type Want struct {
+	Text    string
+	Why     string
+	Since   time.Time
+	Touched time.Time
+}
+
+// Lifetimes of what she carries in self.md. See docs/persona-v3.md, I.
+const (
+	// LifeStale is how long a life item lasts without being advanced.
+	LifeStale = 10 * 24 * time.Hour
+	// WantStale is how long a want lasts without being acted on or mentioned.
+	WantStale = 14 * 24 * time.Hour
+	// MaxLife and MaxWants bound how many of each she carries.
+	MaxLife  = 4
+	MaxWants = 3
+)
 
 // Feeling is one thing she feels, and what about: "stung", about "Big M's
 // jab about my taste". The model names both; the person, the time and the
@@ -88,7 +131,14 @@ const (
 	keyMood      = "mood"
 	keyMoodAt    = "mood_at"
 	keyReflected = "reflected"
+	keyOnMind    = "on_mind"
+	keyOnMindAt  = "on_mind_at"
+	keyLife      = "life_through"
 	headFeelings = "feelings"
+	headLife     = "life"
+	headWants    = "wants"
+	whyTag       = "why "
+	sourcesTag   = "moments "
 )
 
 // feelingLine reads "2026-09-22 14:05 [Big M:123] stung · about his jab ·
@@ -119,6 +169,21 @@ func readSelf(path string, loc *time.Location) (Self, error) {
 		Mood:      fields[keyMood],
 		MoodAt:    parseTime(fields[keyMoodAt]),
 		Reflected: parseTime(fields[keyReflected]),
+		OnMind:    fields[keyOnMind],
+		OnMindAt:  parseTime(fields[keyOnMindAt]),
+	}
+	if t, err := time.ParseInLocation(dayLayout, fields[keyLife], loc); err == nil {
+		self.LifeThrough = t
+	}
+	for _, item := range bullets(parts[headLife]) {
+		if l, ok := parseLife(item, loc); ok {
+			self.Life = append(self.Life, l)
+		}
+	}
+	for _, item := range bullets(parts[headWants]) {
+		if w, ok := parseWant(item, loc); ok {
+			self.Wants = append(self.Wants, w)
+		}
 	}
 	for _, item := range bullets(parts[headFeelings]) {
 		if f, ok := parseFeeling(item, loc); ok {
@@ -205,9 +270,27 @@ func (s *Store) UpdateSelf(guildID string, change func(*Self)) error {
 	if len(self.Feelings) > MaxFeelings {
 		self.Feelings = self.Feelings[len(self.Feelings)-MaxFeelings:]
 	}
+	if len(self.Life) > MaxLife {
+		self.Life = self.Life[len(self.Life)-MaxLife:]
+	}
+	if len(self.Wants) > MaxWants {
+		self.Wants = self.Wants[len(self.Wants)-MaxWants:]
+	}
 
 	var body strings.Builder
 	body.WriteString(strings.TrimSpace(self.Lately))
+	if len(self.Life) > 0 {
+		body.WriteString("\n\n## Life\n\n")
+		for _, l := range self.Life {
+			body.WriteString("- " + renderLife(l, s.loc) + "\n")
+		}
+	}
+	if len(self.Wants) > 0 {
+		body.WriteString("\n\n## Wants\n\n")
+		for _, w := range self.Wants {
+			body.WriteString("- " + renderWant(w, s.loc) + "\n")
+		}
+	}
 	if len(self.Feelings) > 0 {
 		body.WriteString("\n\n## Feelings\n\n")
 		for _, f := range self.Feelings {
@@ -218,5 +301,77 @@ func (s *Store) UpdateSelf(guildID string, change func(*Self)) error {
 		{keyMood, self.Mood},
 		{keyMoodAt, formatTime(self.MoodAt)},
 		{keyReflected, formatTime(self.Reflected)},
+		{keyOnMind, self.OnMind},
+		{keyOnMindAt, formatTime(self.OnMindAt)},
+		{keyLife, dayOrEmpty(self.LifeThrough, s.loc)},
 	}, body.String()))
+}
+
+func dayOrEmpty(t time.Time, loc *time.Location) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.In(loc).Format(dayLayout)
+}
+
+// twoDates splits "2026-09-20 2026-09-22 rest" into its dates and the rest.
+func twoDates(item string, loc *time.Location) (time.Time, time.Time, string, bool) {
+	fields := strings.SplitN(item, " ", 3)
+	if len(fields) < 3 {
+		return time.Time{}, time.Time{}, "", false
+	}
+	a, errA := time.ParseInLocation(dayLayout, fields[0], loc)
+	b, errB := time.ParseInLocation(dayLayout, fields[1], loc)
+	if errA != nil || errB != nil {
+		return time.Time{}, time.Time{}, "", false
+	}
+	return a, b, fields[2], true
+}
+
+// parseLife reads "2026-09-20 2026-09-22 text · observed moments
+// 2026-09-22 14:05, 2026-09-21 18:00": since, last advanced, text, sources.
+func parseLife(item string, loc *time.Location) (LifeItem, bool) {
+	since, advanced, rest, ok := twoDates(item, loc)
+	if !ok {
+		return LifeItem{}, false
+	}
+	text, src := splitSource(rest)
+	l := LifeItem{Text: text, Since: since, Advanced: advanced}
+	if refs, ok := strings.CutPrefix(src.Ref, sourcesTag); ok {
+		for _, r := range strings.Split(refs, ",") {
+			if r = strings.TrimSpace(r); r != "" {
+				l.Sources = append(l.Sources, r)
+			}
+		}
+	}
+	return l, l.Text != ""
+}
+
+func renderLife(l LifeItem, loc *time.Location) string {
+	head := l.Since.In(loc).Format(dayLayout) + " " + l.Advanced.In(loc).Format(dayLayout) + " "
+	if len(l.Sources) == 0 {
+		return head + oneLine(l.Text)
+	}
+	return head + withSource(l.Text, Source{Kind: Observed, Ref: sourcesTag + strings.Join(l.Sources, ", ")})
+}
+
+// parseWant reads "2026-09-20 2026-09-22 text · why because".
+func parseWant(item string, loc *time.Location) (Want, bool) {
+	since, touched, rest, ok := twoDates(item, loc)
+	if !ok {
+		return Want{}, false
+	}
+	w := Want{Since: since, Touched: touched, Text: rest}
+	if i := strings.LastIndex(rest, sourceSep+whyTag); i >= 0 {
+		w.Text, w.Why = strings.TrimSpace(rest[:i]), strings.TrimSpace(rest[i+len(sourceSep+whyTag):])
+	}
+	return w, w.Text != ""
+}
+
+func renderWant(w Want, loc *time.Location) string {
+	line := w.Since.In(loc).Format(dayLayout) + " " + w.Touched.In(loc).Format(dayLayout) + " " + oneLine(w.Text)
+	if w.Why != "" {
+		line += sourceSep + whyTag + oneLine(w.Why)
+	}
+	return line
 }

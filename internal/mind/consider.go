@@ -198,6 +198,9 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 	if s.Thread != nil {
 		fmt.Fprintf(&user, " She meant to follow up with %s: %s. This is the first she has seen of them since.", who, oneLine(s.Thread.Text))
 	}
+	if s.ReactOnly {
+		user.WriteString(" In this room she does not speak unless spoken to; she can react.")
+	}
 	user.WriteString(" What does she make of it, and what does she do?")
 
 	return []ai.Message{

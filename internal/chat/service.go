@@ -104,6 +104,16 @@ type Deps struct {
 	// Feelings is whether she has feelings that fade, in place of a mood;
 	// see mind.Mind.Feelings.
 	Feelings bool
+	// IdleMind is whether something happens in her between conversations:
+	// what is on her mind, and her life and wants. Walks is whether she
+	// passes through the channels she reads without speaking in. Impulses
+	// is whether what she starts comes from the idle mind rather than from
+	// v2's timer openings. ReactFirst is whether she may react, unasked, in
+	// rooms where she only answers. See idle.go.
+	IdleMind   bool
+	Walks      bool
+	Impulses   bool
+	ReactFirst bool
 	// Roll supplies randomness. Left nil it uses the global source; a test
 	// supplies its own.
 	Roll func() float64
@@ -236,6 +246,17 @@ type Service struct {
 	// want can be formed from.
 	approachMu sync.Mutex
 	approached map[string]time.Time
+
+	// idleMind, walks, impulses and reactFirst are the switches; see Deps.
+	// idleMu guards when each guild's next idle tick is, and when she last
+	// walked through each channel.
+	idleMind   bool
+	walks      bool
+	impulses   bool
+	reactFirst bool
+	idleMu     sync.Mutex
+	nextIdle   map[string]time.Time
+	walked     map[string]time.Time
 	reactMu    sync.Mutex
 	reactions  map[string][]*reactionTally
 
@@ -308,7 +329,14 @@ func New(d Deps) *Service {
 		talk:         make(map[string]*talkState),
 		gifts:        make(map[string][]time.Time),
 		approached:   make(map[string]time.Time),
-		reactions:    make(map[string][]*reactionTally),
+		nextIdle:     make(map[string]time.Time),
+		walked:       make(map[string]time.Time),
+
+		idleMind:   d.IdleMind,
+		walks:      d.Walks,
+		impulses:   d.Impulses,
+		reactFirst: d.ReactFirst,
+		reactions:  make(map[string][]*reactionTally),
 
 		followUpOnSight: d.FollowUpOnSight,
 		interest:        d.Interest,
@@ -342,6 +370,9 @@ func (s *Service) Run(ctx context.Context) {
 	run(s.thoughtLoop)
 	if s.body != nil {
 		run(s.bodyLoop)
+	}
+	if s.idleMind {
+		run(s.idleLoop)
 	}
 
 	s.log.Info().Int("workers", workers).Msg("chat_service_started")
@@ -400,6 +431,18 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	if self != "" && m.Author.ID == self {
 		return
 	}
+	if s.walks && s.store.IsChatReads(m.GuildID, m.ChannelID) {
+		// A channel she reads and never speaks in: kept for her next walk
+		// through it, and nothing else. See idle.go.
+		s.noteActivity(m)
+		if content := strings.TrimSpace(plain(sess, m.GuildID, m.Message)); content != "" {
+			s.conv.Record(m.ChannelID, mind.Turn{
+				UserID: m.Author.ID, Username: displayNameOf(m.Author, m.Member), Content: content,
+				At: s.now(), MessageID: m.ID,
+			})
+		}
+		return
+	}
 	if !s.store.IsChatChannel(m.GuildID, m.ChannelID) {
 		// Not a channel she reads. The only thing taken from it is that an
 		// opted-in person was around, never what they said.
@@ -451,11 +494,14 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	var thread *memory.Thread
+	reactOnly := false
 	if !addressed {
 		if th := s.dueFollowUp(m.GuildID, m.Author.ID, now); th != nil {
 			trigger, thread = mind.TriggerSight, th
 		} else if s.overhear(m.GuildID, m.ChannelID, m.Author.ID, content, now) {
 			trigger = mind.TriggerOverheard
+		} else if s.mayReactFirst(m.GuildID, m.ChannelID, m.Author.ID, content, now) {
+			trigger, reactOnly = mind.TriggerOverheard, true
 		} else {
 			return
 		}
@@ -481,6 +527,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Trigger:   trigger,
 		FormedAt:  now,
 		Thread:    thread,
+		ReactOnly: reactOnly,
 	}
 	select {
 	case s.work <- task{item: item}:

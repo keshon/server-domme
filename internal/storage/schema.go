@@ -48,6 +48,10 @@ type GuildSettings struct {
 	// are separate permissions, and the second only makes sense on top of the
 	// first.
 	ChatProactive []string `json:"chat_proactive,omitempty"`
+	// ChatReads lists channels she reads and remembers the gist of, and
+	// never speaks in: the streets she walks. Never also in ChatChannels.
+	// See docs/persona-v3.md, F3.
+	ChatReads []string `json:"chat_reads,omitempty"`
 	// WelcomeGifs are the links /welcome picks from at random, shared by
 	// every role.
 	WelcomeGifs []string `json:"welcome_gifs,omitempty"`

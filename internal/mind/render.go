@@ -45,6 +45,15 @@ func renderWorld(s Scene, k Known) string {
 	if drives := renderDrives(s, k); drives != "" {
 		b.WriteString("\n\n" + drives)
 	}
+	if onMind := renderOnMind(k.Self, s.Now, "her"); onMind != "" {
+		b.WriteString("\n\n" + onMind)
+	}
+	if life := renderLife(freshLife(k.Self.Life, s.Now)); life != "" {
+		b.WriteString("\n\n" + life)
+	}
+	if wants := renderWants(freshWants(k.Self.Wants, s.Now)); wants != "" {
+		b.WriteString("\n\n" + wants)
+	}
 
 	if len(k.Days) > 0 {
 		b.WriteString("\n\nThe last few days, as she remembers them:")

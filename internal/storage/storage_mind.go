@@ -70,6 +70,7 @@ func (s *Storage) AddChatChannel(guildID, channelID string) error {
 	if slices.Contains(g.ChatChannels, channelID) {
 		return fmt.Errorf("storage: channel already in chat list")
 	}
+	g.ChatReads = slices.DeleteFunc(g.ChatReads, func(c string) bool { return c == channelID })
 	g.ChatChannels = append(g.ChatChannels, channelID)
 	return s.settings.Put(g)
 }
@@ -122,6 +123,37 @@ func (s *Storage) AllChatChannels() map[string]string {
 // IsChatChannel reports whether a channel is opted in.
 func (s *Storage) IsChatChannel(guildID, channelID string) bool {
 	return slices.Contains(s.guildSettings(guildID).ChatChannels, channelID)
+}
+
+// SetChatReads puts a channel in reads mode, or takes it out. In reads mode
+// she sees the channel and never speaks in it, so it leaves the channels she
+// answers in.
+func (s *Storage) SetChatReads(guildID, channelID string, on bool) error {
+	g := s.guildSettings(guildID)
+	not := func(c string) bool { return c == channelID }
+	g.ChatReads = slices.DeleteFunc(g.ChatReads, not)
+	if on {
+		g.ChatChannels = slices.DeleteFunc(g.ChatChannels, not)
+		g.ChatProactive = slices.DeleteFunc(g.ChatProactive, not)
+		g.ChatReads = append(g.ChatReads, channelID)
+	}
+	return s.settings.Put(g)
+}
+
+// IsChatReads reports whether a channel is one she reads without speaking.
+// A channel she answers in is never also one she only reads.
+func (s *Storage) IsChatReads(guildID, channelID string) bool {
+	g := s.guildSettings(guildID)
+	return slices.Contains(g.ChatReads, channelID) && !slices.Contains(g.ChatChannels, channelID)
+}
+
+// GetChatReads lists the channels she reads without speaking, never nil.
+func (s *Storage) GetChatReads(guildID string) []string {
+	reads := s.guildSettings(guildID).ChatReads
+	if reads == nil {
+		return []string{}
+	}
+	return reads
 }
 
 // SetChatBrief stores the guild's description of itself, which is the one

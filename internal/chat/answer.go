@@ -96,6 +96,12 @@ func (s *Service) handle(ctx context.Context, t task) {
 		} else if reason := s.overrule(t.item, &a); reason != "" {
 			entry.Reason = reason
 		}
+		if t.item.ReactOnly && a.Act == mind.ActReply {
+			// A room where she only answers: she may react to what she
+			// overheard, never speak up. A rail, not a reading.
+			a.Act = mind.ActIgnore
+			entry.Reason = "she only reacts where she was not asked"
+		}
 		if err := s.mind.Absorb(scene, a); err != nil {
 			s.log.Warn().Err(err).Str("guild_id", scene.GuildID).Msg("chat_memory_write_failed")
 		}
@@ -127,6 +133,9 @@ func (s *Service) handle(ctx context.Context, t task) {
 		}
 		s.letGo(scene, t.item, a)
 		entry.Outcome = outcomeReacted
+		if mind.Unprompted(t.item.Trigger) {
+			s.reacted(scene.GuildID, scene.Now)
+		}
 		return
 	}
 
@@ -318,6 +327,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 	sc.Roles = s.roleNotes(sess, sc.GuildID, sc)
 	sc.Reactions = s.reactionsIn(sc.ChannelID, sc.Turns)
 	sc.QuietFor = s.quietFor(sc.GuildID, now)
+	sc.ReactOnly = t.item.ReactOnly
 	s.bodyScene(&sc, now)
 	return sc
 }

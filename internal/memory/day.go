@@ -33,6 +33,9 @@ type Moment struct {
 	// did — and interpreted for what she chose to remember in her own words.
 	// Empty reads as observed.
 	Kind Kind
+	// Walk marks something she took from passing through a channel she
+	// reads without speaking in. See docs/persona-v3.md, F3.
+	Walk bool
 	// Score is how strongly Recall brought it back. Not stored.
 	Score float64
 }
@@ -64,6 +67,7 @@ const (
 	weightTag      = "weight "
 	saidTag        = "said "
 	interpretedTag = "interpreted"
+	walkTag        = "walk"
 )
 
 // momentLine reads "14:05 [#chat; Big M:123] text". The bracket is optional
@@ -228,6 +232,8 @@ func parseMoment(item string, date time.Time, loc *time.Location) (Moment, bool)
 			m.Said = strings.TrimPrefix(part, saidTag)
 		case part == interpretedTag:
 			m.Kind = Interpreted
+		case part == walkTag:
+			m.Walk = true
 		default:
 			// The id is after the last colon: a name may contain one, an id
 			// never does.
@@ -277,6 +283,9 @@ func renderMoment(m Moment, loc *time.Location) string {
 	}
 	if m.Kind == Interpreted {
 		tags = append(tags, interpretedTag)
+	}
+	if m.Walk {
+		tags = append(tags, walkTag)
 	}
 	line := m.At.In(loc).Format(clockLayout) + " "
 	if len(tags) > 0 {

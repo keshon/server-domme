@@ -51,6 +51,7 @@ const (
 	modeOff     = "off"
 	modeAnswers = "answers"
 	modeFirst   = "speaks-first"
+	modeReads   = "reads"
 )
 
 // ChatCommand configures the persona and feeds her every message in the
@@ -115,6 +116,7 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 							{Name: "off — she does not read this channel", Value: modeOff},
 							{Name: "answers — she reads and answers when she wants to", Value: modeAnswers},
 							{Name: "speaks first — she may also start things here", Value: modeFirst},
+							{Name: "reads — she passes through and keeps the gist, never speaks here", Value: modeReads},
 						},
 					},
 				},
@@ -305,6 +307,17 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 		b.WriteString("\n")
 	}
 
+	if reads := store.GetChatReads(e.GuildID); len(reads) > 0 {
+		b.WriteString("Passes through: ")
+		for i, id := range reads {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(&b, "<#%s>", id)
+		}
+		b.WriteString(" — reads, never speaks\n")
+	}
+
 	if today := c.Service.Today(e.GuildID); len(today) > 0 {
 		b.WriteString("\n**Today**\n")
 		b.WriteString(todayLine(today))
@@ -404,6 +417,36 @@ func (c *ChatCommand) stateHere(guildID, channelID string) string {
 	}
 	if st.Self.Lately != "" {
 		b.WriteString("\n**Lately, in her words**\n> " + trimForQuote(st.Self.Lately, 700) + "\n")
+	}
+	if st.Self.OnMind != "" {
+		fmt.Fprintf(&b, "\n**On her mind** (<t:%d:R>)\n> %s\n", st.Self.OnMindAt.Unix(), trimForQuote(st.Self.OnMind, 300))
+	}
+	if len(st.Self.Feelings) > 0 {
+		b.WriteString("\n**Still with her**\n")
+		for i := len(st.Self.Feelings) - 1; i >= 0; i-- {
+			f := st.Self.Feelings[i]
+			line := f.What
+			if f.About != "" {
+				line += " — about " + f.About
+			}
+			fmt.Fprintf(&b, "- %s (<t:%d:R>)\n", trimForQuote(line, 200), f.At.Unix())
+		}
+	}
+	if len(st.Self.Life) > 0 {
+		b.WriteString("\n**Her days lately**\n")
+		for _, l := range st.Self.Life {
+			b.WriteString("- " + trimForQuote(l.Text, 200) + "\n")
+		}
+	}
+	if len(st.Self.Wants) > 0 {
+		b.WriteString("\n**What she wants**\n")
+		for _, w := range st.Self.Wants {
+			line := w.Text
+			if w.Why != "" {
+				line += " — " + w.Why
+			}
+			b.WriteString("- " + trimForQuote(line, 200) + "\n")
+		}
 	}
 
 	if len(st.People) > 0 {
@@ -620,12 +663,19 @@ func (c *ChatCommand) runChannel(
 			return respond(s, e, fmt.Sprintf("In <#%s> she reads, answers, and may start things herself.", e.ChannelID))
 		case store.IsChatChannel(e.GuildID, e.ChannelID):
 			return respond(s, e, fmt.Sprintf("In <#%s> she reads and answers, and never speaks first.", e.ChannelID))
+		case store.IsChatReads(e.GuildID, e.ChannelID):
+			return respond(s, e, fmt.Sprintf("She passes through <#%s> now and then and keeps the gist. She never speaks here.", e.ChannelID))
 		default:
 			return respond(s, e, fmt.Sprintf("She does not read <#%s>.", e.ChannelID))
 		}
 
 	case modeOff:
-		if err := store.RemoveChatChannel(e.GuildID, e.ChannelID); err != nil {
+		wasReads := store.IsChatReads(e.GuildID, e.ChannelID)
+		if wasReads {
+			if err := store.SetChatReads(e.GuildID, e.ChannelID, false); err != nil {
+				return fmt.Errorf("chat: set channel mode: %w", err)
+			}
+		} else if err := store.RemoveChatChannel(e.GuildID, e.ChannelID); err != nil {
 			return respond(s, e, "She was not reading this channel to begin with.")
 		}
 		// Drop what she is still holding, not just her permission to read
@@ -647,12 +697,23 @@ func (c *ChatCommand) runChannel(
 		msg := fmt.Sprintf("She reads <#%s> now, and answers when she wants to.", e.ChannelID)
 		if mode == modeFirst {
 			msg = fmt.Sprintf("She reads <#%s> now, and may start things herself: following up "+
-				"on something someone told her, saying something into a room gone quiet, now "+
-				"and then joining in when she overhears something. Only with a reason she "+
-				"would stand behind, never at night, and a few times a day at most.", e.ChannelID)
+				"on something someone told her, joining in when she overhears something that "+
+				"touches her, saying something when she has something to say. Only with a reason "+
+				"she would stand behind, never while she is asleep, and a few times a day at most.", e.ChannelID)
 		}
 		return respond(s, e, msg+"\n\nEverything posted here is sent to the configured "+
 			"model to produce her replies. `/chat channel mode:off` takes it back.")
+
+	case modeReads:
+		if err := store.SetChatReads(e.GuildID, e.ChannelID, true); err != nil {
+			return fmt.Errorf("chat: set channel mode: %w", err)
+		}
+		c.Service.Forget(e.ChannelID)
+		return respond(s, e, fmt.Sprintf("She passes through <#%s> now and then and keeps the gist of what "+
+			"catches her — never a quote, never tagging anyone for it, and she never speaks here. What she "+
+			"saw may come up elsewhere, the way it would from someone who was in the room.\n\n"+
+			"**Not for channels people vent, confide or ask for help in.**\n\nEverything posted here is "+
+			"sent to the configured model when she passes through. `/chat channel mode:off` takes it back.", e.ChannelID))
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown mode: %s", mode))

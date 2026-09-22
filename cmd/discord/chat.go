@@ -165,6 +165,10 @@ func buildChatService(
 		Drift:           cfg.ChatDrift,
 		Body:            cfg.ChatBody,
 		Feelings:        cfg.ChatFeelings,
+		IdleMind:        cfg.ChatIdleMind,
+		Walks:           cfg.ChatWalks,
+		Impulses:        cfg.ChatImpulses,
+		ReactFirst:      cfg.ChatReactFirst,
 	}), ""
 }
 

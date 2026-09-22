@@ -149,6 +149,9 @@ type Scene struct {
 	// QuietFor is how long since anyone spoke to her in this guild, when
 	// known: a fact a want can be formed from, never a want itself.
 	QuietFor time.Duration
+	// ReactOnly is a room where she does not speak unless spoken to, and
+	// may react: a fact about the room, stated to her.
+	ReactOnly bool
 
 	// Roles are what an administrator says about people here, by user id:
 	// the note set for a role they hold. Standing a server decided, which

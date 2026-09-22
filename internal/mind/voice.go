@@ -169,6 +169,12 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 	if feelings := renderFeelings(k.Self.Feelings, s.Now, "you"); feelings != "" {
 		b.WriteString("\n" + feelings)
 	}
+	if onMind := renderOnMind(k.Self, s.Now, "your"); onMind != "" {
+		b.WriteString("\n" + onMind)
+	}
+	if life := renderLife(freshLife(k.Self.Life, s.Now)); life != "" {
+		b.WriteString("\n" + strings.Replace(life, "her days", "your days", 1))
+	}
 	for _, p := range k.People {
 		if p.ID != s.UserID {
 			continue
@@ -302,7 +308,11 @@ func decided(s Scene, a Appraisal, why string) string {
 	case TriggerReach:
 		fmt.Fprintf(&b, "Nobody asked you anything: you are going to %s yourself, and they may not be in this conversation at all. Tag them with @%s.", who, who)
 	case TriggerStart:
-		b.WriteString("Nobody asked you anything: you are starting this yourself.")
+		if s.Username != "" {
+			fmt.Fprintf(&b, "Nobody asked you anything: you are starting this yourself, with %s, who is around.", who)
+		} else {
+			b.WriteString("Nobody asked you anything: you are starting this yourself.")
+		}
 	case TriggerThen:
 		b.WriteString("A little after your last message, one more thing occurs to you, and you send it as its own message. Do not repeat or restate what you already said.")
 	case TriggerSight:

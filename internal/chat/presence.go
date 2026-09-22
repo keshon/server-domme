@@ -192,6 +192,10 @@ func (s *Service) onPresence(e body.Event) {
 
 	if e.To == body.Online {
 		s.scheduleCatchUp(e.At)
+		if e.Why == body.WhyWoke && s.idleMind {
+			// One tick of the idle mind on waking.
+			s.idleSoon(e.At)
+		}
 		return
 	}
 	if e.From != body.Online {

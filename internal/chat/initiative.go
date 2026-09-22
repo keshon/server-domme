@@ -102,6 +102,11 @@ func (s *Service) lookAround(ctx context.Context) {
 
 // considerStarting finds what she could start in a guild and asks her.
 func (s *Service) considerStarting(ctx context.Context, guildID string, channels []string) {
+	if s.impulses && s.idleMind {
+		// What she starts comes from the idle mind now, not from a timer
+		// finding a gap; see idle.go.
+		return
+	}
 	now := s.now().In(s.location)
 	if !s.awakeToStart(now) {
 		return
@@ -362,7 +367,7 @@ func (s *Service) mayStart(guildID string, now time.Time) bool {
 	if st == nil || st.day != now.Format("2006-01-02") {
 		return true
 	}
-	return st.count < startsPerDay && now.Sub(st.last) >= startGap
+	return st.count < startsPerDay*startUnits && now.Sub(st.last) >= startGap
 }
 
 // started counts one more thing started today.
@@ -375,9 +380,13 @@ func (s *Service) started(guildID string, now time.Time) {
 		st = &lifeState{day: day}
 		s.life[guildID] = st
 	}
-	st.count++
+	st.count += startUnits
 	st.last = now
 }
+
+// startUnits is what one start counts toward the day's limit; a reaction
+// she starts counts one unit, a third of one. See docs/persona-v3.md, H6.
+const startUnits = 3
 
 // withdrawConsent ends someone's consent to be reached, because they asked
 // her to leave them alone. See mind.Appraisal.BackOff.

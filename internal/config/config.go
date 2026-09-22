@@ -172,6 +172,19 @@ type Config struct {
 	// ChatFeelings is whether she has feelings with a cause that fade on
 	// their own clock, in place of a one-line mood. See docs/persona-v3.md, C.
 	ChatFeelings bool `env:"CHAT_FEELINGS" envDefault:"true"`
+	// ChatIdleMind is whether something happens in her between
+	// conversations: every hour or so, what is on her mind, and nightly her
+	// life and wants. See docs/persona-v3.md, E.
+	ChatIdleMind bool `env:"CHAT_IDLE_MIND" envDefault:"true"`
+	// ChatWalks is whether she passes through the channels set to
+	// /chat channel mode:reads now and then, and keeps the gist.
+	ChatWalks bool `env:"CHAT_WALKS" envDefault:"true"`
+	// ChatImpulses is whether what she starts comes from the idle mind — a
+	// thing she has and wants to act on — rather than from timers.
+	ChatImpulses bool `env:"CHAT_IMPULSES" envDefault:"true"`
+	// ChatReactFirst is whether she may react, unasked, to something that
+	// touches her in rooms where she only answers.
+	ChatReactFirst bool `env:"CHAT_REACT_FIRST" envDefault:"true"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

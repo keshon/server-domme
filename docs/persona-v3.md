@@ -4,7 +4,7 @@
 > system less perfect in the specific ways people are less perfect, and give
 > the model enough persistent substance to make its own meaning.
 
-Status: **architecture frozen, not built.** Written 21 September 2026,
+Status: **architecture frozen; all seven steps built, not yet run live.** Written 21 September 2026,
 revised twice the same day after outside review, and frozen; work starts
 22 September. This is a research experiment: each part below is a hypothesis
 with a way to measure it and a switch to turn it off, so it can be kept,
@@ -1202,3 +1202,13 @@ Architecture changes after the freeze, with the evidence for each.
   it would be gone the moment it was kept. Reflection settles feelings by
   number. "Nobody has spoken to her" counts from the last time anyone spoke
   to her since the bot started — unknown before that, and not stated.
+- 22 Sep 2026 — step 7, while building: a tick of the idle mind is a walk
+  half the time there is something new in a `reads` channel. An impulse at
+  someone who is around is carried out in the room they are in, even where
+  she only answers — joining a room they are in, as with a follow-up on
+  sight; at someone away, only with `/attention` consent. React-first uses
+  the interest filter in rooms where she only answers, and the code turns a
+  decision to speak there into silence. Wants are touched only at
+  reflection. Of H4, picking up an older line with a Discord reply is not
+  built; arriving is one idle tick on waking, whose impulse may speak, and
+  going is the step 4 exit line.
