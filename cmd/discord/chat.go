@@ -7,6 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	// The timezone database, built in. The runtime image is bare alpine,
+	// which has none, so without this every CHAT_TIMEZONE failed to load —
+	// silently to UTC before v3, and refused outright once her sleep ran on
+	// the community's clock. About 450 KB.
+	_ "time/tzdata"
 
 	"github.com/keshon/server-domme/internal/ai"
 	chatsvc "github.com/keshon/server-domme/internal/chat"
