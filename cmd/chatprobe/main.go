@@ -6,6 +6,11 @@
 //	go run ./cmd/chatprobe -log temp/log.txt -from 40 -to 80 -own
 //	go run ./cmd/chatprobe -log temp/log.txt -backends 'mine|https://api.example.com/v1|some-model|sk-...'
 //	go run ./cmd/chatprobe -backends "$CHAT_BACKENDS" -voice-backends g4f-3
+//	go run ./cmd/chatprobe -log temp/log.txt -cache temp/answers.json -seed 7
+//
+// The last form records every model answer and seeds the code's own
+// randomness, so running it again repeats the run exactly: what a bug did
+// once, it does again.
 //
 // The last form is how relays are ranked on holding her voice: the same log,
 // thinking through the whole list, speaking through one relay at a time.
@@ -31,6 +36,7 @@ import (
 	"flag"
 	"fmt"
 	"hash/fnv"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"time"
@@ -58,6 +64,10 @@ func main() {
 	selfFacts := flag.Bool("self-facts", true, "read her own words for facts about herself when reflecting, as CHAT_SELF_FACTS")
 	examples := flag.Int("examples", 8, "examples her voice sees per message, as CHAT_EXAMPLES_SAMPLE; 0 for all")
 	voiceBackends := flag.String("voice-backends", "", "names from -backends her voice prefers, in order, as in CHAT_VOICE_BACKENDS; run one at a time to rank relays on holding her voice")
+	cachePath := flag.String("cache", "", "record every model answer to this file, and answer from it when the same prompt comes again: a run can be repeated exactly")
+	seed := flag.Uint64("seed", 0, "seed the code's own randomness (example sampling, drift); 0 for random")
+	drift := flag.Float64("drift", 0.25, "odds recall brings back a loosely related memory, as CHAT_DRIFT")
+	feelings := flag.Bool("feelings", true, "feelings that fade in place of a mood, as CHAT_FEELINGS")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -106,11 +116,24 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	var thinking, voice ai.Provider = pool, pool.Voice()
+	var cache *cacheFile
+	if *cachePath != "" {
+		if cache, err = openCache(*cachePath); err != nil {
+			fail(err)
+		}
+		thinking, voice = cache.wrap(pool, false), cache.wrap(pool.Voice(), true)
+	}
+	var roll func() float64
+	if *seed != 0 {
+		roll = rand.New(rand.NewPCG(*seed, *seed)).Float64
+	}
 
 	p := &probe{
 		mind: &mind.Mind{
-			Character: character, Provider: pool, Voice: pool.Voice(), Memory: store,
-			SelfFacts: *selfFacts, ExamplesSample: *examples,
+			Character: character, Provider: thinking, Voice: voice, Memory: store,
+			SelfFacts: *selfFacts, ExamplesSample: *examples, Drift: *drift, Feelings: *feelings,
+			Roll: roll,
 		},
 		botName: *botName,
 		own:     *own,
@@ -120,6 +143,12 @@ func main() {
 	}
 	fmt.Printf("character: %s · %d messages in the log · memory in %s\n\n", character.Name, len(msgs), dir)
 	p.replay(msgs)
+	if cache != nil {
+		if err := cache.save(); err != nil {
+			fail(err)
+		}
+		fmt.Printf("\nmodel answers recorded in %s\n", *cachePath)
+	}
 	fmt.Printf("\nher memory is in %s\n", dir)
 }
 
