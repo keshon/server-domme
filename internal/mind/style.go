@@ -260,7 +260,7 @@ func styleNote(o offStyle) string {
 // once more; the retry is kept if it misses less, or as much but shorter,
 // and passes the checks every reply passes. Whatever is kept is cut to
 // length. Each miss is logged: how often a backend misses is a measurement.
-func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, backend string) (string, string) {
+func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, backend string, seen []Turn) (string, string) {
 	st := m.Character.Style()
 	asked := askedInARow(s.Turns)
 	check := func(r string) offStyle {
@@ -274,7 +274,7 @@ func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, b
 	}
 	kept := false
 	again := append(msgs, ai.Message{Role: ai.RoleAssistant, Content: reply}, ai.Message{Role: ai.RoleSystem, Content: styleNote(first)})
-	if retry, b, err := m.speak(ctx, again); err == nil && usable(retry, s.Turns) == nil {
+	if retry, b, err := m.speak(ctx, again); err == nil && usable(retry, seen) == nil {
 		if _, repeats := RepeatsHerself(retry, s.Turns); !repeats {
 			second := check(retry)
 			if second.misses() < first.misses() || (second.misses() == first.misses() && second.Words < first.Words) {

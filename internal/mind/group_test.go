@@ -157,3 +157,40 @@ func TestSheIsToldSheWasWokenEarly(t *testing.T) {
 		t.Errorf("woken: %q", got)
 	}
 }
+
+// Someone's line from a memory she was shown is not hers to send back: the
+// production case, Big M's own words returned to him ninety minutes later.
+func TestALineFromMemoryIsNotEchoed(t *testing.T) {
+	m, _ := newMind(t, "you are very kind... Server Domme _cough-cough_")
+	s := bigM()
+	k := Known{Recalled: []memory.Moment{{
+		At: noon.Add(-90 * time.Minute), Said: "m0", Weight: 0.3,
+		Text: `Big M: "you are very kind... Server Domme _cough-cough_"` + saidArrow + `"i'd ask what pronoun you used"`,
+	}}}
+	if _, _, err := m.Speak(context.Background(), s, k, Appraisal{Act: ActReply}, ""); err != ErrEcho {
+		t.Errorf("sent his line back: %v", err)
+	}
+	// Her own half of a memory is hers; repeating it is a different check.
+	m, _ = newMind(t, "i'd ask what pronoun you used")
+	if _, _, err := m.Speak(context.Background(), s, k, Appraisal{Act: ActReply}, ""); err != nil {
+		t.Errorf("her own words from a memory counted as an echo: %v", err)
+	}
+}
+
+// What the thinking hands the voice is asked for in her own first person:
+// told "signal she's comfortable", the voice answered "she's doing fine" as
+// if about someone else.
+func TestTheGistIsAskedForInTheFirstPerson(t *testing.T) {
+	m, _ := newMind(t)
+	for _, feelings := range []bool{false, true} {
+		m.Feelings = feelings
+		shape := m.appraisalShape()
+		for _, key := range []string{`"intent"`, `"then"`} {
+			line := shape[strings.Index(shape, key):]
+			line = line[:strings.Index(line, "\n")]
+			if !strings.Contains(line, "first person") {
+				t.Errorf("feelings %v: %s", feelings, line)
+			}
+		}
+	}
+}

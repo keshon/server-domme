@@ -61,11 +61,12 @@ func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why str
 	examples := m.sampleExamples(s.ShortExamples, situationOf(s, a))
 	k = m.fit(s.GuildID, "voice", k, voiceBudget, func(k Known) int { return promptSize(m.voicePrompt(s, k, a, why, examples)) })
 	msgs := m.voicePrompt(s, k, a, why, examples)
+	seen := heard(s, k)
 	reply, backend, err := m.speak(ctx, msgs)
 	if err != nil {
 		return "", backend, err
 	}
-	if err := usable(reply, s.Turns); err != nil {
+	if err := usable(reply, seen); err != nil {
 		return "", backend, err
 	}
 
@@ -75,7 +76,7 @@ func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why str
 		if err != nil {
 			return "", backend, err
 		}
-		if err := usable(reply, s.Turns); err != nil {
+		if err := usable(reply, seen); err != nil {
 			return "", backend, err
 		}
 		if _, still := RepeatsHerself(reply, s.Turns); still {
@@ -83,9 +84,36 @@ func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why str
 		}
 	}
 	if m.StyleCheck {
-		reply, backend = m.restyle(ctx, s, msgs, reply, backend)
+		reply, backend = m.restyle(ctx, s, msgs, reply, backend, seen)
 	}
 	return strings.TrimSpace(reply), backend, nil
+}
+
+// heard is what other people said that the voice was shown: the live
+// conversation, and the lines quoted in the memories it was given. A line
+// from a memory is as easy to copy as one from the transcript: in production
+// she answered Big M with his own words from ninety minutes before — "you
+// are very kind... Server Domme cough-cough" — which was in her recall and
+// long out of the conversation.
+func heard(s Scene, k Known) []Turn {
+	out := append([]Turn(nil), s.Turns...)
+	for _, mo := range topRecalled(k.Recalled, voiceRecalled) {
+		text, ok := observedPart(mo)
+		if !ok {
+			continue
+		}
+		open, end := strings.Index(text, `"`), strings.LastIndex(text, `"`)
+		if open < 0 || end <= open {
+			continue
+		}
+		quoted := strings.ReplaceAll(text[open+1:end], `\"`, `"`)
+		for _, line := range strings.Split(quoted, theirJoin) {
+			if line = strings.TrimSpace(line); line != "" && line != "…" {
+				out = append(out, Turn{Content: line})
+			}
+		}
+	}
+	return out
 }
 
 // usable rejects what must never reach a channel.

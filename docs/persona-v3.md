@@ -1217,6 +1217,15 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 22 Sep 2026 — second log on the real server: she answered Big M with his
+  own words from ninety minutes before, recalled from memory, and spoke of
+  herself as "she" ("she's doing fine", "don't expect her to be a good
+  domme") — Big M talked about "her", and the gist her thinking handed
+  the voice said "she" too. The echo check now covers other people's lines
+  quoted in the memories the voice is shown; the intent and a second
+  thought are asked for in her own first person; the card says "she" and
+  "her" about the bot mean her. And an empty front matter block no longer
+  reads as body text.
 - 22 Sep 2026 — B2, by request: `/chat wake` wakes her. Asleep, she is
   woken early: online, held up for an hour or while someone keeps her
   talking, told "she was woken early, at 04:12", and back to bed once

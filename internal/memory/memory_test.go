@@ -237,3 +237,16 @@ func TestWeightAndWhatStaysRoundTrip(t *testing.T) {
 		t.Fatalf("kept %+v notes %+v", p.Kept, p.Notes)
 	}
 }
+
+// An empty front matter block closes where it opens, and does not end up in
+// the body to be carried along by every rewrite.
+func TestAnEmptyFrontMatterIsNotBody(t *testing.T) {
+	fields, body := parseDoc("---\n---\n\n## Feelings\n\n- x\n")
+	if len(fields) != 0 || body != "## Feelings\n\n- x" {
+		t.Errorf("fields %v, body %q", fields, body)
+	}
+	fields, body = parseDoc("---\non_mind: a thing\n---\n\n## Feelings\n")
+	if fields["on_mind"] != "a thing" || body != "## Feelings" {
+		t.Errorf("fields %v, body %q", fields, body)
+	}
+}

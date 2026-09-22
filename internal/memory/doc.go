@@ -20,7 +20,11 @@ func parseDoc(text string) (map[string]string, string) {
 	if !strings.HasPrefix(text, frontMatter+"\n") {
 		return fields, strings.TrimSpace(text)
 	}
-	rest := text[len(frontMatter)+1:]
+	// Searched from a newline put in front, so an empty block — "---" then
+	// "---" straight after, as a hand-cleaned file can be left — closes
+	// where it opens. Without it the whole file read as body, the two
+	// lines were kept as text, and every rewrite carried them along.
+	rest := "\n" + text[len(frontMatter)+1:]
 	end := strings.Index(rest, "\n"+frontMatter)
 	if end < 0 {
 		return fields, strings.TrimSpace(text)
@@ -32,7 +36,7 @@ func parseDoc(text string) (map[string]string, string) {
 		}
 		fields[strings.ToLower(strings.TrimSpace(key))] = strings.TrimSpace(value)
 	}
-	body := rest[end+len(frontMatter)+1:]
+	body := rest[end+1+len(frontMatter):]
 	return fields, strings.TrimSpace(body)
 }
 
