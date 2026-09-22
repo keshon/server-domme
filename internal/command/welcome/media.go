@@ -37,6 +37,23 @@ const (
 	maxGifBytes  = 10 << 20
 )
 
+// userAgent is who the bot says it is when it reads a gif page. Gif sites
+// serve their pages to the link-preview crawlers of chat apps and turn other
+// clients away — klipy answers Go's default agent, and an honest bot name
+// alone, with 403 Forbidden. This is a link preview for Discord, so it says
+// so the way Discord's own crawler does, and names itself after.
+const userAgent = "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com) ServerDomme/1.0"
+
+// get fetches a gif page or file as the bot.
+func get(ctx context.Context, c *http.Client, link string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	return c.Do(req)
+}
+
 // errNoGif is a page that names no picture to post.
 var errNoGif = errors.New("welcome: the page names no gif")
 
@@ -57,12 +74,12 @@ var previewKeys = []string{
 // resolveGif finds the file behind a gif link: the link itself when it
 // already is one, otherwise the picture its page names for previews — a
 // .gif first, since that is what animates when posted as a file.
+//
+// A page can name several pictures under the same property: klipy and
+// giphy both list a .webp first and the .gif after it. All of them are
+// kept, in the order of previewKeys and then of the page.
 func resolveGif(ctx context.Context, c *http.Client, link string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
-	if err != nil {
-		return "", fmt.Errorf("welcome: gif page: %w", err)
-	}
-	resp, err := c.Do(req)
+	resp, err := get(ctx, c, link)
 	if err != nil {
 		return "", fmt.Errorf("welcome: gif page: %w", err)
 	}
@@ -79,7 +96,7 @@ func resolveGif(ctx context.Context, c *http.Client, link string) (string, error
 	}
 	base := resp.Request.URL
 
-	found := map[string]string{}
+	found := map[string][]string{}
 	for _, tag := range metaTag.FindAll(page, -1) {
 		attrs := map[string]string{}
 		for _, a := range metaAttr.FindAllSubmatch(tag, -1) {
@@ -91,13 +108,13 @@ func resolveGif(ctx context.Context, c *http.Client, link string) (string, error
 			key = attrs["name"]
 		}
 		key = strings.ToLower(key)
-		if _, seen := found[key]; !seen && attrs["content"] != "" {
-			found[key] = attrs["content"]
+		if attrs["content"] != "" {
+			found[key] = append(found[key], attrs["content"])
 		}
 	}
 	var candidates []string
 	for _, k := range previewKeys {
-		if v := found[k]; v != "" {
+		for _, v := range found[k] {
 			if u, err := base.Parse(v); err == nil && (u.Scheme == "https" || u.Scheme == "http") {
 				candidates = append(candidates, u.String())
 			}
@@ -116,11 +133,7 @@ func resolveGif(ctx context.Context, c *http.Client, link string) (string, error
 
 // fetchGif downloads a gif file to attach.
 func fetchGif(ctx context.Context, c *http.Client, media string) (*discordgo.File, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, media, nil)
-	if err != nil {
-		return nil, fmt.Errorf("welcome: gif file: %w", err)
-	}
-	resp, err := c.Do(req)
+	resp, err := get(ctx, c, media)
 	if err != nil {
 		return nil, fmt.Errorf("welcome: gif file: %w", err)
 	}

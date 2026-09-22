@@ -16,6 +16,11 @@ import (
 func gifSite(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// As klipy does: pages only for the link previewers of chat apps.
+		if !strings.Contains(r.UserAgent(), "Discordbot") {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		switch r.URL.Path {
 		case "/gifs/shushes-come-join-the-call":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -26,6 +31,13 @@ func gifSite(t *testing.T) *httptest.Server {
 		case "/media/join.gif":
 			w.Header().Set("Content-Type", "image/gif")
 			_, _ = io.WriteString(w, "GIF89a...")
+		case "/gifs/top-gear-29":
+			// klipy's own order: the same property twice, .webp first.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = io.WriteString(w, `<meta property="og:image" content="https://static2.klipy.com/ii/a/mJMm.webp"/>
+<meta property="og:image:type" content="image/webp"/>
+<meta property="og:image" content="https://static2.klipy.com/ii/a/aFm9.gif"/>
+<meta property="og:video:url" content="https://static2.klipy.com/ii/a/sRbQ.mp4"/>`)
 		case "/plain":
 			w.Header().Set("Content-Type", "text/html")
 			_, _ = io.WriteString(w, "<html><head><title>nothing here</title></head></html>")
@@ -48,6 +60,10 @@ func TestAGifPageIsReadForItsFile(t *testing.T) {
 	got, err := resolveGif(ctx, srv.Client(), srv.URL+"/gifs/shushes-come-join-the-call")
 	if err != nil || got != srv.URL+"/media/join.gif?x=1&y=2" {
 		t.Errorf("resolved %q, %v", got, err)
+	}
+	// Two pictures under one property: the .gif, not the first.
+	if got, err := resolveGif(ctx, srv.Client(), srv.URL+"/gifs/top-gear-29"); err != nil || got != "https://static2.klipy.com/ii/a/aFm9.gif" {
+		t.Errorf("klipy's page resolved to %q, %v", got, err)
 	}
 	// A link to the file already is the file.
 	if got, err := resolveGif(ctx, srv.Client(), srv.URL+"/media/join.gif"); err != nil || got != srv.URL+"/media/join.gif" {
