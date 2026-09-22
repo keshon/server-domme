@@ -58,6 +58,12 @@ type MindJournal struct {
 
 	// ReplyID is her message.
 	ReplyID string `json:"reply_id,omitempty"`
+
+	// Received is what became of something she started — answered,
+	// reacted, ignored — and ReceivedAfter how long it took. Empty for
+	// answers, and until the outcome is known. See docs/persona-v3.md, H5.
+	Received      string        `json:"received,omitempty"`
+	ReceivedAfter time.Duration `json:"received_after,omitempty"`
 }
 
 func (j *MindJournal) Key() string { return guildRowKey(j.GuildID, j.ID) }
@@ -137,7 +143,12 @@ func (d *MindDay) Key() string { return guildScopedKey(d.GuildID, d.Day) }
 
 // CountMindEvent adds one to a named count for a guild's day.
 func (s *Storage) CountMindEvent(guildID, day, event string) error {
-	if guildID == "" || day == "" || event == "" {
+	return s.AddMindEvents(guildID, day, event, 1)
+}
+
+// AddMindEvents adds n to a named count for a guild's day.
+func (s *Storage) AddMindEvents(guildID, day, event string, n int) error {
+	if guildID == "" || day == "" || event == "" || n == 0 {
 		return nil
 	}
 	err := s.db.Update(func(tx *datastore.Tx) error {
@@ -149,7 +160,7 @@ func (s *Storage) CountMindEvent(guildID, day, event string) error {
 		if d.Counts == nil {
 			d.Counts = make(map[string]int)
 		}
-		d.Counts[event]++
+		d.Counts[event] += n
 		return col.Put(d)
 	})
 	if err != nil {

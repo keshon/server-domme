@@ -316,7 +316,7 @@ func (p *probe) dayTurn(at time.Time) {
 func (p *probe) reflectOn(day, now time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	did, err := p.mind.Reflect(ctx, probeGuild, "probe", day, now)
+	did, err := p.mind.Reflect(ctx, probeGuild, "probe", day, now, nil)
 	switch {
 	case err != nil:
 		fmt.Printf("══ reflecting on %s failed: %v\n\n", day.Format("02.01"), err)

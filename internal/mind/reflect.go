@@ -33,12 +33,22 @@ const reflectRules = `How to look back:
 - Write only about people who appear in the day. Keep facts they told her.
 - What stays with her about someone is what she would still remember in a year: the moments that hit hardest, good or bad, marked "it stayed with her". Small talk does not stay.
 - Keep what she said her own: if she said something, she said it.
+- When something she started went unanswered, weigh it against how often anyone gets an answer in that room. Most messages in a quiet room go unanswered; that is the room, not her.
 - Do not invent anything that is not in the day.`
+
+// RoomRate is how often anyone got an answer in one channel on a day: the
+// base rate a response to her is read against. See docs/persona-v3.md, H5.
+type RoomRate struct {
+	Channel    string
+	Messages   int
+	Unanswered int
+}
 
 // Reflect looks back on one day: writes its summary, rewrites how she sees
 // herself and the people she spent it with, and settles what she means to
 // do. It reports false when there was nothing in the day to reflect on.
-func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now time.Time) (bool, error) {
+// rooms are the day's base rates, read against what she started.
+func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now time.Time, rooms []RoomRate) (bool, error) {
 	day, err := m.Memory.Day(guildID, date)
 	if err != nil || len(day.Moments) == 0 {
 		return false, err
@@ -78,7 +88,7 @@ func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now
 	}
 	open := memory.Unfinished(threads)
 
-	msgs := m.reflectPrompt(guildName, day, self, people, open, now)
+	msgs := m.reflectPrompt(guildName, day, self, people, open, rooms, now)
 	reply, _, err := m.generate(ai.WithRaw(ai.WithTemperature(ctx, reflectTemperature)), msgs)
 	if err != nil {
 		return false, err
@@ -90,7 +100,7 @@ func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now
 	return true, m.applyReflection(guildID, date, now, obj, people, open)
 }
 
-func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self, people []memory.Person, open []memory.Thread, now time.Time) []ai.Message {
+func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self, people []memory.Person, open []memory.Thread, rooms []RoomRate, now time.Time) []ai.Message {
 	name := "her"
 	if m.Character != nil {
 		name = m.Character.Name
@@ -122,6 +132,13 @@ func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self,
 		user.WriteString("\nThings she meant to do:")
 		for i, t := range open {
 			fmt.Fprintf(&user, "\n%d. %s", i+1, renderThread(t, now))
+		}
+		user.WriteString("\n")
+	}
+	if len(rooms) > 0 {
+		user.WriteString("\nHow the rooms were that day:")
+		for _, r := range rooms {
+			fmt.Fprintf(&user, "\n- in #%s, %d of %d messages got no reply from anyone", r.Channel, r.Unanswered, r.Messages)
 		}
 		user.WriteString("\n")
 	}

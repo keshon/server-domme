@@ -53,6 +53,21 @@ type MessageObserverAdapter interface {
 	ObserveMessage(*MessageContext) bool
 }
 
+// ReactionObserver is implemented by commands that need to see reactions as
+// they are added, whatever the emoji — not to be triggered by one, which is
+// ReactionProvider. The chat persona is why it exists: whether what she
+// started was welcome includes whether anyone reacted to it. Like a message
+// observer it runs inline on the gateway goroutine and must stay cheap.
+type ReactionObserver interface {
+	ObserveReaction(*MessageReactionContext)
+}
+
+// ReactionObserverAdapter is what reaction dispatch asserts on; the bool
+// reports whether the wrapped command observes at all.
+type ReactionObserverAdapter interface {
+	ObserveReaction(*MessageReactionContext) bool
+}
+
 // ComponentInteractionHandler is implemented by commands that handle message
 // components (buttons/selects) whose customID matches the command name.
 type ComponentInteractionHandler interface {

@@ -1179,3 +1179,11 @@ Architecture changes after the freeze, with the evidence for each.
   calls for now — the day and the people; self-facts — and the third, life
   and wants, lands with step 7. The prompt budget covers the appraisal and
   the voice; initiative, a call every few hours at most, is not trimmed yet.
+- 22 Sep 2026 — step 3, while building: "someone her dossier is warm about"
+  (H3) is read mechanically as someone she has exchanged messages with in
+  the last week — warmth is a meaning, and the code does not judge it.
+  Walks join the interest filter with step 7. A follow-up on sight counts
+  toward the daily limit of things she starts; joining an overheard
+  conversation keeps its own rate limit instead. Something she started waits
+  two hours for a response before it counts as ignored. Reactions reach her
+  through a new reaction observer beside the message observer.

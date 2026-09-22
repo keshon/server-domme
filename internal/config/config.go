@@ -151,6 +151,19 @@ type Config struct {
 	// ChatExamplesSample is how many of the character file's examples her
 	// voice is shown on each message, drawn at random; 0 shows all of them.
 	ChatExamplesSample int `env:"CHAT_EXAMPLES_SAMPLE" envDefault:"8"`
+	// ChatFollowUpOnSight is whether something she meant to follow up on
+	// with someone comes due the moment they turn up in a room she reads,
+	// rather than on a timer while they are away.
+	ChatFollowUpOnSight bool `env:"CHAT_FOLLOWUP_ON_SIGHT" envDefault:"true"`
+	// ChatInterest is whether she notices an overheard remark because it
+	// touches something of hers, rather than by chance.
+	ChatInterest bool `env:"CHAT_INTEREST" envDefault:"true"`
+	// ChatSerendipity is the odds she considers an overheard remark that
+	// touches nothing of hers, with ChatInterest on. 0 in the core design.
+	ChatSerendipity float64 `env:"CHAT_SERENDIPITY" envDefault:"0"`
+	// ChatDrift is the odds that recall brings back a loosely related memory
+	// in place of the weakest relevant one. 0 recalls strictly by relevance.
+	ChatDrift float64 `env:"CHAT_DRIFT" envDefault:"0.25"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

@@ -160,6 +160,9 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 	if s.Late > 0 {
 		fmt.Fprintf(&user, " She is only getting to it now, %s later.", gap(s.Late))
 	}
+	if s.Thread != nil {
+		fmt.Fprintf(&user, " She meant to follow up with %s: %s. This is the first she has seen of them since.", who, oneLine(s.Thread.Text))
+	}
 	user.WriteString(" What does she make of it, and what does she do?")
 
 	return []ai.Message{
@@ -282,7 +285,7 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			if p.FirstMet.IsZero() {
 				p.FirstMet = now
 			}
-			if s.Trigger != TriggerOverheard && !Initiated(s.Trigger) {
+			if !Unprompted(s.Trigger) && !Initiated(s.Trigger) {
 				p.LastTalked = now
 			}
 			if !present {

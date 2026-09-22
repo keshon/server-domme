@@ -3,6 +3,8 @@ package mind
 import (
 	"sync"
 	"time"
+
+	"github.com/keshon/server-domme/internal/memory"
 )
 
 // Deferral timing.
@@ -54,6 +56,8 @@ type Deferred struct {
 	// speaks: considering it again would write the same notes to memory
 	// twice and might decide differently the second time.
 	Considered *Appraisal
+	// Thread is what she meant to follow up on, for TriggerSight.
+	Thread *memory.Thread
 	// Journal is the caller's record of this approach, carried so a late
 	// answer completes the same entry the decision opened.
 	Journal  uint64

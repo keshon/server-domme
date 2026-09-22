@@ -85,6 +85,18 @@ type Deps struct {
 	// ExamplesSample is how many authored examples her voice sees per
 	// message; see mind.Mind.ExamplesSample.
 	ExamplesSample int
+	// FollowUpOnSight is whether an intention about someone comes due the
+	// moment they turn up in a room she reads; see notice.go.
+	FollowUpOnSight bool
+	// Interest is whether she joins conversations she overhears because
+	// they touch something of hers, rather than by chance; see notice.go.
+	Interest bool
+	// Serendipity is the odds of considering an overheard remark that
+	// touches nothing of hers, with Interest on. Zero in the core design.
+	Serendipity float64
+	// Drift is the odds that recall brings back a loosely related memory in
+	// place of the weakest relevant one; see mind.Mind.Drift.
+	Drift float64
 	// Roll supplies randomness. Left nil it uses the global source; a test
 	// supplies its own.
 	Roll func() float64
@@ -164,6 +176,26 @@ type Service struct {
 	voiceName string
 	voiceAt   time.Time
 
+	// startedMsgs is what she started and is waiting to see land, by her
+	// message's id; see welcome.go.
+	startedMu   sync.Mutex
+	startedMsgs map[string]*startedMsg
+	// rooms is the last message per channel and roomCounts the day's counts
+	// so far, for each room's base rate; see welcome.go.
+	roomMu     sync.Mutex
+	rooms      map[string]*roomState
+	roomCounts map[string]*roomCount
+
+	// followUpOnSight, interest and serendipity are the switches; see Deps.
+	followUpOnSight bool
+	interest        bool
+	serendipity     float64
+	// noticeMu guards what notice.go caches: open threads and the words
+	// that interest her, per guild, and when a follow-up was last tried.
+	noticeMu   sync.Mutex
+	noticed    map[string]*noticeCache
+	sightTried map[string]time.Time
+
 	conv      *mind.Conversations
 	deferrals *mind.Deferrals
 
@@ -201,7 +233,7 @@ func New(d Deps) *Service {
 
 		mind: &mind.Mind{
 			Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory,
-			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Roll: roll, Log: d.Log,
+			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Drift: d.Drift, Roll: roll, Log: d.Log,
 		},
 		character:   d.Character,
 		names:       mind.CleanNames(names),
@@ -224,9 +256,18 @@ func New(d Deps) *Service {
 		reflected: make(map[string]int),
 
 		thoughtTimes: make(map[string][]time.Time),
-		conv:         mind.NewConversations(),
-		deferrals:    mind.NewDeferrals(),
-		work:         make(chan task, queueDepth),
+		startedMsgs:  make(map[string]*startedMsg),
+		rooms:        make(map[string]*roomState),
+		roomCounts:   make(map[string]*roomCount),
+		noticed:      make(map[string]*noticeCache),
+		sightTried:   make(map[string]time.Time),
+
+		followUpOnSight: d.FollowUpOnSight,
+		interest:        d.Interest,
+		serendipity:     d.Serendipity,
+		conv:            mind.NewConversations(),
+		deferrals:       mind.NewDeferrals(),
+		work:            make(chan task, queueDepth),
 	}
 	s.adoptPool(d.Pool)
 	return s
@@ -319,6 +360,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	// Before the message is recorded: it asks what the channel looked like
 	// just before this arrived.
 	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
+	s.noteRoom(m.GuildID, m.ChannelID, m.Author.ID, now)
 
 	s.conv.Record(m.ChannelID, mind.Turn{
 		UserID:    m.Author.ID,
@@ -329,13 +371,17 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Mentioned: mentions(m.Message, self),
 		Tagged:    tagged(sess, m.GuildID, m.Message, self),
 	})
+	s.noticeResponse(m, name, now)
 	if _, err := s.store.SeeMindPerson(m.GuildID, m.Author.ID, name, now); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", m.GuildID).Msg("chat_person_record_failed")
 	}
 
 	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
+	var thread *memory.Thread
 	if !addressed {
-		if s.overhear(m.GuildID, m.ChannelID, content, now) {
+		if th := s.dueFollowUp(m.GuildID, m.Author.ID, now); th != nil {
+			trigger, thread = mind.TriggerSight, th
+		} else if s.overhear(m.GuildID, m.ChannelID, m.Author.ID, content, now) {
 			trigger = mind.TriggerOverheard
 		} else {
 			return
@@ -361,6 +407,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		Content:   content,
 		Trigger:   trigger,
 		FormedAt:  now,
+		Thread:    thread,
 	}
 	select {
 	case s.work <- task{item: item}:
@@ -385,7 +432,12 @@ const (
 // overhear decides whether a remark not aimed at her is worth her
 // considering at all. Only in a channel where she may speak up, only now and
 // then, and never something too short to have anything in it.
-func (s *Service) overhear(guildID, channelID, content string, now time.Time) bool {
+//
+// With interest on, what gets her attention is what touches something of
+// hers — see interesting — rather than a roll of the dice: v2 joined at
+// random and so never joined the conversations she would care about. This
+// decides only what she notices; whether she joins is still hers.
+func (s *Service) overhear(guildID, channelID, authorID, content string, now time.Time) bool {
 	if !s.store.IsChatProactive(guildID, channelID) || len(strings.Fields(content)) < overhearWords {
 		return false
 	}
@@ -395,11 +447,21 @@ func (s *Service) overhear(guildID, channelID, content string, now time.Time) bo
 		return false
 	}
 	s.overheardMu.Lock()
-	defer s.overheardMu.Unlock()
-	if now.Sub(s.overheard[channelID]) < overhearEvery || s.roll() >= overhearChance {
+	recent := now.Sub(s.overheard[channelID]) < overhearEvery
+	s.overheardMu.Unlock()
+	if recent {
 		return false
 	}
+	if s.interest {
+		if !s.interesting(guildID, authorID, content, now) && s.roll() >= s.serendipity {
+			return false
+		}
+	} else if s.roll() >= overhearChance {
+		return false
+	}
+	s.overheardMu.Lock()
 	s.overheard[channelID] = now
+	s.overheardMu.Unlock()
 	return true
 }
 

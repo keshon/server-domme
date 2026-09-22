@@ -277,6 +277,10 @@ func decided(s Scene, a Appraisal, why string) string {
 		b.WriteString("Nobody asked you anything: you are starting this yourself.")
 	case TriggerThen:
 		b.WriteString("A little after your last message, one more thing occurs to you, and you send it as its own message. Do not repeat or restate what you already said.")
+	case TriggerSight:
+		fmt.Fprintf(&b, "Nobody asked you anything: %s is here, and you are bringing up something you meant to follow up on with them.", who)
+	case TriggerOverheard:
+		b.WriteString("Nobody asked you anything: you are joining a conversation you overheard.")
 	default:
 		if s.Late > 0 {
 			fmt.Fprintf(&b, "You are answering %s %s late — you were not around. Acknowledge the gap the way a person would, without explaining it. ", who, gap(s.Late))

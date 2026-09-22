@@ -37,7 +37,18 @@ const (
 	// TriggerThen is a second thought: something she decided to add a moment
 	// after her own reply, when she made it. See Appraisal.Then.
 	TriggerThen Trigger = "then"
+	// TriggerSight is someone she meant to follow up with turning up in a
+	// room she reads: the intention comes due when the person shows up, not
+	// on a timer while they are away. See docs/persona-v3.md, H2.
+	TriggerSight Trigger = "sight"
 )
+
+// Unprompted reports whether she is speaking without having been spoken to,
+// in a room where the person is: something overheard, or someone she meant
+// to follow up with turning up. Unlike Initiated, the person is here.
+func Unprompted(t Trigger) bool {
+	return t == TriggerOverheard || t == TriggerSight
+}
 
 // Direct reports whether someone plainly addressed her. A direct approach
 // left unanswered twice running looks like a broken bot, which is the one
@@ -50,7 +61,7 @@ func Direct(t Trigger) bool {
 // answer is owed. Something she started belongs to its moment: delivered
 // late it is stranger than never said at all.
 func Owed(t Trigger) bool {
-	return t != TriggerReach && t != TriggerStart && t != TriggerOverheard && t != TriggerThen
+	return t != TriggerReach && t != TriggerStart && t != TriggerOverheard && t != TriggerThen && t != TriggerSight
 }
 
 // Initiated reports whether she started this herself rather than answering.
@@ -69,7 +80,7 @@ func (t Trigger) describe(name string) string {
 		return name + " said your name"
 	case TriggerFollowUp:
 		return name + " carried on talking with you"
-	case TriggerOverheard:
+	case TriggerOverheard, TriggerSight:
 		return name + " said something in the room — not to you"
 	default:
 		return name + " spoke"

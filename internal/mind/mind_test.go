@@ -257,7 +257,7 @@ func TestReflectRewritesOnlyThePeopleInTheDay(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	did, err := m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour))
+	did, err := m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour), nil)
 	if err != nil || !did {
 		t.Fatalf("reflect: %v %v", did, err)
 	}
@@ -318,7 +318,7 @@ func TestNoPromptCarriesAnID(t *testing.T) {
 	k, _ = m.Know(Scene{GuildID: guildID, Now: noon}, id)
 	_, _ = m.Initiate(context.Background(), Scene{GuildID: guildID, Now: noon}, k,
 		[]Opening{{Trigger: TriggerReach, ChannelName: "chat", UserID: id, Username: "Big M"}})
-	_, _ = m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour))
+	_, _ = m.Reflect(context.Background(), guildID, "Test", noon, noon.Add(15*time.Hour), nil)
 	if _, err := m.ReflectSelf(context.Background(), guildID, noon); err != nil {
 		t.Fatal(err)
 	}

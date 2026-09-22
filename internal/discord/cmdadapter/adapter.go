@@ -63,6 +63,17 @@ func (a *Adapter) ObserveMessage(ctx *MessageContext) bool {
 	return true
 }
 
+// ObserveReaction forwards a reaction to the wrapped command when it observes
+// them, reporting whether it did. See ReactionObserverAdapter.
+func (a *Adapter) ObserveReaction(ctx *MessageReactionContext) bool {
+	observer, ok := a.Cmd.(ReactionObserver)
+	if !ok {
+		return false
+	}
+	observer.ObserveReaction(ctx)
+	return true
+}
+
 // ModalSubmit forwards a modal submission to the wrapped command.
 //
 // Every optional capability has to be forwarded here by hand: the dispatcher

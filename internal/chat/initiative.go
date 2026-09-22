@@ -82,8 +82,11 @@ func (s *Service) lifeLoop(ctx context.Context) {
 	}
 }
 
-// lookAround considers every guild she listens in.
+// lookAround considers every guild she listens in. It is also when what
+// she started is settled and the rooms' counts are written; see welcome.go.
 func (s *Service) lookAround(ctx context.Context) {
+	s.sweepStarted(s.now())
+	s.flushRooms()
 	byGuild := make(map[string][]string)
 	for channelID, guildID := range s.store.AllChatChannels() {
 		byGuild[guildID] = append(byGuild[guildID], channelID)
@@ -197,6 +200,11 @@ func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.
 	if err := s.mind.Said(sc, a, sent.text, plan.Why, sent.id); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_write_failed")
 	}
+	form := formStart
+	if sc.Trigger == mind.TriggerReach {
+		form = formReach
+	}
+	s.watchStarted(sc, form, sent.id, sent.text)
 	if o.Thread != nil {
 		if err := s.memory.CloseThread(sc.GuildID, o.Thread.Key()); err != nil {
 			s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_write_failed")

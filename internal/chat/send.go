@@ -163,7 +163,7 @@ func (s *Service) outgoing(sc mind.Scene, content string) *discordgo.MessageSend
 	}
 	msg := &discordgo.MessageSend{Content: resolved, AllowedMentions: allowed}
 
-	if sc.MessageID != "" && !mind.Initiated(sc.Trigger) && sc.Trigger != mind.TriggerThen &&
+	if sc.MessageID != "" && !mind.Initiated(sc.Trigger) && sc.Trigger != mind.TriggerThen && sc.Trigger != mind.TriggerSight &&
 		(sc.Late > 0 || sc.Trigger == mind.TriggerReply || mind.NeedsAnchor(sc.Turns, sc.MessageID, sc.UserID)) {
 		msg.Reference = &discordgo.MessageReference{
 			MessageID: sc.MessageID,

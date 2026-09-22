@@ -121,7 +121,11 @@ func (s *Service) handle(ctx context.Context, t task) {
 		}
 	}
 	started := s.now()
-	reply, backend, err := s.speak(genCtx, scene, known, a, "")
+	why := ""
+	if scene.Thread != nil {
+		why = "you meant to follow up with them: " + scene.Thread.Text
+	}
+	reply, backend, err := s.speak(genCtx, scene, known, a, why)
 	if backend != "" {
 		entry.Backend = backend
 	}
@@ -149,9 +153,10 @@ func (s *Service) handle(ctx context.Context, t task) {
 		return
 	}
 	s.deferrals.Drop(scene.ChannelID)
-	if err := s.mind.Said(scene, a, sent.text, "", sent.id); err != nil {
+	if err := s.mind.Said(scene, a, sent.text, why, sent.id); err != nil {
 		s.log.Warn().Err(err).Str("guild_id", scene.GuildID).Msg("chat_memory_write_failed")
 	}
+	s.afterUnprompted(scene, sent)
 	entry.Outcome, entry.Posted, entry.ReplyID = outcomeAnswered, excerpt(sent.text, journalReply), sent.id
 	entry.Took = s.now().Sub(started)
 	s.secondThought(scene, a, sent)
@@ -284,6 +289,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 	if t.late {
 		sc.Late = t.item.Age(now)
 	}
+	sc.Thread = t.item.Thread
 	if guild, err := sess.State.Guild(t.item.GuildID); err == nil && guild != nil {
 		sc.GuildName = guild.Name
 	}

@@ -81,6 +81,20 @@ func (b *Bot) onMessageReactionAdd(s *discordgo.Session, r *discordgo.MessageRea
 	logger := b.cmdLogger
 	b.mu.RUnlock()
 
+	// Observers first and inline, for the same reason as message observers:
+	// they only take note, and a command slot per reaction would be spent on
+	// reactions that trigger nothing.
+	if s.State == nil || s.State.User == nil || r.UserID != s.State.User.ID {
+		obsCtx := &cmdadapter.MessageReactionContext{
+			Session: s, Event: r, Storage: b.storage, Config: b.cfg, Logger: logger, AppLog: b.log,
+		}
+		for _, c := range command.DefaultRegistry.GetAll() {
+			if observer, ok := command.Root(c).(cmdadapter.ReactionObserverAdapter); ok {
+				observer.ObserveReaction(obsCtx)
+			}
+		}
+	}
+
 	b.runWithCommandContext(commandRunOptions{
 		onBusy: func(err error) {
 			b.log.Warn().Str("kind", "reaction").Err(err).Msg("command_slot_busy")

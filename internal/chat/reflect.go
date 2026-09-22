@@ -59,7 +59,7 @@ func (s *Service) reflectDue(ctx context.Context) {
 			// docs/persona-v3.md, Known failure points.
 			if day.Summary == "" && s.tryReflect(key) {
 				s.reflectPass(ctx, guildID, key, "day", func(ctx context.Context) (bool, error) {
-					return s.mind.Reflect(ctx, guildID, name, date, now)
+					return s.mind.Reflect(ctx, guildID, name, date, now, s.roomRates(guildID, date))
 				})
 			}
 			if s.mind.SelfFacts && s.selfFactsDue(guildID, date) && s.tryReflect(key+":self") {

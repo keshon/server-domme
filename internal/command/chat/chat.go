@@ -80,6 +80,14 @@ func (c *ChatCommand) UserPermissions() []int64 {
 	return []int64{discordgo.PermissionAdministrator}
 }
 
+// ObserveReaction implements cmdadapter.ReactionObserver.
+func (c *ChatCommand) ObserveReaction(ctx *cmdadapter.MessageReactionContext) {
+	if c.Service == nil || ctx.Event == nil || ctx.Event.MessageReaction == nil {
+		return
+	}
+	c.Service.ObserveReaction(ctx.Event.MessageReaction)
+}
+
 // ObserveMessage implements cmdadapter.MessageObserver.
 func (c *ChatCommand) ObserveMessage(ctx *cmdadapter.MessageContext) {
 	if c.Service == nil {

@@ -262,3 +262,36 @@ func TestFitTrimsRecallBeforeNotes(t *testing.T) {
 		t.Error("fit changed the caller's dossier")
 	}
 }
+
+// With drift, the weakest recalled slot sometimes goes to a loosely related
+// moment below the cut; without it, recall is strictly by relevance.
+func TestDriftBringsBackANeighbour(t *testing.T) {
+	m, _ := newMind(t)
+	s := sceneWith(him("thoughts on trains", noon))
+	var pool []memory.Moment
+	for i := 0; i < recallMoments; i++ {
+		pool = append(pool, memory.Moment{At: noon.Add(-time.Duration(i+1) * time.Hour), Text: "relevant", Score: 5})
+	}
+	neighbour := memory.Moment{At: noon.Add(-48 * time.Hour), Text: "the night trains argument", Score: 0.1}
+	stranger := memory.Moment{At: noon.Add(-49 * time.Hour), Text: "unrelated", Score: 0.1}
+	pool = append(pool, neighbour, stranger)
+
+	if got := m.drift(s, pool, nil); containsText(got, "the night trains argument") {
+		t.Error("drifted with drift off")
+	}
+	m.Drift = 1
+	m.Roll = func() float64 { return 0 }
+	got := m.drift(s, pool, nil)
+	if len(got) != recallMoments || !containsText(got, "the night trains argument") || containsText(got, "unrelated") {
+		t.Errorf("recalled %+v", got)
+	}
+}
+
+func containsText(ms []memory.Moment, text string) bool {
+	for _, mo := range ms {
+		if mo.Text == text {
+			return true
+		}
+	}
+	return false
+}

@@ -43,8 +43,12 @@ const (
 const (
 	// recallDays is how far back recall looks at all. Ordinary moments
 	// fade from it well before; see memory.FadeAfter.
-	recallDays     = 90
-	recallMoments  = 8
+	recallDays    = 90
+	recallMoments = 8
+	// recallPool is how many candidates recall scores, of which the best
+	// recallMoments are shown; the rest are where a drifted memory comes
+	// from.
+	recallPool     = 40
 	recentSummary  = 3
 	transcriptTail = 6
 )
@@ -73,6 +77,9 @@ type Mind struct {
 	// ExamplesSample is how many of the authored examples the voice is shown
 	// on a call, drawn at random; zero shows them all. See voicePrompt.
 	ExamplesSample int
+	// Drift is the odds that recall's weakest slot goes to a loosely related
+	// memory instead; see drift. Zero recalls strictly by relevance.
+	Drift float64
 	// Roll supplies randomness; nil uses the global source. One source for
 	// the code's randomness, so a run can be repeated.
 	Roll func() float64
@@ -116,6 +123,9 @@ type Scene struct {
 	// Late is how long she has taken to get to it, for an answer held back
 	// by a backend that would not answer.
 	Late time.Duration
+	// Thread is what she meant to follow up on with the person, when that
+	// is why the moment reached her; see TriggerSight.
+	Thread *memory.Thread
 
 	// Roles are what an administrator says about people here, by user id:
 	// the note set for a role they hold. Standing a server decided, which
@@ -194,10 +204,11 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 	if len(s.Turns) > 0 {
 		before = s.Turns[0].At
 	}
-	k.Recalled, err = m.Memory.Recall(s.GuildID, s.Now, before, topicWords(s.Turns), ids, recallDays, recallMoments)
+	pool, err := m.Memory.Recall(s.GuildID, s.Now, before, topicWords(s.Turns), ids, recallDays, recallPool)
 	if err != nil {
 		return k, err
 	}
+	k.Recalled = m.drift(s, pool, ids)
 
 	threads, err := m.Memory.Threads(s.GuildID)
 	if err != nil {
