@@ -58,6 +58,10 @@ type Appraisal struct {
 	Remember   string
 	Later      string
 	LaterHours float64
+	// Settled are the things she meant to do that this moment answers or
+	// makes moot, by their key: closed at once rather than left for the
+	// night. See Absorb.
+	Settled []string
 	// Then is something she will want to add a moment after her reply — a
 	// question the reply leaves her curious about, a thought that comes on
 	// its heels — and ThenAfter how long after. Usually empty: a person who
@@ -124,6 +128,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
   "later": "something she means to follow up on with them later, or empty",
   "later_hours": "how many hours from now, if later is set",
+  "settled": [numbers of the things she means to do, listed above, that this moment answers or makes pointless] or [],
   "then": "only if she would naturally send one more message a little after her reply — a question it leaves her curious about, a thought that follows on, a jab — the gist of it; usually empty",
   "then_after": seconds until she sends it, 5 to 600,
   "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk,
@@ -163,6 +168,13 @@ func (m *Mind) Consider(ctx context.Context, s Scene, k Known) (Appraisal, error
 		return Appraisal{}, err
 	}
 	a, ok := parseAppraisal(reply)
+	if obj, decoded := decodeObject(reply); decoded {
+		for _, n := range numbers(obj, "settled") {
+			if n >= 1 && n <= len(k.Threads) {
+				a.Settled = append(a.Settled, k.Threads[n-1].Key())
+			}
+		}
+	}
 	if m.Feelings {
 		// Mood is retired in favour of feelings; one the model volunteers
 		// anyway is not kept.
@@ -198,7 +210,13 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 	if who == "" {
 		who = "someone"
 	}
-	fmt.Fprintf(&user, "\n\nWhat just happened: %s.", s.Trigger.describe(who))
+	what := s.Trigger.describe(who)
+	if s.Trigger == TriggerFollowUp && s.Crowd {
+		// The code knows only that they spoke right after her; with others
+		// talking, whether it was to her is a reading, and hers.
+		what = who + " spoke right after you, with others talking here too — it may be to you or to someone else"
+	}
+	fmt.Fprintf(&user, "\n\nWhat just happened: %s.", what)
 	if s.Late > 0 {
 		fmt.Fprintf(&user, " She is only getting to it now, %s later.", gap(s.Late))
 	}
@@ -296,6 +314,61 @@ func IsEmoji(s string) bool {
 // laterDefault is when a follow-up comes due if she did not say.
 const laterDefault = 24 * time.Hour
 
+// maxThreadsPer is how many things she means to do about one person at
+// once. Past it, the oldest gives way to the new one.
+const maxThreadsPer = 2
+
+// misnamed finds a name in what she means to do that is a garbled version of
+// someone she knows: a capitalised word starting like their name without
+// being it. In production she meant to "nudge Pewtato" about a link
+// Pewcifer shared. A name that resembles nobody is left alone — she can mean
+// to ask about someone she has not spoken to yet.
+func (m *Mind) misnamed(s Scene, text string) string {
+	known := []string{s.Username}
+	if people, err := m.Memory.People(s.GuildID); err == nil {
+		for _, p := range people {
+			known = append(known, p.Name)
+		}
+	}
+	words := strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && r != '\'' })
+	for i, w := range words {
+		r := []rune(w)
+		if i == 0 || len(r) < misnamedPrefix+1 || !unicode.IsUpper(r[0]) || isKnownName(known, w) {
+			continue
+		}
+		for _, name := range known {
+			if n := []rune(strings.ToLower(name)); len(n) >= misnamedPrefix &&
+				strings.HasPrefix(strings.ToLower(w), string(n[:misnamedPrefix])) {
+				return w
+			}
+		}
+	}
+	return ""
+}
+
+// isKnownName reports whether w is a word of any of the names.
+func isKnownName(names []string, w string) bool {
+	for _, name := range names {
+		if nameWord(name, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// misnamedPrefix is how much of a name a garbled one shares.
+const misnamedPrefix = 3
+
+// nameWord reports whether w is one of the words of a name.
+func nameWord(name, w string) bool {
+	for _, part := range strings.FieldsFunc(name, func(r rune) bool { return !unicode.IsLetter(r) && r != '\'' }) {
+		if strings.EqualFold(part, w) {
+			return true
+		}
+	}
+	return false
+}
+
 // laterMax is the furthest out an intention is set. Past a week it is not
 // something she means to do, it is something she will have forgotten.
 const laterMax = 7 * 24 * time.Hour
@@ -389,10 +462,46 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 		}
 	}
 
+	for _, key := range a.Settled {
+		if err := m.Memory.CloseThread(s.GuildID, key); err != nil {
+			return err
+		}
+	}
+
 	if a.Later != "" {
 		if s.UserID != "" && !present {
 			refuse(proposalLater, "they did not speak in the scene")
 			return nil
+		}
+		// One intention said five ways is still one: in production nine
+		// open follow-ups on one person, all "check whether he explains
+		// what the bot does", were in front of her on every message, and
+		// she kept asking. A repeat is refused, and the oldest of someone's
+		// gives way once they have maxThreadsPer.
+		threads, err := m.Memory.Threads(s.GuildID)
+		if err != nil {
+			return err
+		}
+		var theirs []memory.Thread
+		for _, t := range memory.Unfinished(threads) {
+			if t.Person.ID == s.UserID {
+				theirs = append(theirs, t)
+			}
+		}
+		for _, t := range theirs {
+			if sameAbout(t.Text, a.Later) {
+				refuse(proposalLater, "already means to")
+				return nil
+			}
+		}
+		if name := m.misnamed(s, a.Later); name != "" {
+			refuse(proposalLater, "names "+name+", who is nobody she knows")
+			return nil
+		}
+		for i := 0; i+maxThreadsPer <= len(theirs); i++ {
+			if err := m.Memory.CloseThread(s.GuildID, theirs[i].Key()); err != nil {
+				return err
+			}
 		}
 		due := laterDefault
 		if a.LaterHours > 0 {
@@ -401,7 +510,7 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 		if due > laterMax {
 			due = laterMax
 		}
-		err := m.Memory.AddThread(s.GuildID, memory.Thread{
+		err = m.Memory.AddThread(s.GuildID, memory.Thread{
 			Due: now.Add(due), Person: memory.Ref{ID: s.UserID, Name: s.Username},
 			Text: clip(a.Later, maxLaterChars), Source: madeOf,
 		})

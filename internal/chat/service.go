@@ -472,7 +472,12 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Before the message is recorded: it asks what the channel looked like
 	// just before this arrived.
-	followsUp := s.followsUp(m.ChannelID, m.Author.ID, now)
+	followsUp, crowd := s.followsUp(m.ChannelID, m.Author.ID, now)
+	if followsUp && toSomeoneElse(m.Message, self) {
+		// Tagging or replying to someone else is talking to them, however
+		// soon after her it comes.
+		followsUp = false
+	}
 	s.noteRoom(m.GuildID, m.ChannelID, m.Author.ID, now)
 
 	s.conv.Record(m.ChannelID, mind.Turn{
@@ -541,6 +546,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 		FormedAt:  now,
 		Thread:    thread,
 		ReactOnly: reactOnly,
+		Crowd:     crowd && trigger == mind.TriggerFollowUp,
 	}
 	select {
 	case s.work <- task{item: item}:
@@ -654,23 +660,48 @@ func (s *Service) repliesToHer(m *discordgo.MessageCreate, self string) bool {
 //
 // "Nobody else since" rather than "she spoke last", because people type in
 // bursts; once anyone else has spoken, the thread is not hers to assume.
-func (s *Service) followsUp(channelID, userID string, now time.Time) bool {
+//
+// crowd reports that someone else was talking in the room just before her
+// last line. Then "they spoke right after her" is all the code knows: in
+// production "are you on phone?", asked of someone else in a four-person
+// room, was taken as carrying on with her, and she answered "no, desktop".
+func (s *Service) followsUp(channelID, userID string, now time.Time) (follows, crowd bool) {
 	turns := s.conv.Recent(channelID)
 	i := len(turns) - 1
 	for i >= 0 && !turns[i].FromBot && turns[i].UserID == userID {
 		i--
 	}
 	if i < 0 || !turns[i].FromBot || now.Sub(turns[i].At) > engagedWindow {
-		return false
+		return false, false
+	}
+	for j := i - 1; j >= 0 && turns[i].At.Sub(turns[j].At) <= engagedWindow; j-- {
+		if !turns[j].FromBot && turns[j].UserID != userID {
+			crowd = true
+			break
+		}
 	}
 	if to := turns[i].To; to != "" {
-		return to == userID
+		return to == userID, crowd
 	}
 	// A turn read back from history does not record who it answered; the
 	// last person to speak before her is who she was answering.
 	for j := i - 1; j >= 0; j-- {
 		if !turns[j].FromBot {
-			return turns[j].UserID == userID
+			return turns[j].UserID == userID, crowd
+		}
+	}
+	return false, crowd
+}
+
+// toSomeoneElse reports whether a message is plainly to someone other than
+// her: it tags a person who is not her, or replies to someone's message.
+func toSomeoneElse(m *discordgo.Message, self string) bool {
+	if m.ReferencedMessage != nil && m.ReferencedMessage.Author != nil && m.ReferencedMessage.Author.ID != self {
+		return true
+	}
+	for _, u := range m.Mentions {
+		if u != nil && u.ID != self && !u.Bot {
+			return true
 		}
 	}
 	return false

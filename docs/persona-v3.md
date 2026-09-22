@@ -1217,6 +1217,20 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 22 Sep 2026 — first log on the real server, a four-person channel:
+  nine open follow-ups on one person, all "check whether he explains what
+  the bot does", kept her asking answered questions; lines to someone else
+  were stated to her as "carried on talking with you"; she mocked "Server
+  Domme" as someone else's bot; five "mild amusement" feelings at one
+  person in six minutes; a follow-up naming "Pewtato". Settled: a repeat
+  follow-up is refused, at most two per person, and the appraisal closes
+  what a moment answers ("settled", by number). A line right after hers
+  tagging or replying to someone else is not a follow-up; with others
+  talking it reaches her as possibly not hers. One feeling per person and
+  feeling. A follow-up naming a garbled version of someone she knows is
+  refused. Card: she is the bot and knows it, the commands run under her
+  name without her say; "Lately" no longer primes a quiet room; the
+  follow-through specific no longer invites chasing.
 - 22 Sep 2026 — second live log: told about a music bot, she asked a
   question in seven replies running, and a second thought announced "i'm
   working on something". The style check (G) now counts questions: a

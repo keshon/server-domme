@@ -329,6 +329,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 	sc.Reactions = s.reactionsIn(sc.ChannelID, sc.Turns)
 	sc.QuietFor = s.quietFor(sc.GuildID, now)
 	sc.ReactOnly = t.item.ReactOnly
+	sc.Crowd = t.item.Crowd
 	s.bodyScene(&sc, now)
 	return sc
 }

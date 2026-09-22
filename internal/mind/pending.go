@@ -61,6 +61,8 @@ type Deferred struct {
 	// ReactOnly marks a remark overheard in a room where she only answers:
 	// she may react to it, and not speak.
 	ReactOnly bool
+	// Crowd marks a follow-up with others talking; see Scene.Crowd.
+	Crowd bool
 	// Journal is the caller's record of this approach, carried so a late
 	// answer completes the same entry the decision opened.
 	Journal  uint64

@@ -92,7 +92,11 @@ func (m *Mind) commitFeeling(s Scene, a Appraisal, present bool, from memory.Sou
 			if old.Strength(s.Now) < memory.FeelingGone {
 				continue
 			}
-			if old.Person.ID == f.Person.ID && sameAbout(old.About, f.About) {
+			// The same feeling about the same person is one feeling,
+			// whatever it is said to be about this time: in production
+			// "mild amusement" at Big M was kept five times in six
+			// minutes, each about a differently worded thing.
+			if old.Person.ID == f.Person.ID && (sameAbout(old.About, f.About) || sameAbout(old.What, f.What)) {
 				continue
 			}
 			kept = append(kept, old)

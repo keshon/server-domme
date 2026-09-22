@@ -127,6 +127,9 @@ type Scene struct {
 	Username string
 	// MessageID is the message she is answering, when there is one.
 	MessageID string
+	// Crowd marks a follow-up in a room where others were talking too: the
+	// code knows they spoke right after her, not that it was to her.
+	Crowd bool
 	// Late is how long she has taken to get to it, for an answer held back
 	// by a backend that would not answer.
 	Late time.Duration
