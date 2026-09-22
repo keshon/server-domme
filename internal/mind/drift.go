@@ -47,6 +47,22 @@ func (m *Mind) drift(s Scene, pool []memory.Moment, people []string) []memory.Mo
 	return shown
 }
 
+// capRecall keeps the strongest n recalled moments, or none for a negative
+// n, or all for zero; oldest first either way.
+func capRecall(ms []memory.Moment, n int) []memory.Moment {
+	switch {
+	case n < 0:
+		return nil
+	case n == 0 || len(ms) <= n:
+		return ms
+	}
+	byScore := append([]memory.Moment(nil), ms...)
+	sort.SliceStable(byScore, func(i, j int) bool { return byScore[i].Score > byScore[j].Score })
+	out := byScore[:n]
+	sort.SliceStable(out, func(i, j int) bool { return out[i].At.Before(out[j].At) })
+	return out
+}
+
 // neighbours are the moments below the cut that are loosely related: they
 // share a person or a word with the scene, or hit hard recently.
 func neighbours(s Scene, below []memory.Moment, people []string) []memory.Moment {

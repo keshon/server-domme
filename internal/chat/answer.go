@@ -25,6 +25,8 @@ const (
 	outcomeSilent   = "stayed quiet"
 	outcomeDropped  = "dropped"
 	outcomeHeld     = "held for later"
+	outcomeAway     = "she was away"
+	outcomeAsleep   = "she was asleep"
 )
 
 // handle takes one moment from arrival to whatever she does about it.
@@ -34,7 +36,16 @@ func (s *Service) handle(ctx context.Context, t task) {
 		s.hold(t, "no gateway session")
 		return
 	}
-	if !t.late && !s.settle(ctx, t.item) {
+	if t.item.Trigger == mind.TriggerLeave {
+		s.leave(ctx, sess, t)
+		return
+	}
+	if !t.catchUp && !s.online() {
+		// She left between this arriving and a worker reaching it.
+		s.miss(t.item)
+		return
+	}
+	if !t.late && !t.catchUp && !s.settle(ctx, t.item) {
 		return
 	}
 	s.backfill(sess, t.item.ChannelID)
@@ -79,7 +90,10 @@ func (s *Service) handle(ctx context.Context, t task) {
 				a.Act = mind.ActReply
 			}
 		}
-		if reason := s.overrule(t.item, &a); reason != "" {
+		if t.catchUp {
+			// Silence about something from hours ago reads as the moment
+			// having passed, not as a broken bot: not overruled.
+		} else if reason := s.overrule(t.item, &a); reason != "" {
 			entry.Reason = reason
 		}
 		if err := s.mind.Absorb(scene, a); err != nil {
@@ -89,6 +103,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 			s.withdrawConsent(scene.GuildID, t.item.UserID)
 		}
 	}
+	s.drain(scene)
 	entry.Read, entry.Feel, entry.Toward, entry.Mood = a.Read, a.Feel, a.Toward, a.Mood
 	entry.Act, entry.Intent, entry.Backend = string(a.Act), a.Intent, a.Backend
 
@@ -229,14 +244,16 @@ func (s *Service) settle(ctx context.Context, item mind.Deferred) bool {
 	if s.settleQuiet <= 0 {
 		return true
 	}
-	for waits := 0; waits < int(settleMax/s.settleQuiet)+1; waits++ {
+	// Tired, she takes longer to get round to reading.
+	quiet := time.Duration(float64(s.settleQuiet) * s.slowness())
+	for waits := 0; waits < int(settleMax/quiet)+1; waits++ {
 		last := item.FormedAt
 		for _, t := range s.conv.Recent(item.ChannelID) {
 			if t.UserID == item.UserID && t.At.After(last) {
 				last = t.At
 			}
 		}
-		wait := s.settleQuiet - s.now().Sub(last)
+		wait := quiet - s.now().Sub(last)
 		if wait <= 0 {
 			return true
 		}
@@ -298,6 +315,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 		sc.ChannelTopic = channel.Topic
 	}
 	sc.Roles = s.roleNotes(sess, sc.GuildID, sc)
+	s.bodyScene(&sc, now)
 	return sc
 }
 

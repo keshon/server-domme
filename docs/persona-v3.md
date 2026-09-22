@@ -1187,3 +1187,12 @@ Architecture changes after the freeze, with the evidence for each.
   conversation keeps its own rate limit instead. Something she started waits
   two hours for a response before it counts as ignored. Reactions reach her
   through a new reaction observer beside the message observer.
+- 22 Sep 2026 — step 4, while building: the body is its own package,
+  `internal/body`, driven by the chat service and by `cmd/bodysim`. Fitted
+  against the quiet-week test: k = 0.5, sleep above 0.89, wake below -0.17,
+  and life interrupting on average every 180 minutes online rather than 90,
+  which is what lands three to six stretches a day. An interruption during a
+  conversation waits for a lull; the one-line exit is said only on going to
+  sleep or running out of energy. Catch-up waits one to three minutes, then
+  forty to ninety seconds between answers. `CHAT_BODY` is on by default and
+  the chat refuses to start without `CHAT_TIMEZONE`.

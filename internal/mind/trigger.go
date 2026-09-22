@@ -41,6 +41,9 @@ const (
 	// room she reads: the intention comes due when the person shows up, not
 	// on a timer while they are away. See docs/persona-v3.md, H2.
 	TriggerSight Trigger = "sight"
+	// TriggerLeave is her about to go — to sleep, or away — with a word
+	// first, in the room she was last talking in. See docs/persona-v3.md, B2.
+	TriggerLeave Trigger = "leave"
 )
 
 // Unprompted reports whether she is speaking without having been spoken to,
@@ -61,12 +64,12 @@ func Direct(t Trigger) bool {
 // answer is owed. Something she started belongs to its moment: delivered
 // late it is stranger than never said at all.
 func Owed(t Trigger) bool {
-	return t != TriggerReach && t != TriggerStart && t != TriggerOverheard && t != TriggerThen && t != TriggerSight
+	return t != TriggerReach && t != TriggerStart && t != TriggerOverheard && t != TriggerThen && t != TriggerSight && t != TriggerLeave
 }
 
 // Initiated reports whether she started this herself rather than answering.
 func Initiated(t Trigger) bool {
-	return t == TriggerReach || t == TriggerStart
+	return t == TriggerReach || t == TriggerStart || t == TriggerLeave
 }
 
 // describe says how a moment reached her, for the prompt.

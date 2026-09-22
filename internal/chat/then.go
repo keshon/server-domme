@@ -153,6 +153,9 @@ func (s *Service) sendThought(ctx context.Context, t pendingThought) {
 // mayThink reports whether the hour's second thoughts in a guild allow one
 // more.
 func (s *Service) mayThink(guildID string) bool {
+	if !s.online() || s.battery() <= batteryFull {
+		return false
+	}
 	s.thoughtMu.Lock()
 	defer s.thoughtMu.Unlock()
 	var recent []time.Time

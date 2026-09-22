@@ -277,7 +277,18 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 	var b strings.Builder
 
 	if name := c.Service.CharacterName(); name != "" {
-		b.WriteString("**" + name + "**\n\n")
+		b.WriteString("**" + name + "**")
+		if body, ok := c.Service.Body(); ok {
+			fmt.Fprintf(&b, " — %s since %s", body.Presence, body.Since.Format("15:04"))
+			if !body.WokeAt.IsZero() && body.Presence != "asleep" {
+				fmt.Fprintf(&b, ", up since %s", body.WokeAt.Format("15:04"))
+			}
+			fmt.Fprintf(&b, "\nEnergy %s", batteryBar(body.Battery))
+			if body.Missed > 0 {
+				fmt.Fprintf(&b, " · %d waiting for her", body.Missed)
+			}
+		}
+		b.WriteString("\n\n")
 	}
 
 	channels := store.GetChatChannels(e.GuildID)
@@ -449,6 +460,13 @@ func (c *ChatCommand) stateHere(guildID, channelID string) string {
 }
 
 // trimForQuote shortens text for an embed, on a word.
+// batteryBar draws her energy as ten blocks. For the administrator's eyes
+// only: she is never shown a number.
+func batteryBar(b float64) string {
+	n := int(b*10 + 0.5)
+	return "`" + strings.Repeat("█", n) + strings.Repeat("░", 10-n) + "`"
+}
+
 // maxConflictChars caps each side of a conflict shown in /chat status.
 const maxConflictChars = 160
 

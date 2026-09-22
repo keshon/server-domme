@@ -77,10 +77,7 @@ func (s *Service) dueFollowUp(guildID, userID string, now time.Time) *memory.Thr
 		return nil
 	}
 	local := now.In(s.location)
-	if h := local.Hour(); h >= quietFrom || h < quietUntil {
-		return nil
-	}
-	if !s.mayStart(guildID, local) {
+	if !s.awakeToStart(local) || !s.mayStart(guildID, local) {
 		return nil
 	}
 	c := s.noticeFor(guildID, now)

@@ -127,6 +127,20 @@ type Scene struct {
 	// is why the moment reached her; see TriggerSight.
 	Thread *memory.Thread
 
+	// Facts about her body, stated to her like the time of day and never
+	// as how she feels: when she woke, and how long she has been talking in
+	// this room and with how many. Zero leaves each out. See
+	// docs/persona-v3.md, B5.
+	Woke        time.Time
+	TalkingFor  time.Duration
+	TalkingWith int
+	// RecallCap and ShortExamples are how much she takes in, set by the
+	// body: at most RecallCap recalled moments (negative for none, zero for
+	// the usual), and the shorter voice examples. Mechanics, never said to
+	// her. See docs/persona-v3.md, B3.
+	RecallCap     int
+	ShortExamples bool
+
 	// Roles are what an administrator says about people here, by user id:
 	// the note set for a role they hold. Standing a server decided, which
 	// she takes as given rather than something she worked out.
@@ -208,7 +222,7 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 	if err != nil {
 		return k, err
 	}
-	k.Recalled = m.drift(s, pool, ids)
+	k.Recalled = capRecall(m.drift(s, pool, ids), s.RecallCap)
 
 	threads, err := m.Memory.Threads(s.GuildID)
 	if err != nil {

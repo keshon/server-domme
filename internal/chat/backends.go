@@ -16,17 +16,25 @@ import (
 // to another backend stays on it rather than changing voice again the moment
 // the preferred one recovers.
 //
-// The spec ties this to presence — one voice for as long as she is online —
-// and that is what it becomes once the body lands. Until then a session is
-// the engaged window: she has spoken somewhere within it. Bot-wide, not per
-// channel, so she never speaks in two voices in two channels at once.
+// With a body, a session is a stretch online: one voice for as long as she is
+// online, reset when she goes away or to sleep, so a change of voice happens
+// while she is gone. Without one, a session is the engaged window: she has
+// spoken somewhere within it. Bot-wide, not per channel, so she never speaks
+// in two voices in two channels at once.
 const voiceSession = engagedWindow
 
 // speak is mind.Speak through the voice she has been using.
 func (s *Service) speak(ctx context.Context, sc mind.Scene, k mind.Known, a mind.Appraisal, why string) (string, string, error) {
 	now := s.now()
+	session := 0
+	if s.body != nil {
+		session = s.body.State().Session
+	}
 	s.voiceMu.Lock()
-	if now.Sub(s.voiceAt) < voiceSession {
+	switch {
+	case s.body != nil && s.voiceSession == session:
+		ctx = ai.WithPrefer(ctx, s.voiceName)
+	case s.body == nil && now.Sub(s.voiceAt) < voiceSession:
 		ctx = ai.WithPrefer(ctx, s.voiceName)
 	}
 	s.voiceMu.Unlock()
@@ -34,7 +42,7 @@ func (s *Service) speak(ctx context.Context, sc mind.Scene, k mind.Known, a mind
 	reply, backend, err := s.mind.Speak(ctx, sc, k, a, why)
 	if err == nil && backend != "" {
 		s.voiceMu.Lock()
-		s.voiceName, s.voiceAt = backend, s.now()
+		s.voiceName, s.voiceAt, s.voiceSession = backend, s.now(), session
 		s.voiceMu.Unlock()
 	}
 	return reply, backend, err

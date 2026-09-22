@@ -106,9 +106,22 @@ func buildChatService(
 		loaded, err := time.LoadLocation(cfg.ChatTimezone)
 		if err != nil {
 			log.Warn().Err(err).Str("timezone", cfg.ChatTimezone).Msg("chat_timezone_invalid")
+			if cfg.ChatBody {
+				return nil, fmt.Sprintf("`CHAT_TIMEZONE=%s` is not a timezone this host knows, and with "+
+					"`CHAT_BODY` on her sleep runs on the community's clock. Use an IANA name such as "+
+					"`Europe/Moscow`, or set `CHAT_BODY=false`.", cfg.ChatTimezone)
+			}
 		} else {
 			location = loaded
 		}
+	} else if cfg.ChatBody {
+		// With a body, the clock is not cosmetic: she sleeps by it. A UTC
+		// clock puts her to sleep at the wrong end of the community's day,
+		// so it is refused rather than guessed.
+		log.Error().Msg("chat_timezone_missing")
+		return nil, "`CHAT_BODY` is on, so she sleeps and wakes by the community's clock, but " +
+			"`CHAT_TIMEZONE` is not set. Set it to an IANA name such as `Europe/Moscow`, or set " +
+			"`CHAT_BODY=false` to keep her always online."
 	}
 
 	// Her memory is the one thing she cannot do without and the one thing
@@ -150,6 +163,7 @@ func buildChatService(
 		Interest:        cfg.ChatInterest,
 		Serendipity:     cfg.ChatSerendipity,
 		Drift:           cfg.ChatDrift,
+		Body:            cfg.ChatBody,
 	}), ""
 }
 

@@ -57,7 +57,7 @@ const examplesEnd = "Those were examples of how you talk, not things that happen
 // once more with the repeat ruled out; a second one is an error, because a
 // retry later would build the same prompt and silence beats a loop.
 func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why string) (string, string, error) {
-	examples := m.sampleExamples()
+	examples := m.sampleExamples(s.ShortExamples)
 	k = m.fit(s.GuildID, "voice", k, voiceBudget, func(k Known) int { return promptSize(m.voicePrompt(s, k, a, why, examples)) })
 	msgs := m.voicePrompt(s, k, a, why, examples)
 	reply, backend, err := m.speak(ctx, msgs)
@@ -157,6 +157,9 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 		b.WriteString(sp + "\n\n")
 	}
 	b.WriteString(strings.Replace(renderPlace(s), "She is", "You are", 1))
+	if body := renderBody(s, "You", "have"); body != "" {
+		b.WriteString(" " + body)
+	}
 	if mood := moodLine(k.Self, s.Now); mood != "" {
 		b.WriteString("\n" + strings.Replace(mood, "Her mood", "Your mood", 1))
 	}
@@ -238,11 +241,30 @@ func topRecalled(moments []memory.Moment, n int) []memory.Moment {
 // Every example replayed on every call teaches whatever they have in common
 // as a template; drawn afresh each time, what they share is the voice and
 // what varies stays varied. See docs/persona-v3.md, G.
-func (m *Mind) sampleExamples() []Exchange {
+//
+// short draws from the shorter half of her replies only: when the body has
+// little energy left, the voice she hears in them is the terse one.
+func (m *Mind) sampleExamples(short bool) []Exchange {
 	if m.Character == nil {
 		return nil
 	}
 	all := m.Character.Examples
+	if short && len(all) > 1 {
+		lengths := make([]int, len(all))
+		for i, ex := range all {
+			lengths[i] = len(ex.Assistant)
+		}
+		sorted := append([]int(nil), lengths...)
+		sort.Ints(sorted)
+		median := sorted[len(sorted)/2]
+		var shorter []Exchange
+		for i, ex := range all {
+			if lengths[i] <= median {
+				shorter = append(shorter, ex)
+			}
+		}
+		all = shorter
+	}
 	n := m.ExamplesSample
 	if n <= 0 || n >= len(all) {
 		return all
@@ -279,6 +301,8 @@ func decided(s Scene, a Appraisal, why string) string {
 		b.WriteString("A little after your last message, one more thing occurs to you, and you send it as its own message. Do not repeat or restate what you already said.")
 	case TriggerSight:
 		fmt.Fprintf(&b, "Nobody asked you anything: %s is here, and you are bringing up something you meant to follow up on with them.", who)
+	case TriggerLeave:
+		b.WriteString("Nobody asked you anything: you are about to go. If you would say so, say it the way you would, in a few words.")
 	case TriggerOverheard:
 		b.WriteString("Nobody asked you anything: you are joining a conversation you overheard.")
 	default:

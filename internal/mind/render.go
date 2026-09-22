@@ -26,6 +26,9 @@ func renderWorld(s Scene, k Known) string {
 	var b strings.Builder
 
 	b.WriteString(renderPlace(s))
+	if body := renderBody(s, "She", "has"); body != "" {
+		b.WriteString(" " + body)
+	}
 
 	if lately := clip(k.Self.Lately, maxLatelyChars); lately != "" {
 		b.WriteString("\n\nHow she has been lately, in her own words:\n" + lately)
@@ -87,6 +90,28 @@ func renderPlace(s Scene) string {
 	}
 	return b.String()
 }
+
+// renderBody is what her body is doing, as facts: when she woke, and how
+// long she has been talking here. subject and has are "She"/"has" or
+// "You"/"have", for the thinking and the voice.
+func renderBody(s Scene, subject, has string) string {
+	var parts []string
+	if !s.Woke.IsZero() && s.Now.Sub(s.Woke) < 20*time.Hour {
+		parts = append(parts, fmt.Sprintf("%s woke at %s.", subject, s.Woke.In(s.Now.Location()).Format("15:04")))
+	}
+	if s.TalkingFor >= talkingWorthSaying {
+		line := fmt.Sprintf("%s %s been talking here for %s", subject, has, gap(s.TalkingFor))
+		if s.TalkingWith > 1 {
+			line += fmt.Sprintf(", with %d people", s.TalkingWith)
+		}
+		parts = append(parts, line+".")
+	}
+	return strings.Join(parts, " ")
+}
+
+// talkingWorthSaying is how long a conversation has to have gone on before
+// its length is stated.
+const talkingWorthSaying = 30 * time.Minute
 
 // moodLine states her mood with its age, since a mood from this morning is
 // not a mood now; the model is trusted to let an old one fade.

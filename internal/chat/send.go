@@ -77,7 +77,7 @@ func (s *Service) deliver(ctx context.Context, sess *discordgo.Session, sc mind.
 				s.log.Debug().Err(err).Str("channel_id", sc.ChannelID).Msg("chat_typing_failed")
 			}
 		}
-		if !s.pause(ctx, typingTime(text)-s.now().Sub(since)) {
+		if !s.pause(ctx, time.Duration(float64(typingTime(text))*s.slowness())-s.now().Sub(since)) {
 			return out, ctx.Err()
 		}
 		msg := s.outgoing(sc, text)
@@ -95,6 +95,7 @@ func (s *Service) deliver(ctx context.Context, sess *discordgo.Session, sc mind.
 		if sent != nil {
 			out.id = sent.ID
 		}
+		s.noteSpoke(sc, s.now())
 		said = append(said, text)
 		s.conv.Record(sc.ChannelID, mind.Turn{
 			Content:   text,

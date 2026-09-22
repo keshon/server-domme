@@ -103,7 +103,7 @@ func (s *Service) lookAround(ctx context.Context) {
 // considerStarting finds what she could start in a guild and asks her.
 func (s *Service) considerStarting(ctx context.Context, guildID string, channels []string) {
 	now := s.now().In(s.location)
-	if h := now.Hour(); h >= quietFrom || h < quietUntil {
+	if !s.awakeToStart(now) {
 		return
 	}
 	if !s.mayStart(guildID, now) || s.roll() >= lifeChance {
@@ -177,6 +177,7 @@ func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.
 		s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_read_failed")
 	}
 	a := mind.Appraisal{Act: mind.ActReply, Intent: plan.Intent}
+	s.drain(sc)
 	reply, backend, err := s.speak(ctx, sc, known, a, plan.Why)
 	if backend != "" {
 		entry.Backend = backend
@@ -313,6 +314,17 @@ func (s *Service) openings(sess *discordgo.Session, guildID string, channels []s
 		out = out[:maxOpenings]
 	}
 	return out
+}
+
+// awakeToStart reports whether she is in a state to start anything: with a
+// body, online and with some energy left; without one, outside the quiet
+// hours, as in v2.
+func (s *Service) awakeToStart(local time.Time) bool {
+	if s.body != nil {
+		return s.online() && s.battery() > batteryLow
+	}
+	h := local.Hour()
+	return h < quietFrom && h >= quietUntil
 }
 
 // mayReach reports whether going after someone is allowed at all right now:

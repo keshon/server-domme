@@ -164,6 +164,11 @@ type Config struct {
 	// ChatDrift is the odds that recall brings back a loosely related memory
 	// in place of the weakest relevant one. 0 recalls strictly by relevance.
 	ChatDrift float64 `env:"CHAT_DRIFT" envDefault:"0.25"`
+	// ChatBody is whether she has a body: sleep that follows from how long
+	// she has been awake and the time of day, energy for people, and being
+	// online, away or asleep. Requires CHAT_TIMEZONE. Off, she is always
+	// online, as in v2. See docs/persona-v3.md, B.
+	ChatBody bool `env:"CHAT_BODY" envDefault:"true"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

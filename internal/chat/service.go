@@ -22,6 +22,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/ai"
+	"github.com/keshon/server-domme/internal/body"
 	"github.com/keshon/server-domme/internal/memory"
 	"github.com/keshon/server-domme/internal/mind"
 	"github.com/keshon/server-domme/internal/storage"
@@ -97,6 +98,9 @@ type Deps struct {
 	// Drift is the odds that recall brings back a loosely related memory in
 	// place of the weakest relevant one; see mind.Mind.Drift.
 	Drift float64
+	// Body is whether she has one: sleep, energy, presence. Off, she is
+	// always online, as in v2. See presence.go.
+	Body bool
 	// Roll supplies randomness. Left nil it uses the global source; a test
 	// supplies its own.
 	Roll func() float64
@@ -110,6 +114,9 @@ type task struct {
 	// late marks a second attempt at an answer held back, so it can
 	// acknowledge the gap.
 	late bool
+	// catchUp marks an approach she missed while away, answered on her way
+	// back: never overruled, and read without waiting for more typing.
+	catchUp bool
 }
 
 // Service is the running persona.
@@ -196,6 +203,27 @@ type Service struct {
 	noticed    map[string]*noticeCache
 	sightTried map[string]time.Time
 
+	// body is her body, nil when she has none; see presence.go. bodyMu
+	// guards the rest: what she missed and is catching up on, when a
+	// mention will get through, where and to whom she last spoke, how long
+	// she has been talking in each room, what Discord was last told, and
+	// when the body was last saved.
+	body         *body.Body
+	voiceSession int
+	bodyMu       sync.Mutex
+	missed       []mind.Deferred
+	catchUp      []catchItem
+	noticeAt     time.Time
+	spokeAt      time.Time
+	spokeGuild   string
+	spokeChannel string
+	spokeTo      string
+	spokeToName  string
+	talk         map[string]*talkState
+	statusSent   string
+	statusSess   *discordgo.Session
+	savedAt      time.Time
+
 	conv      *mind.Conversations
 	deferrals *mind.Deferrals
 
@@ -261,6 +289,7 @@ func New(d Deps) *Service {
 		roomCounts:   make(map[string]*roomCount),
 		noticed:      make(map[string]*noticeCache),
 		sightTried:   make(map[string]time.Time),
+		talk:         make(map[string]*talkState),
 
 		followUpOnSight: d.FollowUpOnSight,
 		interest:        d.Interest,
@@ -270,6 +299,7 @@ func New(d Deps) *Service {
 		work:            make(chan task, queueDepth),
 	}
 	s.adoptPool(d.Pool)
+	s.adoptBody(d.Body)
 	return s
 }
 
@@ -291,6 +321,9 @@ func (s *Service) Run(ctx context.Context) {
 	run(s.lifeLoop)
 	run(s.reflectLoop)
 	run(s.thoughtLoop)
+	if s.body != nil {
+		run(s.bodyLoop)
+	}
 
 	s.log.Info().Int("workers", workers).Msg("chat_service_started")
 	wg.Wait()
@@ -318,6 +351,11 @@ func (s *Service) retryLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if !s.online() {
+				// Held answers wait for her; their TTL decides whether
+				// they are still worth giving when she is back.
+				continue
+			}
 			for _, item := range s.deferrals.Due(s.now()) {
 				select {
 				case s.work <- task{item: item, late: true}:
@@ -377,6 +415,17 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
+	if !s.online() {
+		// Away or asleep: the conversation is recorded, and someone
+		// speaking to her waits for her to come back.
+		if addressed {
+			s.miss(mind.Deferred{
+				GuildID: m.GuildID, ChannelID: m.ChannelID, MessageID: m.ID,
+				UserID: m.Author.ID, Username: name, Content: content, Trigger: trigger, FormedAt: now,
+			})
+		}
+		return
+	}
 	var thread *memory.Thread
 	if !addressed {
 		if th := s.dueFollowUp(m.GuildID, m.Author.ID, now); th != nil {
@@ -439,6 +488,10 @@ const (
 // decides only what she notices; whether she joins is still hers.
 func (s *Service) overhear(guildID, channelID, authorID, content string, now time.Time) bool {
 	if !s.store.IsChatProactive(guildID, channelID) || len(strings.Fields(content)) < overhearWords {
+		return false
+	}
+	if s.battery() <= batteryFull {
+		// Tired, she does not take on other people's conversations.
 		return false
 	}
 	if last := s.lastSpokeAt(channelID); !last.IsZero() && now.Sub(last) < engagedWindow {
