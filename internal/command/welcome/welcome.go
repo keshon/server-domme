@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -514,23 +515,44 @@ func archivedThreads(s *discordgo.Session, guildID string) []Channel {
 	if err != nil || g == nil {
 		return nil
 	}
-	var out []Channel
+	var parents []string
 	for _, c := range g.Channels {
 		switch c.Type {
 		case discordgo.ChannelTypeGuildText, discordgo.ChannelTypeGuildNews, discordgo.ChannelTypeGuildForum, discordgo.ChannelTypeGuildMedia:
-		default:
-			continue
+			parents = append(parents, c.ID)
 		}
-		list, err := s.ThreadsArchived(c.ID, nil, 100)
-		if err != nil || list == nil {
-			continue
-		}
-		for _, t := range list.Threads {
-			out = append(out, Channel{ID: t.ID, Name: t.Name})
-		}
+	}
+	// A few at a time: one after another, a server with a few dozen
+	// channels keeps the administrator waiting on "thinking".
+	found := make([][]Channel, len(parents))
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, archivedAtOnce)
+	for i, id := range parents {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-slots }()
+			list, err := s.ThreadsArchived(id, nil, 100)
+			if err != nil || list == nil {
+				return
+			}
+			for _, t := range list.Threads {
+				found[i] = append(found[i], Channel{ID: t.ID, Name: t.Name})
+			}
+		}()
+	}
+	wg.Wait()
+	var out []Channel
+	for _, f := range found {
+		out = append(out, f...)
 	}
 	return out
 }
+
+// archivedAtOnce is how many channels' archived threads are asked for at
+// the same time.
+const archivedAtOnce = 4
 
 func randomGif(gifs []string) string {
 	if len(gifs) == 0 {

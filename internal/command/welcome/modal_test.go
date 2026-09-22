@@ -29,6 +29,11 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.bodies = append(r.bodies, string(body))
 	r.paths = append(r.paths, req.Method+" "+req.URL.Path)
 	r.mu.Unlock()
+	if req.Method == http.MethodPatch {
+		// Editing a response answers with the message, as Discord does.
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"id":"m1"}`)),
+			Header: http.Header{"Content-Type": []string{"application/json"}}, Request: req}, nil
+	}
 	return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader("")), Header: http.Header{}, Request: req}, nil
 }
 
@@ -76,18 +81,24 @@ func TestAnAdministratorCanSaveATemplateFromTheEditor(t *testing.T) {
 	if w == nil || w.IntroTemplate != "Please fill #introduction and see #😍-kinks" {
 		t.Fatalf("saved %+v; sent %v", w, rec.bodies)
 	}
-	if len(rec.bodies) != 1 {
+	// Acknowledged first, then answered by editing that in: the save may look
+	// things up, and Discord gives a modal only three seconds.
+	if len(rec.bodies) != 2 || !strings.HasPrefix(rec.paths[0], "POST") || !strings.HasPrefix(rec.paths[1], "PATCH") {
 		t.Fatalf("answered %v %v", rec.paths, rec.bodies)
 	}
+	var ack struct {
+		Type int `json:"type"`
+	}
+	if err := json.Unmarshal([]byte(rec.bodies[0]), &ack); err != nil || ack.Type != int(discordgo.InteractionResponseDeferredChannelMessageWithSource) {
+		t.Fatalf("acknowledged with %s: %v", rec.bodies[0], err)
+	}
 	var answer struct {
-		Data struct {
-			Embeds []struct{ Description string } `json:"embeds"`
-		} `json:"data"`
+		Embeds []struct{ Description string } `json:"embeds"`
 	}
-	if err := json.Unmarshal([]byte(rec.bodies[0]), &answer); err != nil || len(answer.Data.Embeds) != 1 {
-		t.Fatalf("answer %s: %v", rec.bodies[0], err)
+	if err := json.Unmarshal([]byte(rec.bodies[1]), &answer); err != nil || len(answer.Embeds) != 1 {
+		t.Fatalf("answer %s: %v", rec.bodies[1], err)
 	}
-	if got := answer.Data.Embeds[0].Description; !strings.Contains(got, "Please fill <#100> and see <#101>") {
+	if got := answer.Embeds[0].Description; !strings.Contains(got, "Please fill <#100> and see <#101>") {
 		t.Errorf("the preview reads %q", got)
 	}
 }

@@ -141,6 +141,18 @@ func (c *WelcomeCommand) ModalSubmit(context *cmdadapter.ComponentInteractionCon
 		return reply.RespondEphemeral(s, e, "That editor is out of date. Open it again with `/welcome template`.")
 	}
 
+	// Acknowledged before anything else, and answered by editing that in:
+	// looking up archived threads is a request per channel, and Discord
+	// gives a modal three seconds before it tells the administrator
+	// "Something went wrong" — which it did, on a server with a few dozen
+	// channels, while the text was being saved behind it.
+	if err := reply.RespondDeferredEphemeral(s, e); err != nil {
+		return fmt.Errorf("welcome: acknowledge template: %w", err)
+	}
+	answer := func(msg string) error {
+		return reply.EditResponseEmbed(s, e, &discordgo.MessageEmbed{Description: msg, Color: reply.EmbedColor})
+	}
+
 	text := strings.TrimSpace(modalValue(data.Components, modalField))
 	text = linkArchived(s, e.GuildID, text, guildChannels(s, e.GuildID))
 	err := store.UpdateWelcomeRole(e.GuildID, roleID, func(w *storage.WelcomeRole) {
@@ -151,10 +163,11 @@ func (c *WelcomeCommand) ModalSubmit(context *cmdadapter.ComponentInteractionCon
 		}
 	})
 	if err != nil {
+		_ = answer("The text could not be saved. Try again.")
 		return fmt.Errorf("welcome: save template: %w", err)
 	}
 	if text == "" {
-		return respond(s, e, fmt.Sprintf("Removed the %s text for <@&%s>.", kind, roleID))
+		return answer(fmt.Sprintf("Removed the %s text for <@&%s>.", kind, roleID))
 	}
 
 	// Rendered for the person saving it, so they see the links and their
@@ -169,7 +182,7 @@ func (c *WelcomeCommand) ModalSubmit(context *cmdadapter.ComponentInteractionCon
 	if TooLong(rendered) {
 		msg += "\n\n⚠️ It is over Discord's 2000 characters with a name in it, and will be refused until shortened."
 	}
-	return respond(s, e, trimEmbed(msg))
+	return answer(trimEmbed(msg))
 }
 
 // modalValue finds a text input's value in a submitted modal.

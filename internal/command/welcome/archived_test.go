@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
@@ -28,10 +29,15 @@ func TestInvisibleCharactersFromDiscordAreDropped(t *testing.T) {
 
 // archive is a fake Discord that answers every channel's archived threads
 // with the same list.
-type archive struct{ calls int }
+type archive struct {
+	mu    sync.Mutex
+	calls int
+}
 
 func (a *archive) RoundTrip(r *http.Request) (*http.Response, error) {
+	a.mu.Lock()
 	a.calls++
+	a.mu.Unlock()
 	body := `{"threads":[{"id":"7","name":"Domme Icons Full List","type":11},{"id":"9","name":"information","type":11}],"members":[],"has_more":false}`
 	return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}},
 		Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
