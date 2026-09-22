@@ -660,9 +660,17 @@ func (c *ChatCommand) runChannel(
 		}
 	}
 
+	if mode != "" && mode != modeOff && chatsvc.AgeRestricted(s, e.ChannelID) {
+		return respond(s, e, fmt.Sprintf(
+			"<#%s> is age-restricted, and she takes nothing from those channels: "+
+				"she would not read, remember or speak there whatever the mode.", e.ChannelID))
+	}
+
 	switch mode {
 	case "":
 		switch {
+		case chatsvc.AgeRestricted(s, e.ChannelID):
+			return respond(s, e, fmt.Sprintf("<#%s> is age-restricted. She takes nothing from it and never speaks there, whatever mode it was given.", e.ChannelID))
 		case store.IsChatProactive(e.GuildID, e.ChannelID):
 			return respond(s, e, fmt.Sprintf("In <#%s> she reads, answers, and may start things herself.", e.ChannelID))
 		case store.IsChatChannel(e.GuildID, e.ChannelID):

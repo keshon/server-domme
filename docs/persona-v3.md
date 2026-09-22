@@ -1217,6 +1217,14 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 22 Sep 2026 — the town, guarded (F3): a channel Discord marks
+  age-restricted, or a thread in one, is closed to her whatever its mode —
+  not read, walked, answered or started in — and `/chat channel` refuses
+  to open one. The server's own marking, followed without reading anything.
+  What she keeps from a walk elsewhere is a SFW gist, by the idle rules.
+  And after a restart the bot's command output (a /task post, its
+  reminders, a /discipline line) is no longer read back as her own words:
+  on this server some of it is explicit, and she owns her lines.
 - 22 Sep 2026 — proposed, not built: a doings layer, workstream J, in
   [persona-v3-doings.md](persona-v3-doings.md). The first live log's
   inventions came from an idle mind asked for "something she is in the

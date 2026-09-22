@@ -30,6 +30,10 @@ func (s *Service) backfill(sess *discordgo.Session, channelID string) {
 	if sess == nil || channelID == "" || !s.conv.NeedsSeed(channelID) {
 		return
 	}
+	if AgeRestricted(sess, channelID) {
+		s.conv.Seed(channelID, nil)
+		return
+	}
 
 	messages, err := sess.ChannelMessages(channelID, backfillLimit, "", "", "")
 	if err != nil {
@@ -82,6 +86,9 @@ func (s *Service) historyToTurns(sess *discordgo.Session, messages []*discordgo.
 		if m.Author.Bot && !fromBot {
 			continue
 		}
+		if fromBot && commandOutput(m, self) {
+			continue
+		}
 
 		content := plain(sess, guildID, m)
 		if content == "" {
@@ -132,4 +139,19 @@ func mentions(m *discordgo.Message, self string) bool {
 		}
 	}
 	return false
+}
+
+// commandOutput reports whether a message the bot posted is the output of
+// one of its commands rather than something she said. Both come from the
+// same account, and read back after a restart a /task post — whose text on
+// some servers is explicit — or a /discipline line would otherwise become a
+// line of hers, and she owns her lines. Command output is an interaction's
+// response or follow-up, or a notice posted as a reply to one (a task's
+// reminder, its expiry); what she says never replies to the bot's own
+// messages.
+func commandOutput(m *discordgo.Message, self string) bool {
+	if m.Interaction != nil || m.InteractionMetadata != nil || m.WebhookID != "" {
+		return true
+	}
+	return m.ReferencedMessage != nil && m.ReferencedMessage.Author != nil && m.ReferencedMessage.Author.ID == self
 }

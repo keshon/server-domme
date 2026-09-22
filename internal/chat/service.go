@@ -439,6 +439,11 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	if self != "" && m.Author.ID == self {
 		return
 	}
+	if AgeRestricted(sess, m.ChannelID) {
+		// Closed to her whatever mode it was given: see AgeRestricted.
+		s.noteActivity(m)
+		return
+	}
 	if s.walks && s.store.IsChatReads(m.GuildID, m.ChannelID) {
 		// A channel she reads and never speaks in: kept for her next walk
 		// through it, and nothing else. See idle.go.
