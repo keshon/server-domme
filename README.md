@@ -80,6 +80,7 @@ It’s designed to be practical for server management while providing light, int
   - **/chat about** — What she knows and thinks about someone
   - **/chat forget** — Wipe everything she remembers about this server
   - **/chat backends** — Which models she thinks and speaks through (bot developer only) — or see them, left empty
+  - **/chat reflect** — Have her look back now on the days she has not made sense of yet
 
 ### 🎞️ Media
 
@@ -91,7 +92,8 @@ It’s designed to be practical for server management while providing light, int
 - **/purge** — Manage message purges
   - **/purge auto** — Regularly purge old messages in this channel
   - **/purge now** — Schedule or perform an immediate purge
-  - **/purge jobs** — List all active purge jobs
+  - **/purge channel** — Allow or forbid purges in this channel — or see whether they are allowed, left empty
+  - **/purge jobs** — List all active purge jobs and the channels purges are allowed in
   - **/purge stop** — Stop ongoing purge in this channel
 
 ### ⚙️ Settings
@@ -174,7 +176,8 @@ acquired by accident — and never in a channel nobody named.
 
 Who she is lives in `data/character.md`: prose, hard limits, and example
 exchanges. Edit that file to change her; the examples do more for her voice
-than any amount of description. `/chat brief` tells her what your server
+than any amount of description. [docs/character-guide.md](docs/character-guide.md) says
+how to write it, and what not to undo. `/chat brief` tells her what your server
 actually is, which is what stops her sounding like a chatbot that could be
 anywhere.
 
