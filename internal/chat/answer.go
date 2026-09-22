@@ -121,7 +121,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 		}
 	}
 	started := s.now()
-	reply, backend, err := s.mind.Speak(genCtx, scene, known, a, "")
+	reply, backend, err := s.speak(genCtx, scene, known, a, "")
 	if backend != "" {
 		entry.Backend = backend
 	}

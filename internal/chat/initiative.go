@@ -174,7 +174,7 @@ func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.
 		s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_read_failed")
 	}
 	a := mind.Appraisal{Act: mind.ActReply, Intent: plan.Intent}
-	reply, backend, err := s.mind.Speak(ctx, sc, known, a, plan.Why)
+	reply, backend, err := s.speak(ctx, sc, known, a, plan.Why)
 	if backend != "" {
 		entry.Backend = backend
 	}

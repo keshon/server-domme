@@ -56,8 +56,14 @@ var ErrUnreadable = errors.New("mind: the model's answer could not be read")
 // remembers.
 type Mind struct {
 	Character *Character
-	Provider  ai.Provider
-	Memory    *memory.Store
+	// Provider is what she thinks through: appraisals, reflection,
+	// initiative.
+	Provider ai.Provider
+	// Voice is what she speaks through; nil means Provider. Separate because
+	// every model has a native voice, and hers should come from one chosen
+	// for it. See docs/persona-v3.md, workstream A.
+	Voice  ai.Provider
+	Memory *memory.Store
 }
 
 // Scene is everything about a moment that is not in her memory: where she is,
@@ -228,13 +234,25 @@ func topicWords(turns []Turn) []string {
 // generate asks the provider, reporting which backend answered when the
 // provider can say.
 func (m *Mind) generate(ctx context.Context, msgs []ai.Message) (string, string, error) {
+	return generateWith(ctx, m.Provider, msgs)
+}
+
+// speak is generate through her voice.
+func (m *Mind) speak(ctx context.Context, msgs []ai.Message) (string, string, error) {
+	if m.Voice != nil {
+		return generateWith(ctx, m.Voice, msgs)
+	}
+	return generateWith(ctx, m.Provider, msgs)
+}
+
+func generateWith(ctx context.Context, p ai.Provider, msgs []ai.Message) (string, string, error) {
 	type named interface {
 		GenerateNamed(ctx context.Context, messages []ai.Message) (string, string, error)
 	}
-	if p, ok := m.Provider.(named); ok {
-		return p.GenerateNamed(ctx, msgs)
+	if n, ok := p.(named); ok {
+		return n.GenerateNamed(ctx, msgs)
 	}
-	reply, err := m.Provider.Generate(ctx, msgs)
+	reply, err := p.Generate(ctx, msgs)
 	return reply, "", err
 }
 

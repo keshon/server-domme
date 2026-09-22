@@ -159,7 +159,7 @@ func TestPoolStopsOnContextCancellation(t *testing.T) {
 	}
 }
 
-func TestPoolPrefersTheBackendThatKeepsAnswering(t *testing.T) {
+func TestScoreModePrefersTheBackendThatKeepsAnswering(t *testing.T) {
 	var flakyHits, goodHits atomic.Int64
 	flaky := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if flakyHits.Add(1)%2 == 1 {
@@ -175,6 +175,7 @@ func TestPoolPrefersTheBackendThatKeepsAnswering(t *testing.T) {
 		NewClient("flaky", flaky.URL, "m", ""),
 		NewClient("good", good.URL, "m", ""),
 	)
+	pool.SetMode(ModeScore)
 
 	for i := 0; i < 6; i++ {
 		if _, err := pool.Generate(context.Background(), nil); err != nil {

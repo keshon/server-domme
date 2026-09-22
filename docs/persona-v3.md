@@ -158,7 +158,7 @@ wander between relays.
 |---|---|
 | **Priority mode** (default) | Backends are tried in configured order. One in cooldown is skipped and takes its place back when the cooldown ends. Score is kept for `/chat status`, not for ordering. `CHAT_BACKEND_ORDER=score` keeps today's behaviour. |
 | **Escalating cooldown** | Each consecutive failure doubles the cooldown: 90s, 3m, 6m … capped at 30m. One success resets it. This, not score, is what stops a flaky preferred backend flipping her voice every 90 seconds. Refusals keep their fixed 30m. |
-| **Voice order** | `CHAT_VOICE_BACKENDS=g4f-1,g4f-3` — names from `CHAT_BACKENDS`. `Speak` uses only these, in order; `Consider`, `Reflect`, `Initiate` and the idle mind use the full list. Empty means the full list for both. `Mind` gains a second provider, `Voice`. |
+| **Voice order** | `CHAT_VOICE_BACKENDS=g4f-1,g4f-3` — names from `CHAT_BACKENDS`. `Speak` tries these first, in order, and falls back to the rest of the list only when all of them are down — a preferred voice, not a cage, because silence is worse than another voice. `Consider`, `Reflect`, `Initiate` and the idle mind use the full list. Empty means the full list for both. `Mind` gains a second provider, `Voice`, which shares the pool's record of backend health. |
 | **Stickiness per presence session** | Whichever voice backend she is on stays hers for as long as she is ONLINE (B2), across every channel, even once a preferred one recovers. When she goes AWAY or ASLEEP, the order resets to the configured one. A change of voice then happens while she is gone, where nobody can hear it, and she never speaks in two voices in two channels at once. A channel is the wrong unit: ten unrelated people can talk in one over six hours. The service holds the current voice backend bot-wide and passes `ai.WithPrefer(ctx, name)`; the pool tries that one first unless it is cooling down. With `CHAT_BODY=off` there is no presence, and the session is an `engagedWindow` of silence everywhere. |
 | **Runtime control** | `/chat backends` — list with state; `order a,b,c`; `off name`; `on name`. Stored in the datastore; env is the default, the command overrides. Bot-owner only: backends are shared by every server. |
 
@@ -1169,3 +1169,7 @@ Architecture changes after the freeze, with the evidence for each.
   behind their backs) and H5 (the base rate); reflection split into three
   calls; a total prompt budget; the timezone required with the body on; no
   migration of v2 memory (I).
+- 22 Sep 2026 — A, while building: the voice order falls back to the rest
+  of the list when every preferred voice backend is down, instead of
+  leaving her silent. Reliability over a pure voice; the fallback is visible
+  in the journal's backend field.

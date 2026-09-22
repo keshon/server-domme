@@ -5,6 +5,10 @@
 //	go run ./cmd/chatprobe -log temp/log.txt
 //	go run ./cmd/chatprobe -log temp/log.txt -from 40 -to 80 -own
 //	go run ./cmd/chatprobe -log temp/log.txt -backends 'mine|https://api.example.com/v1|some-model|sk-...'
+//	go run ./cmd/chatprobe -backends "$CHAT_BACKENDS" -voice-backends g4f-3
+//
+// The last form is how relays are ranked on holding her voice: the same log,
+// thinking through the whole list, speaking through one relay at a time.
 //
 // At every point where she spoke in the log in answer to someone, it asks v2
 // what she makes of the moment and what she says, and prints that beside
@@ -51,6 +55,7 @@ func main() {
 	own := flag.Bool("own", false, "carry the conversation on with v2's lines instead of the ones in the log")
 	reflect := flag.Bool("reflect", true, "reflect on each day as the log moves past it")
 	backends := flag.String("backends", "", "backends as in CHAT_BACKENDS; default the g4f relay")
+	voiceBackends := flag.String("voice-backends", "", "names from -backends her voice prefers, in order, as in CHAT_VOICE_BACKENDS; run one at a time to rank relays on holding her voice")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -92,13 +97,16 @@ func main() {
 	if *backends != "" {
 		opts = ai.Options{Extra: strings.Split(*backends, ",")}
 	}
+	if *voiceBackends != "" {
+		opts.Voice = strings.Split(*voiceBackends, ",")
+	}
 	pool, err := ai.Build(context.Background(), log, opts)
 	if err != nil {
 		fail(err)
 	}
 
 	p := &probe{
-		mind:    &mind.Mind{Character: character, Provider: pool, Memory: store},
+		mind:    &mind.Mind{Character: character, Provider: pool, Voice: pool.Voice(), Memory: store},
 		botName: *botName,
 		own:     *own,
 		reflect: *reflect,

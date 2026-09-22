@@ -102,6 +102,15 @@ type Config struct {
 	// free relays that worked last month answer 403 today. A list an operator
 	// can edit outlives any set of providers compiled in.
 	ChatBackends []string `env:"CHAT_BACKENDS" envSeparator:","`
+	// ChatBackendOrder is how the backends are ordered: "priority" tries them
+	// in the order given and moves past one only while it rests, so the model
+	// speaking is a choice; "score" ranks them by what they have done lately.
+	// /chat backends can change it at runtime.
+	ChatBackendOrder string `env:"CHAT_BACKEND_ORDER" envDefault:"priority"`
+	// ChatVoiceBackends names, from the backends above, the ones her voice
+	// prefers, in order. Thinking uses the full list. Empty means the voice
+	// uses it too. /chat backends can change it at runtime.
+	ChatVoiceBackends []string `env:"CHAT_VOICE_BACKENDS" envSeparator:","`
 
 	// ChatRequestTimeout is how long one backend gets to answer. Raise it for
 	// a model running on CPU, which can spend most of a minute on a prompt a

@@ -86,6 +86,11 @@ type Options struct {
 	// last month answer 403 today; an operator can add whatever replaced them,
 	// or a second machine running Ollama, without waiting for a release.
 	Extra []string
+	// Mode is how the pool orders backends; empty is ModePriority.
+	Mode Mode
+	// Voice names the backends the voice prefers, in order; see Pool.Voice.
+	// A name the pool does not have is logged and skipped.
+	Voice []string
 }
 
 // Build assembles a Pool from opts, discovering g4f.space models if asked.
@@ -151,6 +156,16 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 	if pool.Len() == 0 {
 		return nil, ErrNoBackend
 	}
+	voice := make([]string, 0, len(opts.Voice))
+	for _, name := range opts.Voice {
+		if name = strings.TrimSpace(name); name != "" {
+			voice = append(voice, name)
+		}
+	}
+	unknown := pool.Apply(Settings{Mode: opts.Mode, Voice: voice})
+	for _, name := range unknown {
+		log.Warn().Str("backend", name).Msg("ai_voice_backend_unknown")
+	}
 
 	// Named, not just counted. A count cannot answer the only question asked of
 	// this line in practice — did my backend make it into the pool — and an
@@ -163,6 +178,8 @@ func Build(ctx context.Context, log zerolog.Logger, opts Options) (*Pool, error)
 	log.Info().
 		Int("backends", pool.Len()).
 		Str("names", strings.Join(names, ",")).
+		Str("mode", string(pool.Mode())).
+		Str("voice", strings.Join(pool.Settings().Voice, ",")).
 		Msg("ai_pool_ready")
 
 	return pool, nil

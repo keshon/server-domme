@@ -34,6 +34,7 @@ type Storage struct {
 	mindDays     *datastore.Collection[*MindDay]
 	welcomeRoles *datastore.Collection[*WelcomeRole]
 	welcomed     *datastore.Collection[*Welcomed]
+	chatBackends *datastore.Collection[*ChatBackends]
 
 	cmdLogByGuild        *datastore.Index[*CommandLogEntry]
 	purgeJobsByGuild     *datastore.Index[*PurgeJob]
@@ -68,6 +69,7 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.mindDays = datastore.Register[*MindDay](db, "mind_days")
 	s.welcomeRoles = datastore.Register[*WelcomeRole](db, "welcome_roles")
 	s.welcomed = datastore.Register[*Welcomed](db, "welcomed")
+	s.chatBackends = datastore.Register[*ChatBackends](db, "chat_backends")
 
 	s.cmdLogByGuild = datastore.AddIndex(s.cmdLog, "guild",
 		func(c *CommandLogEntry) []string { return []string{c.GuildID} })

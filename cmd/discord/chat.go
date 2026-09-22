@@ -61,6 +61,11 @@ func buildChatService(
 			cfg.ChatCharacterPath)
 	}
 
+	mode, ok := ai.ParseMode(cfg.ChatBackendOrder)
+	if !ok {
+		log.Warn().Str("value", cfg.ChatBackendOrder).Msg("chat_backend_order_invalid")
+	}
+
 	pool, err := ai.Build(ctx, log, ai.Options{
 		UsePollinations: cfg.ChatUsePollinations,
 		UseG4F:          cfg.ChatUseG4F,
@@ -72,6 +77,8 @@ func buildChatService(
 		Extra:           cfg.ChatBackends,
 		Timeout:         cfg.ChatRequestTimeout,
 		Temperature:     temperature(cfg.ChatTemperature, log),
+		Mode:            mode,
+		Voice:           cfg.ChatVoiceBackends,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("chat_backend_build_failed")
@@ -126,6 +133,8 @@ func buildChatService(
 	return chatsvc.New(chatsvc.Deps{
 		Character:      character,
 		Provider:       pool,
+		Voice:          pool.Voice(),
+		Pool:           pool,
 		Storage:        store,
 		Memory:         mem,
 		Session:        bot.Session,

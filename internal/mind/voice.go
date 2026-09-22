@@ -56,7 +56,7 @@ const examplesEnd = "Those were examples of how you talk, not things that happen
 // retry later would build the same prompt and silence beats a loop.
 func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why string) (string, string, error) {
 	msgs := m.voicePrompt(s, k, a, why)
-	reply, backend, err := m.generate(ctx, msgs)
+	reply, backend, err := m.speak(ctx, msgs)
 	if err != nil {
 		return "", backend, err
 	}
@@ -66,7 +66,7 @@ func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why str
 
 	if earlier, repeats := RepeatsHerself(reply, s.Turns); repeats {
 		again := append(msgs, ai.Message{Role: ai.RoleSystem, Content: RepeatNote(earlier)})
-		reply, backend, err = m.generate(ctx, again)
+		reply, backend, err = m.speak(ctx, again)
 		if err != nil {
 			return "", backend, err
 		}

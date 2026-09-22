@@ -187,6 +187,7 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					},
 				},
 			},
+			backendsOption(),
 		},
 	}
 }
@@ -201,7 +202,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role` or `forget`.")
+		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role`, `forget` or `backends`.")
 	}
 	sub := data.Options[0]
 
@@ -230,6 +231,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subWhy:
 		return c.runWhy(context, sub)
+
+	case subBackends:
+		return c.runBackends(context, sub)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))
@@ -296,21 +300,8 @@ func (c *ChatCommand) runStatus(context *cmdadapter.SlashInteractionContext) err
 	b.WriteString("\n" + c.stateHere(e.GuildID, e.ChannelID))
 
 	if len(status.Backends) > 0 {
-		b.WriteString("\n**Backends**\n")
-		for _, backend := range status.Backends {
-			fmt.Fprintf(&b, "`%s` — %d ok / %d failed", backend.Name, backend.Successes, backend.Failures)
-			if backend.CooledFor > 0 {
-				fmt.Fprintf(&b, ", resting %s", backend.CooledFor)
-			}
-			b.WriteString("\n")
-			// Quoted only when nothing has ever worked. A backend that is
-			// answering does not need its last hiccup shown to an
-			// administrator; one that has never answered is the entire reason
-			// they are looking at this.
-			if backend.Successes == 0 && backend.LastError != "" {
-				fmt.Fprintf(&b, "> %s\n", trimForEmbed(backend.LastError))
-			}
-		}
+		b.WriteString("\n**Backends**, in the order she tries them\n")
+		b.WriteString(backendLines(status.Backends))
 	}
 
 	b.WriteString("\n-# Her memory is in `" + status.MemoryPath + "` on the host.")

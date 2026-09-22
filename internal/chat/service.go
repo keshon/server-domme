@@ -57,10 +57,15 @@ type SessionFunc func() *discordgo.Session
 type Deps struct {
 	Character *mind.Character
 	Provider  ai.Provider
-	Storage   *storage.Storage
-	Memory    *memory.Store
-	Session   SessionFunc
-	Log       zerolog.Logger
+	// Voice is what she speaks through; nil means Provider. See mind.Mind.
+	Voice ai.Provider
+	// Pool is the backend pool behind Provider and Voice, when there is one:
+	// what /chat backends arranges. Nil for a provider that is not a pool.
+	Pool    *ai.Pool
+	Storage *storage.Storage
+	Memory  *memory.Store
+	Session SessionFunc
+	Log     zerolog.Logger
 	// Names is every spelling she answers to, most canonical first. What
 	// Discord calls her in a guild is added per message.
 	Names []string
@@ -142,6 +147,17 @@ type Service struct {
 	reflectMu sync.Mutex
 	reflected map[string]int
 
+	// pool is the backend pool, and poolDefaults its arrangement as the
+	// environment gave it, which /chat backends reset returns to. See
+	// backends.go.
+	pool         *ai.Pool
+	poolDefaults ai.Settings
+	// voiceName is the backend her voice last spoke through, and voiceAt
+	// when, bot-wide. See Service.speak.
+	voiceMu   sync.Mutex
+	voiceName string
+	voiceAt   time.Time
+
 	conv      *mind.Conversations
 	deferrals *mind.Deferrals
 
@@ -174,10 +190,10 @@ func New(d Deps) *Service {
 		generateTimeout = 4 * d.RequestTimeout
 	}
 
-	return &Service{
+	s := &Service{
 		generateTimeout: generateTimeout,
 
-		mind:        &mind.Mind{Character: d.Character, Provider: d.Provider, Memory: d.Memory},
+		mind:        &mind.Mind{Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory},
 		character:   d.Character,
 		names:       mind.CleanNames(names),
 		store:       d.Storage,
@@ -203,6 +219,8 @@ func New(d Deps) *Service {
 		deferrals:    mind.NewDeferrals(),
 		work:         make(chan task, queueDepth),
 	}
+	s.adoptPool(d.Pool)
+	return s
 }
 
 // Run starts the workers and the loops, returning when ctx ends.

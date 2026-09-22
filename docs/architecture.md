@@ -234,10 +234,25 @@ member's consent to be sought out.
 The endpoints are donated public infrastructure with no guarantees, and they
 behave accordingly: `g4f.space` relays volunteer servers that each allow only
 their own model list and have been observed answering with a different model
-than the one requested. `ai.Pool` therefore ranks backends on what they have
-actually done and puts a failing one in cooldown rather than trusting a
-configured order. `ai.PickModels` takes at most one model per donated server,
-so the pool is not three entries on one machine.
+than the one requested. `ai.Pool` therefore fails over: a backend that fails
+is put in cooldown, and each cooldown in a row doubles the next, from 90
+seconds up to half an hour, so a flaky backend is not retried on every
+message. `ai.PickModels` takes at most one model per donated server, so the
+pool is not three entries on one machine.
+
+Which backend answers is the operator's choice, not the pool's. By default
+(`CHAT_BACKEND_ORDER=priority`) backends are tried in the configured order and
+the pool moves past one only while it rests, because every model has a native
+voice and a pool that re-ranks itself on every call makes her a different
+speaker from one message to the next; `score` restores ranking by what each
+backend has done lately. Her voice can prefer its own backends
+(`CHAT_VOICE_BACKENDS`), with thinking still using the whole list and the voice
+falling back to it when every preferred one is down. Once her voice has spoken
+through a backend it stays on it for the session, so a failover does not
+change her voice twice. `/chat backends`, for the bot's developer only, changes
+the order, the voice order and which backends are switched off at runtime; the
+arrangement is stored and survives a restart. See
+[persona-v3.md](persona-v3.md), workstream A.
 
 `CHAT_BASE_URL` points at any other OpenAI-compatible endpoint — a local Ollama
 or a paid API — and is tried first when set.

@@ -122,7 +122,7 @@ func (s *Service) sendThought(ctx context.Context, t pendingThought) {
 		s.log.Warn().Err(err).Str("guild_id", sc.GuildID).Msg("chat_memory_read_failed")
 	}
 	started := s.now()
-	reply, backend, err := s.mind.Speak(genCtx, sc, known, a, "")
+	reply, backend, err := s.speak(genCtx, sc, known, a, "")
 	entry.Backend = backend
 	if err != nil {
 		s.log.Info().Err(err).Str("channel_id", sc.ChannelID).Msg("chat_thought_dropped")
