@@ -83,6 +83,10 @@ type Mind struct {
 	// Feelings is whether she has feelings with a cause that fade on their
 	// own, in place of v2's one-line mood. See docs/persona-v3.md, C.
 	Feelings bool
+	// StyleCheck is whether a reply is held to her style after she writes
+	// it: asked again once for a phrase that is not hers or a length far
+	// past her examples, and cut to length. See Style.
+	StyleCheck bool
 	// Roll supplies randomness; nil uses the global source. One source for
 	// the code's randomness, so a run can be repeated.
 	Roll func() float64

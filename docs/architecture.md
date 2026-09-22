@@ -226,8 +226,10 @@ her mood, how she has been lately in her own words, how she feels about the
 people here and what she means to do. `/chat why` shows what she made of a
 particular message and what she decided; `/chat about` shows her file on a
 person; `/chat brief` and `/chat role` tell her what the server and its roles
-are; `/chat forget` moves her memory of a server aside. `/attention` is a
-member's consent to be sought out.
+are; `/chat forget` moves her memory of a server aside; `/chat reflect` has
+her look back now rather than in the early morning, on today so far as well
+if asked, leaving today open for the night. `/attention` is a member's
+consent to be sought out.
 
 ### Backends
 

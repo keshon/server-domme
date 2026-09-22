@@ -44,6 +44,9 @@ type Appraisal struct {
 	Act  Act
 	// Emoji is her reaction, when Act is ActReact.
 	Emoji string
+	// Situation is what kind of message it was, as she took it: what her
+	// voice examples are chosen by. See Situation.
+	Situation Situation
 	// Intent is the gist of what she wants to get across, when she replies.
 	// The voice turns it into words; see Mind.Speak.
 	Intent string
@@ -129,19 +132,23 @@ const appraisalShape = `Answer with one JSON object and nothing else:
 }`
 
 // Feelings in the appraisal, when they are on: the mood and feel lines give
-// way to one feeling with what it is about.
+// way to one feeling with what it is about. The read line is where the
+// situation goes in after it.
 const (
+	readLineShape    = "  \"read\": \"what they are saying or want, taken at face value unless something is off — one sentence\",\n"
 	moodLineShape    = "  \"mood\": \"her mood after this — a few words\",\n"
 	feelLineShape    = "  \"feel\": \"how it lands with her, honestly — a few words\",\n"
 	feelingLineShape = "  \"feeling\": {\"what\": \"a feeling this leaves her with, a word or two — only if one actually registers\", \"about\": \"what it is about, in a few words\"} or empty,\n"
 )
 
-// appraisalShape is the JSON asked for: v2's, or with feelings.
+// appraisalShape is the JSON asked for: v2's, or with feelings; either way
+// with the situation after the reading.
 func (m *Mind) appraisalShape() string {
+	shape := strings.Replace(appraisalShape, readLineShape, readLineShape+situationShape(), 1)
 	if !m.Feelings {
-		return appraisalShape
+		return shape
 	}
-	shape := strings.Replace(appraisalShape, moodLineShape, "", 1)
+	shape = strings.Replace(shape, moodLineShape, "", 1)
 	return strings.Replace(shape, feelLineShape, feelingLineShape, 1)
 }
 
@@ -223,6 +230,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Toward:     str(obj, "toward"),
 		Mood:       str(obj, "mood"),
 		Emoji:      str(obj, "emoji"),
+		Situation:  ParseSituation(str(obj, "situation")),
 		Intent:     str(obj, "intent"),
 		Note:       str(obj, "note"),
 		Between:    str(obj, "between"),
@@ -454,7 +462,7 @@ func (m *Mind) Said(s Scene, a Appraisal, text, why, messageID string) error {
 		}
 	default:
 		if said := theirLine(s); said != "" {
-			fmt.Fprintf(&b, "%s: %q → I said: %q", nameOr(s.Username), clip(said, 160), quoted)
+			fmt.Fprintf(&b, "%s: %q"+saidArrow+"%q", nameOr(s.Username), clip(said, 160), quoted)
 		} else {
 			fmt.Fprintf(&b, "said to %s: %q", nameOr(s.Username), quoted)
 		}

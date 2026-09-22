@@ -104,6 +104,9 @@ type Deps struct {
 	// Feelings is whether she has feelings that fade, in place of a mood;
 	// see mind.Mind.Feelings.
 	Feelings bool
+	// StyleCheck is whether a reply is held to her style; see
+	// mind.Mind.StyleCheck.
+	StyleCheck bool
 	// IdleMind is whether something happens in her between conversations:
 	// what is on her mind, and her life and wants. Walks is whether she
 	// passes through the channels she reads without speaking in. Impulses
@@ -184,6 +187,9 @@ type Service struct {
 	// cannot make sense of is not retried forever. See reflect.go.
 	reflectMu sync.Mutex
 	reflected map[string]int
+	// reflectAsk carries a reflection someone asked for with /chat reflect
+	// to the reflection loop, which owns it; one waits at a time.
+	reflectAsk chan reflectRequest
 
 	// pool is the backend pool, and poolDefaults its arrangement as the
 	// environment gave it, which /chat backends reset returns to. See
@@ -298,7 +304,7 @@ func New(d Deps) *Service {
 		mind: &mind.Mind{
 			Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory,
 			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Drift: d.Drift, Feelings: d.Feelings,
-			Roll: roll, Log: d.Log,
+			StyleCheck: d.StyleCheck, Roll: roll, Log: d.Log,
 		},
 		character:   d.Character,
 		names:       mind.CleanNames(names),
@@ -319,6 +325,8 @@ func New(d Deps) *Service {
 		overheard: make(map[string]time.Time),
 		life:      make(map[string]*lifeState),
 		reflected: make(map[string]int),
+		// One asked-for reflection waits at a time; see ReflectNow.
+		reflectAsk: make(chan reflectRequest, 1),
 
 		thoughtTimes: make(map[string][]time.Time),
 		startedMsgs:  make(map[string]*startedMsg),

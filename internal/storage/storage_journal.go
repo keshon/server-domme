@@ -43,6 +43,9 @@ type MindJournal struct {
 	Act    string `json:"act,omitempty"`
 	Intent string `json:"intent,omitempty"`
 	Why    string `json:"why,omitempty"`
+	// Situation is what kind of message she took it for; her voice
+	// examples were chosen by it. See mind.Situation.
+	Situation string `json:"situation,omitempty"`
 
 	// Outcome is where it ended — answered, silent, reacted, dropped, held —
 	// and Reason why, in a phrase.

@@ -68,6 +68,7 @@ func main() {
 	seed := flag.Uint64("seed", 0, "seed the code's own randomness (example sampling, drift); 0 for random")
 	drift := flag.Float64("drift", 0.25, "odds recall brings back a loosely related memory, as CHAT_DRIFT")
 	feelings := flag.Bool("feelings", true, "feelings that fade in place of a mood, as CHAT_FEELINGS")
+	styleCheck := flag.Bool("style-check", true, "hold replies to her style, as CHAT_STYLE_CHECK")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -133,7 +134,7 @@ func main() {
 		mind: &mind.Mind{
 			Character: character, Provider: thinking, Voice: voice, Memory: store,
 			SelfFacts: *selfFacts, ExamplesSample: *examples, Drift: *drift, Feelings: *feelings,
-			Roll: roll,
+			StyleCheck: *styleCheck, Roll: roll,
 		},
 		botName: *botName,
 		own:     *own,

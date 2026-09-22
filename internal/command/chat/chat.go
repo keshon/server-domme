@@ -198,6 +198,7 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				},
 			},
 			backendsOption(),
+			reflectOption(),
 		},
 	}
 }
@@ -212,7 +213,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role`, `forget` or `backends`.")
+		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role`, `forget`, `reflect` or `backends`.")
 	}
 	sub := data.Options[0]
 
@@ -244,6 +245,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subBackends:
 		return c.runBackends(context, sub)
+
+	case subReflect:
+		return c.runReflect(context, sub)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))

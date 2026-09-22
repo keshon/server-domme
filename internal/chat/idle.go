@@ -260,9 +260,17 @@ func (s *Service) act(ctx context.Context, sess *discordgo.Session, guildID stri
 		if c == "" {
 			return
 		}
+		if s.talkingIn(c, s.now()) {
+			s.fold(guildID, local, imp, "a conversation is going on there")
+			return
+		}
 		o = mind.Opening{Trigger: mind.TriggerStart, ChannelID: c, ChannelName: names[c], Turns: s.conv.Recent(c)}
 	default:
 		p := imp.Person
+		if why := s.engagedWith(guildID, p.ID, s.now()); why != "" {
+			s.fold(guildID, local, imp, why)
+			return
+		}
 		if c, here := s.whereIs(p.ID, channels, s.now()); here {
 			// They are around: she is joining a room they are in, as with
 			// a follow-up on sight. No tag needed, no consent asked.
@@ -290,7 +298,61 @@ func (s *Service) act(ctx context.Context, sess *discordgo.Session, guildID stri
 		GuildID: guildID, GuildName: in.GuildName, Brief: s.store.GetChatBrief(guildID),
 		SelfName: s.DisplayName(sess, guildID), Now: local, QuietFor: in.QuietFor,
 	}
-	s.start(ctx, sess, base, o, mind.Plan{Why: imp.About, Intent: imp.About})
+	// The reason is what the impulse came from, so the voice has the
+	// substance and not only the gist: told only "the thing she has been
+	// sitting on", a voice makes the thing up.
+	why := imp.About
+	if imp.From != "" {
+		why += " — it comes from: " + imp.From
+	}
+	s.start(ctx, sess, base, o, mind.Plan{Why: why, Intent: imp.About})
+}
+
+// engagedWith reports why she should not start something with someone now,
+// or "": they are in an exchange with her already, or waiting on an answer
+// she owes them. Starting something then greets them twice — in production
+// she answered someone and, the same minute, opened on them again.
+func (s *Service) engagedWith(guildID, userID string, now time.Time) string {
+	if p := s.store.GetMindPerson(guildID, userID); p != nil && now.Sub(p.LastExchangeAt) < activeWithin {
+		return "they are talking with her already"
+	}
+	s.bodyMu.Lock()
+	defer s.bodyMu.Unlock()
+	for _, m := range s.missed {
+		if m.GuildID == guildID && m.UserID == userID {
+			return "she owes them an answer"
+		}
+	}
+	for _, c := range s.catchUp {
+		if c.item.GuildID == guildID && c.item.UserID == userID {
+			return "she owes them an answer"
+		}
+	}
+	return ""
+}
+
+// talkingIn reports whether she is in a conversation in a room: she spoke
+// there within activeWithin.
+func (s *Service) talkingIn(channelID string, now time.Time) bool {
+	s.bodyMu.Lock()
+	defer s.bodyMu.Unlock()
+	t := s.talk[channelID]
+	return t != nil && now.Sub(t.last) < activeWithin
+}
+
+// fold keeps an impulse she will not act on by starting something as what
+// is on her mind, where the conversation she is in can take it up — the
+// way a person brings a thing up in a conversation already going instead
+// of opening a new one.
+func (s *Service) fold(guildID string, local time.Time, imp mind.Impulse, why string) {
+	err := s.memory.UpdateSelf(guildID, func(me *memory.Self) {
+		me.OnMind, me.OnMindAt = imp.About, local
+	})
+	if err != nil {
+		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_memory_write_failed")
+		return
+	}
+	s.log.Info().Str("guild_id", guildID).Str("reason", why).Msg("chat_impulse_folded")
 }
 
 // reacted counts a reaction she started toward the day's limit: a third of

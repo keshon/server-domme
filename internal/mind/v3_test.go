@@ -227,7 +227,7 @@ func TestExamplesAreSampledInTheAuthorsOrder(t *testing.T) {
 	m.ExamplesSample = 3
 	rolls := []float64{0.9, 0.1, 0.5}
 	m.Roll = func() float64 { r := rolls[0]; rolls = rolls[1:]; return r }
-	got := m.sampleExamples(false)
+	got := m.sampleExamples(false, "")
 	if len(got) != 3 {
 		t.Fatalf("sampled %d", len(got))
 	}
@@ -237,7 +237,7 @@ func TestExamplesAreSampledInTheAuthorsOrder(t *testing.T) {
 		}
 	}
 	m.ExamplesSample = 0
-	if len(m.sampleExamples(false)) != 6 {
+	if len(m.sampleExamples(false, "")) != 6 {
 		t.Error("0 should show them all")
 	}
 }

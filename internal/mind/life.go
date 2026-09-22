@@ -42,9 +42,11 @@ func (m *Mind) ReflectLife(ctx context.Context, guildID string, date, now time.T
 	if err != nil {
 		return false, err
 	}
+	// Only what happened around her: not her interpretations, and not her
+	// own words. See observedPart.
 	var observed []memory.Moment
 	for _, mo := range day.Moments {
-		if mo.Kind != memory.Interpreted {
+		if _, ok := observedPart(mo); ok && mo.Kind != memory.Interpreted {
 			observed = append(observed, mo)
 		}
 	}
@@ -96,7 +98,8 @@ func (m *Mind) lifePrompt(self memory.Self, observed []memory.Moment) []ai.Messa
 	}
 	user.WriteString("What happened yesterday:")
 	for i, mo := range observed {
-		fmt.Fprintf(&user, "\n%d. [%s] %s", i+1, mo.At.Format("15:04"), herWords(clip(mo.Text, maxMomentChars)))
+		text, _ := observedPart(mo)
+		fmt.Fprintf(&user, "\n%d. [%s] %s", i+1, mo.At.Format("15:04"), oneLine(clip(text, maxMomentChars)))
 	}
 	user.WriteString("\n\nWhat has been going on in her days now, and what does she want?")
 	return []ai.Message{

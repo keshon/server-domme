@@ -172,6 +172,10 @@ type Config struct {
 	// ChatFeelings is whether she has feelings with a cause that fade on
 	// their own clock, in place of a one-line mood. See docs/persona-v3.md, C.
 	ChatFeelings bool `env:"CHAT_FEELINGS" envDefault:"true"`
+	// ChatStyleCheck is whether a reply is held to her style after she
+	// writes it: asked again once for a phrase the character file says is
+	// not hers, or a length far past her examples, and cut to length.
+	ChatStyleCheck bool `env:"CHAT_STYLE_CHECK" envDefault:"true"`
 	// ChatIdleMind is whether something happens in her between
 	// conversations: every hour or so, what is on her mind, and nightly her
 	// life and wants. See docs/persona-v3.md, E.

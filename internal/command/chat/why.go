@@ -81,6 +81,9 @@ func explain(j storage.MindJournal) string {
 	if j.Read != "" {
 		fmt.Fprintf(&b, "\n**How she read it** %s\n", j.Read)
 	}
+	if j.Situation != "" {
+		fmt.Fprintf(&b, "**Taken as** %s\n", j.Situation)
+	}
 	if j.Feel != "" {
 		fmt.Fprintf(&b, "**How it landed** %s\n", j.Feel)
 	}

@@ -55,6 +55,12 @@ type Impulse struct {
 	// Person is who it is for; nil for a room.
 	Person *Candidate
 	About  string
+	// From is what it comes from: one of the things the idle mind was
+	// shown, in the words it was shown in. An impulse that comes from
+	// nothing listed is refused, because it comes from nothing — in
+	// production one announced "that thing i've been sitting on since
+	// last week", and asked what it was, her voice made one up.
+	From string
 }
 
 // IdleResult is what one tick of the idle mind came to.
@@ -76,6 +82,7 @@ const maxWalkWeight = 0.3
 const idleRules = `How to think:
 - What is on her mind is usually a thing, not a mood: something she saw, something someone said, something she is in the middle of, a want. Often it has nothing to do with the last conversation.
 - Most of the time there is no impulse. Only when she has something specific she wants to say or ask, to a particular person or a room — never "just checking in", never to complain about being ignored, never out of nowhere.
+- An impulse comes from one of the numbered things she has to go on, and says which. If none of them is worth acting on, there is no impulse. She has nothing else to bring up: no project, plan or news that is not listed.
 - On a walk she passes through; she does not read every line. What caught her is her gist in a few words, not a quote. Usually one thing or nothing.
 - She does not pass judgement on someone's work or words behind their back. An opinion about someone goes to that person, or nowhere.
 - She knows only what is written here, and does not invent.`
@@ -85,7 +92,7 @@ const idleShape = `Answer with one JSON object and nothing else:
   "on_mind": "what is on her mind right now, one short line, first person",
   "caught": "on a walk: what caught her, her gist in a few words, or empty",
   "caught_weight": how much it got to her, 0 to 0.3,
-  "impulse": {"to": "the name of one of the people listed, or \"a room\", or empty", "about": "what she wants to say or ask, the gist"}
+  "impulse": {"from": the number of what it comes from, "to": "the name of one of the people listed, or \"a room\", or empty", "about": "what she wants to say or ask, the gist"}
 }`
 
 // IdleThink runs one tick of the idle mind for a guild, commits what it may
@@ -101,7 +108,8 @@ func (m *Mind) IdleThink(ctx context.Context, in Idle) (IdleResult, error) {
 	if err != nil {
 		return IdleResult{}, err
 	}
-	msgs := m.idlePrompt(s, k, day, in)
+	sources := idleSources(in, k, day)
+	msgs := m.idlePrompt(s, k, in, sources)
 	reply, backend, err := m.generate(ai.WithRaw(ai.WithTemperature(ctx, reflectTemperature)), msgs)
 	if err != nil {
 		return IdleResult{Backend: backend}, err
@@ -132,14 +140,15 @@ func (m *Mind) IdleThink(ctx context.Context, in Idle) (IdleResult, error) {
 			}
 		}
 	}
-	res.Impulse = m.readImpulse(in, obj, backend)
+	res.Impulse = m.readImpulse(in, obj, backend, sources)
 	return res, nil
 }
 
 // readImpulse turns the model's impulse into one aimed at someone listed or
-// at a room, refusing anything else: an impulse at someone who was not
-// offered is a name the model made up.
-func (m *Mind) readImpulse(in Idle, obj map[string]any, backend string) *Impulse {
+// at a room, and coming from something listed, refusing anything else: an
+// impulse at someone who was not offered is a name the model made up, and
+// one from nothing listed is a reason it made up.
+func (m *Mind) readImpulse(in Idle, obj map[string]any, backend string, sources []string) *Impulse {
 	raw, ok := obj["impulse"].(map[string]any)
 	if !ok {
 		return nil
@@ -148,24 +157,30 @@ func (m *Mind) readImpulse(in Idle, obj map[string]any, backend string) *Impulse
 	if to == "" || about == "" {
 		return nil
 	}
+	from := int(num(raw, "from"))
+	if from < 1 || from > len(sources) {
+		m.refuse(in.GuildID, backend, "impulse", "comes from nothing she was shown")
+		return nil
+	}
+	source := sources[from-1]
 	if strings.EqualFold(strings.Trim(to, `"' `), "a room") {
 		if !in.Rooms {
 			m.refuse(in.GuildID, backend, "impulse", "a room, where she may not speak first")
 			return nil
 		}
-		return &Impulse{About: about}
+		return &Impulse{About: about, From: source}
 	}
 	name := strings.TrimPrefix(strings.TrimSpace(to), "@")
 	for i := range in.People {
 		if strings.EqualFold(in.People[i].Name, name) {
-			return &Impulse{Person: &in.People[i], About: about}
+			return &Impulse{Person: &in.People[i], About: about, From: source}
 		}
 	}
 	m.refuse(in.GuildID, backend, "impulse", "aimed at someone not offered")
 	return nil
 }
 
-func (m *Mind) idlePrompt(s Scene, k Known, day memory.Day, in Idle) []ai.Message {
+func (m *Mind) idlePrompt(s Scene, k Known, in Idle, sources []string) []ai.Message {
 	name := m.name(s)
 	var sys strings.Builder
 	fmt.Fprintf(&sys, "You are the inner life of %s, a person on a Discord server — not an assistant, "+
@@ -182,23 +197,20 @@ func (m *Mind) idlePrompt(s Scene, k Known, day memory.Day, in Idle) []ai.Messag
 	}
 	sys.WriteString("\n\n" + idleRules + "\n\n" + idleShape)
 
+	// What she remembers, her feelings, life and wants are in the numbered
+	// list, where an impulse can point at them, rather than twice.
+	world := k
+	world.Recalled = nil
+	world.Self.Feelings, world.Self.Life, world.Self.Wants = nil, nil, nil
 	var user strings.Builder
-	user.WriteString(renderWorld(s, k))
-	if len(day.Moments) > 0 {
-		user.WriteString("\n\nToday so far:")
-		moments := day.Moments
-		if len(moments) > idleMoments {
-			moments = moments[len(moments)-idleMoments:]
+	user.WriteString(renderWorld(s, world))
+	if len(sources) > 0 {
+		user.WriteString("\n\nWhat she has to go on, numbered:")
+		for i, src := range sources {
+			fmt.Fprintf(&user, "\n%d. %s", i+1, src)
 		}
-		for _, mo := range moments {
-			user.WriteString("\n- " + renderMoment(mo, s.Now))
-		}
-	}
-	if len(in.Due) > 0 {
-		user.WriteString("\n\nWhat she meant to do that has come due:")
-		for _, t := range in.Due {
-			user.WriteString("\n- " + renderThread(t, s.Now))
-		}
+	} else {
+		user.WriteString("\n\nShe has nothing in particular to go on today.")
 	}
 	if len(in.People) > 0 {
 		user.WriteString("\n\nPeople she could go to:")
@@ -245,6 +257,60 @@ func freshWants(wants []memory.Want, now time.Time) []memory.Want {
 
 // idleMoments is how many of today's moments the idle mind is shown.
 const idleMoments = 12
+
+// idleSources are the things the idle mind is shown that an impulse may
+// come from, numbered in the prompt in this order: what she is passing on a
+// walk, what she remembers from before today, what happened around her
+// today, what she meant to do that has come due, what is still with her,
+// what has been going on, and what she wants. Her own lines are not among
+// them; see observedPart.
+func idleSources(in Idle, k Known, day memory.Day) []string {
+	var out []string
+	if in.Walk != nil {
+		out = append(out, "what she is passing now in #"+in.Walk.Channel+" (the lines are below)")
+	}
+	today := startOf(in.Now)
+	for _, mo := range k.Recalled {
+		if text, ok := observedPart(mo); ok && mo.At.Before(today) {
+			mo.Text = text
+			out = append(out, renderMoment(mo, in.Now))
+		}
+	}
+	var moments []memory.Moment
+	for _, mo := range day.Moments {
+		if text, ok := observedPart(mo); ok {
+			mo.Text = text
+			moments = append(moments, mo)
+		}
+	}
+	if len(moments) > idleMoments {
+		moments = moments[len(moments)-idleMoments:]
+	}
+	for _, mo := range moments {
+		out = append(out, renderMoment(mo, in.Now))
+	}
+	for _, t := range in.Due {
+		out = append(out, "she meant to: "+renderThread(t, in.Now))
+	}
+	for _, f := range memory.Live(k.Self.Feelings, in.Now) {
+		line := "still with her: " + oneLine(f.What)
+		if f.About != "" {
+			line += " — about " + oneLine(f.About)
+		}
+		out = append(out, line+" ("+ago(in.Now.Sub(f.At))+")")
+	}
+	for _, l := range freshLife(k.Self.Life, in.Now) {
+		out = append(out, "going on in her days: "+oneLine(l.Text))
+	}
+	for _, w := range freshWants(k.Self.Wants, in.Now) {
+		line := "she wants: " + oneLine(w.Text)
+		if w.Why != "" {
+			line += " — " + oneLine(w.Why)
+		}
+		out = append(out, line)
+	}
+	return out
+}
 
 // renderLife is what has been going on in her days, or "".
 func renderLife(life []memory.LifeItem) string {

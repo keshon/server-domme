@@ -65,6 +65,11 @@ func buildChatService(
 				"own `data/` directory, not only in the repository.",
 			cfg.ChatCharacterPath)
 	}
+	if len(character.UnknownSituations) > 0 {
+		// Examples under a heading that names no situation are still
+		// sampled, just never chosen for one: worth fixing, not failing on.
+		log.Warn().Strs("headings", character.UnknownSituations).Msg("chat_character_situations_unknown")
+	}
 
 	mode, ok := ai.ParseMode(cfg.ChatBackendOrder)
 	if !ok {
@@ -170,6 +175,7 @@ func buildChatService(
 		Drift:           cfg.ChatDrift,
 		Body:            cfg.ChatBody,
 		Feelings:        cfg.ChatFeelings,
+		StyleCheck:      cfg.ChatStyleCheck,
 		IdleMind:        cfg.ChatIdleMind,
 		Walks:           cfg.ChatWalks,
 		Impulses:        cfg.ChatImpulses,

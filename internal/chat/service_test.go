@@ -518,3 +518,49 @@ func TestTypingTakesAsLongAsTypingWould(t *testing.T) {
 		t.Error("a long message is held past the typing indicator")
 	}
 }
+
+// Asked to, she looks back on today so far — and leaves today open, so the
+// night still reflects on the whole of it rather than skipping a day that
+// already has a summary.
+func TestAskedSheReflectsOnTodayAndLeavesItOpen(t *testing.T) {
+	h := newHarness(t,
+		`{"summary":"a morning","lately":"quiet","people":[],"done":[],"threads":[]}`,
+		`{"facts":[{"text":"hates mornings","line":1}]}`,
+		`{"life":[{"text":"Big M keeps asking about the city thing","moments":[2]}],"wants":[]}`,
+	)
+	h.svc.mind.SelfFacts, h.svc.idleMind = true, true
+	for _, mo := range []memory.Moment{
+		{At: clock, Said: "m1", Text: `Big M: "morning"` + " → I said: " + `"i hate mornings"`},
+		{At: clock, Text: `Big M: "how is the city thing"`},
+	} {
+		if err := h.memory.AddMoment(testGuild, mo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !h.svc.ReflectNow(testGuild, true) {
+		t.Fatal("the request was not taken")
+	}
+	if h.svc.ReflectNow(testGuild, true) {
+		t.Error("a second request was taken while one was waiting")
+	}
+	h.svc.reflectAsked(context.Background(), <-h.svc.reflectAsk)
+
+	if len(h.provider.sent) != 3 {
+		t.Fatalf("%d calls, want the day, self-facts and life", len(h.provider.sent))
+	}
+	me, _ := h.memory.Me(testGuild)
+	if len(me.Facts) != 1 {
+		t.Errorf("self-facts %+v", me.Facts)
+	}
+	self, _ := h.memory.Self(testGuild)
+	if len(self.Life) != 1 {
+		t.Errorf("life %+v", self.Life)
+	}
+	day, _ := h.memory.Day(testGuild, clock)
+	if day.Summary != "" {
+		t.Errorf("today was closed with the summary %q", day.Summary)
+	}
+	if !h.svc.selfFactsDue(testGuild, clock) || !h.svc.lifeDue(testGuild, clock) {
+		t.Error("today is marked as taken in; the night would skip the rest of it")
+	}
+}

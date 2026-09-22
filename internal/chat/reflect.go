@@ -2,7 +2,10 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"time"
+
+	"github.com/keshon/server-domme/internal/memory"
 )
 
 // Reflection. Once the day has turned — past ReflectHour in the community's
@@ -25,6 +28,8 @@ func (s *Service) reflectLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.reflectDue(ctx)
+		case r := <-s.reflectAsk:
+			s.reflectAsked(ctx, r)
 		}
 	}
 }
@@ -36,42 +41,134 @@ func (s *Service) reflectDue(ctx context.Context) {
 	if now.Hour() < s.reflectHour {
 		return
 	}
-	sess := s.session()
 	for _, guildID := range s.memory.Guilds() {
-		name := guildID
-		if sess != nil && sess.State != nil {
-			if g, err := sess.State.Guild(guildID); err == nil && g != nil {
-				name = g.Name
-			}
+		s.reflectDays(ctx, guildID, now)
+	}
+}
+
+// reflectDays reflects on each of the last few days before today in a
+// guild that she has not yet made sense of.
+func (s *Service) reflectDays(ctx context.Context, guildID string, now time.Time) {
+	name := s.guildName(guildID)
+	for back := reflectBack; back >= 1; back-- {
+		if ctx.Err() != nil {
+			return
 		}
-		for back := reflectBack; back >= 1; back-- {
-			if ctx.Err() != nil {
-				return
-			}
-			date := now.AddDate(0, 0, -back)
-			day, err := s.memory.Day(guildID, date)
-			if err != nil || len(day.Moments) == 0 {
-				continue
-			}
-			key := guildID + ":" + date.Format("2006-01-02")
-			// Two passes, each retried and failing on its own, so a bad
-			// answer costs one part of a day rather than all of it. See
-			// docs/persona-v3.md, Known failure points.
-			if day.Summary == "" && s.tryReflect(key) {
-				s.reflectPass(ctx, guildID, key, "day", func(ctx context.Context) (bool, error) {
-					return s.mind.Reflect(ctx, guildID, name, date, now, s.roomRates(guildID, date))
-				})
-			}
-			if s.mind.SelfFacts && s.selfFactsDue(guildID, date) && s.tryReflect(key+":self") {
-				s.reflectPass(ctx, guildID, key, "self", func(ctx context.Context) (bool, error) {
-					return s.mind.ReflectSelf(ctx, guildID, date)
-				})
-			}
-			if s.idleMind && s.lifeDue(guildID, date) && s.tryReflect(key+":life") {
-				s.reflectPass(ctx, guildID, key, "life", func(ctx context.Context) (bool, error) {
-					return s.mind.ReflectLife(ctx, guildID, date, now)
-				})
-			}
+		date := now.AddDate(0, 0, -back)
+		day, err := s.memory.Day(guildID, date)
+		if err != nil || len(day.Moments) == 0 {
+			continue
+		}
+		key := guildID + ":" + date.Format("2006-01-02")
+		// Three passes, each retried and failing on its own, so a bad
+		// answer costs one part of a day rather than all of it. See
+		// docs/persona-v3.md, Known failure points.
+		if day.Summary == "" && s.tryReflect(key) {
+			s.reflectPass(ctx, guildID, key, "day", func(ctx context.Context) (bool, error) {
+				return s.mind.Reflect(ctx, guildID, name, date, now, s.roomRates(guildID, date))
+			})
+		}
+		if s.mind.SelfFacts && s.selfFactsDue(guildID, date) && s.tryReflect(key+":self") {
+			s.reflectPass(ctx, guildID, key, "self", func(ctx context.Context) (bool, error) {
+				return s.mind.ReflectSelf(ctx, guildID, date)
+			})
+		}
+		if s.idleMind && s.lifeDue(guildID, date) && s.tryReflect(key+":life") {
+			s.reflectPass(ctx, guildID, key, "life", func(ctx context.Context) (bool, error) {
+				return s.mind.ReflectLife(ctx, guildID, date, now)
+			})
+		}
+	}
+}
+
+// guildName is what Discord calls a guild, or its id when the session does
+// not know it.
+func (s *Service) guildName(guildID string) string {
+	if sess := s.session(); sess != nil && sess.State != nil {
+		if g, err := sess.State.Guild(guildID); err == nil && g != nil {
+			return g.Name
+		}
+	}
+	return guildID
+}
+
+// reflectRequest is a reflection someone asked for: the days that are due in
+// a guild, whatever the hour, and today so far if Today.
+type reflectRequest struct {
+	guildID string
+	today   bool
+}
+
+// ReflectNow asks for her to look back now rather than after ReflectHour:
+// on the days before today she has not made sense of yet and, with today,
+// on today so far. For trying things out, and for a bot that was down
+// overnight. It reports false when an asked-for reflection is already
+// waiting. The work is done by the reflection loop, not the caller.
+func (s *Service) ReflectNow(guildID string, today bool) bool {
+	select {
+	case s.reflectAsk <- reflectRequest{guildID: guildID, today: today}:
+		return true
+	default:
+		return false
+	}
+}
+
+// reflectAsked runs an asked-for reflection. Days that failed their
+// attempts get fresh ones: asking is someone deciding to try again.
+func (s *Service) reflectAsked(ctx context.Context, r reflectRequest) {
+	s.reflectMu.Lock()
+	for key := range s.reflected {
+		if strings.HasPrefix(key, r.guildID+":") {
+			delete(s.reflected, key)
+		}
+	}
+	s.reflectMu.Unlock()
+	now := s.now().In(s.location)
+	s.reflectDays(ctx, r.guildID, now)
+	if r.today {
+		s.reflectToday(ctx, r.guildID, now)
+	}
+	s.log.Info().Str("guild_id", r.guildID).Bool("today", r.today).Msg("chat_reflect_asked")
+}
+
+// reflectToday looks back on today so far, and leaves today open: the day's
+// summary is cleared and the marks of what self-facts and life have taken in
+// are put back, so the night still reflects on the whole day. Otherwise the
+// rest of today would never be looked back on. What she took from today so
+// far — a self-fact, a line of life, a dossier — stays; the night pass sees
+// it and keeps or changes it like anything else.
+func (s *Service) reflectToday(ctx context.Context, guildID string, now time.Time) {
+	day, err := s.memory.Day(guildID, now)
+	if err != nil || len(day.Moments) == 0 {
+		return
+	}
+	me, errMe := s.memory.Me(guildID)
+	self, errSelf := s.memory.Self(guildID)
+	if errMe != nil || errSelf != nil {
+		return
+	}
+	key := guildID + ":" + now.Format("2006-01-02") + ":today"
+	name := s.guildName(guildID)
+	s.reflectPass(ctx, guildID, key, "day", func(ctx context.Context) (bool, error) {
+		return s.mind.Reflect(ctx, guildID, name, now, now, s.roomRates(guildID, now))
+	})
+	if err := s.memory.SetSummary(guildID, now, ""); err != nil {
+		s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_memory_write_failed")
+	}
+	if s.mind.SelfFacts {
+		s.reflectPass(ctx, guildID, key, "self", func(ctx context.Context) (bool, error) {
+			return s.mind.ReflectSelf(ctx, guildID, now)
+		})
+		if err := s.memory.UpdateMe(guildID, func(m *memory.Me) { m.Through = me.Through }); err != nil {
+			s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_memory_write_failed")
+		}
+	}
+	if s.idleMind {
+		s.reflectPass(ctx, guildID, key, "life", func(ctx context.Context) (bool, error) {
+			return s.mind.ReflectLife(ctx, guildID, now, now)
+		})
+		if err := s.memory.UpdateSelf(guildID, func(me *memory.Self) { me.LifeThrough = self.LifeThrough }); err != nil {
+			s.log.Warn().Err(err).Str("guild_id", guildID).Msg("chat_memory_write_failed")
 		}
 	}
 }

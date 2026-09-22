@@ -30,6 +30,10 @@ const (
 	// from the persona so they can be chosen by what the conversation is
 	// about when there are too many to send. See docs/persona-v3.md, F1.
 	headingSpecifics = "specifics"
+	// headingNotHers is a list of phrases she never uses: the tics a model
+	// brings to every character — "the real question is", "honestly". A
+	// reply containing one is asked for again; see Style.
+	headingNotHers = "not her words"
 )
 
 // Example speaker labels inside the examples section.
@@ -46,9 +50,14 @@ const (
 // reliably than one it has been described. Do not "simplify" them into a
 // bulleted style guide — that is precisely the change that made the previous
 // version sound like every other assistant.
+//
+// Situations are what kinds of moment it answers, from the "### jab"
+// headings above it in the examples section; none means any. The voice is
+// shown mostly examples of the situation in front of her. See Situation.
 type Exchange struct {
-	User      string
-	Assistant string
+	User       string
+	Assistant  string
+	Situations []Situation
 }
 
 // Character is the authored identity: who she is, in prose, plus examples of
@@ -72,6 +81,11 @@ type Character struct {
 	// headingSpecifics. They are the one kind of memory marked authored,
 	// and nothing she says overwrites them.
 	Specifics []string
+	// NotHers are phrases she never uses; see headingNotHers.
+	NotHers []string
+	// UnknownSituations are example headings that name no situation: a
+	// typo, which files its examples under nothing. Reported, not fatal.
+	UnknownSituations []string
 }
 
 // LoadCharacter reads a character file from path.
@@ -102,6 +116,7 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 
 	var persona strings.Builder
 	var pending Exchange
+	var situations []Situation
 	section := ""
 
 	scanner := bufio.NewScanner(r)
@@ -114,13 +129,20 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 		if heading, ok := sectionHeading(trimmed); ok {
 			// A half-built exchange belongs to the section that is ending.
 			pending = flushExchange(c, pending)
-			section = heading
+			if section == headingExamples && headingLevel(trimmed) >= 3 {
+				// A subheading of the examples files what follows under
+				// situations, and is not a section of its own.
+				situations = c.readSituations(heading)
+				continue
+			}
+			section, situations = heading, nil
 			continue
 		}
 
 		switch section {
 		case headingExamples:
 			pending = readExampleLine(c, pending, trimmed)
+			pending.Situations = situations
 		case headingAvoid:
 			if item := listItem(trimmed); item != "" {
 				c.Avoid = append(c.Avoid, item)
@@ -128,6 +150,10 @@ func ParseCharacter(name string, r io.Reader) (*Character, error) {
 		case headingSpecifics:
 			if item := listItem(trimmed); item != "" {
 				c.Specifics = append(c.Specifics, item)
+			}
+		case headingNotHers:
+			if item := listItem(trimmed); item != "" {
+				c.NotHers = append(c.NotHers, item)
 			}
 		case headingLately:
 			lately.WriteString(line)
@@ -158,6 +184,26 @@ func sectionHeading(line string) (string, bool) {
 		return "", false
 	}
 	return strings.ToLower(strings.TrimSpace(strings.TrimLeft(line, "# "))), true
+}
+
+// headingLevel is how many #s a heading starts with.
+func headingLevel(line string) int {
+	return len(line) - len(strings.TrimLeft(line, "#"))
+}
+
+// readSituations reads an examples subheading: one situation or several,
+// separated by commas or slashes. A name that is not a situation is noted
+// in UnknownSituations and files nothing.
+func (c *Character) readSituations(heading string) []Situation {
+	var out []Situation
+	for _, part := range strings.FieldsFunc(heading, func(r rune) bool { return r == ',' || r == '/' }) {
+		if s := ParseSituation(part); s != "" {
+			out = append(out, s)
+		} else if part = strings.TrimSpace(part); part != "" {
+			c.UnknownSituations = append(c.UnknownSituations, part)
+		}
+	}
+	return out
 }
 
 // listItem returns the text of a Markdown list item, or "" for anything else.

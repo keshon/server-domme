@@ -882,6 +882,7 @@ written, and has no switch.
 | `CHAT_DRIFT` | `0.25` | `0` turns off associative recall |
 | `CHAT_SELF_FACTS` | `on` | no `me.md` |
 | `CHAT_EXAMPLES_SAMPLE` | `8` | `0` sends all examples, as v2 |
+| `CHAT_STYLE_CHECK` | `on` | replies are sent as written: no retry for a phrase that is not hers, no cut to length |
 | `CHAT_IMPULSES` | `on` | v2's timer openings, quiet room included |
 | `CHAT_FOLLOWUP_ON_SIGHT` | `on` | due threads wait for the timer |
 | `CHAT_INTEREST` | `on` | overhearing is the v2 random roll |
@@ -1202,6 +1203,34 @@ Architecture changes after the freeze, with the evidence for each.
   it would be gone the moment it was kept. Reflection settles feelings by
   number. "Nobody has spoken to her" counts from the last time anyone spoke
   to her since the bot started — unknown before that, and not stated.
+- 22 Sep 2026 — first live log, after step 7. Two inventions, traced: an
+  impulse with nothing behind it ("that thing i've been sitting on since last
+  week") reached the voice as its only reason, and the voice, asked what the
+  thing was, claimed the code-city from a voice example as a project of hers.
+  And an impulse at someone she had answered the same minute greeted them
+  twice. Settled without changing the architecture: an impulse cites one of
+  the numbered things the idle mind was shown, and is refused otherwise (I —
+  it was the one proposal nothing checked); what it cites goes to the voice
+  as the reason. Her own lines are not evidence: life and impulses are shown
+  what others said and did, and the other person's half of an answer, never
+  a line of hers — enforced in code, where it was only a rule in the prompt
+  (F3, I). An impulse at someone already in an exchange with her, or owed an
+  answer, or at a room where she is talking, becomes what is on her mind
+  instead of a start (H1).
+- 22 Sep 2026 — proposed, not built: a doings layer, workstream J, in
+  [persona-v3-doings.md](persona-v3-doings.md). The first live log's
+  inventions came from an idle mind asked for "something she is in the
+  middle of" with nothing she was in the middle of. J gives her activities
+  whose state the code owns, and checks her claims of doing against them.
+- 22 Sep 2026 — G, after the first live log: examples are filed under
+  situations with `###` headings; the appraisal names each message's
+  situation, the code names starting and leaving, and three in four of the
+  sample come from the situation. The appraisal's label is also the stimulus
+  class the behavioural-lock metric asks for, now in the journal. A style
+  check after the voice (`CHAT_STYLE_CHECK`): phrases the card lists under
+  *Not her words* are asked for again once, and a reply past 1.5× her longest
+  example (at least 30 words) is cut at a sentence. Both are counts over
+  text, never stated to the model ahead of time.
 - 22 Sep 2026 — step 7, while building: a tick of the idle mind is a walk
   half the time there is something new in a `reads` channel. An impulse at
   someone who is around is carried out in the room they are in, even where

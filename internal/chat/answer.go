@@ -112,6 +112,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 	s.drain(scene)
 	s.applyEnergy(scene.GuildID, t.item.UserID, a.Energy, s.now())
 	entry.Read, entry.Feel, entry.Toward, entry.Mood = a.Read, a.Feel, a.Toward, a.Mood
+	entry.Situation = string(a.Situation)
 	entry.Act, entry.Intent, entry.Backend = string(a.Act), a.Intent, a.Backend
 
 	switch a.Act {

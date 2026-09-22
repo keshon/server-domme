@@ -55,9 +55,10 @@ const examplesEnd = "Those were examples of how you talk, not things that happen
 // Before returning, a reply is checked the ways a model is known to fail: it
 // is not speech, it copies someone, or it repeats her. A repeat is asked for
 // once more with the repeat ruled out; a second one is an error, because a
-// retry later would build the same prompt and silence beats a loop.
+// retry later would build the same prompt and silence beats a loop. Last, with
+// StyleCheck on, it is held to her style; see restyle.
 func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why string) (string, string, error) {
-	examples := m.sampleExamples(s.ShortExamples)
+	examples := m.sampleExamples(s.ShortExamples, situationOf(s, a))
 	k = m.fit(s.GuildID, "voice", k, voiceBudget, func(k Known) int { return promptSize(m.voicePrompt(s, k, a, why, examples)) })
 	msgs := m.voicePrompt(s, k, a, why, examples)
 	reply, backend, err := m.speak(ctx, msgs)
@@ -80,6 +81,9 @@ func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why str
 		if _, still := RepeatsHerself(reply, s.Turns); still {
 			return "", backend, ErrRepeat
 		}
+	}
+	if m.StyleCheck {
+		reply, backend = m.restyle(ctx, s, msgs, reply, backend)
 	}
 	return strings.TrimSpace(reply), backend, nil
 }
@@ -254,46 +258,94 @@ func topRecalled(moments []memory.Moment, n int) []memory.Moment {
 // as a template; drawn afresh each time, what they share is the voice and
 // what varies stays varied. See docs/persona-v3.md, G.
 //
+// With a situation, most of the sample is examples filed under it, placed
+// last, nearest the conversation; the rest are drawn from the others, so one
+// kind of moment does not collapse into one line. With none filed under it,
+// the sample is drawn from all of them.
+//
 // short draws from the shorter half of her replies only: when the body has
 // little energy left, the voice she hears in them is the terse one.
-func (m *Mind) sampleExamples(short bool) []Exchange {
+func (m *Mind) sampleExamples(short bool, sit Situation) []Exchange {
 	if m.Character == nil {
 		return nil
 	}
 	all := m.Character.Examples
-	if short && len(all) > 1 {
-		lengths := make([]int, len(all))
-		for i, ex := range all {
-			lengths[i] = len(ex.Assistant)
-		}
-		sorted := append([]int(nil), lengths...)
-		sort.Ints(sorted)
-		median := sorted[len(sorted)/2]
-		var shorter []Exchange
-		for i, ex := range all {
-			if lengths[i] <= median {
-				shorter = append(shorter, ex)
-			}
-		}
-		all = shorter
+	if short {
+		all = shorterHalf(all)
 	}
 	n := m.ExamplesSample
 	if n <= 0 || n >= len(all) {
 		return all
 	}
-	idx := make([]int, len(all))
-	for i := range idx {
-		idx[i] = i
+	var matched, rest []int
+	for i, ex := range all {
+		if sit != "" && ex.fits(sit) {
+			matched = append(matched, i)
+		} else {
+			rest = append(rest, i)
+		}
 	}
-	for i := 0; i < n; i++ {
+	if len(matched) == 0 {
+		return pickExchanges(all, m.pick(rest, n))
+	}
+	take := min(len(matched), situationShare(n))
+	others := m.pick(rest, min(n-take, len(rest)))
+	fitting := m.pick(matched, n-len(others))
+	return append(pickExchanges(all, others), pickExchanges(all, fitting)...)
+}
+
+// situationShare is how many of a sample of n go to the situation in front
+// of her: three in four, rounded up.
+func situationShare(n int) int { return (3*n + 3) / 4 }
+
+// fits reports whether an example is filed under a situation.
+func (ex Exchange) fits(sit Situation) bool {
+	for _, s := range ex.Situations {
+		if s == sit {
+			return true
+		}
+	}
+	return false
+}
+
+// pick draws k of the indices at random, and returns them in order.
+func (m *Mind) pick(idx []int, k int) []int {
+	idx = append([]int(nil), idx...)
+	k = min(k, len(idx))
+	for i := 0; i < k; i++ {
 		j := i + int(m.roll()*float64(len(idx)-i))
 		idx[i], idx[j] = idx[j], idx[i]
 	}
-	chosen := idx[:n]
+	chosen := idx[:k]
 	sort.Ints(chosen)
-	out := make([]Exchange, 0, n)
-	for _, i := range chosen {
+	return chosen
+}
+
+func pickExchanges(all []Exchange, idx []int) []Exchange {
+	out := make([]Exchange, 0, len(idx))
+	for _, i := range idx {
 		out = append(out, all[i])
+	}
+	return out
+}
+
+// shorterHalf is the examples whose replies are no longer than the median.
+func shorterHalf(all []Exchange) []Exchange {
+	if len(all) <= 1 {
+		return all
+	}
+	lengths := make([]int, len(all))
+	for i, ex := range all {
+		lengths[i] = len(ex.Assistant)
+	}
+	sorted := append([]int(nil), lengths...)
+	sort.Ints(sorted)
+	median := sorted[len(sorted)/2]
+	var out []Exchange
+	for i, ex := range all {
+		if lengths[i] <= median {
+			out = append(out, ex)
+		}
 	}
 	return out
 }

@@ -12,7 +12,7 @@ import (
 // Step 7 of docs/persona-v3.md: the idle mind, walks, impulses, life.
 
 func TestTheIdleMindKeepsWhatIsOnHerMindAndWhatCaughtHer(t *testing.T) {
-	m, p := newMind(t, `{"on_mind":"that dragon sketch, the wings","caught":"a dragon sketch with wings on backwards","caught_weight":0.9,"impulse":{"to":"Rook","about":"tell him the wings are backwards"}}`)
+	m, p := newMind(t, `{"on_mind":"that dragon sketch, the wings","caught":"a dragon sketch with wings on backwards","caught_weight":0.9,"impulse":{"from":1,"to":"Rook","about":"tell him the wings are backwards"}}`)
 	in := Idle{
 		GuildID: guildID, Now: noon,
 		Walk:   &Walk{Channel: "art", Lines: []Turn{{UserID: "5", Username: "Rook", Content: "new dragon!", At: noon}}},
