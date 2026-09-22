@@ -80,6 +80,9 @@ type Mind struct {
 	// Drift is the odds that recall's weakest slot goes to a loosely related
 	// memory instead; see drift. Zero recalls strictly by relevance.
 	Drift float64
+	// Feelings is whether she has feelings with a cause that fade on their
+	// own, in place of v2's one-line mood. See docs/persona-v3.md, C.
+	Feelings bool
 	// Roll supplies randomness; nil uses the global source. One source for
 	// the code's randomness, so a run can be repeated.
 	Roll func() float64
@@ -143,6 +146,9 @@ type Scene struct {
 	// Reactions are what people put on her messages here since she last
 	// spoke, as facts rather than as moments: no call is spent per emoji.
 	Reactions []Reaction
+	// QuietFor is how long since anyone spoke to her in this guild, when
+	// known: a fact a want can be formed from, never a want itself.
+	QuietFor time.Duration
 
 	// Roles are what an administrator says about people here, by user id:
 	// the note set for a role they hold. Standing a server decided, which
@@ -177,7 +183,14 @@ type Known struct {
 	// SelfFacts are the things she has said about herself that bear on the
 	// conversation, best match first. See pickSelfFacts.
 	SelfFacts []memory.SelfFact
+	// LastHeavy is when something last weighed on her, from the days
+	// recall reads: a moment of weight at least heavyWeight.
+	LastHeavy time.Time
 }
+
+// heavyWeight is the weight of a moment that counts as something having
+// happened to her, for the drive facts.
+const heavyWeight = 0.5
 
 // Know gathers what she remembers that bears on a scene, with the dossiers of
 // anyone in also — the people she might go to, for an initiative.
@@ -228,6 +241,14 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 	if len(s.Turns) > 0 {
 		before = s.Turns[0].At
 	}
+	for _, d := range days {
+		for _, mo := range d.Moments {
+			if mo.Weight >= heavyWeight && mo.At.After(k.LastHeavy) && !mo.At.After(s.Now) {
+				k.LastHeavy = mo.At
+			}
+		}
+	}
+
 	pool, err := m.Memory.Recall(s.GuildID, s.Now, before, topicWords(s.Turns), ids, recallDays, recallPool)
 	if err != nil {
 		return k, err

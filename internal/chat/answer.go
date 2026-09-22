@@ -317,6 +317,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 	}
 	sc.Roles = s.roleNotes(sess, sc.GuildID, sc)
 	sc.Reactions = s.reactionsIn(sc.ChannelID, sc.Turns)
+	sc.QuietFor = s.quietFor(sc.GuildID, now)
 	s.bodyScene(&sc, now)
 	return sc
 }

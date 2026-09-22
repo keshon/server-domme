@@ -14,6 +14,8 @@ package mind
 // model invents. See docs/persona-v3.md, workstream I.
 
 import (
+	"strings"
+
 	"github.com/keshon/server-domme/internal/memory"
 )
 
@@ -65,4 +67,45 @@ func inScene(s Scene, userID string) bool {
 // which came from existing. A stronger kind is never overwritten silently.
 func mayOverwrite(existing memory.Source, kind memory.Kind) bool {
 	return existing.IsZero() || !existing.Kind.Outranks(kind)
+}
+
+// commitFeeling keeps a feeling that registered. The model names it and says
+// what it is about; the code anchors it — the person only if they spoke
+// here, the time, the weight the moment was given, the source — lets go of
+// the ones that have faded, and replaces one about the same person and
+// thing rather than holding it twice.
+func (m *Mind) commitFeeling(s Scene, a Appraisal, present bool, from memory.Source) error {
+	if a.Weight < memory.FeelingGone {
+		m.refuse(s.GuildID, a.Backend, proposalFeeling, "too light to register")
+		return nil
+	}
+	f := memory.Feeling{
+		At: s.Now, What: clip(a.FeelingWhat, maxToward), About: clip(a.FeelingAbout, maxNoteChars),
+		Weight: a.Weight, Source: from,
+	}
+	if present {
+		f.Person = memory.Ref{ID: s.UserID, Name: s.Username}
+	}
+	return m.Memory.UpdateSelf(s.GuildID, func(me *memory.Self) {
+		var kept []memory.Feeling
+		for _, old := range me.Feelings {
+			if old.Strength(s.Now) < memory.FeelingGone {
+				continue
+			}
+			if old.Person.ID == f.Person.ID && sameAbout(old.About, f.About) {
+				continue
+			}
+			kept = append(kept, old)
+		}
+		me.Feelings = append(kept, f)
+	})
+}
+
+// sameAbout reports whether two feelings are about the same thing: mostly
+// the same words.
+func sameAbout(a, b string) bool {
+	if a == "" || b == "" {
+		return a == b
+	}
+	return overlap(strings.Fields(echoKey(a)), strings.Fields(echoKey(b))) >= noteOverlap
 }

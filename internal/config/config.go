@@ -169,6 +169,9 @@ type Config struct {
 	// online, away or asleep. Requires CHAT_TIMEZONE. Off, she is always
 	// online, as in v2. See docs/persona-v3.md, B.
 	ChatBody bool `env:"CHAT_BODY" envDefault:"true"`
+	// ChatFeelings is whether she has feelings with a cause that fade on
+	// their own clock, in place of a one-line mood. See docs/persona-v3.md, C.
+	ChatFeelings bool `env:"CHAT_FEELINGS" envDefault:"true"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

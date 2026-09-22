@@ -101,6 +101,9 @@ type Deps struct {
 	// Body is whether she has one: sleep, energy, presence. Off, she is
 	// always online, as in v2. See presence.go.
 	Body bool
+	// Feelings is whether she has feelings that fade, in place of a mood;
+	// see mind.Mind.Feelings.
+	Feelings bool
 	// Roll supplies randomness. Left nil it uses the global source; a test
 	// supplies its own.
 	Roll func() float64
@@ -227,10 +230,14 @@ type Service struct {
 	// gifts are when each person last lifted her, for diminishing returns,
 	// and reactions what people put on her messages per channel since she
 	// last spoke there; see energy.go.
-	giftMu    sync.Mutex
-	gifts     map[string][]time.Time
-	reactMu   sync.Mutex
-	reactions map[string][]*reactionTally
+	giftMu sync.Mutex
+	gifts  map[string][]time.Time
+	// approached is when someone last spoke to her, per guild: the fact a
+	// want can be formed from.
+	approachMu sync.Mutex
+	approached map[string]time.Time
+	reactMu    sync.Mutex
+	reactions  map[string][]*reactionTally
 
 	conv      *mind.Conversations
 	deferrals *mind.Deferrals
@@ -269,7 +276,8 @@ func New(d Deps) *Service {
 
 		mind: &mind.Mind{
 			Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory,
-			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Drift: d.Drift, Roll: roll, Log: d.Log,
+			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Drift: d.Drift, Feelings: d.Feelings,
+			Roll: roll, Log: d.Log,
 		},
 		character:   d.Character,
 		names:       mind.CleanNames(names),
@@ -299,6 +307,7 @@ func New(d Deps) *Service {
 		sightTried:   make(map[string]time.Time),
 		talk:         make(map[string]*talkState),
 		gifts:        make(map[string][]time.Time),
+		approached:   make(map[string]time.Time),
 		reactions:    make(map[string][]*reactionTally),
 
 		followUpOnSight: d.FollowUpOnSight,
@@ -425,6 +434,11 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	trigger, addressed := s.triggerFor(sess, m, content, followsUp)
+	if addressed {
+		s.approachMu.Lock()
+		s.approached[m.GuildID] = now
+		s.approachMu.Unlock()
+	}
 	if !s.online() {
 		// Away or asleep: the conversation is recorded, and someone
 		// speaking to her waits for her to come back.

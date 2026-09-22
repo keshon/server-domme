@@ -39,6 +39,12 @@ func renderWorld(s Scene, k Known) string {
 	if mood := moodLine(k.Self, s.Now); mood != "" {
 		b.WriteString("\n\n" + mood)
 	}
+	if feelings := renderFeelings(k.Self.Feelings, s.Now, "her"); feelings != "" {
+		b.WriteString("\n\n" + feelings)
+	}
+	if drives := renderDrives(s, k); drives != "" {
+		b.WriteString("\n\n" + drives)
+	}
 
 	if len(k.Days) > 0 {
 		b.WriteString("\n\nThe last few days, as she remembers them:")
@@ -141,6 +147,47 @@ func joinNames(names []string) string {
 		return names[0]
 	}
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
+// renderFeelings is what is still with her, most recent first, each with
+// its age: "stung — about Big M's jab (2 hours ago)". All of them, not the
+// strongest: a person is annoyed with one friend and excited about a thing
+// at once, and the order must not say which one should win.
+func renderFeelings(feelings []memory.Feeling, now time.Time, whom string) string {
+	live := memory.Live(feelings, now)
+	if len(live) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Still with " + whom + ":")
+	for _, f := range live {
+		line := oneLine(f.What)
+		if f.About != "" {
+			line += " — about " + oneLine(f.About)
+		}
+		b.WriteString("\n- " + line + " (" + ago(now.Sub(f.At)) + ")")
+	}
+	return b.String()
+}
+
+// Drive facts are stated only past these: shorter is just a day.
+const (
+	quietWorthSaying = 2 * time.Hour
+	heavyWorthSaying = 24 * time.Hour
+)
+
+// renderDrives are the facts a need is formed from — how long nobody has
+// talked to her, how long since anything weighed on her — stated as facts.
+// "She is bored" is the model's reading of them, never the code's.
+func renderDrives(s Scene, k Known) string {
+	var parts []string
+	if s.QuietFor >= quietWorthSaying {
+		parts = append(parts, fmt.Sprintf("Nobody has spoken to her here for %s.", gap(s.QuietFor)))
+	}
+	if !k.LastHeavy.IsZero() && s.Now.Sub(k.LastHeavy) >= heavyWorthSaying {
+		parts = append(parts, fmt.Sprintf("The last thing that weighed on her was %s.", ago(s.Now.Sub(k.LastHeavy))))
+	}
+	return strings.Join(parts, " ")
 }
 
 // talkingWorthSaying is how long a conversation has to have gone on before

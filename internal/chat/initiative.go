@@ -127,6 +127,7 @@ func (s *Service) considerStarting(ctx context.Context, guildID string, channels
 		Brief:    s.store.GetChatBrief(guildID),
 		SelfName: s.DisplayName(sess, guildID),
 		Now:      now,
+		QuietFor: s.quietFor(guildID, now),
 	}
 	if guild, err := sess.State.Guild(guildID); err == nil && guild != nil {
 		base.GuildName = guild.Name
@@ -314,6 +315,18 @@ func (s *Service) openings(sess *discordgo.Session, guildID string, channels []s
 		out = out[:maxOpenings]
 	}
 	return out
+}
+
+// quietFor is how long since anyone spoke to her in a guild, or zero when
+// nobody has since the bot started: not known is not the same as long.
+func (s *Service) quietFor(guildID string, now time.Time) time.Duration {
+	s.approachMu.Lock()
+	defer s.approachMu.Unlock()
+	at, ok := s.approached[guildID]
+	if !ok {
+		return 0
+	}
+	return now.Sub(at)
 }
 
 // awakeToStart reports whether she is in a state to start anything: with a

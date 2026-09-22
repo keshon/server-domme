@@ -32,6 +32,11 @@ type Appraisal struct {
 	Read string
 	// Feel is how it lands with her.
 	Feel string
+	// FeelingWhat and FeelingAbout are a feeling that registers, and what
+	// it is about, when feelings are on: "stung", "Big M's jab about my
+	// taste". Usually empty. See memory.Feeling.
+	FeelingWhat  string
+	FeelingAbout string
 	// Toward is how she feels about them now, in a few words.
 	Toward string
 	// Mood is her mood after this.
@@ -123,6 +128,23 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "energy": only if something was done to her — a gift, a coffee, a poke, a battery — or the moment genuinely drained or lifted her: -0.1 to 0.1, and 0 if she would not take it; leave it out otherwise, which is almost always
 }`
 
+// Feelings in the appraisal, when they are on: the mood and feel lines give
+// way to one feeling with what it is about.
+const (
+	moodLineShape    = "  \"mood\": \"her mood after this — a few words\",\n"
+	feelLineShape    = "  \"feel\": \"how it lands with her, honestly — a few words\",\n"
+	feelingLineShape = "  \"feeling\": {\"what\": \"a feeling this leaves her with, a word or two — only if one actually registers\", \"about\": \"what it is about, in a few words\"} or empty,\n"
+)
+
+// appraisalShape is the JSON asked for: v2's, or with feelings.
+func (m *Mind) appraisalShape() string {
+	if !m.Feelings {
+		return appraisalShape
+	}
+	shape := strings.Replace(appraisalShape, moodLineShape, "", 1)
+	return strings.Replace(shape, feelLineShape, feelingLineShape, 1)
+}
+
 // Consider asks what she makes of a moment. It does not write anything down;
 // see Absorb, which the caller runs once it has applied its rails.
 func (m *Mind) Consider(ctx context.Context, s Scene, k Known) (Appraisal, error) {
@@ -134,6 +156,11 @@ func (m *Mind) Consider(ctx context.Context, s Scene, k Known) (Appraisal, error
 		return Appraisal{}, err
 	}
 	a, ok := parseAppraisal(reply)
+	if m.Feelings {
+		// Mood is retired in favour of feelings; one the model volunteers
+		// anyway is not kept.
+		a.Mood = ""
+	}
 	a.Backend = backend
 	if !ok {
 		return a, fmt.Errorf("%w: %q", ErrUnreadable, clip(reply, 200))
@@ -154,7 +181,7 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 	if sp := renderSpecifics("Specifically:", k.Specifics); sp != "" {
 		sys.WriteString("\n\n" + sp)
 	}
-	sys.WriteString("\n\n" + thinkingRules + "\n\n" + appraisalShape)
+	sys.WriteString("\n\n" + thinkingRules + "\n\n" + m.appraisalShape())
 
 	var user strings.Builder
 	user.WriteString(renderWorld(s, k))
@@ -204,6 +231,15 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		ThenAfter:  thenAfter(num(obj, "then_after")),
 		BackOff:    strings.EqualFold(str(obj, "back_off"), "true"),
 		Energy:     max(-maxEnergy, min(maxEnergy, num(obj, "energy"))),
+	}
+	switch f := obj["feeling"].(type) {
+	case map[string]any:
+		a.FeelingWhat, a.FeelingAbout = str(f, "what"), str(f, "about")
+	case string:
+		a.FeelingWhat = strings.TrimSpace(f)
+	}
+	if a.Feel == "" {
+		a.Feel = a.FeelingWhat
 	}
 	switch act := strings.ToLower(str(obj, "act")); {
 	case strings.Contains(act, "react"):
@@ -322,6 +358,12 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			}
 		})
 		if err != nil {
+			return err
+		}
+	}
+
+	if m.Feelings && a.FeelingWhat != "" {
+		if err := m.commitFeeling(s, a, present, madeOf); err != nil {
 			return err
 		}
 	}

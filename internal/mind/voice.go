@@ -166,6 +166,9 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 	if mood := moodLine(k.Self, s.Now); mood != "" {
 		b.WriteString("\n" + strings.Replace(mood, "Her mood", "Your mood", 1))
 	}
+	if feelings := renderFeelings(k.Self.Feelings, s.Now, "you"); feelings != "" {
+		b.WriteString("\n" + feelings)
+	}
 	for _, p := range k.People {
 		if p.ID != s.UserID {
 			continue

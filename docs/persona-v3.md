@@ -1196,3 +1196,9 @@ Architecture changes after the freeze, with the evidence for each.
   sleep or running out of energy. Catch-up waits one to three minutes, then
   forty to ninety seconds between answers. `CHAT_BODY` is on by default and
   the chat refuses to start without `CHAT_TIMEZONE`.
+- 22 Sep 2026 — steps 5 and 6, while building: feelings live in a
+  `## Feelings` section of `self.md`, under the self-description; a feeling
+  proposed with weight under 0.1 is refused as too light to register, since
+  it would be gone the moment it was kept. Reflection settles feelings by
+  number. "Nobody has spoken to her" counts from the last time anyone spoke
+  to her since the bot started — unknown before that, and not stated.

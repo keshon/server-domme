@@ -164,6 +164,7 @@ func buildChatService(
 		Serendipity:     cfg.ChatSerendipity,
 		Drift:           cfg.ChatDrift,
 		Body:            cfg.ChatBody,
+		Feelings:        cfg.ChatFeelings,
 	}), ""
 }
 

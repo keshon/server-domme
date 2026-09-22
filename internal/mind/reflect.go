@@ -19,6 +19,7 @@ const reflectShape = `Answer with one JSON object and nothing else:
     {"person": their number, "who": "who they are, as she knows them now — a short paragraph", "between": "where things stand between her and them now — one or two sentences", "feeling": "how she feels about them, a few words", "stays": ["the few moments with them that stay with her — at most 5, each one sentence, first person; keep the old ones that still matter, replace the ones that do not"]}
   ],
   "done": [numbers of the things she meant to do that are done or no longer worth doing],
+  "settled": [numbers of the feelings still with her that the day has settled, if any were listed],
   "threads": [
     {"text": "something she now means to do", "person": the number of who it is about, or 0, "hours": hours from now until it is worth doing}
   ]
@@ -34,6 +35,7 @@ const reflectRules = `How to look back:
 - What stays with her about someone is what she would still remember in a year: the moments that hit hardest, good or bad, marked "it stayed with her". Small talk does not stay.
 - Keep what she said her own: if she said something, she said it.
 - When something she started went unanswered, weigh it against how often anyone gets an answer in that room. Most messages in a quiet room go unanswered; that is the room, not her.
+- Fold a feeling the day has settled into how things stand between her and the person, and list it as settled. One that still stands is left alone.
 - Do not invent anything that is not in the day.`
 
 // RoomRate is how often anyone got an answer in one channel on a day: the
@@ -88,7 +90,8 @@ func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now
 	}
 	open := memory.Unfinished(threads)
 
-	msgs := m.reflectPrompt(guildName, day, self, people, open, rooms, now)
+	live := memory.Live(self.Feelings, now)
+	msgs := m.reflectPrompt(guildName, day, self, people, open, rooms, live, now)
 	reply, _, err := m.generate(ai.WithRaw(ai.WithTemperature(ctx, reflectTemperature)), msgs)
 	if err != nil {
 		return false, err
@@ -97,10 +100,10 @@ func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now
 	if !ok {
 		return false, fmt.Errorf("%w: %q", ErrUnreadable, clip(reply, 200))
 	}
-	return true, m.applyReflection(guildID, date, now, obj, people, open)
+	return true, m.applyReflection(guildID, date, now, obj, people, open, live)
 }
 
-func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self, people []memory.Person, open []memory.Thread, rooms []RoomRate, now time.Time) []ai.Message {
+func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self, people []memory.Person, open []memory.Thread, rooms []RoomRate, live []memory.Feeling, now time.Time) []ai.Message {
 	name := "her"
 	if m.Character != nil {
 		name = m.Character.Name
@@ -135,6 +138,17 @@ func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self,
 		}
 		user.WriteString("\n")
 	}
+	if len(live) > 0 {
+		user.WriteString("\nWhat is still with her:")
+		for i, f := range live {
+			line := oneLine(f.What)
+			if f.About != "" {
+				line += " — about " + oneLine(f.About)
+			}
+			fmt.Fprintf(&user, "\n%d. %s (%s)", i+1, line, ago(now.Sub(f.At)))
+		}
+		user.WriteString("\n")
+	}
 	if len(rooms) > 0 {
 		user.WriteString("\nHow the rooms were that day:")
 		for _, r := range rooms {
@@ -155,7 +169,7 @@ func (m *Mind) reflectPrompt(guildName string, day memory.Day, self memory.Self,
 // Discord id: an id is a stable identifier for a real account and the model
 // has no business seeing one. A number outside the list is ignored, so a
 // hallucinated person cannot overwrite anyone's dossier.
-func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[string]any, people []memory.Person, open []memory.Thread) error {
+func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[string]any, people []memory.Person, open []memory.Thread, live []memory.Feeling) error {
 	// Everything reflection writes is her interpretation of the day.
 	from := memory.OnDay(memory.Interpreted, date.Format("2006-01-02"))
 	refuse := func(kind, reason string) { m.refuse(guildID, "", kind, reason) }
@@ -166,11 +180,32 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 		}
 	}
 	lately := str(obj, "lately")
+	settled := map[int]bool{}
+	for _, n := range numbers(obj, "settled") {
+		if n < 1 || n > len(live) {
+			refuse(proposalFeeling, "settled a feeling that does not exist")
+			continue
+		}
+		settled[n] = true
+	}
 	if err := m.Memory.UpdateSelf(guildID, func(me *memory.Self) {
 		if lately != "" {
 			me.Lately = lately
 		}
 		me.Reflected = now
+		var kept []memory.Feeling
+		for _, f := range me.Feelings {
+			gone := f.Strength(now) < memory.FeelingGone
+			for n := range settled {
+				if live[n-1].At.Equal(f.At) && live[n-1].What == f.What {
+					gone = true
+				}
+			}
+			if !gone {
+				kept = append(kept, f)
+			}
+		}
+		me.Feelings = kept
 	}); err != nil {
 		return err
 	}
