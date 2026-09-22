@@ -9,6 +9,7 @@
 package welcome
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"regexp"
@@ -236,6 +237,9 @@ func runMember(context *cmdadapter.SlashInteractionContext, opts map[string]*dis
 
 	intro := planPart(s, e.GuildID, "Intro", cfg.IntroChannel, cfg.IntroTemplate, v, channels, "")
 	welcome := planPart(s, e.GuildID, "Welcome", cfg.WelcomeChannel, cfg.WelcomeTemplate, v, channels, randomGif(store.WelcomeGifs(e.GuildID)))
+	if welcome.ok() && welcome.gif != "" {
+		welcome.file = gifFile(store, e.GuildID, welcome.gif)
+	}
 	if done != nil && !again {
 		if !done.IntroAt.IsZero() && intro.ok() {
 			intro.skip = fmt.Sprintf("already posted <t:%d:R> by <@%s> — add `again:True` to post it again", done.IntroAt.Unix(), done.By)
@@ -307,6 +311,8 @@ type part struct {
 	channelID string
 	content   string
 	gif       string
+	// file is the gif to attach in place of the link; nil posts the link.
+	file *discordgo.File
 	// problem is why it cannot be posted, skip why it will not be, and
 	// posted the link to it once it has been.
 	problem, skip, posted string
@@ -360,7 +366,10 @@ func (p *part) send(s *discordgo.Session, guildID, userID string) bool {
 	}
 	content := p.content
 	separateGif := false
-	if p.gif != "" {
+	var files []*discordgo.File
+	if p.file != nil {
+		files = []*discordgo.File{p.file}
+	} else if p.gif != "" {
 		if joined := content + "\n" + p.gif; !TooLong(joined) {
 			content = joined
 		} else {
@@ -370,6 +379,7 @@ func (p *part) send(s *discordgo.Session, guildID, userID string) bool {
 
 	msg, err := s.ChannelMessageSendComplex(p.channelID, &discordgo.MessageSend{
 		Content: content,
+		Files:   files,
 		// Only the person being welcomed is notified, whatever the text
 		// says. A template with a role mention or @everyone in it would
 		// otherwise ping a whole server for one newcomer.
@@ -553,6 +563,37 @@ func archivedThreads(s *discordgo.Session, guildID string) []Channel {
 // archivedAtOnce is how many channels' archived threads are asked for at
 // the same time.
 const archivedAtOnce = 4
+
+// gifMedia is the gif file behind a link: remembered, or looked up now and
+// remembered. "" when none could be found.
+func gifMedia(store *storage.Storage, guildID, link string) string {
+	if media := store.WelcomeGifMedia(guildID, link); media != "" {
+		return media
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), gifClient.Timeout)
+	defer cancel()
+	media, err := resolveGif(ctx, gifClient, link)
+	if err != nil {
+		return ""
+	}
+	_ = store.SetWelcomeGifMedia(guildID, link, media)
+	return media
+}
+
+// gifFile is the gif to attach to a welcome, or nil to post the link.
+func gifFile(store *storage.Storage, guildID, link string) *discordgo.File {
+	media := gifMedia(store, guildID, link)
+	if media == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), gifClient.Timeout)
+	defer cancel()
+	f, err := fetchGif(ctx, gifClient, media)
+	if err != nil {
+		return nil
+	}
+	return f
+}
 
 func randomGif(gifs []string) string {
 	if len(gifs) == 0 {

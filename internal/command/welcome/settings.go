@@ -290,7 +290,19 @@ func runGifs(context *cmdadapter.SlashInteractionContext, sub string, opts optio
 			}
 			return fmt.Errorf("welcome: add gif: %w", err)
 		}
-		return respond(s, e, fmt.Sprintf("Added. Welcomes pick from %d gifs.\n%s", len(store.WelcomeGifs(e.GuildID)), link))
+		// The page is read for the gif file behind it, which can take
+		// longer than Discord waits for an answer.
+		if err := reply.RespondDeferredEphemeral(s, e); err != nil {
+			return fmt.Errorf("welcome: acknowledge gif: %w", err)
+		}
+		msg := fmt.Sprintf("Added. Welcomes pick from %d gifs.", len(store.WelcomeGifs(e.GuildID)))
+		if media := gifMedia(store, e.GuildID, link); media != "" {
+			msg += "\nIt will be posted as the gif itself, without the link."
+		} else {
+			msg += "\n⚠️ I could not find the gif file behind that link, so it will be posted as the link. " +
+				"A link straight to the file (ending in .gif) always works."
+		}
+		return reply.EditResponseEmbed(s, e, &discordgo.MessageEmbed{Description: msg + "\n" + link, Color: reply.EmbedColor})
 
 	case subGifRemove:
 		removed, err := store.RemoveWelcomeGif(e.GuildID, opts[optURL].StringValue())

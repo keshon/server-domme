@@ -698,3 +698,28 @@ func TestPurgeIsAllowedOnlyWhereListed(t *testing.T) {
 		t.Error("still allowed after being taken off")
 	}
 }
+
+// The gif file behind a link is remembered while the link is in the list,
+// and forgotten with it.
+func TestWelcomeGifMediaFollowsItsLink(t *testing.T) {
+	s := newTestStore(t)
+	const link, media = "https://klipy.com/gifs/x", "https://media.klipy.com/x.gif"
+	if err := s.SetWelcomeGifMedia("g", link, media); err != nil || s.WelcomeGifMedia("g", link) != "" {
+		t.Fatalf("remembered for a link not in the list: %v", err)
+	}
+	if err := s.AddWelcomeGif("g", link); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetWelcomeGifMedia("g", link, media); err != nil || s.WelcomeGifMedia("g", link) != media {
+		t.Fatalf("not remembered: %v", err)
+	}
+	if _, err := s.RemoveWelcomeGif("g", link); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddWelcomeGif("g", link); err != nil {
+		t.Fatal(err)
+	}
+	if s.WelcomeGifMedia("g", link) != "" {
+		t.Error("the file outlived its link")
+	}
+}

@@ -59,6 +59,10 @@ type GuildSettings struct {
 	// WelcomeGifs are the links /welcome picks from at random, shared by
 	// every role.
 	WelcomeGifs []string `json:"welcome_gifs,omitempty"`
+	// WelcomeGifMedia is the gif file behind each link in WelcomeGifs, found
+	// once from the link's page, so a welcome can attach the file instead
+	// of posting the link. A link with no entry is looked up when used.
+	WelcomeGifMedia map[string]string `json:"welcome_gif_media,omitempty"`
 	// ChatAttentionOff stops her reaching out to anyone in the guild, whatever
 	// they opted into. An administrator's override of members' consent.
 	ChatAttentionOff bool `json:"chat_attention_off,omitempty"`

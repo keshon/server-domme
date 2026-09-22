@@ -165,5 +165,27 @@ func (s *Storage) RemoveWelcomeGif(guildID, url string) (bool, error) {
 	if len(g.WelcomeGifs) == before {
 		return false, nil
 	}
+	delete(g.WelcomeGifMedia, url)
 	return true, s.settings.Put(g)
+}
+
+// SetWelcomeGifMedia records the gif file behind a gif link. A link that is
+// not in the list is ignored: it was removed while being looked up.
+func (s *Storage) SetWelcomeGifMedia(guildID, link, media string) error {
+	link = strings.TrimSpace(link)
+	g := s.guildSettings(guildID)
+	if !slices.Contains(g.WelcomeGifs, link) {
+		return nil
+	}
+	if g.WelcomeGifMedia == nil {
+		g.WelcomeGifMedia = map[string]string{}
+	}
+	g.WelcomeGifMedia[link] = media
+	return s.settings.Put(g)
+}
+
+// WelcomeGifMedia is the gif file behind a gif link, or "" when it has not
+// been found.
+func (s *Storage) WelcomeGifMedia(guildID, link string) string {
+	return s.guildSettings(guildID).WelcomeGifMedia[strings.TrimSpace(link)]
 }
