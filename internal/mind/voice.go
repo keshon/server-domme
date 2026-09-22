@@ -160,6 +160,9 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 	if body := renderBody(s, "You", "have"); body != "" {
 		b.WriteString(" " + body)
 	}
+	if r := renderReactions(s.Reactions, "your"); r != "" {
+		b.WriteString("\n" + r)
+	}
 	if mood := moodLine(k.Self, s.Now); mood != "" {
 		b.WriteString("\n" + strings.Replace(mood, "Her mood", "Your mood", 1))
 	}

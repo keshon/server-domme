@@ -116,6 +116,7 @@ func (s *Service) ObserveReaction(r *discordgo.MessageReaction) {
 	if r == nil {
 		return
 	}
+	s.noteReaction(r)
 	s.startedMu.Lock()
 	defer s.startedMu.Unlock()
 	t, ok := s.startedMsgs[r.MessageID]

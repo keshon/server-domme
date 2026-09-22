@@ -140,11 +140,21 @@ type Scene struct {
 	// her. See docs/persona-v3.md, B3.
 	RecallCap     int
 	ShortExamples bool
+	// Reactions are what people put on her messages here since she last
+	// spoke, as facts rather than as moments: no call is spent per emoji.
+	Reactions []Reaction
 
 	// Roles are what an administrator says about people here, by user id:
 	// the note set for a role they hold. Standing a server decided, which
 	// she takes as given rather than something she worked out.
 	Roles map[string]string
+}
+
+// Reaction is one emoji on her messages, how many times, and from whom.
+type Reaction struct {
+	Emoji string
+	Count int
+	Names []string
 }
 
 // Known is what her memory holds that matters for a scene.

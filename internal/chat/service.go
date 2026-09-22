@@ -224,6 +224,14 @@ type Service struct {
 	statusSess   *discordgo.Session
 	savedAt      time.Time
 
+	// gifts are when each person last lifted her, for diminishing returns,
+	// and reactions what people put on her messages per channel since she
+	// last spoke there; see energy.go.
+	giftMu    sync.Mutex
+	gifts     map[string][]time.Time
+	reactMu   sync.Mutex
+	reactions map[string][]*reactionTally
+
 	conv      *mind.Conversations
 	deferrals *mind.Deferrals
 
@@ -290,6 +298,8 @@ func New(d Deps) *Service {
 		noticed:      make(map[string]*noticeCache),
 		sightTried:   make(map[string]time.Time),
 		talk:         make(map[string]*talkState),
+		gifts:        make(map[string][]time.Time),
+		reactions:    make(map[string][]*reactionTally),
 
 		followUpOnSight: d.FollowUpOnSight,
 		interest:        d.Interest,

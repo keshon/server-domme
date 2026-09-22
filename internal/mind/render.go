@@ -29,6 +29,9 @@ func renderWorld(s Scene, k Known) string {
 	if body := renderBody(s, "She", "has"); body != "" {
 		b.WriteString(" " + body)
 	}
+	if r := renderReactions(s.Reactions, "her"); r != "" {
+		b.WriteString("\n" + r)
+	}
 
 	if lately := clip(k.Self.Lately, maxLatelyChars); lately != "" {
 		b.WriteString("\n\nHow she has been lately, in her own words:\n" + lately)
@@ -107,6 +110,37 @@ func renderBody(s Scene, subject, has string) string {
 		parts = append(parts, line+".")
 	}
 	return strings.Join(parts, " ")
+}
+
+// renderReactions is what people put on her messages here since she last
+// spoke: "Since her last message here: ❤️ ×2 from Big M and Ava, 😂 from
+// Rook." whose is "her" or "your".
+func renderReactions(rs []Reaction, whose string) string {
+	if len(rs) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, r := range rs {
+		part := r.Emoji
+		if r.Count > 1 {
+			part += fmt.Sprintf(" ×%d", r.Count)
+		}
+		if len(r.Names) > 0 {
+			part += " from " + joinNames(r.Names)
+		}
+		parts = append(parts, part)
+	}
+	return "Since " + whose + " last message here, people reacted to it: " + strings.Join(parts, ", ") + "."
+}
+
+func joinNames(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // talkingWorthSaying is how long a conversation has to have gone on before

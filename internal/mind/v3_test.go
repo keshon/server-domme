@@ -295,3 +295,23 @@ func containsText(ms []memory.Moment, text string) bool {
 	}
 	return false
 }
+
+// Energy is read from the appraisal and bounded either way.
+func TestEnergyIsBounded(t *testing.T) {
+	a, ok := parseAppraisal(`{"act":"reply","intent":"x","energy":0.7}`)
+	if !ok || a.Energy != maxEnergy {
+		t.Errorf("energy %v", a.Energy)
+	}
+	a, _ = parseAppraisal(`{"act":"reply","intent":"x"}`)
+	if a.Energy != 0 {
+		t.Errorf("energy without the field: %v", a.Energy)
+	}
+}
+
+func TestReactionsAreStatedAsFacts(t *testing.T) {
+	got := renderReactions([]Reaction{{Emoji: "❤️", Count: 2, Names: []string{"Big M", "Ava"}}, {Emoji: "😂", Count: 1, Names: []string{"Rook"}}}, "her")
+	want := "Since her last message here, people reacted to it: ❤️ ×2 from Big M and Ava, 😂 from Rook."
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}

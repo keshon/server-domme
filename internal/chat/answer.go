@@ -104,6 +104,7 @@ func (s *Service) handle(ctx context.Context, t task) {
 		}
 	}
 	s.drain(scene)
+	s.applyEnergy(scene.GuildID, t.item.UserID, a.Energy, s.now())
 	entry.Read, entry.Feel, entry.Toward, entry.Mood = a.Read, a.Feel, a.Toward, a.Mood
 	entry.Act, entry.Intent, entry.Backend = string(a.Act), a.Intent, a.Backend
 
@@ -315,6 +316,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 		sc.ChannelTopic = channel.Topic
 	}
 	sc.Roles = s.roleNotes(sess, sc.GuildID, sc)
+	sc.Reactions = s.reactionsIn(sc.ChannelID, sc.Turns)
 	s.bodyScene(&sc, now)
 	return sc
 }

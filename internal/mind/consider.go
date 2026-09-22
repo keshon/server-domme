@@ -60,6 +60,13 @@ type Appraisal struct {
 	// Weight is how much the moment got to her, 0 to 1. It decides how long
 	// the moment stays with her; see memory.Recall.
 	Weight float64
+	// Energy is how much the moment restores or drains her, -0.1 to 0.1,
+	// and zero for almost every moment: set for something done to her — a
+	// gift, a coffee, a poke — or a moment that genuinely lifted or drained
+	// her. Narrow on purpose: the battery measures how much talking she has
+	// done, and must not become how much she liked it. See
+	// docs/persona-v3.md, B4.
+	Energy float64
 	// BackOff is them asking her to leave them alone — stop pinging them,
 	// stop coming after them. The caller withdraws their consent to be
 	// reached. Read by the model rather than a word list: v1's list could not
@@ -112,7 +119,8 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "then": "only if she would naturally send one more message a little after her reply — a question it leaves her curious about, a thought that follows on, a jab — the gist of it; usually empty",
   "then_after": seconds until she sends it, 5 to 600,
   "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk,
-  "back_off": true only if they are asking her to leave them alone or stop coming after them
+  "back_off": true only if they are asking her to leave them alone or stop coming after them,
+  "energy": only if something was done to her — a gift, a coffee, a poke, a battery — or the moment genuinely drained or lifted her: -0.1 to 0.1, and 0 if she would not take it; leave it out otherwise, which is almost always
 }`
 
 // Consider asks what she makes of a moment. It does not write anything down;
@@ -195,6 +203,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Then:       str(obj, "then"),
 		ThenAfter:  thenAfter(num(obj, "then_after")),
 		BackOff:    strings.EqualFold(str(obj, "back_off"), "true"),
+		Energy:     max(-maxEnergy, min(maxEnergy, num(obj, "energy"))),
 	}
 	switch act := strings.ToLower(str(obj, "act")); {
 	case strings.Contains(act, "react"):
@@ -217,6 +226,9 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 	}
 	return a, true
 }
+
+// maxEnergy bounds what one moment can do to her energy either way.
+const maxEnergy = 0.1
 
 // IsEmoji reports whether s is something Discord will take as a unicode
 // reaction: short, and with no letters or digits in it. A custom emoji is

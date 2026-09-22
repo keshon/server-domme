@@ -344,6 +344,7 @@ func (s *Service) dispatchCatchUp(ctx context.Context, now time.Time) {
 // for the room she would say goodbye in, and for how long she has been
 // talking there.
 func (s *Service) noteSpoke(sc mind.Scene, now time.Time) {
+	s.clearReactions(sc.ChannelID)
 	s.bodyMu.Lock()
 	defer s.bodyMu.Unlock()
 	s.spokeAt, s.spokeGuild, s.spokeChannel = now, sc.GuildID, sc.ChannelID
