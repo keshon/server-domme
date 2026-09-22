@@ -1217,6 +1217,17 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 22 Sep 2026 — B2, by request: `/chat wake` wakes her. Asleep, she is
+  woken early: online, held up for an hour or while someone keeps her
+  talking, told "she was woken early, at 04:12", and back to bed once
+  nobody is keeping her if her body was not done — between the two
+  thresholds a body keeps its state, and without that rule someone woken
+  at three stayed up until evening. Her pressure is not reset. Away, she
+  comes back. One body: it wakes her on every server. And a status line
+  under her name from facts of her body and her talking — asleep, away
+  for a bit, recharging, just woke up, woken up, chatting, around — in
+  fixed words naming no channel, server or person, since a bot's status
+  shows in every server it is in.
 - 22 Sep 2026 — first log on the real server, a four-person channel:
   nine open follow-ups on one person, all "check whether he explains what
   the bot does", kept her asking answered questions; lines to someone else

@@ -145,3 +145,15 @@ func TestAGarbledNameIsNotKept(t *testing.T) {
 		}
 	}
 }
+
+// Woken early is a fact she is given, like the time she woke.
+func TestSheIsToldSheWasWokenEarly(t *testing.T) {
+	s := Scene{Now: noon, Woke: noon.Add(-10 * time.Minute)}
+	if got := renderBody(s, "She", "has"); got != "She woke at 13:24." {
+		t.Errorf("woke on her own: %q", got)
+	}
+	s.WokenEarly = true
+	if got := renderBody(s, "She", "has"); got != "She was woken early, at 13:24." {
+		t.Errorf("woken: %q", got)
+	}
+}

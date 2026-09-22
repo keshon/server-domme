@@ -69,6 +69,12 @@ const (
 
 	// step is the resolution the model advances in.
 	step = time.Minute
+
+	// wokenHold is how long someone woken early stays up before sleep can
+	// take her again. Pressure is not reset by being woken: if her body was
+	// not done, she goes back to bed once nobody is keeping her, and wakes
+	// a little later than she would have.
+	wokenHold = time.Hour
 )
 
 // State is the body at a moment. Everything the service needs to persist.
@@ -88,6 +94,10 @@ type State struct {
 	// Pending is an interruption that came while she was in a conversation,
 	// waiting for a lull.
 	Pending bool
+	// Woken is that she was woken early rather than waking on her own, and
+	// HeldUntil how long being woken keeps her up. See Wake.
+	Woken     bool
+	HeldUntil time.Time
 	// At is when the state was last advanced to.
 	At time.Time
 }
@@ -107,6 +117,7 @@ const (
 	WhyInterrupted = "interrupted"
 	WhyBack        = "back"
 	WhyNoticed     = "noticed"
+	WhyWoken       = "woken"
 )
 
 // Body is one body, safe for concurrent use.
@@ -205,6 +216,23 @@ func (b *Body) Notice(now time.Time) []Event {
 	return []Event{b.move(Online, WhyNoticed, now)}
 }
 
+// Wake brings her online because someone woke her: from sleep, woken early
+// and kept up for wokenHold whatever her pressure says; from away, back as
+// if she had noticed. Online, nothing happens.
+func (b *Body) Wake(now time.Time) []Event {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	switch b.st.Presence {
+	case Asleep:
+		e := b.move(Online, WhyWoken, now)
+		b.st.WokeAt, b.st.Woken, b.st.HeldUntil = now, true, now.Add(wokenHold)
+		return []Event{e}
+	case Away:
+		return []Event{b.move(Online, WhyWoken, now)}
+	}
+	return nil
+}
+
 // Advance lives the body forward to now. engaged is whether she is in a
 // conversation: it holds sleep off a little, and makes an interruption wait
 // for a lull. It returns every change of presence on the way.
@@ -248,7 +276,7 @@ func (b *Body) decide(t time.Time, dt time.Duration, engaged bool) (Event, bool)
 	case Asleep:
 		if sleepy < thetaWake {
 			e := b.move(Online, WhyWoke, t)
-			b.st.WokeAt = t
+			b.st.WokeAt, b.st.Woken = t, false
 			return e, true
 		}
 	case Online:
@@ -256,7 +284,15 @@ func (b *Body) decide(t time.Time, dt time.Duration, engaged bool) (Event, bool)
 		if engaged {
 			limit += engagedMargin
 		}
-		if sleepy > limit {
+		held := t.Before(b.st.HeldUntil)
+		if sleepy > limit && !held {
+			return b.move(Asleep, WhySlept, t), true
+		}
+		// Woken before her body was done, she goes back to bed once the
+		// hour is up and nobody is keeping her: between the two
+		// thresholds a body stays as it is, and without this someone
+		// woken at three would stay up until evening.
+		if b.st.Woken && !held && !engaged && sleepy > thetaWake {
 			return b.move(Asleep, WhySlept, t), true
 		}
 		if b.st.B < tiredAt {

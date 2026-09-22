@@ -376,6 +376,7 @@ func (s *Service) Run(ctx context.Context) {
 	run(s.lifeLoop)
 	run(s.reflectLoop)
 	run(s.thoughtLoop)
+	run(s.statusLoop)
 	if s.body != nil {
 		run(s.bodyLoop)
 	}

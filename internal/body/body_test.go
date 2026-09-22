@@ -147,3 +147,48 @@ func TestNoticeOnlyReachesHerAway(t *testing.T) {
 		t.Errorf("events %+v", events)
 	}
 }
+
+// Woken at three in the morning she is up, marked as woken, and kept up for
+// an hour whatever her pressure says; her pressure is where the night left
+// it, so she goes back down soon after. The next time she wakes on her own
+// is ordinary again.
+func TestWokenEarlyIsUpAWhileAndStillTired(t *testing.T) {
+	night := time.Date(2026, 9, 23, 3, 0, 0, 0, loc)
+	b := New(loc, nil, night)
+	if b.State().Presence != Asleep {
+		t.Fatalf("at three she is %s", b.State().Presence)
+	}
+	pressure := b.State().S
+	events := b.Wake(night)
+	st := b.State()
+	if len(events) != 1 || events[0].Why != WhyWoken || st.Presence != Online || !st.Woken || !st.WokeAt.Equal(night) {
+		t.Fatalf("woken: %+v, state %+v", events, st)
+	}
+	if st.S != pressure {
+		t.Errorf("being woken reset her pressure: %.2f → %.2f", pressure, st.S)
+	}
+	b.Advance(night.Add(50*time.Minute), false)
+	if b.State().Presence != Online {
+		t.Errorf("back asleep within the hour: %s", b.State().Presence)
+	}
+	var slept bool
+	for _, e := range b.Advance(night.Add(3*time.Hour), false) {
+		slept = slept || e.To == Asleep
+	}
+	if !slept {
+		t.Error("a woken body at four in the morning never went back to sleep")
+	}
+	var woke bool
+	for _, e := range b.Advance(night.Add(14*time.Hour), false) {
+		if e.Why == WhyWoke {
+			woke = true
+		}
+	}
+	if !woke || b.State().Woken {
+		t.Errorf("waking on her own: woke %v, still marked woken %v", woke, b.State().Woken)
+	}
+	// Awake already, waking does nothing.
+	if events := b.Wake(night.Add(14 * time.Hour)); len(events) != 0 {
+		t.Errorf("woke someone awake: %+v", events)
+	}
+}

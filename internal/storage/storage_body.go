@@ -22,6 +22,8 @@ type ChatBody struct {
 	AwayUntil time.Time `json:"away_until,omitempty"`
 	Session   int       `json:"session"`
 	Pending   bool      `json:"pending,omitempty"`
+	Woken     bool      `json:"woken,omitempty"`
+	HeldUntil time.Time `json:"held_until,omitempty"`
 	At        time.Time `json:"at"`
 	// Missed are direct approaches that came while she was not online,
 	// waiting for her to come back to them.

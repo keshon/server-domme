@@ -199,6 +199,7 @@ func (c *ChatCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			backendsOption(),
 			reflectOption(),
+			wakeOption(),
 		},
 	}
 }
@@ -213,7 +214,7 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role`, `forget`, `reflect` or `backends`.")
+		return respond(s, e, "Pick something: `channel`, `status`, `why`, `about`, `brief`, `role`, `forget`, `reflect`, `wake` or `backends`.")
 	}
 	sub := data.Options[0]
 
@@ -248,6 +249,9 @@ func (c *ChatCommand) Run(ctx interface{}) error {
 
 	case subReflect:
 		return c.runReflect(context, sub)
+
+	case subWake:
+		return c.runWake(context)
 
 	default:
 		return respond(s, e, fmt.Sprintf("Unknown subcommand: %s", sub.Name))

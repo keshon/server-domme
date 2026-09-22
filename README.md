@@ -81,6 +81,7 @@ It’s designed to be practical for server management while providing light, int
   - **/chat forget** — Wipe everything she remembers about this server
   - **/chat backends** — Which models she thinks and speaks through (bot developer only) — or see them, left empty
   - **/chat reflect** — Have her look back now on the days she has not made sense of yet
+  - **/chat wake** — Wake her up — early, and she knows it. One body: it wakes her on every server she is on
 
 ### 🎞️ Media
 

@@ -95,6 +95,7 @@ func (s *Service) adoptBody(on bool) {
 			S: stored.S, B: stored.B, Presence: body.Presence(stored.Presence),
 			Since: stored.Since, WokeAt: stored.WokeAt, AwayUntil: stored.AwayUntil,
 			Session: stored.Session, Pending: stored.Pending, At: stored.At,
+			Woken: stored.Woken, HeldUntil: stored.HeldUntil,
 		}, now)
 		for _, m := range stored.Missed {
 			s.missed = append(s.missed, mind.Deferred{
@@ -192,7 +193,7 @@ func (s *Service) onPresence(e body.Event) {
 
 	if e.To == body.Online {
 		s.scheduleCatchUp(e.At)
-		if e.Why == body.WhyWoke && s.idleMind {
+		if (e.Why == body.WhyWoke || e.Why == body.WhyWoken) && s.idleMind {
 			// One tick of the idle mind on waking.
 			s.idleSoon(e.At)
 		}
@@ -374,7 +375,7 @@ func (s *Service) bodyScene(sc *mind.Scene, now time.Time) {
 	}
 	st := s.body.State()
 	if st.Presence != body.Asleep {
-		sc.Woke = st.WokeAt
+		sc.Woke, sc.WokenEarly = st.WokeAt, st.Woken
 	}
 	s.bodyMu.Lock()
 	if t := s.talk[sc.ChannelID]; t != nil && now.Sub(t.last) <= talkGap {
@@ -418,31 +419,136 @@ func (s *Service) drain(sc mind.Scene) {
 }
 
 // applyStatus shows her presence in Discord: online when she is, idle when
-// she is away or asleep. Never invisible — the bot's other commands keep
-// working, and an offline bot reads as a broken one. Sent again after a
-// reconnect, which resets it.
+// she is away or asleep, and a line under her name saying what she is doing.
+// Never invisible — the bot's other commands keep working, and an offline
+// bot reads as a broken one. Sent again after a reconnect, which resets it,
+// and otherwise only when something changed: Discord limits how often a
+// status may change.
 func (s *Service) applyStatus() {
 	sess := s.session()
-	if sess == nil || s.body == nil {
+	if sess == nil {
 		return
 	}
 	status := statusIdle
 	if s.online() {
 		status = statusOnline
 	}
+	text := s.statusText(s.now())
 	s.bodyMu.Lock()
-	same := s.statusSent == status && s.statusSess == sess
+	same := s.statusSent == status+"\x00"+text && s.statusSess == sess
 	s.bodyMu.Unlock()
 	if same {
 		return
 	}
-	if err := sess.UpdateStatusComplex(discordgo.UpdateStatusData{Status: status}); err != nil {
+	update := discordgo.UpdateStatusData{Status: status}
+	if text != "" {
+		update.Activities = []*discordgo.Activity{{Name: "Custom Status", Type: discordgo.ActivityTypeCustom, State: text}}
+	}
+	if err := sess.UpdateStatusComplex(update); err != nil {
 		s.log.Debug().Err(err).Msg("chat_status_failed")
 		return
 	}
 	s.bodyMu.Lock()
-	s.statusSent, s.statusSess = status, sess
+	s.statusSent, s.statusSess = status+"\x00"+text, sess
 	s.bodyMu.Unlock()
+}
+
+// Status lines, under her name in the member list. Fixed words, from facts
+// of her body and her talking — never a channel, a server or a person: the
+// status is one for the whole bot, and shows in every server she is in.
+const (
+	statusAsleep  = "💤 asleep"
+	statusWoken   = "woken up. not thrilled"
+	statusJustUp  = "just woke up"
+	statusAway    = "away for a bit"
+	statusRecharg = "recharging"
+	statusChat    = "chatting"
+	statusAround  = "around"
+)
+
+// Within these, waking is still news.
+const (
+	justUpFor = 30 * time.Minute
+	wokenFor  = time.Hour
+)
+
+// statusText is the line under her name.
+func (s *Service) statusText(now time.Time) string {
+	if s.body != nil {
+		st := s.body.State()
+		switch st.Presence {
+		case body.Asleep:
+			return statusAsleep
+		case body.Away:
+			if st.AwayUntil.IsZero() {
+				return statusRecharg
+			}
+			return statusAway
+		}
+		if st.Woken && now.Sub(st.WokeAt) < wokenFor {
+			return statusWoken
+		}
+		if !st.WokeAt.IsZero() && now.Sub(st.WokeAt) < justUpFor {
+			return statusJustUp
+		}
+	}
+	if s.engaged(now) {
+		return statusChat
+	}
+	return statusAround
+}
+
+// statusLoop keeps the status line current: from "chatting" back to
+// "around" when she stops, and waking news going stale.
+func (s *Service) statusLoop(ctx context.Context) {
+	ticker := time.NewTicker(statusEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.applyStatus()
+		}
+	}
+}
+
+// statusEvery is how often the status line is looked at.
+const statusEvery = time.Minute
+
+// WakeOutcome is what came of waking her.
+type WakeOutcome string
+
+// Outcomes of Wake.
+const (
+	WakeNoBody  WakeOutcome = "no-body"
+	WakeAwake   WakeOutcome = "awake"
+	WakeFromBed WakeOutcome = "asleep"
+	WakeBack    WakeOutcome = "away"
+)
+
+// Wake wakes her, for /chat wake: from sleep she is woken early and kept up
+// a while, with her tiredness where it was; from away she comes back. What
+// she missed is caught up on as on any return. One body for every server.
+func (s *Service) Wake() WakeOutcome {
+	if s.body == nil {
+		return WakeNoBody
+	}
+	now := s.now()
+	was := s.body.State().Presence
+	events := s.body.Wake(now)
+	if len(events) == 0 {
+		return WakeAwake
+	}
+	for _, e := range events {
+		s.onPresence(e)
+	}
+	s.applyStatus()
+	s.saveBody(now)
+	if was == body.Asleep {
+		return WakeFromBed
+	}
+	return WakeBack
 }
 
 // saveBody writes the body and what she missed to the datastore.
@@ -471,6 +577,7 @@ func (s *Service) saveBody(now time.Time) {
 	err := s.store.SetChatBodyState(storage.ChatBody{
 		S: st.S, B: st.B, Presence: string(st.Presence), Since: st.Since, WokeAt: st.WokeAt,
 		AwayUntil: st.AwayUntil, Session: st.Session, Pending: st.Pending, At: st.At, Missed: missed,
+		Woken: st.Woken, HeldUntil: st.HeldUntil,
 	})
 	if err != nil {
 		s.log.Warn().Err(err).Msg("chat_body_save_failed")
