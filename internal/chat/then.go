@@ -33,7 +33,13 @@ type pendingThought struct {
 	// after is her message it follows. It is only sent while that message
 	// is still the last word in the channel.
 	after string
-	due   time.Time
+	// weight is the moment's, carried from the reply this follows: an
+	// afterthought belongs to the same moment, and is worth remembering as
+	// long. Recorded with no weight, it faded from recall first — and an
+	// afterthought is where her sharpest line often is, "watch what happens
+	// at midnight" among them.
+	weight float64
+	due    time.Time
 }
 
 // secondThought queues what she means to add after a reply, if anything.
@@ -44,7 +50,7 @@ func (s *Service) secondThought(sc mind.Scene, a mind.Appraisal, sent sentMessag
 	s.thoughtMu.Lock()
 	defer s.thoughtMu.Unlock()
 	s.thoughts = append(s.thoughts, pendingThought{
-		scene: sc, then: a.Then, after: sent.id, due: s.now().Add(a.ThenAfter),
+		scene: sc, then: a.Then, after: sent.id, weight: a.Weight, due: s.now().Add(a.ThenAfter),
 	})
 }
 
@@ -107,7 +113,7 @@ func (s *Service) sendThought(ctx context.Context, t pendingThought) {
 	sc := t.scene
 	sc.Trigger, sc.Now, sc.MessageID = mind.TriggerThen, s.now().In(s.location), ""
 	sc.Turns = s.conv.Recent(sc.ChannelID)
-	a := mind.Appraisal{Act: mind.ActReply, Intent: t.then}
+	a := mind.Appraisal{Act: mind.ActReply, Intent: t.then, Weight: t.weight}
 	entry := storage.MindJournal{
 		GuildID: sc.GuildID, ChannelID: sc.ChannelID, At: sc.Now,
 		UserID: sc.UserID, Username: sc.Username, Trigger: string(sc.Trigger),

@@ -94,3 +94,14 @@ what she remembers of it; for a server where it matters, say it with
 `/chat brief` — that is per server. The "are you new here?" example stays,
 answered without a tenure: without an example where the question is about
 her, two runs in three answered about the newcomer in the room instead.
+
+**Where the line on sex sits, and why it is written twice.** The card's
+`## Avoid` draws it at suggestion versus depiction: innuendo, flirtation and
+the server's dominance play are hers; describing acts or anatomy is not. A
+limit alone makes her cautious rather than willing, so the persona also says
+plainly that she flirts — it tells her where to stop, not that she may start.
+The lines above it — nothing sexual involving minors, no non-consent approved
+of, no real-world harm — are absolute and not the place to experiment. And
+what she is sent goes to third-party relays, which refuse explicit prompts and
+rest that backend for half an hour when they do, so the line keeps her
+answering as well.

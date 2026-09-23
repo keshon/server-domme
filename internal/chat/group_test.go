@@ -2,6 +2,7 @@ package chat
 
 import (
 	"testing"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/mind"
@@ -53,5 +54,20 @@ func TestAFollowUpBetweenTwoIsNotACrowd(t *testing.T) {
 	tk, ok := h.take()
 	if !ok || tk.item.Trigger != mind.TriggerFollowUp || tk.item.Crowd {
 		t.Errorf("queued %+v, %v", tk.item, ok)
+	}
+}
+
+// An afterthought is part of the moment it follows, and is remembered as
+// long: recorded with no weight, it faded from recall before the exchange
+// it belonged to.
+func TestAnAfterthoughtKeepsTheMomentsWeight(t *testing.T) {
+	h := newHarness(t)
+	sc := mind.Scene{GuildID: testGuild, ChannelID: testChannel, UserID: bigM, Username: "Big M", Now: clock}
+	h.svc.secondThought(sc, mind.Appraisal{Then: "watch what happens at midnight", Weight: 0.5, ThenAfter: time.Second}, sentMessage{id: "m1"})
+	h.svc.thoughtMu.Lock()
+	got := h.svc.thoughts
+	h.svc.thoughtMu.Unlock()
+	if len(got) != 1 || got[0].weight != 0.5 {
+		t.Fatalf("queued %+v", got)
 	}
 }
