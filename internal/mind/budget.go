@@ -27,7 +27,18 @@ const (
 // matches; specifics beyond the first few; dossier notes, oldest first. It
 // reports what it trimmed in the log.
 func (m *Mind) fit(guildID, prompt string, k Known, budget int, size func(Known) int) Known {
-	if size(k) <= budget {
+	// Every call reports its size, trimmed or not: what breaks first here is
+	// not a refused call but a prompt quietly giving way, and a number in
+	// the log each time shows it coming. Two days in, one person, the
+	// thinking prompt was at nine tenths of its budget.
+	before := size(k)
+	m.Log.Debug().
+		Str("guild_id", guildID).
+		Str("prompt", prompt).
+		Int("size", before).
+		Int("budget", budget).
+		Msg("mind_prompt_sized")
+	if before <= budget {
 		return k
 	}
 	trimmed := map[string]int{}
@@ -71,7 +82,8 @@ func (m *Mind) fit(guildID, prompt string, k Known, budget int, size func(Known)
 		}
 	}
 
-	ev := m.Log.Info().Str("guild_id", guildID).Str("prompt", prompt).Int("budget", budget).Int("size", size(k))
+	ev := m.Log.Info().Str("guild_id", guildID).Str("prompt", prompt).Int("budget", budget).
+		Int("was", before).Int("size", size(k))
 	for what, n := range trimmed {
 		ev = ev.Int(what, n)
 	}
