@@ -83,6 +83,7 @@ func TestMoveWelcomeRoleCarriesTheDraftOver(t *testing.T) {
 	draft := func(w *WelcomeRole) {
 		w.IntroChannel, w.IntroTemplate = "test-intro", "hi {user}"
 		w.WelcomeChannel, w.WelcomeTemplate = "test-welcome", "welcome {user}"
+		w.Gifs = []string{"https://gif/test"}
 	}
 	if err := s.UpdateWelcomeRole("g", "test", draft); err != nil {
 		t.Fatal(err)
@@ -93,7 +94,8 @@ func TestMoveWelcomeRoleCarriesTheDraftOver(t *testing.T) {
 	}
 	sub := s.WelcomeRoleFor("g", "sub")
 	if sub == nil || sub.RoleID != "sub" || sub.IntroChannel != "intro" || sub.IntroTemplate != "hi {user}" ||
-		sub.WelcomeChannel != "test-welcome" || sub.WelcomeTemplate != "welcome {user}" {
+		sub.WelcomeChannel != "test-welcome" || sub.WelcomeTemplate != "welcome {user}" ||
+		len(sub.Gifs) != 1 || sub.Gifs[0] != "https://gif/test" {
 		t.Errorf("moved = %+v, want the draft with the new intro channel", sub)
 	}
 	if s.WelcomeRoleFor("g", "test") != nil {
@@ -105,6 +107,12 @@ func TestMoveWelcomeRoleCarriesTheDraftOver(t *testing.T) {
 	}
 	if s.WelcomeRoleFor("g", "sub") == nil || s.WelcomeRoleFor("g", "domme") == nil {
 		t.Error("a copy should leave both roles with a welcome")
+	}
+	if err := s.AddWelcomeGif("g", "domme", "https://gif/domme"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.WelcomeGifs("g", "sub")) != 1 || len(s.WelcomeGifs("g", "domme")) != 2 {
+		t.Error("a copy's gifs should be its own: adding to one changed the other")
 	}
 
 	if err := s.MoveWelcomeRole("g", "sub", "domme", false, nil); !errors.Is(err, ErrWelcomeRoleTaken) {
