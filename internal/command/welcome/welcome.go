@@ -34,6 +34,7 @@ const (
 	subPreview   = "preview"
 	subRoles     = "roles"
 	subRemove    = "remove"
+	subMove      = "move"
 	subGifAdd    = "gif-add"
 	subGifRemove = "gif-remove"
 	subGifs      = "gifs"
@@ -45,6 +46,9 @@ const (
 	optWelcome = "welcome_channel"
 	optKind    = "kind"
 	optURL     = "url"
+	optFrom    = "from"
+	optTo      = "to"
+	optKeep    = "keep"
 
 	kindIntro   = "intro"
 	kindWelcome = "welcome"
@@ -127,6 +131,17 @@ func (c *WelcomeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: subRoles, Description: "Every role with a welcome set up"},
 			{
+				Type: discordgo.ApplicationCommandOptionSubCommand, Name: subMove,
+				Description: "Give a role's welcome to another role — a test setup to the real one",
+				Options: []*discordgo.ApplicationCommandOption{
+					{Type: discordgo.ApplicationCommandOptionRole, Name: optFrom, Description: "The role that has the welcome now", Required: true},
+					{Type: discordgo.ApplicationCommandOptionRole, Name: optTo, Description: "The role to give it to — one with no welcome yet", Required: true},
+					{Type: discordgo.ApplicationCommandOptionChannel, Name: optIntro, Description: "Post its intro here instead", ChannelTypes: textChannels},
+					{Type: discordgo.ApplicationCommandOptionChannel, Name: optWelcome, Description: "Post its welcome here instead", ChannelTypes: textChannels},
+					{Type: discordgo.ApplicationCommandOptionBoolean, Name: optKeep, Description: "Keep the first role's welcome too, making a copy"},
+				},
+			},
+			{
 				Type: discordgo.ApplicationCommandOptionSubCommand, Name: subRemove,
 				Description: "Remove a role's welcome settings",
 				Options:     []*discordgo.ApplicationCommandOption{roleOption(true, "The role")},
@@ -159,7 +174,7 @@ func (c *WelcomeCommand) Run(ctx interface{}) error {
 
 	data := e.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		return respond(s, e, "Pick something: `member`, `setup`, `template`, `preview`, `roles`, `remove`, `gif-add`, `gif-remove` or `gifs`.")
+		return respond(s, e, "Pick something: `member`, `setup`, `template`, `preview`, `roles`, `move`, `remove`, `gif-add`, `gif-remove` or `gifs`.")
 	}
 	sub := data.Options[0]
 	opts := optionsOf(sub)
@@ -175,6 +190,8 @@ func (c *WelcomeCommand) Run(ctx interface{}) error {
 		return runPreview(context, opts)
 	case subRoles:
 		return runRoles(context)
+	case subMove:
+		return runMove(context, opts)
 	case subRemove:
 		return runRemove(context, opts)
 	case subGifAdd, subGifRemove, subGifs:

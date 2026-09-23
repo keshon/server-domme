@@ -39,6 +39,7 @@ It’s designed to be practical for server management while providing light, int
   - **/welcome template** — Write a role's intro or welcome text — paste it straight from Discord
   - **/welcome preview** — See a role's intro and welcome as they would be posted, without posting
   - **/welcome roles** — Every role with a welcome set up
+  - **/welcome move** — Give a role's welcome to another role — a test setup to the real one
   - **/welcome remove** — Remove a role's welcome settings
   - **/welcome gif-add** — Add a gif link to pick welcomes from
   - **/welcome gif-remove** — Remove a gif link

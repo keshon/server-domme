@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -63,20 +64,29 @@ func describeRole(s *discordgo.Session, store *storage.Storage, guildID, roleID 
 	if w == nil {
 		return fmt.Sprintf("<@&%s> has no welcome set up. `/welcome setup` picks the channels, `/welcome template` writes the texts.", roleID)
 	}
-	line := func(label, channel, template string) string {
-		where := "no channel"
-		if channel != "" {
-			where = "<#" + channel + ">"
-		}
-		text := "no text yet"
-		if strings.TrimSpace(template) != "" {
-			text = fmt.Sprintf("%d characters of text", len([]rune(template)))
-		}
-		return fmt.Sprintf("**%s** → %s, %s", label, where, text)
+	return fmt.Sprintf("<@&%s>\n%s", roleID, partLines(w))
+}
+
+// partLines are a role's intro and welcome, one line each, marked by whether
+// they are ready to post.
+func partLines(w *storage.WelcomeRole) string {
+	return partLine("Intro", w.IntroChannel, w.IntroTemplate) + "\n" +
+		partLine("Welcome", w.WelcomeChannel, w.WelcomeTemplate)
+}
+
+func partLine(label, channel, template string) string {
+	hasText := strings.TrimSpace(template) != ""
+	chars := fmt.Sprintf("%d characters", len([]rune(template)))
+	switch {
+	case channel != "" && hasText:
+		return fmt.Sprintf("✅ **%s** → <#%s> · %s", label, channel, chars)
+	case hasText:
+		return fmt.Sprintf("⚠️ **%s** · %s, but no channel — `/welcome setup`", label, chars)
+	case channel != "":
+		return fmt.Sprintf("⚠️ **%s** → <#%s>, but no text yet — `/welcome template`", label, channel)
+	default:
+		return fmt.Sprintf("➖ **%s** not set up", label)
 	}
-	return fmt.Sprintf("<@&%s>\n%s\n%s", roleID,
-		line("Intro", w.IntroChannel, w.IntroTemplate),
-		line("Welcome", w.WelcomeChannel, w.WelcomeTemplate))
 }
 
 // runTemplate opens the editor for a role's intro or welcome text.
@@ -248,19 +258,107 @@ func runPreview(context *cmdadapter.SlashInteractionContext, opts options) error
 	return respond(s, e, trimEmbed(b.String()))
 }
 
-// runRoles lists every role with a welcome.
+// runRoles lists every role with a welcome, a field each.
 func runRoles(context *cmdadapter.SlashInteractionContext) error {
 	s, e, store := context.Session, context.Event, context.Storage
 	roles := store.WelcomeRoles(e.GuildID)
 	if len(roles) == 0 {
 		return respond(s, e, "No role has a welcome set up yet. `/welcome setup` is where to start.")
 	}
-	parts := make([]string, 0, len(roles))
+	names := make(map[string]string, len(roles))
 	for _, r := range roles {
-		parts = append(parts, describeRole(s, store, e.GuildID, r.RoleID))
+		names[r.RoleID] = roleLabel(s, e.GuildID, r.RoleID)
 	}
-	parts = append(parts, fmt.Sprintf("%d gifs to pick welcomes from.", len(store.WelcomeGifs(e.GuildID))))
-	return respond(s, e, trimEmbed(strings.Join(parts, "\n\n")))
+	slices.SortFunc(roles, func(a, b storage.WelcomeRole) int {
+		return strings.Compare(strings.ToLower(names[a.RoleID]), strings.ToLower(names[b.RoleID]))
+	})
+
+	embed := &discordgo.MessageEmbed{Title: "👋 Welcomes", Color: reply.EmbedColor}
+	for i, r := range roles {
+		// Discord takes 25 fields; the rest are named, not described.
+		if i == maxFields-1 && len(roles) > maxFields {
+			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+				Name:  fmt.Sprintf("…and %d more", len(roles)-i),
+				Value: "`/welcome setup role:` shows any one of them.",
+			})
+			break
+		}
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: names[r.RoleID], Value: partLines(&r)})
+	}
+
+	gifs := "No gifs — welcomes go out without one"
+	if n := len(store.WelcomeGifs(e.GuildID)); n > 0 {
+		gifs = fmt.Sprintf("%d gifs to pick welcomes from", n)
+	}
+	embed.Footer = &discordgo.MessageEmbedFooter{Text: gifs + " · /welcome preview shows a role's texts"}
+	return reply.RespondEmbedEphemeral(s, e, embed)
+}
+
+// maxFields is how many fields Discord allows in one embed.
+const maxFields = 25
+
+// roleLabel is a role's name as plain text, for where Discord does not turn
+// a mention into one, such as an embed field's name.
+func roleLabel(s *discordgo.Session, guildID, roleID string) string {
+	if r, err := s.State.Role(guildID, roleID); err == nil && r != nil {
+		return "@" + r.Name
+	}
+	return "Deleted role " + roleID
+}
+
+// runMove gives a role's welcome to another role, so one written and tried
+// on a test role and test channels is not written again for the real ones.
+func runMove(context *cmdadapter.SlashInteractionContext, opts options) error {
+	s, e, store := context.Session, context.Event, context.Storage
+	from, _ := opts[optFrom].Value.(string)
+	to, _ := opts[optTo].Value.(string)
+	keep := opts[optKeep] != nil && opts[optKeep].BoolValue()
+	intro, welcome := opts[optIntro], opts[optWelcome]
+
+	switch {
+	case from == to:
+		return respond(s, e, "Those are the same role.")
+	case to == e.GuildID:
+		return respond(s, e, "Everyone has @everyone, so it cannot say who is being welcomed. Pick a role.")
+	}
+
+	err := store.MoveWelcomeRole(e.GuildID, from, to, keep, func(w *storage.WelcomeRole) {
+		if intro != nil {
+			w.IntroChannel = intro.ChannelValue(s).ID
+		}
+		if welcome != nil {
+			w.WelcomeChannel = welcome.ChannelValue(s).ID
+		}
+	})
+	switch {
+	case errors.Is(err, storage.ErrWelcomeRoleMissing):
+		return respond(s, e, fmt.Sprintf("<@&%s> has no welcome to move. `/welcome roles` lists the ones that do.", from))
+	case errors.Is(err, storage.ErrWelcomeRoleTaken):
+		return respond(s, e, fmt.Sprintf("<@&%s> already has a welcome, and it is not written over. "+
+			"`/welcome remove` it first if this one should take its place.", to))
+	case err != nil:
+		return fmt.Errorf("welcome: move: %w", err)
+	}
+
+	verb := "Moved"
+	if keep {
+		verb = "Copied"
+	}
+	msg := fmt.Sprintf("%s the welcome from <@&%s> to <@&%s>.\n\n%s", verb, from, to, describeRole(s, store, e.GuildID, to))
+	w := store.WelcomeRoleFor(e.GuildID, to)
+	for _, ch := range []string{w.IntroChannel, w.WelcomeChannel} {
+		if ch == "" {
+			continue
+		}
+		if why := cannotPost(s, e.GuildID, ch); why != "" {
+			msg += "\n\n⚠️ " + why
+		}
+	}
+	if intro == nil || welcome == nil {
+		msg += "\n\nChannels not given were kept as they were — `/welcome setup` changes them."
+	}
+	msg += "\n`/welcome preview` shows the texts as they would be posted."
+	return respond(s, e, msg)
 }
 
 func runRemove(context *cmdadapter.SlashInteractionContext, opts options) error {

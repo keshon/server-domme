@@ -75,3 +75,42 @@ func TestWelcomeGifsAreBoundedAndDeduplicated(t *testing.T) {
 		t.Error("removed a gif twice")
 	}
 }
+
+// A welcome drafted on a test role is carried over whole, and never over a
+// role that already has one.
+func TestMoveWelcomeRoleCarriesTheDraftOver(t *testing.T) {
+	s := newTestStore(t)
+	draft := func(w *WelcomeRole) {
+		w.IntroChannel, w.IntroTemplate = "test-intro", "hi {user}"
+		w.WelcomeChannel, w.WelcomeTemplate = "test-welcome", "welcome {user}"
+	}
+	if err := s.UpdateWelcomeRole("g", "test", draft); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.MoveWelcomeRole("g", "test", "sub", false, func(w *WelcomeRole) { w.IntroChannel = "intro" }); err != nil {
+		t.Fatalf("MoveWelcomeRole: %v", err)
+	}
+	sub := s.WelcomeRoleFor("g", "sub")
+	if sub == nil || sub.RoleID != "sub" || sub.IntroChannel != "intro" || sub.IntroTemplate != "hi {user}" ||
+		sub.WelcomeChannel != "test-welcome" || sub.WelcomeTemplate != "welcome {user}" {
+		t.Errorf("moved = %+v, want the draft with the new intro channel", sub)
+	}
+	if s.WelcomeRoleFor("g", "test") != nil {
+		t.Error("a move left the first role's welcome behind")
+	}
+
+	if err := s.MoveWelcomeRole("g", "sub", "domme", true, nil); err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	if s.WelcomeRoleFor("g", "sub") == nil || s.WelcomeRoleFor("g", "domme") == nil {
+		t.Error("a copy should leave both roles with a welcome")
+	}
+
+	if err := s.MoveWelcomeRole("g", "sub", "domme", false, nil); !errors.Is(err, ErrWelcomeRoleTaken) {
+		t.Errorf("move onto a role with a welcome: err = %v, want ErrWelcomeRoleTaken", err)
+	}
+	if err := s.MoveWelcomeRole("g", "test", "other", false, nil); !errors.Is(err, ErrWelcomeRoleMissing) {
+		t.Errorf("move from a role without one: err = %v, want ErrWelcomeRoleMissing", err)
+	}
+}

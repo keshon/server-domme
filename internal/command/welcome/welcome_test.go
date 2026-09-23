@@ -127,7 +127,7 @@ func TestModalValueReadsTheSubmittedText(t *testing.T) {
 func TestEverySubcommandIsHandled(t *testing.T) {
 	handled := map[string]bool{
 		subMember: true, subSetup: true, subTemplate: true, subPreview: true,
-		subRoles: true, subRemove: true, subGifAdd: true, subGifRemove: true, subGifs: true,
+		subRoles: true, subMove: true, subRemove: true, subGifAdd: true, subGifRemove: true, subGifs: true,
 	}
 	for _, o := range (&WelcomeCommand{}).SlashDefinition().Options {
 		if !handled[o.Name] {

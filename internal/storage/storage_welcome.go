@@ -100,6 +100,46 @@ func (s *Storage) RemoveWelcomeRole(guildID, roleID string) error {
 	return nil
 }
 
+// ErrWelcomeRoleMissing and ErrWelcomeRoleTaken are why a move is refused.
+var (
+	ErrWelcomeRoleMissing = errors.New("storage: the role has no welcome to move")
+	ErrWelcomeRoleTaken   = errors.New("storage: the role already has a welcome")
+)
+
+// MoveWelcomeRole gives one role's welcome settings to another, then lets
+// change adjust them, in one step. keep leaves the first role's settings as
+// they were, making it a copy. A role that already has settings is not
+// written over: what it had might be the real thing, and a move is for
+// carrying a finished draft over to an empty role. Who was welcomed stays
+// with the role they were welcomed as.
+func (s *Storage) MoveWelcomeRole(guildID, fromRoleID, toRoleID string, keep bool, change func(*WelcomeRole)) error {
+	if guildID == "" || fromRoleID == "" || toRoleID == "" {
+		return fmt.Errorf("storage: moving a welcome needs a guild and two roles")
+	}
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.welcomeRoles)
+		from, ok := col.Get(guildScopedKey(guildID, fromRoleID))
+		if !ok {
+			return ErrWelcomeRoleMissing
+		}
+		if _, taken := col.Get(guildScopedKey(guildID, toRoleID)); taken {
+			return ErrWelcomeRoleTaken
+		}
+		to := *from
+		to.RoleID = toRoleID
+		if change != nil {
+			change(&to)
+		}
+		if err := col.Put(&to); err != nil {
+			return err
+		}
+		if keep {
+			return nil
+		}
+		return col.Delete(guildScopedKey(guildID, fromRoleID))
+	})
+}
+
 // WelcomedFor returns the record of someone's welcome for a role, or nil.
 func (s *Storage) WelcomedFor(guildID, userID, roleID string) *Welcomed {
 	w, ok := s.welcomed.Get(guildScopedKey(guildID, userID+":"+roleID))
