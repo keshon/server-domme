@@ -68,3 +68,22 @@ func TestRepeatsHerselfCatchesAnOpeningHabit(t *testing.T) {
 		t.Error("a short no was flagged")
 	}
 }
+
+// The afterthought from production: her line said again in the middle of a
+// new one, which the opening, ending and overlap checks all let through.
+func TestRepeatsHerselfCatchesALineSaidAgainInTheMiddle(t *testing.T) {
+	turns := []Turn{
+		{UserID: "u1", Content: "I got it, will do"},
+		{FromBot: true, Content: "thats compliance. say it again without the ma'am and i'll know if you meant it"},
+	}
+	reply := "that wasn't the same thing. say it again without the ma'am next time, see if you notice it before i say it. that's the one that tells me anything"
+	if _, ok := RepeatsHerself(reply, turns); !ok {
+		t.Errorf("%q passed as new", reply)
+	}
+	// A shorter shared run, mid-line, is ordinary speech, not a repeat.
+	fresh := "honestly, i don't know what you want from me tonight, but fine"
+	turns[1].Content = "fine. i don't know what you mean by that"
+	if earlier, ok := RepeatsHerself(fresh, turns); ok {
+		t.Errorf("%q flagged as repeating %q", fresh, earlier)
+	}
+}

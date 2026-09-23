@@ -384,6 +384,24 @@ func shorterHalf(all []Exchange) []Exchange {
 	return out
 }
 
+// answering is the message she is answering, as they wrote it: their last
+// line in the conversation. Said again beside what she means to get across,
+// because the transcript alone leaves the model to find it, and with a
+// theme running it blends lines — in production she told Big M to "say it
+// again without the ma'am" about a message with no ma'am in it, taking the
+// word from his line before.
+func answering(s Scene) string {
+	if s.UserID == "" {
+		return ""
+	}
+	for i := len(s.Turns) - 1; i >= 0; i-- {
+		if t := s.Turns[i]; !t.FromBot && t.UserID == s.UserID {
+			return clip(oneLine(t.Content), maxMomentChars)
+		}
+	}
+	return ""
+}
+
 // decided is what she has decided to say, stated after the transcript. It is
 // private: the model is told not to quote it, because a line from the
 // appraisal read back verbatim sounds like a report on herself.
@@ -411,7 +429,11 @@ func decided(s Scene, a Appraisal, why string) string {
 		if s.Late > 0 {
 			fmt.Fprintf(&b, "You are answering %s %s late — you were not around. Acknowledge the gap the way a person would, without explaining it. ", who, gap(s.Late))
 		}
-		fmt.Fprintf(&b, "You are answering %s.", who)
+		fmt.Fprintf(&b, "You are answering %s", who)
+		if said := answering(s); said != "" {
+			fmt.Fprintf(&b, ", who just said: %q", said)
+		}
+		b.WriteString(".")
 	}
 	if why != "" {
 		b.WriteString(" Your reason: " + oneLine(why) + ".")

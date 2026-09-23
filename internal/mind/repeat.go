@@ -24,6 +24,11 @@ const (
 	// repeatMinWords keeps short lines out of it. "no." twice in a
 	// conversation is how people talk.
 	repeatMinWords = 4
+	// repeatRun is how many words in a row, anywhere in two lines, make the
+	// second say the first again. One more than repeatOpening: a run can
+	// start anywhere, and five-word runs like "i don't know what you" turn
+	// up in lines that say different things.
+	repeatRun = 6
 )
 
 // RepeatsHerself reports whether reply is something she has already said in
@@ -45,7 +50,8 @@ func RepeatsHerself(reply string, turns []Turn) (string, bool) {
 		if len(before) < repeatMinWords {
 			continue
 		}
-		if sameOpening(words, before) || sameEnding(words, before) || overlap(words, before) >= repeatOverlap {
+		if sameOpening(words, before) || sameEnding(words, before) || overlap(words, before) >= repeatOverlap ||
+			longestRun(words, before) >= repeatRun {
 			return t.Content, true
 		}
 	}
@@ -118,6 +124,28 @@ func sameEnding(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// longestRun is the most words in a row the two lines share, wherever they
+// fall. The checks above miss a line said again in the middle of a new one:
+// in production she followed "thats compliance. say it again without the
+// ma'am and i'll know if you meant it" seconds later with "that wasn't the
+// same thing. say it again without the ma'am next time…" — different
+// opening, different ending, under the overlap.
+func longestRun(a, b []string) int {
+	best := 0
+	prev := make([]int, len(b)+1)
+	for i := 1; i <= len(a); i++ {
+		cur := make([]int, len(b)+1)
+		for j := 1; j <= len(b); j++ {
+			if a[i-1] == b[j-1] {
+				cur[j] = prev[j-1] + 1
+				best = max(best, cur[j])
+			}
+		}
+		prev = cur
+	}
+	return best
 }
 
 func sameOpening(a, b []string) bool {

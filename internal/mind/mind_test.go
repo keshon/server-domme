@@ -411,3 +411,20 @@ func TestTheSameClosingLineIsARepeat(t *testing.T) {
 		t.Error("the same sign-off twice was let through")
 	}
 }
+
+// Her voice is told what the message she is answering says, beside what she
+// means to get across, so it does not borrow a word from the line before.
+func TestVoiceIsToldWhatSheIsAnswering(t *testing.T) {
+	s := sceneWith(
+		him("yes, Ma'am, no exits, got it", noon.Add(-2*time.Minute)),
+		her("you closed the exit without being asked", noon.Add(-time.Minute)),
+		him("I got it, will do", noon),
+	)
+	got := decided(s, Appraisal{Intent: "acknowledge the compliance"}, "")
+	if !strings.Contains(got, `who just said: "I got it, will do"`) {
+		t.Errorf("the message is not quoted: %s", got)
+	}
+	if strings.Contains(got, "Ma'am") {
+		t.Errorf("the line before leaked into it: %s", got)
+	}
+}
