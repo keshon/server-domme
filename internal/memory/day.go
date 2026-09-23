@@ -318,7 +318,7 @@ const (
 // crude and it is enough at this scale: what matters most is who was there.
 // Moments at or after before are skipped — the caller already has those in
 // front of her as the live transcript.
-func (s *Store) Recall(guildID string, now, before time.Time, words, people []string, days, limit int) ([]Moment, error) {
+func (s *Store) Recall(guildID string, now, before time.Time, here string, words, people []string, days, limit int) ([]Moment, error) {
 	recent, err := s.Days(guildID, now, days)
 	if err != nil {
 		return nil, err
@@ -341,7 +341,19 @@ func (s *Store) Recall(guildID string, now, before time.Time, words, people []st
 	for _, day := range recent {
 		for _, m := range day.Moments {
 			age := now.Sub(m.At)
-			if !m.At.Before(before) || (age > FadeAfter && m.Weight < LastingWeight) {
+			// What is already in front of her is not recalled: the live
+			// transcript of THIS room. A moment from anywhere else is hers
+			// to remember however recent — she passed through a channel ten
+			// minutes ago, was asked about it, and answered "nothing worth
+			// noting", because the cutoff had been applied to every room at
+			// once.
+			if here != "" && m.Channel == here && !m.At.Before(before) {
+				continue
+			}
+			if here == "" && !m.At.Before(before) {
+				continue
+			}
+			if age > FadeAfter && m.Weight < LastingWeight {
 				continue
 			}
 			score := recency(age, m.Weight) + 0.8*m.Weight

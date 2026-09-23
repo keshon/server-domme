@@ -253,7 +253,9 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 	}
 
 	// Moments inside the live transcript are already in front of her;
-	// recalled ones start where it does.
+	// recalled ones start where it does. Only in this room, though: what
+	// happened elsewhere while this conversation ran is not in front of her
+	// at all.
 	before := s.Now
 	if len(s.Turns) > 0 {
 		before = s.Turns[0].At
@@ -266,7 +268,7 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 		}
 	}
 
-	pool, err := m.Memory.Recall(s.GuildID, s.Now, before, topicWords(s.Turns), ids, recallDays, recallPool)
+	pool, err := m.Memory.Recall(s.GuildID, s.Now, before, s.ChannelName, topicWords(s.Turns), ids, recallDays, recallPool)
 	if err != nil {
 		return k, err
 	}

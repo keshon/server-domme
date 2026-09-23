@@ -311,3 +311,46 @@ func TestTheBudgetsAreTheDeploymentsToSet(t *testing.T) {
 		t.Errorf("set: %d, %d", m.thinkBudget(), m.voiceBudget())
 	}
 }
+
+// A walk through another room ten minutes ago is hers to remember, however
+// recent: asked what was happening in a channel she had just passed
+// through, she answered "nothing worth noting", because what the live
+// transcript already showed her was being applied to every room at once.
+func TestAWalkElsewhereIsRecalledMidConversation(t *testing.T) {
+	m, _ := newMind(t)
+	walk := noon.Add(-10 * time.Minute)
+	if err := m.Memory.AddMoment(guildID, memory.Moment{
+		At: walk, Channel: "queens-roundtable", Weight: 0.1, Walk: true,
+		Text: "passed through #queens-roundtable: a silly debate about approving pics",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Said in this room while the conversation has been running: already in
+	// front of her, and not recalled.
+	if err := m.Memory.AddMoment(guildID, memory.Moment{
+		At: walk, Channel: "chat", Weight: 0.2, Said: "m0",
+		Text: `Big M: "the roundtable is busy"` + saidArrow + `"is it"`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := sceneWith(
+		Turn{UserID: "365", Username: "Big M", Content: "morning", At: noon.Add(-time.Hour)},
+		Turn{UserID: "365", Username: "Big M", Content: "anything interesting happening in queens-roundtable channel?", At: noon},
+	)
+	s.UserID, s.Username = "365", "Big M"
+	k, err := m.Know(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var walked, here bool
+	for _, mo := range k.Recalled {
+		walked = walked || mo.Walk
+		here = here || mo.Channel == s.ChannelName
+	}
+	if !walked {
+		t.Errorf("the walk was not recalled: %+v", k.Recalled)
+	}
+	if here {
+		t.Errorf("a moment from this room, already in the transcript, was recalled: %+v", k.Recalled)
+	}
+}

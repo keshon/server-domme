@@ -128,7 +128,7 @@ func TestRecallPrefersWhoIsPresentAndSkipsTheLiveTranscript(t *testing.T) {
 	add(now.Add(-48*time.Hour), "", "the room was quiet")
 	add(now.Add(-2*time.Minute), "123", "he said hi just now")
 
-	got, err := s.Recall(guild, now, now.Add(-10*time.Minute), Keywords("how is the city going"), []string{"123"}, 7, 1)
+	got, err := s.Recall(guild, now, now.Add(-10*time.Minute), "", Keywords("how is the city going"), []string{"123"}, 7, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
