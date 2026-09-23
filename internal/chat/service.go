@@ -101,6 +101,9 @@ type Deps struct {
 	// Body is whether she has one: sleep, energy, presence. Off, she is
 	// always online, as in v2. See presence.go.
 	Body bool
+	// AgeRestricted is whether she may be let into age-restricted channels;
+	// see Service.closed.
+	AgeRestricted bool
 	// Feelings is whether she has feelings that fade, in place of a mood;
 	// see mind.Mind.Feelings.
 	Feelings bool
@@ -239,9 +242,13 @@ type Service struct {
 	spokeTo      string
 	spokeToName  string
 	talk         map[string]*talkState
-	statusSent   string
-	statusSess   *discordgo.Session
-	savedAt      time.Time
+	// ageRestricted is whether age-restricted channels are open to her at
+	// all; see closed.
+	ageRestricted bool
+
+	statusSent string
+	statusSess *discordgo.Session
+	savedAt    time.Time
 
 	// gifts are when each person last lifted her, for diminishing returns,
 	// and reactions what people put on her messages per channel since she
@@ -339,6 +346,8 @@ func New(d Deps) *Service {
 		approached:   make(map[string]time.Time),
 		nextIdle:     make(map[string]time.Time),
 		walked:       make(map[string]time.Time),
+
+		ageRestricted: d.AgeRestricted,
 
 		idleMind:   d.IdleMind,
 		walks:      d.Walks,
@@ -440,7 +449,7 @@ func (s *Service) Observe(sess *discordgo.Session, m *discordgo.MessageCreate) {
 	if self != "" && m.Author.ID == self {
 		return
 	}
-	if AgeRestricted(sess, m.ChannelID) {
+	if s.closed(sess, m.ChannelID) {
 		// Closed to her whatever mode it was given: see AgeRestricted.
 		s.noteActivity(m)
 		return

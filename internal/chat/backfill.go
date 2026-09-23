@@ -30,7 +30,7 @@ func (s *Service) backfill(sess *discordgo.Session, channelID string) {
 	if sess == nil || channelID == "" || !s.conv.NeedsSeed(channelID) {
 		return
 	}
-	if AgeRestricted(sess, channelID) {
+	if s.closed(sess, channelID) {
 		s.conv.Seed(channelID, nil)
 		return
 	}

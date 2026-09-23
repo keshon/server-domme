@@ -174,6 +174,7 @@ func buildChatService(
 		Serendipity:     cfg.ChatSerendipity,
 		Drift:           cfg.ChatDrift,
 		Body:            cfg.ChatBody,
+		AgeRestricted:   cfg.ChatAgeRestricted,
 		Feelings:        cfg.ChatFeelings,
 		StyleCheck:      cfg.ChatStyleCheck,
 		IdleMind:        cfg.ChatIdleMind,

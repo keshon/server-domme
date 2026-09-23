@@ -172,6 +172,12 @@ type Config struct {
 	// ChatFeelings is whether she has feelings with a cause that fade on
 	// their own clock, in place of a one-line mood. See docs/persona-v3.md, C.
 	ChatFeelings bool `env:"CHAT_FEELINGS" envDefault:"true"`
+	// ChatAgeRestricted is whether she may be let into channels Discord
+	// marks age-restricted. Off, they are closed to her whatever mode they
+	// were given: she does not read, walk through, answer or speak in one.
+	// On, they are ordinary channels, still opted in one at a time — and
+	// what is said there goes to the relays like anything else.
+	ChatAgeRestricted bool `env:"CHAT_AGE_RESTRICTED" envDefault:"false"`
 	// ChatStyleCheck is whether a reply is held to her style after she
 	// writes it: asked again once for a phrase the character file says is
 	// not hers, or a length far past her examples, and cut to length.

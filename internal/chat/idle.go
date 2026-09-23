@@ -210,7 +210,7 @@ func (s *Service) walk(sess *discordgo.Session, guildID string) (*mind.Walk, str
 	var options []option
 	total := 0
 	for _, c := range s.store.GetChatReads(guildID) {
-		if AgeRestricted(sess, c) {
+		if s.closed(sess, c) {
 			continue
 		}
 		s.idleMu.Lock()

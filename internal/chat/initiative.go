@@ -162,7 +162,7 @@ func (s *Service) considerStarting(ctx context.Context, guildID string, channels
 
 // start says what she decided to start, and remembers why.
 func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.Scene, o mind.Opening, plan mind.Plan) {
-	if AgeRestricted(sess, o.ChannelID) {
+	if s.closed(sess, o.ChannelID) {
 		s.log.Info().Str("channel_id", o.ChannelID).Msg("chat_start_restricted")
 		return
 	}

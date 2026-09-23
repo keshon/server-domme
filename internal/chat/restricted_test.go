@@ -97,3 +97,23 @@ func TestCommandOutputIsNotHerWords(t *testing.T) {
 		t.Errorf("turns %+v", turns)
 	}
 }
+
+// With CHAT_AGE_RESTRICTED on, an age-restricted channel she was let into
+// is an ordinary channel.
+func TestAgeRestrictedChannelsCanBeOpened(t *testing.T) {
+	h := newHarness(t, appraisal(`"act":"reply","intent":"x"`), "hi")
+	restrict(t, h)
+	h.svc.ageRestricted = true
+	h.svc.Observe(h.sess, message("m1", "@Domme hi", true))
+	if _, ok := h.take(); !ok {
+		t.Error("closed with age-restricted channels allowed")
+	}
+	if !h.svc.MayReadRestricted() {
+		t.Error("the command is told they are closed")
+	}
+	// Off again, and it is closed whatever mode it was given.
+	h.svc.ageRestricted = false
+	if !h.svc.closed(h.sess, testChannel) || h.svc.closed(h.sess, "open") {
+		t.Error("the gate is not the flag's")
+	}
+}
