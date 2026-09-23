@@ -86,6 +86,8 @@ type Deps struct {
 	// ExamplesSample is how many authored examples her voice sees per
 	// message; see mind.Mind.ExamplesSample.
 	ExamplesSample int
+	// ReplyTokens caps her spoken replies; see mind.Mind.ReplyTokens.
+	ReplyTokens int
 	// FollowUpOnSight is whether an intention about someone comes due the
 	// moment they turn up in a room she reads; see notice.go.
 	FollowUpOnSight bool
@@ -321,7 +323,7 @@ func New(d Deps) *Service {
 
 		mind: &mind.Mind{
 			Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory,
-			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Drift: d.Drift, Feelings: d.Feelings,
+			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, ReplyTokens: d.ReplyTokens, Drift: d.Drift, Feelings: d.Feelings,
 			StyleCheck: d.StyleCheck, ThinkBudget: d.ThinkBudget, VoiceBudget: d.VoiceBudget,
 			Roll: roll, Log: d.Log,
 		},

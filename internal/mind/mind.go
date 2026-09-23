@@ -77,6 +77,10 @@ type Mind struct {
 	// ExamplesSample is how many of the authored examples the voice is shown
 	// on a call, drawn at random; zero shows them all. See voicePrompt.
 	ExamplesSample int
+	// ReplyTokens caps how long her spoken replies may run, in tokens; zero
+	// leaves it to the backend. A backstop against a runaway reply, not
+	// the thing that keeps her short: that is the character.
+	ReplyTokens int
 	// Drift is the odds that recall's weakest slot goes to a loosely related
 	// memory instead; see drift. Zero recalls strictly by relevance.
 	Drift float64
@@ -359,6 +363,9 @@ func (m *Mind) generate(ctx context.Context, msgs []ai.Message) (string, string,
 
 // speak is generate through her voice.
 func (m *Mind) speak(ctx context.Context, msgs []ai.Message) (string, string, error) {
+	if m.ReplyTokens > 0 {
+		ctx = ai.WithMaxTokens(ctx, m.ReplyTokens)
+	}
 	if m.Voice != nil {
 		return generateWith(ctx, m.Voice, msgs)
 	}

@@ -208,3 +208,30 @@ func TestRawAndTemperatureArePerCall(t *testing.T) {
 		t.Errorf("temperatures sent: %v", sent)
 	}
 }
+
+// The output cap goes out only on the calls that ask for it: her voice, not
+// the appraisal whose JSON must not be cut off.
+func TestMaxTokensIsPerCall(t *testing.T) {
+	var raw []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"ok"}}]}`)
+	}))
+	defer srv.Close()
+	c := NewClient("test", srv.URL, "m", "")
+
+	if _, err := c.Generate(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "max_tokens") {
+		t.Errorf("sent a cap nobody set: %s", raw)
+	}
+	if _, err := c.Generate(WithMaxTokens(context.Background(), 1000), nil); err != nil {
+		t.Fatal(err)
+	}
+	var got chatRequest
+	_ = json.Unmarshal(raw, &got)
+	if got.MaxTokens != 1000 {
+		t.Errorf("max_tokens sent as %d, want 1000", got.MaxTokens)
+	}
+}

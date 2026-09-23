@@ -151,6 +151,11 @@ type Config struct {
 	// ChatExamplesSample is how many of the character file's examples her
 	// voice is shown on each message, drawn at random; 0 shows all of them.
 	ChatExamplesSample int `env:"CHAT_EXAMPLES_SAMPLE" envDefault:"8"`
+	// ChatReplyTokens caps how long her spoken replies may run, in tokens;
+	// 0 leaves it to the backend. A backstop: raise it if a reasoning model
+	// behind her voice starts coming back empty, since some count their
+	// thinking against it.
+	ChatReplyTokens int `env:"CHAT_REPLY_TOKENS" envDefault:"1000"`
 	// ChatFollowUpOnSight is whether something she meant to follow up on
 	// with someone comes due the moment they turn up in a room she reads,
 	// rather than on a timer while they are away.

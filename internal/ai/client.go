@@ -63,6 +63,19 @@ func WithTemperature(ctx context.Context, t float64) context.Context {
 	return context.WithValue(ctx, temperatureKey{}, t)
 }
 
+// maxTokensKey carries a per-call output cap; see WithMaxTokens.
+type maxTokensKey struct{}
+
+// WithMaxTokens caps how long a reply to calls made with the returned
+// context may be, in tokens; zero or less leaves it to the backend.
+//
+// Per call for the same reason as the temperature: her voice is short by
+// character and a runaway reply is a fault, while what she makes of a
+// message is JSON that must not be cut off half way.
+func WithMaxTokens(ctx context.Context, n int) context.Context {
+	return context.WithValue(ctx, maxTokensKey{}, n)
+}
+
 // rawKey marks a call whose reply is data rather than speech; see WithRaw.
 type rawKey struct{}
 
@@ -93,6 +106,7 @@ type chatRequest struct {
 	Messages    []Message `json:"messages"`
 	Stream      bool      `json:"stream"`
 	Temperature *float64  `json:"temperature,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
 }
 
 type chatResponse struct {
@@ -119,8 +133,10 @@ func (c *Client) Generate(ctx context.Context, messages []Message) (string, erro
 	if t, ok := ctx.Value(temperatureKey{}).(float64); ok {
 		temperature = &t
 	}
+	maxTokens, _ := ctx.Value(maxTokensKey{}).(int)
 	body, err := json.Marshal(chatRequest{
 		Model: c.Model, Messages: messages, Stream: false, Temperature: temperature,
+		MaxTokens: max(maxTokens, 0),
 	})
 	if err != nil {
 		return "", fmt.Errorf("ai: encode request for %s: %w", c.Name, err)

@@ -169,6 +169,7 @@ func buildChatService(
 		ReflectHour:     cfg.ChatReflectHour,
 		SelfFacts:       cfg.ChatSelfFacts,
 		ExamplesSample:  cfg.ChatExamplesSample,
+		ReplyTokens:     cfg.ChatReplyTokens,
 		FollowUpOnSight: cfg.ChatFollowUpOnSight,
 		Interest:        cfg.ChatInterest,
 		Serendipity:     cfg.ChatSerendipity,

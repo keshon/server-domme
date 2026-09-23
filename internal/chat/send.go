@@ -31,20 +31,55 @@ func typingTime(text string) time.Duration {
 const maxParts = 2
 
 // parts splits a reply on its first blank line into at most two messages, the
-// way people send two thoughts in a row. Anything with a code block goes out
-// whole: a split there breaks the block.
+// way people send two thoughts in a row. Anything with a code block is not
+// split there: a split breaks the block. Either way, a part too long for one
+// message goes out as several; see fit.
 func parts(text string) []string {
 	if strings.Contains(text, "```") {
-		return []string{text}
+		return fit(text)
 	}
 	var out []string
 	for _, p := range strings.SplitN(strings.TrimSpace(text), "\n\n", maxParts) {
 		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
+			out = append(out, fit(p)...)
 		}
 	}
 	if len(out) == 0 {
-		return []string{text}
+		return fit(text)
+	}
+	return out
+}
+
+// maxMessage is how long one message may be, in characters: under Discord's
+// 2000 with room for what Casual changes on the way out.
+const maxMessage = 1900
+
+// fit cuts a part Discord would refuse as too long into messages it takes,
+// at a line break or a space. A code block cut in two is closed at the end
+// of one message and opened again at the start of the next.
+//
+// Seen in production: a reply over 2000 characters was refused whole, and
+// she said nothing at all.
+func fit(text string) []string {
+	var out []string
+	for utf8.RuneCountInString(text) > maxMessage {
+		r := []rune(text)
+		cut := string(r[:maxMessage-len("\n```")])
+		if i := strings.LastIndex(cut, "\n"); i > len(cut)/2 {
+			cut = cut[:i]
+		} else if i := strings.LastIndex(cut, " "); i > len(cut)/2 {
+			cut = cut[:i]
+		}
+		rest := strings.TrimLeft(text[len(cut):], " \n")
+		if strings.Count(cut, "```")%2 == 1 {
+			cut += "\n```"
+			rest = "```\n" + rest
+		}
+		out = append(out, strings.TrimSpace(cut))
+		text = rest
+	}
+	if text = strings.TrimSpace(text); text != "" {
+		out = append(out, text)
 	}
 	return out
 }

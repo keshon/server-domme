@@ -883,6 +883,7 @@ written, and has no switch.
 | `CHAT_DRIFT` | `0.25` | `0` turns off associative recall |
 | `CHAT_SELF_FACTS` | `on` | no `me.md` |
 | `CHAT_EXAMPLES_SAMPLE` | `8` | `0` sends all examples, as v2 |
+| `CHAT_REPLY_TOKENS` | `1000` | `0` leaves reply length to the backend; an overlong reply is still split to fit Discord |
 | `CHAT_AGE_RESTRICTED` | `off` | age-restricted channels can be opted in like any other; off, they are closed to her whatever mode they were given |
 | `CHAT_STYLE_CHECK` | `on` | replies are sent as written: no retry for a phrase that is not hers, no cut to length |
 | `CHAT_IMPULSES` | `on` | v2's timer openings, quiet room included |
