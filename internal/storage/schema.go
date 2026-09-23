@@ -56,10 +56,10 @@ type GuildSettings struct {
 	// purge anywhere else is refused: deleting a channel's history is not
 	// undoable, and one command in the wrong channel should not be enough.
 	PurgeChannels []string `json:"purge_channels,omitempty"`
-	// WelcomeGifs are the links /welcome picks from at random, shared by
-	// every role.
+	// WelcomeGifs are the links /welcome picks from at random for a role
+	// with no gifs of its own (WelcomeRole.Gifs): the shared pool.
 	WelcomeGifs []string `json:"welcome_gifs,omitempty"`
-	// WelcomeGifMedia is the gif file behind each link in WelcomeGifs, found
+	// WelcomeGifMedia is the gif file behind each link in any pool, found
 	// once from the link's page, so a welcome can attach the file instead
 	// of posting the link. A link with no entry is looked up when used.
 	WelcomeGifMedia map[string]string `json:"welcome_gif_media,omitempty"`

@@ -58,20 +58,20 @@ func TestMarkWelcomedKeepsEachPart(t *testing.T) {
 func TestWelcomeGifsAreBoundedAndDeduplicated(t *testing.T) {
 	s := newTestStore(t)
 	for i := 0; i < maxWelcomeGifs; i++ {
-		if err := s.AddWelcomeGif("g", fmt.Sprintf("https://gif/%d", i)); err != nil {
+		if err := s.AddWelcomeGif("g", "", fmt.Sprintf("https://gif/%d", i)); err != nil {
 			t.Fatalf("AddWelcomeGif: %v", err)
 		}
 	}
-	if err := s.AddWelcomeGif("g", "https://gif/0"); err != nil {
+	if err := s.AddWelcomeGif("g", "", "https://gif/0"); err != nil {
 		t.Errorf("re-adding a gif already there failed: %v", err)
 	}
-	if err := s.AddWelcomeGif("g", "https://gif/new"); !errors.Is(err, ErrWelcomeGifsFull) {
+	if err := s.AddWelcomeGif("g", "", "https://gif/new"); !errors.Is(err, ErrWelcomeGifsFull) {
 		t.Errorf("adding past the limit: %v", err)
 	}
-	if removed, err := s.RemoveWelcomeGif("g", "https://gif/3"); err != nil || !removed {
+	if removed, err := s.RemoveWelcomeGif("g", "", "https://gif/3"); err != nil || !removed {
 		t.Errorf("RemoveWelcomeGif = %v, %v", removed, err)
 	}
-	if removed, _ := s.RemoveWelcomeGif("g", "https://gif/3"); removed {
+	if removed, _ := s.RemoveWelcomeGif("g", "", "https://gif/3"); removed {
 		t.Error("removed a gif twice")
 	}
 }
@@ -112,5 +112,50 @@ func TestMoveWelcomeRoleCarriesTheDraftOver(t *testing.T) {
 	}
 	if err := s.MoveWelcomeRole("g", "test", "other", false, nil); !errors.Is(err, ErrWelcomeRoleMissing) {
 		t.Errorf("move from a role without one: err = %v, want ErrWelcomeRoleMissing", err)
+	}
+}
+
+// A role picks from its own gifs, and from the shared pool only while it has
+// none; a gif file is remembered while any pool still has its link.
+func TestWelcomeGifsArePerRoleWithASharedFallback(t *testing.T) {
+	s := newTestStore(t)
+	const shared, subGif = "https://gif/shared", "https://gif/sub"
+	if err := s.AddWelcomeGif("g", "", shared); err != nil {
+		t.Fatal(err)
+	}
+	if gifs, fromShared := s.WelcomeGifPool("g", "sub"); !fromShared || len(gifs) != 1 || gifs[0] != shared {
+		t.Errorf("a role with no gifs picks %v (shared %v), want the shared pool", gifs, fromShared)
+	}
+
+	if err := s.AddWelcomeGif("g", "sub", subGif); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddWelcomeGif("g", "domme", shared); err != nil {
+		t.Fatal(err)
+	}
+	if gifs, fromShared := s.WelcomeGifPool("g", "sub"); fromShared || len(gifs) != 1 || gifs[0] != subGif {
+		t.Errorf("sub picks %v (shared %v), want only its own", gifs, fromShared)
+	}
+	if len(s.WelcomeGifs("g", "")) != 1 {
+		t.Error("a role's gif went into the shared pool")
+	}
+
+	if err := s.SetWelcomeGifMedia("g", shared, "https/file.gif"); err != nil {
+		t.Fatal(err)
+	}
+	if removed, err := s.RemoveWelcomeGif("g", "", shared); err != nil || !removed {
+		t.Fatalf("RemoveWelcomeGif = %v, %v", removed, err)
+	}
+	if s.WelcomeGifMedia("g", shared) == "" {
+		t.Error("the file was forgotten while domme still has the link")
+	}
+	if removed, _ := s.RemoveWelcomeGif("g", "domme", shared); !removed {
+		t.Fatal("domme's gif was not removed")
+	}
+	if s.WelcomeGifMedia("g", shared) != "" {
+		t.Error("the file outlived the last pool with its link")
+	}
+	if removed, _ := s.RemoveWelcomeGif("g", "sub", shared); removed {
+		t.Error("removed a link from a pool that never had it")
 	}
 }

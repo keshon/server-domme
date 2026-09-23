@@ -24,6 +24,10 @@ type WelcomeRole struct {
 
 	WelcomeChannel  string `json:"welcome_channel,omitempty"`
 	WelcomeTemplate string `json:"welcome_template,omitempty"`
+
+	// Gifs are the role's own links for its welcomes to pick from. None
+	// means the guild's shared pool is used instead.
+	Gifs []string `json:"gifs,omitempty"`
 }
 
 func (w *WelcomeRole) Key() string { return guildScopedKey(w.GuildID, w.RoleID) }
@@ -127,6 +131,7 @@ func (s *Storage) MoveWelcomeRole(guildID, fromRoleID, toRoleID string, keep boo
 		}
 		to := *from
 		to.RoleID = toRoleID
+		to.Gifs = slices.Clone(from.Gifs)
 		if change != nil {
 			change(&to)
 		}
@@ -173,50 +178,117 @@ func (s *Storage) MarkWelcomed(guildID, userID, roleID, by string, intro, welcom
 	return nil
 }
 
-// WelcomeGifs lists the guild's welcome gifs.
-func (s *Storage) WelcomeGifs(guildID string) []string {
-	return slices.Clone(s.guildSettings(guildID).WelcomeGifs)
+// WelcomeGifs lists a pool of welcome gifs: a role's own, or with roleID ""
+// the guild's shared pool.
+func (s *Storage) WelcomeGifs(guildID, roleID string) []string {
+	if roleID == "" {
+		return slices.Clone(s.guildSettings(guildID).WelcomeGifs)
+	}
+	if w := s.WelcomeRoleFor(guildID, roleID); w != nil {
+		return slices.Clone(w.Gifs)
+	}
+	return nil
 }
 
-// ErrWelcomeGifsFull is returned when the gif list is at its limit. Its text
+// WelcomeGifPool is what a role's welcomes pick from: its own gifs, or the
+// shared pool when it has none, and which of the two it is.
+func (s *Storage) WelcomeGifPool(guildID, roleID string) (gifs []string, shared bool) {
+	if own := s.WelcomeGifs(guildID, roleID); len(own) > 0 {
+		return own, false
+	}
+	return s.WelcomeGifs(guildID, ""), true
+}
+
+// ErrWelcomeGifsFull is returned when a gif list is at its limit. Its text
 // is shown to the administrator as it is.
 var ErrWelcomeGifsFull = errors.New("the gif list is full (50) — remove one first")
 
-// AddWelcomeGif adds a gif link, ignoring one already there.
-func (s *Storage) AddWelcomeGif(guildID, url string) error {
+// AddWelcomeGif adds a gif link to a role's pool, or with roleID "" to the
+// shared one, ignoring one already there.
+func (s *Storage) AddWelcomeGif(guildID, roleID, url string) error {
 	url = strings.TrimSpace(url)
+	add := func(list []string) ([]string, error) {
+		if slices.Contains(list, url) {
+			return list, nil
+		}
+		if len(list) >= maxWelcomeGifs {
+			return list, ErrWelcomeGifsFull
+		}
+		return append(list, url), nil
+	}
+	if roleID != "" {
+		var full error
+		err := s.UpdateWelcomeRole(guildID, roleID, func(w *WelcomeRole) {
+			w.Gifs, full = add(w.Gifs)
+		})
+		if full != nil {
+			return full
+		}
+		return err
+	}
 	g := s.guildSettings(guildID)
-	if slices.Contains(g.WelcomeGifs, url) {
-		return nil
+	list, err := add(g.WelcomeGifs)
+	if err != nil {
+		return err
 	}
-	if len(g.WelcomeGifs) >= maxWelcomeGifs {
-		return ErrWelcomeGifsFull
-	}
-	g.WelcomeGifs = append(g.WelcomeGifs, url)
+	g.WelcomeGifs = list
 	return s.settings.Put(g)
 }
 
-// RemoveWelcomeGif removes a gif link and reports whether it was there.
-func (s *Storage) RemoveWelcomeGif(guildID, url string) (bool, error) {
+// RemoveWelcomeGif removes a gif link from a role's pool, or with roleID ""
+// from the shared one, and reports whether it was there.
+func (s *Storage) RemoveWelcomeGif(guildID, roleID, url string) (bool, error) {
 	url = strings.TrimSpace(url)
-	g := s.guildSettings(guildID)
-	before := len(g.WelcomeGifs)
-	g.WelcomeGifs = slices.DeleteFunc(g.WelcomeGifs, func(u string) bool { return u == url })
-	if len(g.WelcomeGifs) == before {
+	if !slices.Contains(s.WelcomeGifs(guildID, roleID), url) {
 		return false, nil
 	}
-	delete(g.WelcomeGifMedia, url)
-	return true, s.settings.Put(g)
+	drop := func(u string) bool { return u == url }
+	if roleID != "" {
+		if err := s.UpdateWelcomeRole(guildID, roleID, func(w *WelcomeRole) {
+			w.Gifs = slices.DeleteFunc(w.Gifs, drop)
+		}); err != nil {
+			return false, err
+		}
+	} else {
+		g := s.guildSettings(guildID)
+		g.WelcomeGifs = slices.DeleteFunc(g.WelcomeGifs, drop)
+		if err := s.settings.Put(g); err != nil {
+			return false, err
+		}
+	}
+	// The file behind it is kept while another pool still has the link.
+	if !s.welcomeGifListed(guildID, url) {
+		g := s.guildSettings(guildID)
+		if _, ok := g.WelcomeGifMedia[url]; ok {
+			delete(g.WelcomeGifMedia, url)
+			return true, s.settings.Put(g)
+		}
+	}
+	return true, nil
 }
 
-// SetWelcomeGifMedia records the gif file behind a gif link. A link that is
-// not in the list is ignored: it was removed while being looked up.
+// welcomeGifListed reports whether any pool in the guild has a link.
+func (s *Storage) welcomeGifListed(guildID, link string) bool {
+	if slices.Contains(s.guildSettings(guildID).WelcomeGifs, link) {
+		return true
+	}
+	for _, w := range s.WelcomeRoles(guildID) {
+		if slices.Contains(w.Gifs, link) {
+			return true
+		}
+	}
+	return false
+}
+
+// SetWelcomeGifMedia records the gif file behind a gif link, for every pool
+// that has it. A link no pool has is ignored: it was removed while being
+// looked up.
 func (s *Storage) SetWelcomeGifMedia(guildID, link, media string) error {
 	link = strings.TrimSpace(link)
-	g := s.guildSettings(guildID)
-	if !slices.Contains(g.WelcomeGifs, link) {
+	if !s.welcomeGifListed(guildID, link) {
 		return nil
 	}
+	g := s.guildSettings(guildID)
 	if g.WelcomeGifMedia == nil {
 		g.WelcomeGifMedia = map[string]string{}
 	}

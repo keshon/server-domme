@@ -64,7 +64,20 @@ func describeRole(s *discordgo.Session, store *storage.Storage, guildID, roleID 
 	if w == nil {
 		return fmt.Sprintf("<@&%s> has no welcome set up. `/welcome setup` picks the channels, `/welcome template` writes the texts.", roleID)
 	}
-	return fmt.Sprintf("<@&%s>\n%s", roleID, partLines(w))
+	return fmt.Sprintf("<@&%s>\n%s\n%s", roleID, partLines(w), gifLine(w, len(store.WelcomeGifs(guildID, ""))))
+}
+
+// gifLine is where a role's welcome gifs come from; shared is how many the
+// shared pool has.
+func gifLine(w *storage.WelcomeRole, shared int) string {
+	switch {
+	case len(w.Gifs) > 0:
+		return fmt.Sprintf("🎞️ **Gifs** · %d of its own", len(w.Gifs))
+	case shared > 0:
+		return fmt.Sprintf("🎞️ **Gifs** · the shared pool's %d", shared)
+	default:
+		return "➖ **Gifs** none — welcomes go out without one"
+	}
 }
 
 // partLines are a role's intro and welcome, one line each, marked by whether
@@ -252,8 +265,12 @@ func runPreview(context *cmdadapter.SlashInteractionContext, opts options) error
 			b.WriteString("⚠️ No channel or thread matches " + strings.Join(missing, ", ") + unlinkedHint + "\n")
 		}
 	}
-	if gifs := store.WelcomeGifs(e.GuildID); len(gifs) > 0 {
-		fmt.Fprintf(&b, "\nThe welcome also gets one of %d gifs at random.", len(gifs))
+	if gifs, shared := store.WelcomeGifPool(e.GuildID, roleID); len(gifs) > 0 {
+		from := "its own"
+		if shared {
+			from = "the shared pool's"
+		}
+		fmt.Fprintf(&b, "\nThe welcome also gets one of %s %d gifs at random.", from, len(gifs))
 	}
 	return respond(s, e, trimEmbed(b.String()))
 }
@@ -273,6 +290,7 @@ func runRoles(context *cmdadapter.SlashInteractionContext) error {
 		return strings.Compare(strings.ToLower(names[a.RoleID]), strings.ToLower(names[b.RoleID]))
 	})
 
+	shared := len(store.WelcomeGifs(e.GuildID, ""))
 	embed := &discordgo.MessageEmbed{Title: "👋 Welcomes", Color: reply.EmbedColor}
 	for i, r := range roles {
 		// Discord takes 25 fields; the rest are named, not described.
@@ -283,14 +301,10 @@ func runRoles(context *cmdadapter.SlashInteractionContext) error {
 			})
 			break
 		}
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: names[r.RoleID], Value: partLines(&r)})
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: names[r.RoleID], Value: partLines(&r) + "\n" + gifLine(&r, shared)})
 	}
 
-	gifs := "No gifs — welcomes go out without one"
-	if n := len(store.WelcomeGifs(e.GuildID)); n > 0 {
-		gifs = fmt.Sprintf("%d gifs to pick welcomes from", n)
-	}
-	embed.Footer = &discordgo.MessageEmbedFooter{Text: gifs + " · /welcome preview shows a role's texts"}
+	embed.Footer = &discordgo.MessageEmbedFooter{Text: "/welcome preview shows a role's texts · /welcome gifs lists the gifs"}
 	return reply.RespondEmbedEphemeral(s, e, embed)
 }
 
@@ -373,8 +387,16 @@ func runRemove(context *cmdadapter.SlashInteractionContext, opts options) error 
 	return respond(s, e, fmt.Sprintf("Removed the welcome for <@&%s>. Who was already welcomed is still remembered.", roleID))
 }
 
+// runGifs manages the gif pools: a role's own with `role:`, the shared one
+// without. A role with no gifs of its own falls back to the shared pool, so
+// a server that wants one set for everyone never has to name a role.
 func runGifs(context *cmdadapter.SlashInteractionContext, sub string, opts options) error {
 	s, e, store := context.Session, context.Event, context.Storage
+	roleID := roleIDOf(opts)
+	pool := "the shared pool"
+	if roleID != "" {
+		pool = fmt.Sprintf("<@&%s>'s gifs", roleID)
+	}
 
 	switch sub {
 	case subGifAdd:
@@ -382,7 +404,8 @@ func runGifs(context *cmdadapter.SlashInteractionContext, sub string, opts optio
 		if u, err := url.Parse(link); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			return respond(s, e, "That is not a link. Paste the gif's address, starting with https://.")
 		}
-		if err := store.AddWelcomeGif(e.GuildID, link); err != nil {
+		hadOwn := len(store.WelcomeGifs(e.GuildID, roleID)) > 0
+		if err := store.AddWelcomeGif(e.GuildID, roleID, link); err != nil {
 			if errors.Is(err, storage.ErrWelcomeGifsFull) {
 				return respond(s, e, "Not added: "+err.Error()+".")
 			}
@@ -393,7 +416,10 @@ func runGifs(context *cmdadapter.SlashInteractionContext, sub string, opts optio
 		if err := reply.RespondDeferredEphemeral(s, e); err != nil {
 			return fmt.Errorf("welcome: acknowledge gif: %w", err)
 		}
-		msg := fmt.Sprintf("Added. Welcomes pick from %d gifs.", len(store.WelcomeGifs(e.GuildID)))
+		msg := fmt.Sprintf("Added to %s — %d now.", pool, len(store.WelcomeGifs(e.GuildID, roleID)))
+		if roleID != "" && !hadOwn {
+			msg += fmt.Sprintf("\nIts first own gif: welcomes for <@&%s> no longer pick from the shared pool.", roleID)
+		}
 		if media := gifMedia(store, e.GuildID, link); media != "" {
 			msg += "\nIt will be posted as the gif itself, without the link."
 		} else {
@@ -403,22 +429,92 @@ func runGifs(context *cmdadapter.SlashInteractionContext, sub string, opts optio
 		return reply.EditResponseEmbed(s, e, &discordgo.MessageEmbed{Description: msg + "\n" + link, Color: reply.EmbedColor})
 
 	case subGifRemove:
-		removed, err := store.RemoveWelcomeGif(e.GuildID, opts[optURL].StringValue())
+		removed, err := store.RemoveWelcomeGif(e.GuildID, roleID, opts[optURL].StringValue())
 		if err != nil {
 			return fmt.Errorf("welcome: remove gif: %w", err)
 		}
 		if !removed {
-			return respond(s, e, "That link is not in the list. `/welcome gifs` shows what is.")
+			return respond(s, e, fmt.Sprintf("That link is not in %s. `/welcome gifs` shows every pool.", pool))
 		}
-		return respond(s, e, "Removed.")
+		msg := "Removed from " + pool + "."
+		if roleID != "" && len(store.WelcomeGifs(e.GuildID, roleID)) == 0 {
+			msg += fmt.Sprintf("\nIt has none of its own left, so welcomes for <@&%s> pick from the shared pool again.", roleID)
+		}
+		return respond(s, e, msg)
 
 	default:
-		gifs := store.WelcomeGifs(e.GuildID)
-		if len(gifs) == 0 {
-			return respond(s, e, "No gifs yet — welcomes go out without one. `/welcome gif-add` adds one.")
+		if roleID != "" {
+			return respond(s, e, trimEmbed(describeGifs(store, e.GuildID, roleID)))
 		}
-		return respond(s, e, trimEmbed(fmt.Sprintf("Welcomes pick one of these at random:\n%s", strings.Join(gifs, "\n"))))
+		return reply.RespondEmbedEphemeral(s, e, gifsEmbed(s, store, e.GuildID))
 	}
+}
+
+// describeGifs is what one role's welcomes pick from.
+func describeGifs(store *storage.Storage, guildID, roleID string) string {
+	gifs, shared := store.WelcomeGifPool(guildID, roleID)
+	switch {
+	case len(gifs) == 0:
+		return fmt.Sprintf("<@&%s> has no gifs, and the shared pool is empty — its welcomes go out without one. "+
+			"`/welcome gif-add role:` adds one.", roleID)
+	case shared:
+		return fmt.Sprintf("<@&%s> has no gifs of its own, so its welcomes pick from the shared pool:\n%s",
+			roleID, strings.Join(gifs, "\n"))
+	default:
+		return fmt.Sprintf("Welcomes for <@&%s> pick one of these at random:\n%s", roleID, strings.Join(gifs, "\n"))
+	}
+}
+
+// gifsEmbed lists every pool: the shared one, then each role with its own.
+func gifsEmbed(s *discordgo.Session, store *storage.Storage, guildID string) *discordgo.MessageEmbed {
+	embed := &discordgo.MessageEmbed{Title: "🎞️ Welcome gifs", Color: reply.EmbedColor}
+	shared := store.WelcomeGifs(guildID, "")
+	sharedValue := "Empty."
+	if len(shared) > 0 {
+		sharedValue = linkList(shared)
+	}
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+		Name: fmt.Sprintf("Shared pool · %d", len(shared)), Value: sharedValue,
+	})
+
+	var own []storage.WelcomeRole
+	for _, r := range store.WelcomeRoles(guildID) {
+		if len(r.Gifs) > 0 {
+			own = append(own, r)
+		}
+	}
+	slices.SortFunc(own, func(a, b storage.WelcomeRole) int {
+		return strings.Compare(strings.ToLower(roleLabel(s, guildID, a.RoleID)), strings.ToLower(roleLabel(s, guildID, b.RoleID)))
+	})
+	for i, r := range own {
+		if len(embed.Fields) == maxFields-1 && len(own)-i > 1 {
+			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+				Name:  fmt.Sprintf("…and %d more roles", len(own)-i),
+				Value: "`/welcome gifs role:` shows any one of them.",
+			})
+			break
+		}
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+			Name: fmt.Sprintf("%s · %d", roleLabel(s, guildID, r.RoleID), len(r.Gifs)), Value: linkList(r.Gifs),
+		})
+	}
+
+	embed.Footer = &discordgo.MessageEmbedFooter{Text: "A role with no gifs of its own picks from the shared pool · add with /welcome gif-add role:"}
+	return embed
+}
+
+// linkList is links a line each, inside a field's 1024 characters.
+func linkList(links []string) string {
+	var b strings.Builder
+	for i, l := range links {
+		more := fmt.Sprintf("…and %d more", len(links)-i)
+		if b.Len()+len(l)+1 > 1024-len(more)-1 {
+			b.WriteString(more)
+			break
+		}
+		b.WriteString(l + "\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // trimEmbed keeps a reply inside an embed's 4096 characters.

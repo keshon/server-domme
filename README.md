@@ -41,9 +41,9 @@ It’s designed to be practical for server management while providing light, int
   - **/welcome roles** — Every role with a welcome set up
   - **/welcome move** — Give a role's welcome to another role — a test setup to the real one
   - **/welcome remove** — Remove a role's welcome settings
-  - **/welcome gif-add** — Add a gif link to pick welcomes from
-  - **/welcome gif-remove** — Remove a gif link
-  - **/welcome gifs** — The gifs welcomes pick from
+  - **/welcome gif-add** — Add a gif for a role's welcomes, or to the shared pool without a role
+  - **/welcome gif-remove** — Remove a gif from a role's welcomes, or from the shared pool without a role
+  - **/welcome gifs** — The gifs welcomes pick from — every pool, or one role's
 
 ### 📢 Utilities
 

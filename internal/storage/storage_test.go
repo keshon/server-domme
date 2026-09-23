@@ -707,16 +707,16 @@ func TestWelcomeGifMediaFollowsItsLink(t *testing.T) {
 	if err := s.SetWelcomeGifMedia("g", link, media); err != nil || s.WelcomeGifMedia("g", link) != "" {
 		t.Fatalf("remembered for a link not in the list: %v", err)
 	}
-	if err := s.AddWelcomeGif("g", link); err != nil {
+	if err := s.AddWelcomeGif("g", "", link); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SetWelcomeGifMedia("g", link, media); err != nil || s.WelcomeGifMedia("g", link) != media {
 		t.Fatalf("not remembered: %v", err)
 	}
-	if _, err := s.RemoveWelcomeGif("g", link); err != nil {
+	if _, err := s.RemoveWelcomeGif("g", "", link); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddWelcomeGif("g", link); err != nil {
+	if err := s.AddWelcomeGif("g", "", link); err != nil {
 		t.Fatal(err)
 	}
 	if s.WelcomeGifMedia("g", link) != "" {

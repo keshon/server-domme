@@ -148,19 +148,25 @@ func (c *WelcomeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 			},
 			{
 				Type: discordgo.ApplicationCommandOptionSubCommand, Name: subGifAdd,
-				Description: "Add a gif link to pick welcomes from",
+				Description: "Add a gif for a role's welcomes, or to the shared pool without a role",
 				Options: []*discordgo.ApplicationCommandOption{
 					{Type: discordgo.ApplicationCommandOptionString, Name: optURL, Description: "A link to a gif (tenor, giphy, a .gif)", Required: true},
+					roleOption(false, "Whose welcomes get it — the shared pool, if empty"),
 				},
 			},
 			{
 				Type: discordgo.ApplicationCommandOptionSubCommand, Name: subGifRemove,
-				Description: "Remove a gif link",
+				Description: "Remove a gif from a role's welcomes, or from the shared pool without a role",
 				Options: []*discordgo.ApplicationCommandOption{
 					{Type: discordgo.ApplicationCommandOptionString, Name: optURL, Description: "The link to remove", Required: true},
+					roleOption(false, "Whose gif it is — the shared pool, if empty"),
 				},
 			},
-			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: subGifs, Description: "The gifs welcomes pick from"},
+			{
+				Type: discordgo.ApplicationCommandOptionSubCommand, Name: subGifs,
+				Description: "The gifs welcomes pick from — every pool, or one role's",
+				Options:     []*discordgo.ApplicationCommandOption{roleOption(false, "Just this role's")},
+			},
 		},
 	}
 }
@@ -253,7 +259,7 @@ func runMember(context *cmdadapter.SlashInteractionContext, opts map[string]*dis
 	done := store.WelcomedFor(e.GuildID, user.ID, roleID)
 
 	intro := planPart(s, e.GuildID, "Intro", cfg.IntroChannel, cfg.IntroTemplate, v, channels, "")
-	welcome := planPart(s, e.GuildID, "Welcome", cfg.WelcomeChannel, cfg.WelcomeTemplate, v, channels, randomGif(store.WelcomeGifs(e.GuildID)))
+	welcome := planPart(s, e.GuildID, "Welcome", cfg.WelcomeChannel, cfg.WelcomeTemplate, v, channels, randomGif(welcomeGifs(store, e.GuildID, roleID)))
 	if welcome.ok() && welcome.gif != "" {
 		welcome.file = gifFile(store, e.GuildID, welcome.gif)
 	}
@@ -610,6 +616,12 @@ func gifFile(store *storage.Storage, guildID, link string) *discordgo.File {
 		return nil
 	}
 	return f
+}
+
+// welcomeGifs is the pool a role's welcome picks from.
+func welcomeGifs(store *storage.Storage, guildID, roleID string) []string {
+	gifs, _ := store.WelcomeGifPool(guildID, roleID)
+	return gifs
 }
 
 func randomGif(gifs []string) string {
