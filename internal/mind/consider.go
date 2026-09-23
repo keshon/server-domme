@@ -37,6 +37,9 @@ type Appraisal struct {
 	// taste". Usually empty. See memory.Feeling.
 	FeelingWhat  string
 	FeelingAbout string
+	// Pronouns are theirs as they just said them, and empty otherwise:
+	// never a guess. See memory.Person.Pronouns.
+	Pronouns string
 	// Toward is how she feels about them now, in a few words.
 	Toward string
 	// Mood is her mood after this.
@@ -124,6 +127,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "act": "reply" or "react" or "ignore",
   "emoji": "one emoji, only if act is react",
   "intent": "if act is reply: what she wants to get across and how she comes at it — the gist, not the wording, in her own first person: 'tell him I'm fine, and that I noticed'",
+  "pronouns": "their pronouns — ONLY if they have just said them or corrected her, as they put it: \"he/him\". Empty otherwise, and never a guess",
   "note": "a new FACT about their life they just told her — what they do, have, plan, like — or empty. Not an impression of how they are acting right now: that goes in toward and between",
   "between": "if how things stand between them just changed: one sentence on where it stands now; otherwise empty",
   "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
@@ -246,6 +250,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 	a := Appraisal{
 		Read:       str(obj, "read"),
 		Feel:       str(obj, "feel"),
+		Pronouns:   clip(str(obj, "pronouns"), maxPronouns),
 		Toward:     str(obj, "toward"),
 		Mood:       str(obj, "mood"),
 		Emoji:      str(obj, "emoji"),
@@ -292,6 +297,10 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 	}
 	return a, true
 }
+
+// maxPronouns bounds what is taken as someone's pronouns: "she/they" and
+// no more. It is a field on their dossier, not a sentence.
+const maxPronouns = 24
 
 // maxEnergy bounds what one moment can do to her energy either way.
 const maxEnergy = 0.1
@@ -423,6 +432,11 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			}
 			if !present {
 				return
+			}
+			if a.Pronouns != "" && a.Pronouns != p.Pronouns {
+				// Theirs to say, and to change: what they said replaces
+				// whatever was written, however it got there.
+				p.Pronouns, p.PronounsFrom = a.Pronouns, told
 			}
 			if a.Toward != "" {
 				p.Feeling, p.FeelingFrom = clip(a.Toward, maxToward), madeOf

@@ -21,17 +21,27 @@ type Person struct {
 	// FirstMet and LastTalked are when she first and last spoke with them.
 	FirstMet   time.Time
 	LastTalked time.Time
+	// Pronouns are theirs, and only ever as they said them: "he/him". Never
+	// guessed — she took someone for a woman from the kind of server it is
+	// and he had to correct her. Empty until they say.
+	Pronouns string
 	// Feeling is how she feels about them right now, in a few words.
 	Feeling string
 	// Who is what she knows about them; Between is how things stand
-	// between the two of them.
+	// between the two of them; Works is how talking with them goes best —
+	// what she does with them that she would not do with anyone else,
+	// learned from how the days with them went.
 	Who     string
 	Between string
-	// FeelingFrom, WhoFrom and BetweenFrom are where each came from. All
-	// three are interpretations; see Source.
-	FeelingFrom Source
-	WhoFrom     Source
-	BetweenFrom Source
+	Works   string
+	// FeelingFrom, WhoFrom, BetweenFrom and WorksFrom are where each came
+	// from: all interpretations. PronounsFrom is what they said, so it is
+	// stated. See Source.
+	FeelingFrom  Source
+	WhoFrom      Source
+	BetweenFrom  Source
+	WorksFrom    Source
+	PronounsFrom Source
 	// Kept is what stays with her about them: the few moments that define
 	// them for her, chosen and replaced when she reflects. See MaxKept.
 	Kept  []Note
@@ -48,17 +58,21 @@ type Note struct {
 // Person sections and front matter keys. Headings are what a person reading
 // the file sees, so they are words rather than identifiers.
 const (
-	keyName       = "name"
-	keyID         = "id"
-	keyFirstMet   = "first_met"
-	keyLastTalked = "last_talked"
-	keyFeeling    = "feeling"
-	keyFeelingSrc = "feeling_from"
-	keyWhoSrc     = "who_from"
-	keyBetweenSrc = "between_from"
+	keyName        = "name"
+	keyID          = "id"
+	keyFirstMet    = "first_met"
+	keyLastTalked  = "last_talked"
+	keyFeeling     = "feeling"
+	keyFeelingSrc  = "feeling_from"
+	keyWhoSrc      = "who_from"
+	keyBetweenSrc  = "between_from"
+	keyWorksSrc    = "works_from"
+	keyPronouns    = "pronouns"
+	keyPronounsSrc = "pronouns_from"
 
 	headWho     = "who they are"
 	headBetween = "between us"
+	headWorks   = "what works with them"
 	headKept    = "what stays with me"
 	headNotes   = "notes"
 )
@@ -162,12 +176,16 @@ func readPerson(path string, loc *time.Location) (Person, error) {
 		FirstMet:   parseTime(fields[keyFirstMet]),
 		LastTalked: parseTime(fields[keyLastTalked]),
 		Feeling:    fields[keyFeeling],
+		Pronouns:   fields[keyPronouns],
 		Who:        parts[headWho],
 		Between:    parts[headBetween],
+		Works:      parts[headWorks],
 	}
 	p.FeelingFrom, _ = ParseSource(fields[keyFeelingSrc])
 	p.WhoFrom, _ = ParseSource(fields[keyWhoSrc])
 	p.BetweenFrom, _ = ParseSource(fields[keyBetweenSrc])
+	p.WorksFrom, _ = ParseSource(fields[keyWorksSrc])
+	p.PronounsFrom, _ = ParseSource(fields[keyPronounsSrc])
 	if p.ID == "" {
 		p.ID = strings.TrimSuffix(filepath.Base(path), ".md")
 	}
@@ -217,6 +235,9 @@ func renderPerson(p Person, loc *time.Location) string {
 	if b := strings.TrimSpace(p.Between); b != "" {
 		body.WriteString("## Between us\n\n" + b + "\n\n")
 	}
+	if w := strings.TrimSpace(p.Works); w != "" {
+		body.WriteString("## What works with them\n\n" + w + "\n\n")
+	}
 	writeNotes(&body, "What stays with me", p.Kept, loc)
 	writeNotes(&body, "Notes", p.Notes, loc)
 	return renderDoc([]field{
@@ -224,9 +245,12 @@ func renderPerson(p Person, loc *time.Location) string {
 		{keyID, p.ID},
 		{keyFirstMet, formatTime(p.FirstMet)},
 		{keyLastTalked, formatTime(p.LastTalked)},
+		{keyPronouns, p.Pronouns},
+		{keyPronounsSrc, p.PronounsFrom.String()},
 		{keyFeeling, p.Feeling},
 		{keyFeelingSrc, p.FeelingFrom.String()},
 		{keyWhoSrc, p.WhoFrom.String()},
 		{keyBetweenSrc, p.BetweenFrom.String()},
+		{keyWorksSrc, p.WorksFrom.String()},
 	}, body.String())
 }

@@ -212,11 +212,17 @@ func (m *Mind) voiceSystem(s Scene, k Known) string {
 			continue
 		}
 		var about []string
+		if p.Pronouns != "" {
+			about = append(about, "("+oneLine(p.Pronouns)+")")
+		}
 		if p.Who != "" {
 			about = append(about, clip(p.Who, maxWhoChars))
 		}
 		if p.Between != "" {
 			about = append(about, "Between you: "+clip(p.Between, maxBetweenChars))
+		}
+		if p.Works != "" {
+			about = append(about, "What works with them: "+clip(p.Works, maxBetweenChars))
 		}
 		if role := strings.TrimSpace(s.Roles[p.ID]); role != "" {
 			about = append(about, "The server says: "+oneLine(role))

@@ -228,6 +228,9 @@ func renderPerson(p memory.Person, role string, now time.Time) string {
 		name = "someone"
 	}
 	b.WriteString("### " + name)
+	if p.Pronouns != "" {
+		b.WriteString(" (" + oneLine(p.Pronouns) + ")")
+	}
 	if role = strings.TrimSpace(role); role != "" {
 		b.WriteString("\nWhat the server says about them: " + oneLine(role))
 	}
@@ -240,6 +243,9 @@ func renderPerson(p memory.Person, role string, now time.Time) string {
 	}
 	if between := clip(p.Between, maxBetweenChars); between != "" {
 		b.WriteString("\nBetween them: " + between)
+	}
+	if works := clip(p.Works, maxBetweenChars); works != "" {
+		b.WriteString("\nWhat works with them: " + works)
 	}
 	if p.Feeling != "" {
 		b.WriteString("\nHow she feels about them: " + p.Feeling)

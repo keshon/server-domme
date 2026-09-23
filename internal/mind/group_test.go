@@ -258,3 +258,43 @@ func TestAPromiseInAnAfterthoughtIsAskedFor(t *testing.T) {
 		}
 	}
 }
+
+// A compact portrait: pronouns only as they said them, and what works with
+// them learned from how it went. Both reach her thinking and her voice, and
+// both survive a round trip through the file.
+func TestAPersonsPortraitIsKept(t *testing.T) {
+	m, _ := newMind(t)
+	s := bigM()
+	if err := m.Absorb(s, Appraisal{Pronouns: "he/him", Toward: "warming", Weight: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Memory.UpdatePerson(guildID, "365", func(p *memory.Person) {
+		p.Name, p.Works = "Big M", "he answers straight questions straight; small talk dies with him"
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p, ok, err := m.Memory.Person(guildID, "365")
+	if err != nil || !ok {
+		t.Fatal(err)
+	}
+	if p.Pronouns != "he/him" || p.PronounsFrom.Kind != memory.Stated {
+		t.Errorf("pronouns %q from %v", p.Pronouns, p.PronounsFrom)
+	}
+	shown := renderPerson(p, "", noon)
+	if !strings.Contains(shown, "(he/him)") || !strings.Contains(shown, "What works with them: he answers straight") {
+		t.Errorf("her thinking is shown:\n%s", shown)
+	}
+	k := Known{People: []memory.Person{p}}
+	s.UserID = "365"
+	voice := m.voiceSystem(s, k)
+	if !strings.Contains(voice, "(he/him)") || !strings.Contains(voice, "What works with them: he answers straight") {
+		t.Errorf("her voice is shown:\n%s", voice)
+	}
+	// Nothing is guessed: no pronouns stated, nothing written.
+	if err := m.Absorb(s, Appraisal{Toward: "warm"}); err != nil {
+		t.Fatal(err)
+	}
+	if p, _, _ := m.Memory.Person(guildID, "365"); p.Pronouns != "he/him" {
+		t.Errorf("pronouns became %q", p.Pronouns)
+	}
+}

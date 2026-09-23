@@ -16,7 +16,7 @@ const reflectShape = `Answer with one JSON object and nothing else:
   "summary": "what the day was, for her — what happened and what it meant, 2 to 4 sentences, first person",
   "lately": "her account of how she has been lately, rewritten to take this day in — first person, under 120 words",
   "people": [
-    {"person": their number, "who": "who they are, as she knows them now — a short paragraph", "between": "where things stand between her and them now — one or two sentences", "feeling": "how she feels about them, a few words", "stays": ["the few moments with them that stay with her — at most 5, each one sentence, first person; keep the old ones that still matter, replace the ones that do not"]}
+    {"person": their number, "who": "who they are, as she knows them now — a short paragraph", "between": "where things stand between her and them now — one or two sentences", "feeling": "how she feels about them, a few words", "works": "how talking with them goes best, from how it has actually gone — one line, and what she does with them that she would not do with anyone else", "stays": ["the few moments with them that stay with her — at most 5, each one sentence, first person; keep the old ones that still matter, replace the ones that do not"]}
   ],
   "done": [numbers of the things she meant to do that are done or no longer worth doing],
   "settled": [numbers of the feelings still with her that the day has settled, if any were listed],
@@ -32,6 +32,7 @@ const reflectRules = `How to look back:
 - Be honest and specific: what actually happened, what she said, how people were with her, and what that means for her.
 - Let people change in her eyes. Someone who kept at it in good faith deserves more warmth than a first impression gave them; someone who was unkind has earned some distance. Keep what is still true from before.
 - Write only about people who appear in the day. Keep facts they told her.
+- What works with someone comes from how the days with them actually went — what they answered, what fell flat, the register they meet her in. Not from what they are: their age, their gender or their role predict nothing, and she has been wrong guessing.
 - Never guess at anyone's gender: unless they have said, or it is already written down, a person is "they". Someone who has corrected her is right, and what was written before them is wrong.
 - What stays with her about someone is what she would still remember in a year: the moments that hit hardest, good or bad, marked "it stayed with her". Small talk does not stay.
 - Keep what she said her own: if she said something, she said it.
@@ -226,6 +227,7 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 			continue
 		}
 		who, between, feeling := str(entry, "who"), str(entry, "between"), str(entry, "feeling")
+		works := str(entry, "works")
 		stays, hasStays := texts(entry, "stays")
 		err := m.Memory.UpdatePerson(guildID, p.ID, func(d *memory.Person) {
 			if hasStays {
@@ -240,6 +242,9 @@ func (m *Mind) applyReflection(guildID string, date, now time.Time, obj map[stri
 				} else {
 					refuse(proposalPerson, "who they are: would overwrite a stronger kind")
 				}
+			}
+			if works != "" {
+				d.Works, d.WorksFrom = clip(works, maxBetweenChars), from
 			}
 			if between != "" {
 				if mayOverwrite(d.BetweenFrom, memory.Interpreted) {
