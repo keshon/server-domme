@@ -187,6 +187,11 @@ type Config struct {
 	// may take several times as much. Watch mind_prompt_sized in the log.
 	ChatThinkBudget int `env:"CHAT_THINK_BUDGET" envDefault:"16000"`
 	ChatVoiceBudget int `env:"CHAT_VOICE_BUDGET" envDefault:"12000"`
+	// ChatLook is whether she may go and look into a channel she reads
+	// before answering, when answering needs it: "hang on" — she puts her
+	// head in, and comes back with the gist. Needs CHAT_WALKS. Off, what
+	// she has of those rooms is whatever her last walk caught.
+	ChatLook bool `env:"CHAT_LOOK" envDefault:"true"`
 	// ChatStyleCheck is whether a reply is held to her style after she
 	// writes it: asked again once for a phrase the character file says is
 	// not hers, or a length far past her examples, and cut to length.

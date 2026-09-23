@@ -114,6 +114,9 @@ type Deps struct {
 	// see mind.Mind.ThinkBudget.
 	ThinkBudget int
 	VoiceBudget int
+	// Looks is whether she may go and look into a room she reads before she
+	// answers; see look.go. It needs Walks.
+	Looks bool
 	// IdleMind is whether something happens in her between conversations:
 	// what is on her mind, and her life and wants. Walks is whether she
 	// passes through the channels she reads without speaking in. Impulses
@@ -183,6 +186,9 @@ type Service struct {
 	// life is what she started today and when, per guild. See initiative.go.
 	lifeMu sync.Mutex
 	life   map[string]*lifeState
+	// lookCounts is how often she has gone to look in a guild today; see
+	// look.go.
+	lookCounts map[string]*lookState
 
 	// thoughts are second thoughts waiting their moment, and thoughtTimes
 	// when she sent them lately, per guild. See then.go.
@@ -268,6 +274,7 @@ type Service struct {
 	// idleMu guards when each guild's next idle tick is, and when she last
 	// walked through each channel.
 	idleMind   bool
+	looks      bool
 	walks      bool
 	impulses   bool
 	reactFirst bool
@@ -332,11 +339,12 @@ func New(d Deps) *Service {
 		now:         now,
 		sleep:       sleep,
 
-		replying:  make(map[string]bool),
-		ignored:   make(map[string]bool),
-		overheard: make(map[string]time.Time),
-		life:      make(map[string]*lifeState),
-		reflected: make(map[string]int),
+		replying:   make(map[string]bool),
+		ignored:    make(map[string]bool),
+		overheard:  make(map[string]time.Time),
+		life:       make(map[string]*lifeState),
+		lookCounts: make(map[string]*lookState),
+		reflected:  make(map[string]int),
 		// One asked-for reflection waits at a time; see ReflectNow.
 		reflectAsk: make(chan reflectRequest, 1),
 
@@ -355,6 +363,7 @@ func New(d Deps) *Service {
 		ageRestricted: d.AgeRestricted,
 
 		idleMind:   d.IdleMind,
+		looks:      d.Looks,
 		walks:      d.Walks,
 		impulses:   d.Impulses,
 		reactFirst: d.ReactFirst,

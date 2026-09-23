@@ -134,6 +134,9 @@ type Scene struct {
 	MessageID string
 	// WokenEarly is that she did not wake on her own: someone woke her.
 	WokenEarly bool
+	// Reads are the rooms she passes through and never speaks in, by name.
+	// She may ask to look into one before she answers; see Appraisal.Look.
+	Reads []string
 	// Crowd marks a follow-up in a room where others were talking too: the
 	// code knows they spoke right after her, not that it was to her.
 	Crowd bool

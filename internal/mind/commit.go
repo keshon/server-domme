@@ -28,6 +28,7 @@ const (
 	proposalPerson   = "person"
 	proposalThread   = "thread"
 	proposalSelfFact = "self-fact"
+	proposalGlance   = "glance"
 )
 
 // Longest texts accepted from a proposal, in characters. Longer is clipped,

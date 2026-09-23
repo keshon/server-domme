@@ -878,6 +878,7 @@ written, and has no switch.
 | `CHAT_BODY` | `on` | presence, sleep and battery: always online, as v2 |
 | `CHAT_FEELINGS` | `on` | `Mood` as in v2 |
 | `CHAT_IDLE_MIND` | `on` | no idle tick, no "on her mind" |
+| `CHAT_LOOK` | `on` | she cannot go and look on her own account: rooms she reads reach her only on the idle mind's walks |
 | `CHAT_WALKS` | `on` | no walks; `reads` channels are ignored |
 | `CHAT_DRIFT` | `0.25` | `0` turns off associative recall |
 | `CHAT_SELF_FACTS` | `on` | no `me.md` |
@@ -1218,6 +1219,16 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 23 Sep 2026 — D, after she was asked what was happening in a room she had
+  walked ten minutes earlier and said "nothing worth noting": recall was
+  hiding it, and she had no way to go and look. Both are settled. The
+  transcript cutoff — what is already in front of her is not recalled —
+  applies only to the room the conversation is in. And she may go and look:
+  her thinking names one room she reads, the code refuses a room she does
+  not read, one she was just in, or a fourth look in a day, she is away for
+  half a minute doing it, and what she took from it is written as a walk she
+  took herself. The model chooses, the code keeps the gate: perception that
+  costs nothing is a search engine with a character card.
 - 23 Sep 2026 — after the first full day and the first reflection: she had
   guessed someone's gender from the kind of server they are on and was
   corrected by them, so neither her thinking nor her looking back guesses

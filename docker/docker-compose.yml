@@ -61,6 +61,7 @@ services:
       - CHAT_FEELINGS=${CHAT_FEELINGS:-true}
       - CHAT_IDLE_MIND=${CHAT_IDLE_MIND:-true}
       - CHAT_WALKS=${CHAT_WALKS:-true}
+      - CHAT_LOOK=${CHAT_LOOK:-true}
       - CHAT_IMPULSES=${CHAT_IMPULSES:-true}
       - CHAT_REACT_FIRST=${CHAT_REACT_FIRST:-true}
       - CHAT_REQUEST_TIMEOUT=${CHAT_REQUEST_TIMEOUT:-45s}

@@ -50,6 +50,10 @@ type Appraisal struct {
 	// Situation is what kind of message it was, as she took it: what her
 	// voice examples are chosen by. See Situation.
 	Situation Situation
+	// Look is a channel she reads that she wants to put her head into
+	// before she answers, by name and without the "#". Empty for almost
+	// every moment. See Mind.Glance.
+	Look string
 	// Intent is the gist of what she wants to get across, when she replies.
 	// The voice turns it into words; see Mind.Speak.
 	Intent string
@@ -128,6 +132,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "emoji": "one emoji, only if act is react",
   "intent": "if act is reply: what she wants to get across and how she comes at it — the gist, not the wording, in her own first person: 'tell him I'm fine, and that I noticed'",
   "pronouns": "their pronouns — ONLY if they have just said them or corrected her, as they put it: \"he/him\". Empty otherwise, and never a guess",
+  "look": "if answering needs a look at a room she reads and has not just been in — the channel's name, no \"#\", from the rooms she reads listed above. Empty otherwise, and empty when what she has is enough",
   "note": "a new FACT about their life they just told her — what they do, have, plan, like — or empty. Not an impression of how they are acting right now: that goes in toward and between",
   "between": "if how things stand between them just changed: one sentence on where it stands now; otherwise empty",
   "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
@@ -255,6 +260,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Mood:       str(obj, "mood"),
 		Emoji:      str(obj, "emoji"),
 		Situation:  ParseSituation(str(obj, "situation")),
+		Look:       strings.TrimPrefix(strings.TrimSpace(str(obj, "look")), "#"),
 		Intent:     str(obj, "intent"),
 		Note:       str(obj, "note"),
 		Between:    str(obj, "between"),

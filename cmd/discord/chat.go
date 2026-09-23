@@ -181,6 +181,7 @@ func buildChatService(
 		VoiceBudget:     cfg.ChatVoiceBudget,
 		IdleMind:        cfg.ChatIdleMind,
 		Walks:           cfg.ChatWalks,
+		Looks:           cfg.ChatLook,
 		Impulses:        cfg.ChatImpulses,
 		ReactFirst:      cfg.ChatReactFirst,
 	}), ""

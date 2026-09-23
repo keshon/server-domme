@@ -80,6 +80,16 @@ func renderWorld(s Scene, k Known) string {
 		}
 	}
 
+	if len(s.Reads) > 0 {
+		b.WriteString("\n\nRooms she passes through and never speaks in: ")
+		for i, c := range s.Reads {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString("#" + c)
+		}
+	}
+
 	if len(k.Threads) > 0 {
 		b.WriteString("\n\nThings she means to do:")
 		for i, t := range k.Threads {

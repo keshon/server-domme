@@ -109,6 +109,17 @@ func (s *Service) handle(ctx context.Context, t task) {
 			s.withdrawConsent(scene.GuildID, t.item.UserID)
 		}
 	}
+	if a.Look != "" {
+		if caught, why := s.lookAt(genCtx, sess, scene, a.Look); why != "" {
+			entry.Reason = why
+		} else if caught != "" {
+			// What she just saw is hers now: read her memory again so the
+			// answer has it.
+			if fresh, err := s.mind.Know(scene); err == nil {
+				known = fresh
+			}
+		}
+	}
 	s.drain(scene)
 	s.applyEnergy(scene.GuildID, t.item.UserID, a.Energy, s.now())
 	entry.Read, entry.Feel, entry.Toward, entry.Mood = a.Read, a.Feel, a.Toward, a.Mood
@@ -330,6 +341,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 	sc.QuietFor = s.quietFor(sc.GuildID, now)
 	sc.ReactOnly = t.item.ReactOnly
 	sc.Crowd = t.item.Crowd
+	sc.Reads = s.readNames(sess, t.item.GuildID)
 	s.bodyScene(&sc, now)
 	return sc
 }
