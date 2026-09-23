@@ -85,7 +85,14 @@ func (s *Store) AddMoment(guildID string, m Moment) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.addMomentLocked(dir, m)
+}
 
+// addMomentLocked is AddMoment for a caller already holding the lock.
+func (s *Store) addMomentLocked(dir string, m Moment) error {
+	if strings.TrimSpace(m.Text) == "" {
+		return nil
+	}
 	at := m.At.In(s.loc)
 	path := dayPath(dir, at)
 	day, err := readDay(path, s.loc)

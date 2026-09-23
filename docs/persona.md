@@ -101,6 +101,9 @@ Under `CHAT_MEMORY_PATH` (default `./data/mind`), one directory per guild:
                      summary written at night
   threads.md         what she means to do: "- [ ] 2026-09-22 18:00
                      [Big M:123] ask how the code city naming went"
+  rooms/<channel>.md how a conversation under way has gone so far, in her
+                     words; closed into the day's moments once it has been
+                     quiet 12 hours, or when she reflects on the day
 ```
 
 Files rather than the datastore, deliberately:

@@ -210,6 +210,9 @@ type Known struct {
 	// LastHeavy is when something last weighed on her, from the days
 	// recall reads: a moment of weight at least heavyWeight.
 	LastHeavy time.Time
+	// Arc is how the conversation in this channel has gone so far, while
+	// one is under way; nil otherwise. See memory.Arc.
+	Arc *memory.Arc
 }
 
 // heavyWeight is the weight of a moment that counts as something having
@@ -286,6 +289,10 @@ func (m *Mind) Know(s Scene, also ...string) (Known, error) {
 		return k, err
 	}
 	k.Threads = memory.Unfinished(threads)
+
+	if k.Arc, err = m.freshArc(s); err != nil {
+		return k, err
+	}
 
 	words := topicWords(s.Turns)
 	if m.Character != nil {

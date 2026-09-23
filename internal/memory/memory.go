@@ -1,6 +1,6 @@
 // Package memory keeps what the persona remembers as Markdown files: who she
-// is lately, a dossier per person, one file per day of moments, and the things
-// she means to do.
+// is lately, a dossier per person, one file per day of moments, the things
+// she means to do, and how each conversation under way has gone so far.
 //
 // Files rather than the datastore because everything here is prose that a
 // language model reads and writes, and that a person debugging her should be
@@ -29,6 +29,9 @@ const (
 	threadsFile = "threads.md"
 	peopleDir   = "people"
 	daysDir     = "days"
+	// arcsDir holds one file per channel with a conversation under way;
+	// see Arc.
+	arcsDir = "rooms"
 	// forgottenDir is where /chat forget moves a guild, rather than deleting
 	// it: a typed confirmation is still one mistake away from losing
 	// everything she was.

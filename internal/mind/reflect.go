@@ -54,6 +54,15 @@ type RoomRate struct {
 // do. It reports false when there was nothing in the day to reflect on.
 // rooms are the day's base rates, read against what she started.
 func (m *Mind) Reflect(ctx context.Context, guildID, guildName string, date, now time.Time, rooms []RoomRate) (bool, error) {
+	// A conversation last touched on the day, or before it, is over by the
+	// time she looks back on it: closed into the day so the summary has it.
+	// Not today's, when she is asked to reflect early — that one may still
+	// be going.
+	if end := startOf(date).AddDate(0, 0, 1); !end.After(startOf(now)) {
+		if _, err := m.Memory.CloseArcsBefore(guildID, end); err != nil {
+			return false, err
+		}
+	}
 	day, err := m.Memory.Day(guildID, date)
 	if err != nil || len(day.Moments) == 0 {
 		return false, err

@@ -65,6 +65,10 @@ type Appraisal struct {
 	Remember   string
 	Later      string
 	LaterHours float64
+	// Arc is how the conversation in this channel has gone, start to now,
+	// rewritten when it moved and empty when the one she was shown still
+	// stands. See memory.Arc.
+	Arc string
 	// Settled are the things she meant to do that this moment answers or
 	// makes moot, by their key: closed at once rather than left for the
 	// night. See Absorb.
@@ -136,6 +140,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "note": "a new FACT about their life they just told her — what they do, have, plan, like — or empty. Not an impression of how they are acting right now: that goes in toward and between",
   "between": "if how things stand between them just changed: one sentence on where it stands now; otherwise empty",
   "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
+  "arc": "only when the conversation here has moved: all of it from its start to now, 2-4 sentences, her first person — what it has been about, what each side has done, and anything she keeps doing, as plainly as the rest. Empty when the one shown still stands, or nothing is under way",
   "later": "something she means to follow up on with them later, or empty — including anything the reply or the afterthought below promises: a test she sets, a thing she says she will watch for, a challenge she makes",
   "later_hours": "how many hours from now, if later is set",
   "settled": [numbers of the things she means to do, listed above, that this moment answers or makes pointless] or [],
@@ -214,6 +219,9 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 
 	var user strings.Builder
 	user.WriteString(renderWorld(s, k))
+	if arc := renderArc(k.Arc, s.Now); arc != "" {
+		user.WriteString("\n\n" + arc)
+	}
 	user.WriteString("\n\nThe conversation, oldest first:\n")
 	user.WriteString(renderTranscript(s.Turns, s.Now))
 	who := s.Username
@@ -265,6 +273,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Note:       str(obj, "note"),
 		Between:    str(obj, "between"),
 		Remember:   str(obj, "remember"),
+		Arc:        str(obj, "arc"),
 		Later:      str(obj, "later"),
 		LaterHours: num(obj, "later_hours"),
 		Weight:     clampUnit(num(obj, "weight")),
@@ -487,6 +496,10 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 		if err := m.Memory.CloseThread(s.GuildID, key); err != nil {
 			return err
 		}
+	}
+
+	if err := m.absorbArc(s, a, madeOf); err != nil {
+		return err
 	}
 
 	if a.Later != "" {
