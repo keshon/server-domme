@@ -152,7 +152,9 @@ func (m *Mind) applyLife(guildID, backend string, date, now time.Time, obj map[s
 		text := clip(str(entry, "text"), maxLaterChars)
 		switch {
 		case len(cites) > 0 && text != "":
-			item := memory.LifeItem{Text: text, Since: day, Advanced: day, Sources: cites}
+			// Two moments in the same minute — a message and her answer to
+			// it — are one reference, and the model cites a moment twice.
+			item := memory.LifeItem{Text: text, Since: day, Advanced: day, Sources: onceEach(cites)}
 			if old != nil {
 				item.Since = old.Since
 				item.Sources = onceEach(append(append([]string(nil), old.Sources...), cites...))

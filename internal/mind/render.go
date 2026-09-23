@@ -363,12 +363,23 @@ func clip(s string, max int) string {
 	}
 	cut := string(r[:max])
 	if i := strings.LastIndexAny(cut, ".!?\n"); i > max/2 {
-		return strings.TrimSpace(cut[:i+1])
+		return unfenced(strings.TrimSpace(cut[:i+1]))
 	}
 	if i := strings.LastIndex(cut, " "); i > 0 {
 		cut = cut[:i]
 	}
-	return strings.TrimSpace(cut) + "…"
+	return unfenced(strings.TrimSpace(cut)) + "…"
+}
+
+// unfenced drops the backticks from a cut that left one open. Cut from a
+// message with code in it, the rest of her prompt would read as code to the
+// model; the words are what she remembers, not the formatting.
+func unfenced(cut string) string {
+	fences := strings.Count(cut, "```")
+	if fences%2 == 0 && strings.Count(strings.ReplaceAll(cut, "```", ""), "`")%2 == 0 {
+		return cut
+	}
+	return strings.ReplaceAll(cut, "`", "")
 }
 
 // oneLine flattens text into a single line.
