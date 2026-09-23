@@ -59,7 +59,7 @@ const examplesEnd = "Those were examples of how you talk, not things that happen
 // StyleCheck on, it is held to her style; see restyle.
 func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why string) (string, string, error) {
 	examples := m.sampleExamples(s.ShortExamples, situationOf(s, a))
-	k = m.fit(s.GuildID, "voice", k, voiceBudget, func(k Known) int { return promptSize(m.voicePrompt(s, k, a, why, examples)) })
+	k = m.fit(s.GuildID, "voice", k, m.voiceBudget(), func(k Known) int { return promptSize(m.voicePrompt(s, k, a, why, examples)) })
 	msgs := m.voicePrompt(s, k, a, why, examples)
 	seen := heard(s, k)
 	reply, backend, err := m.speak(ctx, msgs)

@@ -83,6 +83,11 @@ type Mind struct {
 	// Feelings is whether she has feelings with a cause that fade on their
 	// own, in place of v2's one-line mood. See docs/persona-v3.md, C.
 	Feelings bool
+	// ThinkBudget and VoiceBudget are the characters one prompt may run to
+	// before what she knows starts giving way; zero uses the defaults. See
+	// fit.
+	ThinkBudget int
+	VoiceBudget int
 	// StyleCheck is whether a reply is held to her style after she writes
 	// it: asked again once for a phrase that is not hers or a length far
 	// past her examples, and cut to length. See Style.

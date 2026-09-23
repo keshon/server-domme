@@ -69,6 +69,8 @@ func main() {
 	drift := flag.Float64("drift", 0.25, "odds recall brings back a loosely related memory, as CHAT_DRIFT")
 	feelings := flag.Bool("feelings", true, "feelings that fade in place of a mood, as CHAT_FEELINGS")
 	styleCheck := flag.Bool("style-check", true, "hold replies to her style, as CHAT_STYLE_CHECK")
+	thinkBudget := flag.Int("think-budget", 16000, "characters one thinking prompt may run to, as CHAT_THINK_BUDGET")
+	voiceBudget := flag.Int("voice-budget", 12000, "characters one voice prompt may run to, as CHAT_VOICE_BUDGET")
 	flag.Parse()
 
 	log := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.WarnLevel)
@@ -134,7 +136,7 @@ func main() {
 		mind: &mind.Mind{
 			Character: character, Provider: thinking, Voice: voice, Memory: store,
 			SelfFacts: *selfFacts, ExamplesSample: *examples, Drift: *drift, Feelings: *feelings,
-			StyleCheck: *styleCheck, Roll: roll,
+			StyleCheck: *styleCheck, ThinkBudget: *thinkBudget, VoiceBudget: *voiceBudget, Roll: roll,
 		},
 		botName: *botName,
 		own:     *own,

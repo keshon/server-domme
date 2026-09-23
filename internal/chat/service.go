@@ -110,6 +110,10 @@ type Deps struct {
 	// StyleCheck is whether a reply is held to her style; see
 	// mind.Mind.StyleCheck.
 	StyleCheck bool
+	// ThinkBudget and VoiceBudget are the characters one prompt may run to;
+	// see mind.Mind.ThinkBudget.
+	ThinkBudget int
+	VoiceBudget int
 	// IdleMind is whether something happens in her between conversations:
 	// what is on her mind, and her life and wants. Walks is whether she
 	// passes through the channels she reads without speaking in. Impulses
@@ -311,7 +315,8 @@ func New(d Deps) *Service {
 		mind: &mind.Mind{
 			Character: d.Character, Provider: d.Provider, Voice: d.Voice, Memory: d.Memory,
 			SelfFacts: d.SelfFacts, ExamplesSample: d.ExamplesSample, Drift: d.Drift, Feelings: d.Feelings,
-			StyleCheck: d.StyleCheck, Roll: roll, Log: d.Log,
+			StyleCheck: d.StyleCheck, ThinkBudget: d.ThinkBudget, VoiceBudget: d.VoiceBudget,
+			Roll: roll, Log: d.Log,
 		},
 		character:   d.Character,
 		names:       mind.CleanNames(names),

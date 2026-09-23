@@ -177,6 +177,8 @@ func buildChatService(
 		AgeRestricted:   cfg.ChatAgeRestricted,
 		Feelings:        cfg.ChatFeelings,
 		StyleCheck:      cfg.ChatStyleCheck,
+		ThinkBudget:     cfg.ChatThinkBudget,
+		VoiceBudget:     cfg.ChatVoiceBudget,
 		IdleMind:        cfg.ChatIdleMind,
 		Walks:           cfg.ChatWalks,
 		Impulses:        cfg.ChatImpulses,

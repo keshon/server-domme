@@ -298,3 +298,16 @@ func TestAPersonsPortraitIsKept(t *testing.T) {
 		t.Errorf("pronouns became %q", p.Pronouns)
 	}
 }
+
+// The budgets are the deployment's when it sets them, the defaults
+// otherwise.
+func TestTheBudgetsAreTheDeploymentsToSet(t *testing.T) {
+	m, _ := newMind(t)
+	if m.thinkBudget() != defaultThinkBudget || m.voiceBudget() != defaultVoiceBudget {
+		t.Errorf("defaults: %d, %d", m.thinkBudget(), m.voiceBudget())
+	}
+	m.ThinkBudget, m.VoiceBudget = 40000, 30000
+	if m.thinkBudget() != 40000 || m.voiceBudget() != 30000 {
+		t.Errorf("set: %d, %d", m.thinkBudget(), m.voiceBudget())
+	}
+}

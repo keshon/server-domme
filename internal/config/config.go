@@ -178,6 +178,15 @@ type Config struct {
 	// On, they are ordinary channels, still opted in one at a time — and
 	// what is said there goes to the relays like anything else.
 	ChatAgeRestricted bool `env:"CHAT_AGE_RESTRICTED" envDefault:"false"`
+	// ChatThinkBudget and ChatVoiceBudget are how many characters one
+	// prompt may run to before what she knows starts giving way: recalled
+	// moments first, then self-facts, then specifics, then the oldest notes
+	// on a person. Her persona, the live conversation and the person she is
+	// answering never give way. The defaults are fitted to free relays,
+	// which refuse or time out on long prompts; a model you chose yourself
+	// may take several times as much. Watch mind_prompt_sized in the log.
+	ChatThinkBudget int `env:"CHAT_THINK_BUDGET" envDefault:"16000"`
+	ChatVoiceBudget int `env:"CHAT_VOICE_BUDGET" envDefault:"12000"`
 	// ChatStyleCheck is whether a reply is held to her style after she
 	// writes it: asked again once for a phrase the character file says is
 	// not hers, or a length far past her examples, and cut to length.

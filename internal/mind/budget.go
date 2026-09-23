@@ -12,9 +12,27 @@ import (
 // order — see fit — and never the persona, the live conversation or the
 // person being answered. See docs/persona-v3.md, Known failure points.
 const (
-	thinkBudget = 16000
-	voiceBudget = 12000
+	defaultThinkBudget = 16000
+	defaultVoiceBudget = 12000
 )
+
+// thinkBudget and voiceBudget are the budgets in force: the deployment's
+// when it set them, the defaults otherwise. A model chosen deliberately may
+// take far more than the free relays these numbers were fitted to; see
+// CHAT_THINK_BUDGET and CHAT_VOICE_BUDGET.
+func (m *Mind) thinkBudget() int {
+	if m.ThinkBudget > 0 {
+		return m.ThinkBudget
+	}
+	return defaultThinkBudget
+}
+
+func (m *Mind) voiceBudget() int {
+	if m.VoiceBudget > 0 {
+		return m.VoiceBudget
+	}
+	return defaultVoiceBudget
+}
 
 // Floors the trimming stops at before moving to the next thing.
 const (

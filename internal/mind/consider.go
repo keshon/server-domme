@@ -165,7 +165,7 @@ func (m *Mind) appraisalShape() string {
 // Consider asks what she makes of a moment. It does not write anything down;
 // see Absorb, which the caller runs once it has applied its rails.
 func (m *Mind) Consider(ctx context.Context, s Scene, k Known) (Appraisal, error) {
-	k = m.fit(s.GuildID, "consider", k, thinkBudget, func(k Known) int { return promptSize(m.considerPrompt(s, k)) })
+	k = m.fit(s.GuildID, "consider", k, m.thinkBudget(), func(k Known) int { return promptSize(m.considerPrompt(s, k)) })
 	msgs := m.considerPrompt(s, k)
 	ctx = ai.WithRaw(ai.WithTemperature(ctx, thinkingTemperature))
 	reply, backend, err := m.generate(ctx, msgs)
