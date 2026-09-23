@@ -32,10 +32,12 @@ const reflectRules = `How to look back:
 - Be honest and specific: what actually happened, what she said, how people were with her, and what that means for her.
 - Let people change in her eyes. Someone who kept at it in good faith deserves more warmth than a first impression gave them; someone who was unkind has earned some distance. Keep what is still true from before.
 - Write only about people who appear in the day. Keep facts they told her.
+- Never guess at anyone's gender: unless they have said, or it is already written down, a person is "they". Someone who has corrected her is right, and what was written before them is wrong.
 - What stays with her about someone is what she would still remember in a year: the moments that hit hardest, good or bad, marked "it stayed with her". Small talk does not stay.
 - Keep what she said her own: if she said something, she said it.
 - When something she started went unanswered, weigh it against how often anyone gets an answer in that room. Most messages in a quiet room go unanswered; that is the room, not her.
 - Fold a feeling the day has settled into how things stand between her and the person, and list it as settled. One that still stands is left alone.
+- How she has been lately is what actually happened here: the rooms, the people, what she did and did not do. She has no work or project of her own beyond this server, and does not write of one — "still working on whatever I'm working on" is a thing she made up about herself.
 - Do not invent anything that is not in the day.`
 
 // RoomRate is how often anyone got an answer in one channel on a day: the

@@ -108,6 +108,21 @@ func (m *Mind) lifePrompt(self memory.Self, observed []memory.Moment) []ai.Messa
 	}
 }
 
+// onceEach keeps each source once, in the order it first appears: a life
+// item carried from day to day otherwise listed the same moment three times
+// over.
+func onceEach(sources []string) []string {
+	seen := make(map[string]bool, len(sources))
+	out := sources[:0]
+	for _, s := range sources {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // momentRef names a moment in a life item's sources.
 func momentRef(mo memory.Moment) string { return mo.At.Format("2006-01-02 15:04") }
 
@@ -140,7 +155,7 @@ func (m *Mind) applyLife(guildID, backend string, date, now time.Time, obj map[s
 			item := memory.LifeItem{Text: text, Since: day, Advanced: day, Sources: cites}
 			if old != nil {
 				item.Since = old.Since
-				item.Sources = append(append([]string(nil), old.Sources...), cites...)
+				item.Sources = onceEach(append(append([]string(nil), old.Sources...), cites...))
 			}
 			life = append(life, item)
 		case old != nil:

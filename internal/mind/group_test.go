@@ -194,3 +194,52 @@ func TestTheGistIsAskedForInTheFirstPerson(t *testing.T) {
 		}
 	}
 }
+
+// A life item carried from day to day lists each moment behind it once.
+func TestALifeItemKeepsEachSourceOnce(t *testing.T) {
+	m, _ := newMind(t, `{"life":[{"text":"Big M is deep in the parsing","moments":[1,2],"keeps":1}],"wants":[]}`)
+	day := noon.Add(-24 * time.Hour)
+	if err := m.Memory.UpdateSelf(guildID, func(me *memory.Self) {
+		me.Life = []memory.LifeItem{{Text: "Big M is deep in the parsing", Since: day, Advanced: day,
+			Sources: []string{"2026-09-18 12:46", "2026-09-18 16:06"}}}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []time.Time{day.Add(time.Hour), day.Add(2 * time.Hour)} {
+		if err := m.Memory.AddMoment(guildID, memory.Moment{At: at, Text: `Big M: "still on the threads"`}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := m.ReflectLife(context.Background(), guildID, day, noon); err != nil {
+		t.Fatal(err)
+	}
+	self, _ := m.Memory.Self(guildID)
+	if len(self.Life) != 1 {
+		t.Fatalf("life %+v", self.Life)
+	}
+	seen := map[string]int{}
+	for _, s := range self.Life[0].Sources {
+		seen[s]++
+	}
+	for src, n := range seen {
+		if n != 1 {
+			t.Errorf("%s listed %d times: %v", src, n, self.Life[0].Sources)
+		}
+	}
+	if len(seen) != 4 {
+		t.Errorf("sources %v", self.Life[0].Sources)
+	}
+}
+
+// Nobody's gender is guessed: she misgendered someone on a server whose
+// name says nothing about who is on it.
+func TestNobodysGenderIsGuessed(t *testing.T) {
+	for _, rules := range []string{thinkingRules, reflectRules} {
+		if !strings.Contains(rules, "gender") {
+			t.Errorf("no rule about it in:\n%s", rules)
+		}
+	}
+	if !strings.Contains(reflectRules, "no work or project of her own") {
+		t.Error("her account of herself may still invent a project")
+	}
+}

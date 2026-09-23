@@ -1217,6 +1217,14 @@ Architecture changes after the freeze, with the evidence for each.
   (F3, I). An impulse at someone already in an exchange with her, or owed an
   answer, or at a room where she is talking, becomes what is on her mind
   instead of a start (H1).
+- 23 Sep 2026 — after the first full day and the first reflection: she had
+  guessed someone's gender from the kind of server they are on and was
+  corrected by them, so neither her thinking nor her looking back guesses
+  it now — unsaid and unwritten means "they", and someone who corrects her
+  is right. Her account of herself may not write of work of her own: "still
+  working on whatever I'm working on" was the invented-project pattern in
+  the one place J5 does not reach. A life item carried from day to day
+  lists each moment behind it once.
 - 22 Sep 2026 — second log on the real server: she answered Big M with his
   own words from ninety minutes before, recalled from memory, and spoke of
   herself as "she" ("she's doing fine", "don't expect her to be a good
