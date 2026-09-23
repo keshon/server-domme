@@ -232,7 +232,7 @@ func renderFeeling(f Feeling, loc *time.Location) string {
 	var b strings.Builder
 	b.WriteString(f.At.In(loc).Format(minuteLayout) + " ")
 	if f.Person.Name != "" || f.Person.ID != "" {
-		name := strings.NewReplacer("[", "(", "]", ")").Replace(oneLine(f.Person.Name))
+		name := refName(f.Person.Name)
 		if f.Person.ID != "" {
 			name += ":" + f.Person.ID
 		}

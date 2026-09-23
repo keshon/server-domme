@@ -48,6 +48,17 @@ type Person struct {
 	Notes []Note
 }
 
+// refName is a person's name as the files write it. A name sits inside the
+// brackets these formats use for their fields, so the three characters that
+// would split a line into the wrong fields are replaced. Everything else is
+// kept exactly as they wrote it — emoji, any script, any punctuation: the
+// files are UTF-8, and a nickname is theirs.
+func refName(name string) string {
+	return refDelimiters.Replace(oneLine(name))
+}
+
+var refDelimiters = strings.NewReplacer("[", "(", "]", ")", ";", ",")
+
 // Note is one dated thing she noted about someone, and where it came from.
 type Note struct {
 	Day    time.Time

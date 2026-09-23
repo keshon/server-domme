@@ -185,7 +185,7 @@ func renderThreads(all []Thread, loc *time.Location) string {
 			b.WriteString(t.Due.In(loc).Format(minuteLayout) + " ")
 		}
 		if t.Person.Name != "" || t.Person.ID != "" {
-			name := strings.NewReplacer("[", "(", "]", ")").Replace(oneLine(t.Person.Name))
+			name := refName(t.Person.Name)
 			if t.Person.ID != "" {
 				name += ":" + t.Person.ID
 			}

@@ -250,3 +250,47 @@ func TestAnEmptyFrontMatterIsNotBody(t *testing.T) {
 		t.Errorf("fields %v, body %q", fields, body)
 	}
 }
+
+// A nickname is theirs: emoji, any script and any punctuation survive a
+// round trip through every file that names someone. Only the three
+// characters these formats use as field separators are replaced, since a
+// name sits inside them.
+func TestANicknameSurvivesTheFiles(t *testing.T) {
+	s := open(t)
+	const nick = "✨Duchess💎 [QÇ]; さん"
+	const want = "✨Duchess💎 (QÇ), さん"
+	who := Ref{ID: "1019814864442626070", Name: nick}
+	if err := s.AddThread("g", Thread{Due: time.Date(2026, 9, 24, 13, 36, 0, 0, time.UTC), Person: who, Text: "ask how it went"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMoment("g", Moment{At: time.Date(2026, 9, 24, 13, 0, 0, 0, time.UTC), People: []Ref{who}, Text: "she said hi"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateSelf("g", func(me *Self) {
+		me.Feelings = []Feeling{{At: time.Date(2026, 9, 24, 13, 0, 0, 0, time.UTC), Person: who, What: "curious", Weight: 0.3}}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	threads, err := s.Threads("g")
+	if err != nil || len(threads) != 1 {
+		t.Fatalf("threads %v, %v", threads, err)
+	}
+	if threads[0].Person.Name != want || threads[0].Person.ID != who.ID {
+		t.Errorf("thread: %q / %q", threads[0].Person.Name, threads[0].Person.ID)
+	}
+	day, err := s.Day("g", time.Date(2026, 9, 24, 13, 0, 0, 0, time.UTC))
+	if err != nil || len(day.Moments) != 1 {
+		t.Fatalf("day %v, %v", day, err)
+	}
+	if got := day.Moments[0].People; len(got) != 1 || got[0].Name != want || got[0].ID != who.ID {
+		t.Errorf("moment: %+v", got)
+	}
+	self, err := s.Self("g")
+	if err != nil || len(self.Feelings) != 1 {
+		t.Fatalf("self %v, %v", self, err)
+	}
+	if self.Feelings[0].Person.Name != want || self.Feelings[0].Person.ID != who.ID {
+		t.Errorf("feeling: %q / %q", self.Feelings[0].Person.Name, self.Feelings[0].Person.ID)
+	}
+}

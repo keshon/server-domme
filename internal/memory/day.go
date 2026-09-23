@@ -268,7 +268,7 @@ func renderMoment(m Moment, loc *time.Location) string {
 		tags = append(tags, "#"+oneLine(m.Channel))
 	}
 	for _, p := range m.People {
-		name := strings.NewReplacer(";", ",", "[", "(", "]", ")").Replace(oneLine(p.Name))
+		name := refName(p.Name)
 		if p.ID != "" {
 			tags = append(tags, name+":"+p.ID)
 		} else if name != "" {
