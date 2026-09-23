@@ -243,3 +243,18 @@ func TestNobodysGenderIsGuessed(t *testing.T) {
 		t.Error("her account of herself may still invent a project")
 	}
 }
+
+// What she promises in an afterthought is hers to keep: "watch what happens
+// at midnight" went out as a second message and was recorded nowhere,
+// because only the first reply passes through the part of her that plans.
+func TestAPromiseInAnAfterthoughtIsAskedFor(t *testing.T) {
+	m, _ := newMind(t)
+	shape := m.appraisalShape()
+	line := shape[strings.Index(shape, `"later"`):]
+	line = line[:strings.Index(line, "\n")]
+	for _, want := range []string{"the afterthought", "a test she sets"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("%q missing from: %s", want, line)
+		}
+	}
+}

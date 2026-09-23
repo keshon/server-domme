@@ -127,7 +127,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "note": "a new FACT about their life they just told her — what they do, have, plan, like — or empty. Not an impression of how they are acting right now: that goes in toward and between",
   "between": "if how things stand between them just changed: one sentence on where it stands now; otherwise empty",
   "remember": "something from this moment she would bring up days from now, or empty. Almost always empty: what was said is remembered anyway",
-  "later": "something she means to follow up on with them later, or empty",
+  "later": "something she means to follow up on with them later, or empty — including anything the reply or the afterthought below promises: a test she sets, a thing she says she will watch for, a challenge she makes",
   "later_hours": "how many hours from now, if later is set",
   "settled": [numbers of the things she means to do, listed above, that this moment answers or makes pointless] or [],
   "then": "only if she would naturally send one more message a little after her reply — a question it leaves her curious about, a thought that follows on, a jab — the gist of it, in her own first person; usually empty",
