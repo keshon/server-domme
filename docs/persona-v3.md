@@ -1259,6 +1259,17 @@ Architecture changes after the freeze, with the evidence for each.
   The concept holds: she read subtext and stayed in character throughout.
   What it showed is that a motivated character with no stop condition
   becomes a pursuer, and the stop condition belongs to the code.
+- 24 Sep 2026 — she posted a wall of some nine hundred "3"s. Nothing
+  downstream would have caught it: it is not a control word, not an echo, not
+  a repeat of anything she said — it is the sampler falling into a hole, and
+  the only thing to do with one is not to send it. A generation that is one
+  character or one word over and over is now refused as not speech, and the
+  moment is held and tried again later like any other failed generation.
+  With it, `/chat delete`: one of her messages, by link or id, deleted from
+  the channel, dropped from the conversation she is in and from her memory
+  of saying it. Hers only — anyone else's is /purge's business, behind its
+  allowlist. A line nobody can scroll up and read should not be what she
+  answers from, and her own words in her memory do reach the voice.
 - 22 Sep 2026 — second log on the real server: she answered Big M with his
   own words from ninety minutes before, recalled from memory, and spoke of
   herself as "she" ("she's doing fine", "don't expect her to be a good

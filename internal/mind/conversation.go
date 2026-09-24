@@ -209,6 +209,26 @@ func (c *Conversations) Recent(channelID string) []Turn {
 	return live
 }
 
+// Unsay drops one of her own messages from the conversation, by its Discord
+// id, and reports whether it was there. A message deleted from the channel
+// is not something anyone can still read, so it is not context either — and
+// left here she would carry on from a line nobody else can see.
+func (c *Conversations) Unsay(channelID, messageID string) bool {
+	if channelID == "" || messageID == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	turns := c.byChanID[channelID]
+	for i, t := range turns {
+		if t.FromBot && t.MessageID == messageID {
+			c.byChanID[channelID] = append(turns[:i:i], turns[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // Forget drops a channel's history, for when a conversation should not carry
 // forward — a purge, or the bot being told to drop it.
 func (c *Conversations) Forget(channelID string) {

@@ -23,6 +23,9 @@ var (
 	ErrEcho = errors.New("mind: the reply echoed someone")
 	// ErrRepeat is a reply that repeated her, twice.
 	ErrRepeat = errors.New("mind: the reply repeated her twice")
+	// ErrGarbled is a generation that came apart into one character or one
+	// word repeated.
+	ErrGarbled = errors.New("mind: the reply came apart")
 )
 
 // voiceRules are the constraints on the shape of a message, as opposed to
@@ -120,6 +123,9 @@ func heard(s Scene, k Known) []Turn {
 func usable(reply string, turns []Turn) error {
 	if IsControl(reply) {
 		return ErrControl
+	}
+	if Garbled(reply) {
+		return ErrGarbled
 	}
 	if Echoes(reply, turns) {
 		return ErrEcho

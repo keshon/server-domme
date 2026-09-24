@@ -105,6 +105,49 @@ func (s *Store) addMomentLocked(dir string, m Moment) error {
 	return writeFile(path, renderDay(day, s.loc))
 }
 
+// ForgetSaid drops what she remembers of saying one message, by its Discord
+// id, and reports how many moments went. Days are searched newest first and
+// the search stops at the day it was found on: an id belongs to one message.
+//
+// A deleted message is one she never said, as far as anything she does next
+// is concerned. Leaving the moment behind would let her recall the line and
+// quote it back — which is exactly how her own words have reached the voice
+// before.
+func (s *Store) ForgetSaid(guildID, messageID string) (int, error) {
+	if messageID == "" {
+		return 0, nil
+	}
+	dir, err := s.guildDir(guildID)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dates := dayFiles(dir, s.loc)
+	for i := len(dates) - 1; i >= 0; i-- {
+		path := dayPath(dir, dates[i])
+		day, err := readDay(path, s.loc)
+		if err != nil {
+			return 0, err
+		}
+		kept, dropped := day.Moments[:0], 0
+		for _, m := range day.Moments {
+			if m.Said == messageID {
+				dropped++
+				continue
+			}
+			kept = append(kept, m)
+		}
+		if dropped == 0 {
+			continue
+		}
+		day.Date, day.Moments = dates[i], kept
+		return dropped, writeFile(path, renderDay(day, s.loc))
+	}
+	return 0, nil
+}
+
 // SetSummary writes what she made of a day when she reflected on it.
 func (s *Store) SetSummary(guildID string, date time.Time, summary string) error {
 	dir, err := s.guildDir(guildID)
@@ -172,6 +215,12 @@ func (s *Store) DayFiles(guildID string) []time.Time {
 	if err != nil {
 		return nil
 	}
+	return dayFiles(dir, s.loc)
+}
+
+// dayFiles is the dates with a day file in a guild's directory, oldest
+// first. It reads names rather than contents, and takes no lock.
+func dayFiles(dir string, loc *time.Location) []time.Time {
 	entries, err := os.ReadDir(filepath.Join(dir, daysDir))
 	if err != nil {
 		return nil
@@ -179,7 +228,7 @@ func (s *Store) DayFiles(guildID string) []time.Time {
 	var out []time.Time
 	for _, e := range entries {
 		name := strings.TrimSuffix(e.Name(), ".md")
-		if d, err := time.ParseInLocation(dayLayout, name, s.loc); err == nil {
+		if d, err := time.ParseInLocation(dayLayout, name, loc); err == nil {
 			out = append(out, d)
 		}
 	}

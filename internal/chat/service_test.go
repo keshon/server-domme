@@ -54,6 +54,8 @@ func (p *scripted) Generate(_ context.Context, msgs []ai.Message) (string, error
 type discord struct {
 	mu       sync.Mutex
 	requests []request
+	// author answers a fetch of one message; empty means she wrote it.
+	author string
 }
 
 type request struct {
@@ -69,14 +71,26 @@ func (d *discord) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	d.mu.Lock()
 	d.requests = append(d.requests, req)
+	author := d.author
 	d.mu.Unlock()
+	body := `{"id":"sent-1","channel_id":"c1"}`
+	if m := oneMessage.FindStringSubmatch(r.URL.Path); m != nil && r.Method == http.MethodGet {
+		if author == "" {
+			author = selfUserID
+		}
+		body = `{"id":"` + m[1] + `","channel_id":"c1","content":"what she said","author":{"id":"` + author + `"}}`
+	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
-		Body:       io.NopCloser(strings.NewReader(`{"id":"sent-1","channel_id":"c1"}`)),
+		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    r,
 	}, nil
 }
+
+// oneMessage matches fetching a single message, as opposed to a channel's
+// history.
+var oneMessage = regexp.MustCompile(`/messages/(\w+)$`)
 
 // posted is the content of every message the service sent.
 func (d *discord) posted() []string {

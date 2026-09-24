@@ -294,3 +294,35 @@ func TestANicknameSurvivesTheFiles(t *testing.T) {
 		t.Errorf("feeling: %q / %q", self.Feelings[0].Person.Name, self.Feelings[0].Person.ID)
 	}
 }
+
+// Forgetting one message she said finds it on the day she said it, and
+// leaves that day's other moments alone.
+func TestForgetSaidFindsTheDayItWasSaidOn(t *testing.T) {
+	s := open(t)
+	now := time.Date(2026, 9, 21, 16, 0, 0, 0, s.Location())
+	older := now.AddDate(0, 0, -2)
+	for _, m := range []Moment{
+		{At: older, Channel: "chat", Said: "old-1", Text: `I said: "the pins are sorted"`},
+		{At: older, Channel: "chat", Text: "Big M asked about the pins"},
+		{At: now, Channel: "chat", Said: "new-1", Text: `I said: "still sorted"`},
+	} {
+		if err := s.AddMoment(guild, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dropped, err := s.ForgetSaid(guild, "old-1")
+	if err != nil || dropped != 1 {
+		t.Fatalf("dropped %d, %v", dropped, err)
+	}
+	day, _ := s.Day(guild, older)
+	if len(day.Moments) != 1 || day.Moments[0].Said != "" {
+		t.Errorf("left %+v", day.Moments)
+	}
+	if today, _ := s.Day(guild, now); len(today.Moments) != 1 {
+		t.Errorf("another day was touched: %+v", today.Moments)
+	}
+	if dropped, err := s.ForgetSaid(guild, "never-said"); dropped != 0 || err != nil {
+		t.Errorf("an id she never said: %d, %v", dropped, err)
+	}
+}
