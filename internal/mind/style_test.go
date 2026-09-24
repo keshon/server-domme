@@ -343,6 +343,45 @@ func TestAThirdQuestionInARowIsNotSent(t *testing.T) {
 	}
 }
 
+// Her own note sent as a message. In production the follow-up she had
+// written for herself went out word for word: "@Big M whether he'll address
+// what I actually said or keep deflecting - time to check if he's
+// consistent". It is asked for again, as a message this time.
+func TestTheNoteSheWasHandedIsNotAMessage(t *testing.T) {
+	intent := "check whether he will address what I actually said or keep deflecting"
+	m, p := newMind(t,
+		"@Big M whether he'll address what I actually said or keep deflecting",
+		"so are you going to answer it, or not")
+	m.StyleCheck = true
+	s := sceneWith(Turn{UserID: "1", Username: "Big M", Content: "that's not what i asked", At: noon})
+	got, _, err := m.Speak(context.Background(), s, Known{}, Appraisal{Act: ActReply, Intent: intent}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "so are you going to answer it, or not" {
+		t.Errorf("sent %q", got)
+	}
+	if !strings.Contains(p.sent[1][len(p.sent[1])-1].Content, "not a message to somebody") {
+		t.Error("the retry was not told what was wrong")
+	}
+
+	// The reason she was given counts the same, and a message that merely
+	// does what the note says does not.
+	m, p = newMind(t, "you meant to follow up with them about the pins", "the pins are still a mess")
+	m.StyleCheck = true
+	if _, _, err := m.Speak(context.Background(), s, Known{}, Appraisal{Act: ActReply}, "you meant to follow up with them about the pins"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.sent) != 2 {
+		t.Errorf("the reason sent as speech went out after %d calls", len(p.sent))
+	}
+	m, p = newMind(t, "still waiting on that answer")
+	m.StyleCheck = true
+	if _, _, err := m.Speak(context.Background(), s, Known{}, Appraisal{Act: ActReply, Intent: intent}, ""); err != nil || len(p.sent) != 1 {
+		t.Errorf("a real message was taken for the note: %v, %d calls", err, len(p.sent))
+	}
+}
+
 func TestDropQuestionsKeepsWhatCameBefore(t *testing.T) {
 	for in, want := range map[string]string{
 		"that makes sense. how do you handle it? do you ever break it?": "that makes sense.",

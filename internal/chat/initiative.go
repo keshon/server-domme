@@ -166,6 +166,12 @@ func (s *Service) start(ctx context.Context, sess *discordgo.Session, base mind.
 		s.log.Info().Str("channel_id", o.ChannelID).Msg("chat_start_restricted")
 		return
 	}
+	if !s.droppedAt(base.GuildID, o.UserID, s.now()).IsZero() {
+		// They asked her to drop something. Going to them is not dropping
+		// it, whatever she means to say.
+		s.log.Info().Str("guild_id", base.GuildID).Msg("chat_start_after_drop")
+		return
+	}
 	sc := base
 	sc.ChannelID, sc.ChannelName, sc.Trigger = o.ChannelID, o.ChannelName, o.Trigger
 	sc.UserID, sc.Username = o.UserID, o.Username

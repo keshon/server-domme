@@ -188,6 +188,11 @@ type Service struct {
 	// life is what she started today and when, per guild. See initiative.go.
 	lifeMu sync.Mutex
 	life   map[string]*lifeState
+	// dropped is when someone last asked her to drop something, and
+	// presses the asks she has put to them lately; see stop.go.
+	dropMu  sync.Mutex
+	dropped map[string]time.Time
+	presses map[string]*pressState
 	// lookCounts is how often she has gone to look in a guild today; see
 	// look.go.
 	lookCounts map[string]*lookState
@@ -345,6 +350,8 @@ func New(d Deps) *Service {
 		ignored:    make(map[string]bool),
 		overheard:  make(map[string]time.Time),
 		life:       make(map[string]*lifeState),
+		dropped:    make(map[string]time.Time),
+		presses:    make(map[string]*pressState),
 		lookCounts: make(map[string]*lookState),
 		reflected:  make(map[string]int),
 		// One asked-for reflection waits at a time; see ReflectNow.

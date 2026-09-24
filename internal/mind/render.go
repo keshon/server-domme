@@ -132,6 +132,14 @@ func renderBody(s Scene, subject, has string) string {
 			parts = append(parts, fmt.Sprintf("%s woke at %s.", subject, woke))
 		}
 	}
+	if !s.Dropped.IsZero() {
+		them := "her"
+		if subject == "You" {
+			them = "you"
+		}
+		parts = append(parts, fmt.Sprintf("They asked %s to drop something %s, and it has not come up since.",
+			them, ago(s.Now.Sub(s.Dropped))))
+	}
 	if s.TalkingFor >= talkingWorthSaying {
 		line := fmt.Sprintf("%s %s been talking here for %s", subject, has, gap(s.TalkingFor))
 		if s.TalkingWith > 1 {

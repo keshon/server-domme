@@ -138,6 +138,9 @@ type Scene struct {
 	MessageID string
 	// WokenEarly is that she did not wake on her own: someone woke her.
 	WokenEarly bool
+	// Dropped is when the person she is answering asked her to drop
+	// something, while that is still recent. A fact, like the time of day.
+	Dropped time.Time
 	// Reads are the rooms she passes through and never speaks in, by name.
 	// She may ask to look into one before she answers; see Appraisal.Look.
 	Reads []string

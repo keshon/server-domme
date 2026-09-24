@@ -195,3 +195,24 @@ func renderThreads(all []Thread, loc *time.Location) string {
 	}
 	return b.String()
 }
+
+// CloseThreadsAbout marks every open intention about one person done, and
+// reports how many. Asked to drop something, she drops the things she meant
+// to do about them too: in production a dozen open "watch whether he…"
+// intentions were what kept an evening's pressing going.
+func (s *Store) CloseThreadsAbout(guildID, userID string) (int, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	closed := 0
+	err := s.updateThreads(guildID, func(all []Thread) []Thread {
+		for i := range all {
+			if !all[i].Done && all[i].Person.ID == userID {
+				all[i].Done = true
+				closed++
+			}
+		}
+		return all
+	})
+	return closed, err
+}

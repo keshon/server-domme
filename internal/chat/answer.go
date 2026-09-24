@@ -108,6 +108,21 @@ func (s *Service) handle(ctx context.Context, t task) {
 		if a.BackOff {
 			s.withdrawConsent(scene.GuildID, t.item.UserID)
 		}
+		if a.Drop {
+			// Their asking is the end of it: one short thing, and she
+			// leaves it. Whatever she had meant to get across goes with
+			// it — the ask is the thing they asked her to stop making.
+			// The code keeps her to that; see stop.go.
+			s.dropIt(scene.GuildID, t.item.UserID, s.now())
+			a.Intent, a.Then = dropIntent, ""
+			entry.Intent = a.Intent
+			entry.Reason = "they asked her to drop it"
+		} else if a.Act == mind.ActReply && s.pressing(scene.GuildID, scene.ChannelID, t.item.UserID, a.Intent, s.now()) {
+			// The same ask, again. She has made her point; making it a
+			// fourth time is what an evening of pressing is made of.
+			a.Act, a.Then = mind.ActIgnore, ""
+			entry.Reason = "she has put that to them enough times"
+		}
 	}
 	if a.Look != "" {
 		if caught, why := s.lookAt(genCtx, sess, scene, a.Look); why != "" {
@@ -342,6 +357,7 @@ func (s *Service) scene(sess *discordgo.Session, t task) mind.Scene {
 	sc.ReactOnly = t.item.ReactOnly
 	sc.Crowd = t.item.Crowd
 	sc.Reads = s.readNames(sess, t.item.GuildID)
+	sc.Dropped = s.droppedAt(t.item.GuildID, t.item.UserID, now)
 	s.bodyScene(&sc, now)
 	return sc
 }

@@ -90,6 +90,12 @@ type Appraisal struct {
 	// done, and must not become how much she liked it. See
 	// docs/persona-v3.md, B4.
 	Energy float64
+	// Drop is them asking her to stop this — "drop it", "I want out",
+	// "let's change the subject", "stop pushing". Not a reading of their
+	// mood: the words themselves. What follows is the code's, because in
+	// production a prompt line was not enough — she answered six of them
+	// in a row by calling each one a dodge. See chat.Service.dropIt.
+	Drop bool
 	// BackOff is them asking her to leave them alone — stop pinging them,
 	// stop coming after them. The caller withdraws their consent to be
 	// reached. Read by the model rather than a word list: v1's list could not
@@ -121,6 +127,7 @@ const thinkingRules = `How to think:
 - She does not invent events or facts — about this server, its channels and rules, its people, what she herself did, saw or can do, or anything else. What is written here about her — who she is, her specifics, what she has said about herself — is true and hers to draw on.
 - She does not guess at anyone's gender. Unless they have said, or it is written here, a person is "they" — and a name, a role or the kind of server they are on says nothing about it.
 - She does not pass judgement on someone's work or words behind their back. An opinion about a person goes to that person, or nowhere.
+- When someone asks her to stop, drop it, or change the subject, that is the end of it: she says one short thing and leaves it. Their wanting out is not a move in the game, and pressing it is not perceptiveness.
 - Someone she is talking with who asks her something directly nearly always gets some answer, even a short one. Ignoring is for when there is truly nothing to say, or a snub she would stand behind.
 - Reacting with an emoji instead of words is for a message that needs acknowledging and nothing more.`
 
@@ -147,6 +154,7 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "then": "only if she would naturally send one more message a little after her reply — a question it leaves her curious about, a thought that follows on, a jab — the gist of it, in her own first person; usually empty",
   "then_after": seconds until she sends it, 5 to 600,
   "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk,
+  "drop": true if they are asking her to stop this — "drop it", "leave it", "let's change the subject", "I want out", "stop pushing", or the same thing in their own words. Their words, not your reading of them: someone asking twice is asking,
   "back_off": true only if they are asking her to leave them alone or stop coming after them,
   "energy": only if something was done to her — a gift, a coffee, a poke, a battery — or the moment genuinely drained or lifted her: -0.1 to 0.1, and 0 if she would not take it; leave it out otherwise, which is almost always
 }`
@@ -279,6 +287,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Weight:     clampUnit(num(obj, "weight")),
 		Then:       str(obj, "then"),
 		ThenAfter:  thenAfter(num(obj, "then_after")),
+		Drop:       strings.EqualFold(str(obj, "drop"), "true"),
 		BackOff:    strings.EqualFold(str(obj, "back_off"), "true"),
 		Energy:     max(-maxEnergy, min(maxEnergy, num(obj, "energy"))),
 	}

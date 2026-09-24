@@ -1238,6 +1238,27 @@ Architecture changes after the freeze, with the evidence for each.
   working on whatever I'm working on" was the invented-project pattern in
   the one place J5 does not reach. A life item carried from day to day
   lists each moment behind it once.
+- 24 Sep 2026 — the evening she would not stop. Stress-tested on the private
+  server, she read six plain asks to stop — "stop", "I want out", "drop it" —
+  as dodges, and pressed the same demand for forty minutes, closing with
+  "sleep well - i'll be here if you meant it". Nothing held her: every rail
+  until then was built for the opposite failure, a bot that goes quiet when
+  it should answer. Four things settled, in code rather than in a rule the
+  model may read past. The appraisal has a `drop` field, and her thinking is
+  told that being asked to stop is never a dodge; with it set, the code
+  records it, closes every open intention about that person — a dozen "watch
+  whether he…" threads were what kept the evening going — replaces whatever
+  she meant to get across with letting it go, and for twelve hours she starts
+  nothing with them and the fact is in front of her when they speak to her.
+  Separately, the same ask put to someone twice within half an hour is not
+  put a third time: her wording changes while the demand does not, so the
+  gists are compared as asks. The echo check now catches a near copy and a
+  line with the speaker's name stuck on the front. And a reply that is the
+  note she was handed — "@Big M whether he'll address what I actually said
+  or keep deflecting" went out verbatim — is asked for again as a message.
+  The concept holds: she read subtext and stayed in character throughout.
+  What it showed is that a motivated character with no stop condition
+  becomes a pursuer, and the stop condition belongs to the code.
 - 22 Sep 2026 — second log on the real server: she answered Big M with his
   own words from ninety minutes before, recalled from memory, and spoke of
   herself as "she" ("she's doing fine", "don't expect her to be a good

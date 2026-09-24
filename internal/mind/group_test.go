@@ -354,3 +354,15 @@ func TestAWalkElsewhereIsRecalledMidConversation(t *testing.T) {
 		t.Errorf("a moment from this room, already in the transcript, was recalled: %+v", k.Recalled)
 	}
 }
+
+// Being asked to stop is a fact in front of her, in her own person for the
+// voice and in the third for her thinking.
+func TestBeingAskedToDropSomethingIsAFactInFrontOfHer(t *testing.T) {
+	s := Scene{Now: noon, Dropped: noon.Add(-20 * time.Minute)}
+	if got := renderBody(s, "She", "has"); got != "They asked her to drop something 20 minutes ago, and it has not come up since." {
+		t.Errorf("thinking: %q", got)
+	}
+	if got := renderBody(s, "You", "have"); !strings.Contains(got, "asked you to drop something") {
+		t.Errorf("voice: %q", got)
+	}
+}

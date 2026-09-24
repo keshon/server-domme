@@ -74,6 +74,9 @@ type offStyle struct {
 	// Questions is that it ends in a question after questionRun of her
 	// lines in a row already did.
 	Questions bool
+	// Scaffold is that it is the note she was handed rather than a message:
+	// the gist of what to get across, or her reason, sent as it stood.
+	Scaffold bool
 	// Words is its length.
 	Words int
 }
@@ -87,6 +90,9 @@ func (o offStyle) misses() int {
 		n++
 	}
 	if o.Questions {
+		n++
+	}
+	if o.Scaffold {
 		n++
 	}
 	return n
@@ -252,6 +258,9 @@ func styleNote(o offStyle) string {
 	if o.Questions {
 		parts = append(parts, "it ends in a question, and so did each of your last messages here")
 	}
+	if o.Scaffold {
+		parts = append(parts, "it is the note about what to get across, not a message to somebody")
+	}
 	return "You were about to send that, and did not: " + strings.Join(parts, ", and ") +
 		". Write your message again, the way you would actually type it."
 }
@@ -260,12 +269,20 @@ func styleNote(o offStyle) string {
 // once more; the retry is kept if it misses less, or as much but shorter,
 // and passes the checks every reply passes. Whatever is kept is cut to
 // length. Each miss is logged: how often a backend misses is a measurement.
-func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, backend string, seen []Turn) (string, string) {
+func (m *Mind) restyle(ctx context.Context, s Scene, msgs []ai.Message, reply, backend string, seen []Turn, notes ...string) (string, string) {
 	st := m.Character.Style()
 	asked := askedInARow(s.Turns)
 	check := func(r string) offStyle {
 		o := st.check(r)
 		o.Questions = asked && endsInQuestion(r)
+		for _, note := range notes {
+			// Her own scaffolding, sent as speech: in production a line
+			// she meant to follow up on went out as "@Big M whether he'll
+			// address what I actually said or keep deflecting".
+			if SameAsk(note, r) {
+				o.Scaffold = true
+			}
+		}
 		return o
 	}
 	first := check(reply)

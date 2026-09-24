@@ -84,7 +84,7 @@ func (m *Mind) Speak(ctx context.Context, s Scene, k Known, a Appraisal, why str
 		}
 	}
 	if m.StyleCheck {
-		reply, backend = m.restyle(ctx, s, msgs, reply, backend, seen)
+		reply, backend = m.restyle(ctx, s, msgs, reply, backend, seen, a.Intent, why)
 	}
 	return strings.TrimSpace(reply), backend, nil
 }
