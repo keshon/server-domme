@@ -148,6 +148,107 @@ func (s *Store) ForgetSaid(guildID, messageID string) (int, error) {
 	return 0, nil
 }
 
+// SettleAbout takes the weight out of what she remembers of one person
+// since a time: every moment about them is brought below LastingWeight, so
+// it fades on the ordinary fortnight instead of staying recallable for
+// good. It reports how many moments it touched.
+//
+// Nothing is deleted — she still remembers the argument. What goes is its
+// claim on every later conversation. Without this there is no way down from
+// a bad hour: in production one "shut up" became forty permanent moments,
+// and a week of ordinary days could not outweigh them.
+//
+// It does not tell a heavy hurt from a heavy delight, because nothing here
+// reads a moment — it takes the weight out of the day either way. The
+// moment that settles it is written at the weight of the worst of it, so
+// what outlives the episode is that it was put right.
+func (s *Store) SettleAbout(guildID, userID string, since time.Time) (int, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	dir, err := s.guildDir(guildID)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	settled := 0
+	for _, date := range dayFiles(dir, s.loc) {
+		if date.Before(startOfDay(since.In(s.loc))) {
+			continue
+		}
+		path := dayPath(dir, date)
+		day, err := readDay(path, s.loc)
+		if err != nil {
+			return settled, err
+		}
+		touched := false
+		for i, m := range day.Moments {
+			if m.At.Before(since) || m.Weight <= SettledWeight || !about(m, userID) {
+				continue
+			}
+			day.Moments[i].Weight = SettledWeight
+			settled, touched = settled+1, true
+		}
+		if !touched {
+			continue
+		}
+		day.Date = date
+		if err := writeFile(path, renderDay(day, s.loc)); err != nil {
+			return settled, err
+		}
+	}
+	return settled, nil
+}
+
+// SettledWeight is what a moment weighs once the thing it was about has
+// been put right: enough to stay in the day, below LastingWeight so it
+// fades like anything else.
+const SettledWeight = LastingWeight - 0.1
+
+// HeaviestAbout is the weight of the heaviest thing she remembers about one
+// person since a time, so that putting it right can be recorded as
+// weighing at least as much as it did.
+func (s *Store) HeaviestAbout(guildID, userID string, since time.Time) (float64, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	dir, err := s.guildDir(guildID)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	heaviest := 0.0
+	for _, date := range dayFiles(dir, s.loc) {
+		if date.Before(startOfDay(since.In(s.loc))) {
+			continue
+		}
+		day, err := readDay(dayPath(dir, date), s.loc)
+		if err != nil {
+			return heaviest, err
+		}
+		for _, m := range day.Moments {
+			if !m.At.Before(since) && about(m, userID) {
+				heaviest = max(heaviest, m.Weight)
+			}
+		}
+	}
+	return heaviest, nil
+}
+
+// about reports whether a moment is about one person.
+func about(m Moment, userID string) bool {
+	for _, p := range m.People {
+		if p.ID == userID {
+			return true
+		}
+	}
+	return false
+}
+
 // SetSummary writes what she made of a day when she reflected on it.
 func (s *Store) SetSummary(guildID string, date time.Time, summary string) error {
 	dir, err := s.guildDir(guildID)

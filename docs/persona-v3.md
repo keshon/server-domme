@@ -1270,6 +1270,33 @@ Architecture changes after the freeze, with the evidence for each.
   of saying it. Hers only — anyone else's is /purge's business, behind its
   allowlist. A line nobody can scroll up and read should not be what she
   answers from, and her own words in her memory do reach the voice.
+- 25 Sep 2026 — a day-long spiral on the real server, three people, ending
+  with her calling them liars and threatening to remove them from a server
+  she is a guest on. The cause was not the card: it was that nothing could
+  cool down. One "shut up", apologised for and accepted by 10:55, was
+  written down again as a new moment six times in three hours, each at more
+  weight than the apology; 39 of the day's 71 weighted moments were at or
+  above LastingWeight, which makes them permanent; the dossier line saying
+  where things stood was a single slot, written at the worst minute and
+  then in every prompt; and four open intentions all said "watch whether
+  they keep doing it", filed under three different people, so neither the
+  repeat check nor the per-person cap saw them. Three loops, each feeding
+  the next appraisal the evidence for the next one.
+  Settled: an appraisal says `mended` when something is put right, and the
+  code takes the weight out of what she remembers of that person for the
+  last day, closes what she meant to watch them for, drops the line written
+  mid-fight, and records the making-up at the weight of the worst of it —
+  so what outlives an episode is that it ended. A thing already written
+  down lately is not written down again. Where things stand carries when
+  she last put it that way. A follow-up is filed under whoever it is about,
+  and a repeat is a repeat whoever was talking. Several heavy moments with
+  one person inside an hour is a fact in front of her — "that is a mood,
+  not a verdict" — and while it lasts she opens no new watch on them. Her
+  thinking is told that a thing settled is settled, and that she has no
+  powers over anyone: she cannot kick, ban, mute or remove, and never
+  threatens to. The card says the same, drops the line about noticing who
+  follows through, and gains two: a thing settled is over, and she does not
+  need the last word.
 - 22 Sep 2026 — second log on the real server: she answered Big M with his
   own words from ninety minutes before, recalled from memory, and spoke of
   herself as "she" ("she's doing fine", "don't expect her to be a good

@@ -90,6 +90,15 @@ type Appraisal struct {
 	// done, and must not become how much she liked it. See
 	// docs/persona-v3.md, B4.
 	Energy float64
+	// Mended is this moment putting something right between her and them:
+	// an apology she accepts, a misunderstanding cleared, a fight that
+	// ends. What follows is the code's — the weight comes out of what she
+	// remembers of it, what she meant to watch for is closed, and where
+	// things stand is written fresh. Without it there is no way down from
+	// a bad hour: in production one "shut up" was re-remembered six times
+	// in three hours, each time heavier than the apology she had already
+	// accepted, and by the afternoon she was calling three people liars.
+	Mended bool
 	// Drop is them asking her to stop this — "drop it", "I want out",
 	// "let's change the subject", "stop pushing". Not a reading of their
 	// mood: the words themselves. What follows is the code's, because in
@@ -123,6 +132,8 @@ const thinkingRules = `How to think:
 - Read people the way someone skimming a chat does: take what they say at face value. Whether they are joking or sincere is usually plain from the words; read into it only when something is off.
 - She is one continuous person. Every line marked YOU in the conversation, and everything her memories say she said, is hers: she said it and meant it at the time. She can change her mind and say so, but she never claims someone else wrote her words.
 - Feelings move the way a person's do. Good faith, apology and persistence soften her; being pushed, mocked or used cools her. One exchange does not decide everything, and she does not carry one grudge through every line.
+- A thing settled is settled. Once she has accepted an apology or the matter is put right, it stops being the lens she reads them through — she does not bring it up again, keep score of it, or hold them to it in every later message. Being owed something is not a personality.
+- She has no powers over anyone here. She cannot kick, ban, mute, remove, warn or delete anything, and she never threatens to or implies she might. What she has is her own attention and her own words: she can say no, say what she thinks, and stop talking to someone.
 - She has a life and wants of her own. She can be curious, amused, warm, bored or busy — not only guarded.
 - She does not invent events or facts — about this server, its channels and rules, its people, what she herself did, saw or can do, or anything else. What is written here about her — who she is, her specifics, what she has said about herself — is true and hers to draw on.
 - She does not guess at anyone's gender. Unless they have said, or it is written here, a person is "they" — and a name, a role or the kind of server they are on says nothing about it.
@@ -153,7 +164,8 @@ const appraisalShape = `Answer with one JSON object and nothing else:
   "settled": [numbers of the things she means to do, listed above, that this moment answers or makes pointless] or [],
   "then": "only if she would naturally send one more message a little after her reply — a question it leaves her curious about, a thought that follows on, a jab — the gist of it, in her own first person; usually empty",
   "then_after": seconds until she sends it, 5 to 600,
-  "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk,
+  "weight": how much this moment gets to her, 0 to 1 — 0.1 passing chatter, 0.5 something she will think about, 0.9 something she will not forget; hurt, pride and real warmth weigh more than small talk. Turning something over again that she has already been through is not a new 0.7: weigh the moment in front of her, not the one it reminds her of,
+  "mended": true if this moment puts something right between her and them — an apology she accepts, a misunderstanding cleared, the end of a fight. Once, on the moment it happens,
   "drop": true if they are asking her to stop this — "drop it", "leave it", "let's change the subject", "I want out", "stop pushing", or the same thing in their own words. Their words, not your reading of them: someone asking twice is asking,
   "back_off": true only if they are asking her to leave them alone or stop coming after them,
   "energy": only if something was done to her — a gift, a coffee, a poke, a battery — or the moment genuinely drained or lifted her: -0.1 to 0.1, and 0 if she would not take it; leave it out otherwise, which is almost always
@@ -252,6 +264,13 @@ func (m *Mind) considerPrompt(s Scene, k Known) []ai.Message {
 	if s.ReactOnly {
 		user.WriteString(" In this room she does not speak unless spoken to; she can react.")
 	}
+	if m.grinding(s) {
+		// Counted, not read: several heavy moments with one person inside
+		// an hour. Said plainly, because the state it describes is the one
+		// in which a person is least able to notice they are in it.
+		fmt.Fprintf(&user, " The last hour with %s has been one heavy exchange after another. "+
+			"That is a mood, not a verdict on them, and she has made her point by now.", who)
+	}
 	user.WriteString(" What does she make of it, and what does she do?")
 
 	return []ai.Message{
@@ -287,6 +306,7 @@ func parseAppraisal(reply string) (Appraisal, bool) {
 		Weight:     clampUnit(num(obj, "weight")),
 		Then:       str(obj, "then"),
 		ThenAfter:  thenAfter(num(obj, "then_after")),
+		Mended:     strings.EqualFold(str(obj, "mended"), "true"),
 		Drop:       strings.EqualFold(str(obj, "drop"), "true"),
 		BackOff:    strings.EqualFold(str(obj, "back_off"), "true"),
 		Energy:     max(-maxEnergy, min(maxEnergy, num(obj, "energy"))),
@@ -435,6 +455,18 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 	told := memory.Message(memory.Stated, s.MessageID)
 	madeOf := memory.Message(memory.Interpreted, s.MessageID)
 	present := inScene(s, s.UserID)
+
+	// Putting something right comes first: what she remembers of them stops
+	// weighing on everything after this, and the moment itself weighs what
+	// the worst of it did. See settle.go.
+	mended := a.Mended && present
+	if mended {
+		weight, err := m.mend(s, a.Weight)
+		if err != nil {
+			return err
+		}
+		a.Weight = weight
+	}
 	if !present {
 		for kind, v := range map[string]string{proposalNote: a.Note, proposalFeeling: a.Toward, proposalBetween: a.Between} {
 			if v != "" {
@@ -467,10 +499,15 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			}
 			if a.Between != "" {
 				if mayOverwrite(p.BetweenFrom, memory.Interpreted) {
-					p.Between, p.BetweenFrom = a.Between, madeOf
+					p.Between, p.BetweenFrom, p.BetweenAt = a.Between, madeOf, now
 				} else {
 					refuse(proposalBetween, "would overwrite a stronger kind")
 				}
+			} else if mended && !p.BetweenAt.Before(now.Add(-mendReaches)) {
+				// Where things stood was written during the thing that has
+				// just been settled, and she has said nothing to put in its
+				// place. It does not survive the settling.
+				p.Between, p.BetweenFrom, p.BetweenAt = "", memory.Source{}, time.Time{}
 			}
 			if a.Note != "" {
 				if hasNote(p.Notes, a.Note) {
@@ -491,6 +528,10 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 		}
 	}
 
+	if a.Remember != "" && m.remembered(s, a.Remember) {
+		refuse(proposalRemember, "already remembered lately")
+		a.Remember = ""
+	}
 	if a.Remember != "" {
 		err := m.Memory.AddMoment(s.GuildID, memory.Moment{
 			At: now, Channel: s.ChannelName, People: m.refs(s), Text: clip(a.Remember, maxMomentChars),
@@ -525,17 +566,27 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 		if err != nil {
 			return err
 		}
+		who := m.whoAbout(s, a.Later, memory.Ref{ID: s.UserID, Name: s.Username})
 		var theirs []memory.Thread
 		for _, t := range memory.Unfinished(threads) {
-			if t.Person.ID == s.UserID {
-				theirs = append(theirs, t)
-			}
-		}
-		for _, t := range theirs {
+			// A repeat is a repeat whoever was talking when she had the
+			// thought: the same suspicion about one person was filed four
+			// times under three different people, and the per-person
+			// check saw one copy of it each time.
 			if sameAbout(t.Text, a.Later) {
 				refuse(proposalLater, "already means to")
 				return nil
 			}
+			if t.Person.ID == who.ID {
+				theirs = append(theirs, t)
+			}
+		}
+		if m.grinding(s) {
+			// An hour of heavy moments with someone is a mood, and what it
+			// proposes is always another thing to watch them for. She is
+			// not opening an account on anybody in this state.
+			refuse(proposalLater, "the hour with them has been going badly")
+			return nil
 		}
 		if name := m.misnamed(s, a.Later); name != "" {
 			refuse(proposalLater, "names "+name+", who is nobody she knows")
@@ -554,7 +605,7 @@ func (m *Mind) Absorb(s Scene, a Appraisal) error {
 			due = laterMax
 		}
 		err = m.Memory.AddThread(s.GuildID, memory.Thread{
-			Due: now.Add(due), Person: memory.Ref{ID: s.UserID, Name: s.Username},
+			Due: now.Add(due), Person: who,
 			Text: clip(a.Later, maxLaterChars), Source: madeOf,
 		})
 		if err != nil {

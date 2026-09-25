@@ -25,6 +25,7 @@ const (
 	proposalFeeling  = "feeling"
 	proposalBetween  = "between"
 	proposalLater    = "later"
+	proposalRemember = "remember"
 	proposalPerson   = "person"
 	proposalThread   = "thread"
 	proposalSelfFact = "self-fact"

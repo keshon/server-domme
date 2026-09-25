@@ -28,12 +28,14 @@ type Person struct {
 	// Feeling is how she feels about them right now, in a few words.
 	Feeling string
 	// Who is what she knows about them; Between is how things stand
-	// between the two of them; Works is how talking with them goes best —
+	// between the two of them, with BetweenAt when she last put it that
+	// way; Works is how talking with them goes best —
 	// what she does with them that she would not do with anyone else,
 	// learned from how the days with them went.
-	Who     string
-	Between string
-	Works   string
+	Who       string
+	Between   string
+	BetweenAt time.Time
+	Works     string
 	// FeelingFrom, WhoFrom, BetweenFrom and WorksFrom are where each came
 	// from: all interpretations. PronounsFrom is what they said, so it is
 	// stated. See Source.
@@ -77,6 +79,7 @@ const (
 	keyFeelingSrc  = "feeling_from"
 	keyWhoSrc      = "who_from"
 	keyBetweenSrc  = "between_from"
+	keyBetweenAt   = "between_at"
 	keyWorksSrc    = "works_from"
 	keyPronouns    = "pronouns"
 	keyPronounsSrc = "pronouns_from"
@@ -190,6 +193,7 @@ func readPerson(path string, loc *time.Location) (Person, error) {
 		Pronouns:   fields[keyPronouns],
 		Who:        parts[headWho],
 		Between:    parts[headBetween],
+		BetweenAt:  parseTime(fields[keyBetweenAt]),
 		Works:      parts[headWorks],
 	}
 	p.FeelingFrom, _ = ParseSource(fields[keyFeelingSrc])
@@ -262,6 +266,7 @@ func renderPerson(p Person, loc *time.Location) string {
 		{keyFeelingSrc, p.FeelingFrom.String()},
 		{keyWhoSrc, p.WhoFrom.String()},
 		{keyBetweenSrc, p.BetweenFrom.String()},
+		{keyBetweenAt, formatTime(p.BetweenAt)},
 		{keyWorksSrc, p.WorksFrom.String()},
 	}, body.String())
 }

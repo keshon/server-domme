@@ -261,6 +261,11 @@ func renderPerson(p memory.Person, role string, now time.Time) string {
 	}
 	if between := clip(p.Between, maxBetweenChars); between != "" {
 		b.WriteString("\nBetween them: " + between)
+		if !p.BetweenAt.IsZero() {
+			// With no age on it, a line written at the worst minute of an
+			// argument reads as how things are, for as long as it stands.
+			b.WriteString(" — as she put it " + ago(now.Sub(p.BetweenAt)))
+		}
 	}
 	if works := clip(p.Works, maxBetweenChars); works != "" {
 		b.WriteString("\nWhat works with them: " + works)
