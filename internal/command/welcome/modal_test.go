@@ -29,6 +29,11 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.bodies = append(r.bodies, string(body))
 	r.paths = append(r.paths, req.Method+" "+req.URL.Path)
 	r.mu.Unlock()
+	if req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/messages") {
+		// Posting a message answers with it, as Discord does.
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"id":"m1"}`)),
+			Header: http.Header{"Content-Type": []string{"application/json"}}, Request: req}, nil
+	}
 	if req.Method == http.MethodPatch {
 		// Editing a response answers with the message, as Discord does.
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"id":"m1"}`)),

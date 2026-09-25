@@ -138,7 +138,12 @@ replace. The command does the fiddly part and refuses rather than guesses:
   whole server for one newcomer;
 - each part is recorded when it goes out (`storage.Welcomed`), so running it
   twice does not post twice unless `again:True` is given, and a run that
-  failed half way can simply be run again to finish the other half.
+  failed half way can simply be run again to finish the other half;
+- `part:intro` or `part:welcome` posts one of the two and leaves the other
+  alone, for the half that failed on a permission the administrator has
+  since fixed. Whatever was found while planning the part left out goes
+  unreported with it: posting the welcome alone does not need a warning
+  about the intro's channel.
 
 Every check runs before anything is posted, and the reply lists each part with
 a link to what went out or the reason it did not.

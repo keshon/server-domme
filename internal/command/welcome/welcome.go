@@ -42,6 +42,7 @@ const (
 	optUser    = "user"
 	optRole    = "role"
 	optAgain   = "again"
+	optPart    = "part"
 	optIntro   = "intro_channel"
 	optWelcome = "welcome_channel"
 	optKind    = "kind"
@@ -95,6 +96,15 @@ func (c *WelcomeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Options: []*discordgo.ApplicationCommandOption{
 					{Type: discordgo.ApplicationCommandOptionUser, Name: optUser, Description: "Who to welcome", Required: true},
 					roleOption(false, "Which of their roles to welcome them as, if they have more than one"),
+					{
+						Type: discordgo.ApplicationCommandOptionString, Name: optPart,
+						Description: "Only one of the two this time — both, left empty",
+						Required:    false,
+						Choices: []*discordgo.ApplicationCommandOptionChoice{
+							{Name: "intro only", Value: kindIntro},
+							{Name: "welcome only", Value: kindWelcome},
+						},
+					},
 					{Type: discordgo.ApplicationCommandOptionBoolean, Name: optAgain, Description: "Post again even if they were already welcomed for this role", Required: false},
 				},
 			},
@@ -256,10 +266,24 @@ func runMember(context *cmdadapter.SlashInteractionContext, opts map[string]*dis
 	v := Vars{UserID: user.ID, Name: displayName(member), Server: guildName(s, e.GuildID), Role: roleName(s, e.GuildID, roleID)}
 	channels := guildChannels(s, e.GuildID)
 	again := opts[optAgain] != nil && opts[optAgain].BoolValue()
+	only := ""
+	if o := opts[optPart]; o != nil {
+		only = o.StringValue()
+	}
 	done := store.WelcomedFor(e.GuildID, user.ID, roleID)
 
 	intro := planPart(s, e.GuildID, "Intro", cfg.IntroChannel, cfg.IntroTemplate, v, channels, "")
 	welcome := planPart(s, e.GuildID, "Welcome", cfg.WelcomeChannel, cfg.WelcomeTemplate, v, channels, randomGif(welcomeGifs(store, e.GuildID, roleID)))
+	// One part on its own: the half of a welcome that failed is posted
+	// without posting the half that went out. In production an intro landed
+	// and the welcome was refused for a missing permission, and the only way
+	// to finish the job was to post both again.
+	switch only {
+	case kindIntro:
+		welcome.notThisTime()
+	case kindWelcome:
+		intro.notThisTime()
+	}
 	if welcome.ok() && welcome.gif != "" {
 		welcome.file = gifFile(store, e.GuildID, welcome.gif)
 	}
@@ -342,6 +366,14 @@ type part struct {
 }
 
 func (p *part) ok() bool { return p.problem == "" && p.skip == "" }
+
+// notThisTime leaves a part out of the run: not asked for, so not posted,
+// and not reported as something wrong. Whatever was found while planning it
+// goes with it — an administrator posting the welcome alone does not need
+// telling that the intro's channel is still broken.
+func (p *part) notThisTime() {
+	p.problem, p.skip = "", "not this time"
+}
 
 func (p *part) report() string {
 	switch {
