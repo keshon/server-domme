@@ -139,6 +139,11 @@ replace. The command does the fiddly part and refuses rather than guesses:
 - each part is recorded when it goes out (`storage.Welcomed`), so running it
   twice does not post twice unless `again:True` is given, and a run that
   failed half way can simply be run again to finish the other half;
+- a gif is attached as a file, which needs Attach Files — a permission
+  View Channel and Send Messages do not carry and the check before posting
+  cannot see refused at the guild level. Discord refusing the upload is not
+  the welcome failing: it goes out again with the link, and the reply says
+  which permission was missing;
 - `part:intro` or `part:welcome` posts one of the two and leaves the other
   alone, for the half that failed on a permission the administrator has
   since fixed. Whatever was found while planning the part left out goes

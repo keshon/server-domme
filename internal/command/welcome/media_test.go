@@ -105,3 +105,60 @@ func TestAWelcomeAttachesTheGifInPlaceOfTheLink(t *testing.T) {
 		t.Errorf("sent %q", body)
 	}
 }
+
+// refusing stands in for Discord refusing the first upload for a missing
+// permission, and accepting what comes next.
+type refusing struct {
+	recorder
+	refused bool
+}
+
+func (r *refusing) RoundTrip(req *http.Request) (*http.Response, error) {
+	if !r.refused && req.Method == http.MethodPost {
+		r.refused = true
+		_, _ = r.recorder.RoundTrip(req)
+		return &http.Response{StatusCode: http.StatusForbidden, Request: req,
+			Header: http.Header{"Content-Type": []string{"application/json"}},
+			Body:   io.NopCloser(strings.NewReader(`{"message": "Missing Permissions", "code": 50013}`))}, nil
+	}
+	return r.recorder.RoundTrip(req)
+}
+
+// Attaching a file needs Attach Files, which View Channel and Send Messages
+// do not carry — an administrator ticks those two and the welcome is still
+// refused. The words matter more than the gif: it goes out with the link.
+func TestAWelcomeRefusedTheAttachmentGoesOutWithTheLink(t *testing.T) {
+	rec := &refusing{}
+	s := &discordgo.Session{State: discordgo.NewState(), Client: &http.Client{Transport: rec}, Ratelimiter: discordgo.NewRatelimiter()}
+	gif := "https://klipy.com/gifs/feel-better-33"
+	p := &part{label: "Welcome", channelID: "c", content: "please welcome <@1>", gif: gif,
+		file: &discordgo.File{Name: "welcome.gif", ContentType: "image/gif", Reader: strings.NewReader("GIF89a")}}
+
+	if !p.send(s, "g", "1") {
+		t.Fatalf("nothing went out: %s", p.problem)
+	}
+	if len(rec.bodies) != 2 {
+		t.Fatalf("sent %v", rec.paths)
+	}
+	second := rec.bodies[1]
+	if !strings.Contains(second, gif) || strings.Contains(second, "filename=") {
+		t.Errorf("the second try sent %q", second)
+	}
+	if !strings.Contains(p.report(), "cannot attach files") {
+		t.Errorf("the report does not say why: %s", p.report())
+	}
+}
+
+// Any other refusal is still a failure, and says the channel rather than a
+// JSON body.
+func TestAWelcomeRefusedOutrightSaysWhere(t *testing.T) {
+	rec := &refusing{}
+	s := &discordgo.Session{State: discordgo.NewState(), Client: &http.Client{Transport: rec}, Ratelimiter: discordgo.NewRatelimiter()}
+	p := &part{label: "Welcome", channelID: "c", content: "please welcome <@1>"}
+	if p.send(s, "g", "1") {
+		t.Fatal("it claimed to post")
+	}
+	if !strings.Contains(p.problem, "<#c>") || strings.Contains(p.problem, "50013") {
+		t.Errorf("problem is %q", p.problem)
+	}
+}

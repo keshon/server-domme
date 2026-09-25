@@ -10,6 +10,7 @@ package welcome
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"regexp"
@@ -363,6 +364,8 @@ type part struct {
 	// problem is why it cannot be posted, skip why it will not be, and
 	// posted the link to it once it has been.
 	problem, skip, posted string
+	// note is something worth saying about a part that did go out.
+	note string
 }
 
 func (p *part) ok() bool { return p.problem == "" && p.skip == "" }
@@ -377,6 +380,8 @@ func (p *part) notThisTime() {
 
 func (p *part) report() string {
 	switch {
+	case p.posted != "" && p.note != "":
+		return fmt.Sprintf("✅ **%s** posted in <#%s> — %s\n⚠️ %s", p.label, p.channelID, p.posted, p.note)
 	case p.posted != "":
 		return fmt.Sprintf("✅ **%s** posted in <#%s> — %s", p.label, p.channelID, p.posted)
 	case p.problem != "":
@@ -432,19 +437,34 @@ func (p *part) send(s *discordgo.Session, guildID, userID string) bool {
 		}
 	}
 
+	// Only the person being welcomed is notified, whatever the text says. A
+	// template with a role mention or @everyone in it would otherwise ping a
+	// whole server for one newcomer.
+	mentions := &discordgo.MessageAllowedMentions{
+		Parse: []discordgo.AllowedMentionType{},
+		Users: []string{userID},
+	}
 	msg, err := s.ChannelMessageSendComplex(p.channelID, &discordgo.MessageSend{
-		Content: content,
-		Files:   files,
-		// Only the person being welcomed is notified, whatever the text
-		// says. A template with a role mention or @everyone in it would
-		// otherwise ping a whole server for one newcomer.
-		AllowedMentions: &discordgo.MessageAllowedMentions{
-			Parse: []discordgo.AllowedMentionType{},
-			Users: []string{userID},
-		},
+		Content: content, Files: files, AllowedMentions: mentions,
 	})
+	if err != nil && len(files) > 0 && missingPermission(err) {
+		// Attaching a file needs Attach Files, which View Channel and Send
+		// Messages do not carry, and which the check before posting cannot
+		// see refused at the guild level. The words matter more than the
+		// gif: post them with the link instead, and say what was missing.
+		files = nil
+		if joined := content + "\n" + p.gif; !TooLong(joined) {
+			content = joined
+		} else {
+			separateGif = true
+		}
+		p.note = fmt.Sprintf("the gif went as a link — I cannot attach files in <#%s>", p.channelID)
+		msg, err = s.ChannelMessageSendComplex(p.channelID, &discordgo.MessageSend{
+			Content: content, Files: files, AllowedMentions: mentions,
+		})
+	}
 	if err != nil {
-		p.problem = "Discord refused it: " + err.Error()
+		p.problem = refused(err, p.channelID)
 		return false
 	}
 	if separateGif {
@@ -452,6 +472,28 @@ func (p *part) send(s *discordgo.Session, guildID, userID string) bool {
 	}
 	p.posted = fmt.Sprintf("https://discord.com/channels/%s/%s/%s", guildID, p.channelID, msg.ID)
 	return true
+}
+
+// missingPermission reports whether Discord refused something for want of a
+// permission, as opposed to any other refusal.
+func missingPermission(err error) bool {
+	var rest *discordgo.RESTError
+	return errors.As(err, &rest) && rest.Message != nil && rest.Message.Code == errMissingPermissions
+}
+
+// errMissingPermissions is Discord's code for "Missing Permissions".
+const errMissingPermissions = 50013
+
+// refused puts a Discord refusal in words an administrator can act on. The
+// raw body — {"message": "Missing Permissions", "code": 50013} — names
+// neither the permission nor the channel, and an administrator who has just
+// ticked View Channel and Send Messages reads it as the bot being wrong.
+func refused(err error, channelID string) string {
+	if missingPermission(err) {
+		return fmt.Sprintf("Discord would not let me post in <#%s>. Beyond View Channel and Send Messages, "+
+			"posting a gif needs Attach Files, and a thread needs Send Messages in Threads.", channelID)
+	}
+	return "Discord refused it: " + err.Error()
 }
 
 // cannotPost reports why the bot could not post in a channel, or "".
@@ -476,8 +518,16 @@ func cannotPost(s *discordgo.Session, guildID, channelID string) string {
 		return ""
 	}
 	need := int64(discordgo.PermissionViewChannel | discordgo.PermissionSendMessages)
+	say := "View Channel and Send Messages"
+	if ch.IsThread() {
+		// A thread takes its own permission, which Send Messages does not
+		// carry: a welcome pointed at one would pass this check and be
+		// refused by Discord.
+		need = discordgo.PermissionViewChannel | discordgo.PermissionSendMessagesInThreads
+		say = "View Channel and Send Messages in Threads"
+	}
 	if perms&need != need {
-		return fmt.Sprintf("I cannot post in <#%s> — give me View Channel and Send Messages there", channelID)
+		return fmt.Sprintf("I cannot post in <#%s> — give me %s there", channelID, say)
 	}
 	return ""
 }
