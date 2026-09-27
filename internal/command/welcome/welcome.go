@@ -50,7 +50,9 @@ const (
 	optURL     = "url"
 	optFrom    = "from"
 	optTo      = "to"
-	optKeep    = "keep"
+	optKeep          = "keep"
+	optIntroNotify   = "intro_notify"
+	optWelcomeNotify = "welcome_notify"
 
 	kindIntro   = "intro"
 	kindWelcome = "welcome"
@@ -116,6 +118,8 @@ func (c *WelcomeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 					roleOption(true, "The role"),
 					{Type: discordgo.ApplicationCommandOptionChannel, Name: optIntro, Description: "Where the intro is posted", ChannelTypes: textChannels},
 					{Type: discordgo.ApplicationCommandOptionChannel, Name: optWelcome, Description: "Where the welcome is posted", ChannelTypes: textChannels},
+					{Type: discordgo.ApplicationCommandOptionBoolean, Name: optIntroNotify, Description: "Let @everyone, @here and role mentions in the intro ping", Required: false},
+					{Type: discordgo.ApplicationCommandOptionBoolean, Name: optWelcomeNotify, Description: "Let @everyone, @here and role mentions in the welcome ping", Required: false},
 				},
 			},
 			{
@@ -273,8 +277,8 @@ func runMember(context *cmdadapter.SlashInteractionContext, opts map[string]*dis
 	}
 	done := store.WelcomedFor(e.GuildID, user.ID, roleID)
 
-	intro := planPart(s, e.GuildID, "Intro", cfg.IntroChannel, cfg.IntroTemplate, v, channels, "")
-	welcome := planPart(s, e.GuildID, "Welcome", cfg.WelcomeChannel, cfg.WelcomeTemplate, v, channels, randomGif(welcomeGifs(store, e.GuildID, roleID)))
+	intro := planPart(s, e.GuildID, "Intro", cfg.IntroChannel, cfg.IntroTemplate, v, channels, "", cfg.IntroNotifyAll)
+	welcome := planPart(s, e.GuildID, "Welcome", cfg.WelcomeChannel, cfg.WelcomeTemplate, v, channels, randomGif(welcomeGifs(store, e.GuildID, roleID)), cfg.WelcomeNotifyAll)
 	// One part on its own: the half of a welcome that failed is posted
 	// without posting the half that went out. In production an intro landed
 	// and the welcome was refused for a missing permission, and the only way
@@ -366,6 +370,8 @@ type part struct {
 	problem, skip, posted string
 	// note is something worth saying about a part that did go out.
 	note string
+	// notifyAll lets @everyone, @here and role mentions in the text ping.
+	notifyAll bool
 }
 
 func (p *part) ok() bool { return p.problem == "" && p.skip == "" }
@@ -394,8 +400,8 @@ func (p *part) report() string {
 }
 
 // planPart checks and renders one part without sending it.
-func planPart(s *discordgo.Session, guildID, label, channelID, template string, v Vars, channels []Channel, gif string) *part {
-	p := &part{label: label, channelID: channelID, gif: gif}
+func planPart(s *discordgo.Session, guildID, label, channelID, template string, v Vars, channels []Channel, gif string, notifyAll bool) *part {
+	p := &part{label: label, channelID: channelID, gif: gif, notifyAll: notifyAll}
 	switch {
 	case strings.TrimSpace(template) == "" && channelID == "":
 		p.skip = "is not set up for this role"
@@ -414,6 +420,11 @@ func planPart(s *discordgo.Session, guildID, label, channelID, template string, 
 	p.content = Render(template, v, channels)
 	if TooLong(p.content) {
 		p.problem = fmt.Sprintf("the text comes to %d characters with their name in it, over Discord's 2000", len([]rune(p.content)))
+	}
+	if notifyAll && pingsEveryoneOrHere(p.content) {
+		if why := cannotMentionEveryone(s, guildID, channelID); why != "" {
+			p.problem = why
+		}
 	}
 	return p
 }
@@ -437,13 +448,7 @@ func (p *part) send(s *discordgo.Session, guildID, userID string) bool {
 		}
 	}
 
-	// Only the person being welcomed is notified, whatever the text says. A
-	// template with a role mention or @everyone in it would otherwise ping a
-	// whole server for one newcomer.
-	mentions := &discordgo.MessageAllowedMentions{
-		Parse: []discordgo.AllowedMentionType{},
-		Users: []string{userID},
-	}
+	mentions := allowedMentions(content, userID, p.notifyAll)
 	msg, err := s.ChannelMessageSendComplex(p.channelID, &discordgo.MessageSend{
 		Content: content, Files: files, AllowedMentions: mentions,
 	})
@@ -494,6 +499,53 @@ func refused(err error, channelID string) string {
 			"posting a gif needs Attach Files, and a thread needs Send Messages in Threads.", channelID)
 	}
 	return "Discord refused it: " + err.Error()
+}
+
+// allowedMentions decides who a welcome part may notify. By default only
+// the person being welcomed; with notifyAll, @everyone, @here and role
+// mentions in the text are allowed through as well.
+func allowedMentions(content, userID string, notifyAll bool) *discordgo.MessageAllowedMentions {
+	m := &discordgo.MessageAllowedMentions{
+		Parse: []discordgo.AllowedMentionType{},
+		Users: []string{userID},
+	}
+	if !notifyAll {
+		return m
+	}
+	if pingsEveryoneOrHere(content) {
+		m.Parse = append(m.Parse, discordgo.AllowedMentionTypeEveryone)
+	}
+	seen := make(map[string]bool)
+	for _, match := range roleMention.FindAllStringSubmatch(content, -1) {
+		id := match[1]
+		if !seen[id] {
+			seen[id] = true
+			m.Roles = append(m.Roles, id)
+		}
+	}
+	return m
+}
+
+var roleMention = regexp.MustCompile(`<@&(\d+)>`)
+
+func pingsEveryoneOrHere(content string) bool {
+	lower := strings.ToLower(content)
+	return strings.Contains(lower, "@everyone") || strings.Contains(lower, "@here")
+}
+
+// cannotMentionEveryone reports why the bot could not ping @everyone or @here.
+func cannotMentionEveryone(s *discordgo.Session, guildID, channelID string) string {
+	if s.State.User == nil {
+		return ""
+	}
+	perms, err := s.State.UserChannelPermissions(s.State.User.ID, channelID)
+	if err != nil {
+		return ""
+	}
+	if perms&discordgo.PermissionMentionEveryone == 0 {
+		return fmt.Sprintf("the text pings @everyone or @here but I do not have Mention Everyone in <#%s>", channelID)
+	}
+	return ""
 }
 
 // cannotPost reports why the bot could not post in a channel, or "".

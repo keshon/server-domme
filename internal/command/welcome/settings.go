@@ -29,7 +29,8 @@ func runSetup(context *cmdadapter.SlashInteractionContext, opts options) error {
 	roleID := roleIDOf(opts)
 
 	intro, welcome := opts[optIntro], opts[optWelcome]
-	if intro == nil && welcome == nil {
+	introNotify, welcomeNotify := opts[optIntroNotify], opts[optWelcomeNotify]
+	if intro == nil && welcome == nil && introNotify == nil && welcomeNotify == nil {
 		return respond(s, e, describeRole(s, store, e.GuildID, roleID))
 	}
 
@@ -39,6 +40,12 @@ func runSetup(context *cmdadapter.SlashInteractionContext, opts options) error {
 		}
 		if welcome != nil {
 			w.WelcomeChannel = welcome.ChannelValue(s).ID
+		}
+		if introNotify != nil {
+			w.IntroNotifyAll = introNotify.BoolValue()
+		}
+		if welcomeNotify != nil {
+			w.WelcomeNotifyAll = welcomeNotify.BoolValue()
 		}
 	})
 	if err != nil {
@@ -64,7 +71,21 @@ func describeRole(s *discordgo.Session, store *storage.Storage, guildID, roleID 
 	if w == nil {
 		return fmt.Sprintf("<@&%s> has no welcome set up. `/welcome setup` picks the channels, `/welcome template` writes the texts.", roleID)
 	}
-	return fmt.Sprintf("<@&%s>\n%s\n%s", roleID, partLines(w), gifLine(w, len(store.WelcomeGifs(guildID, ""))))
+	return fmt.Sprintf("<@&%s>\n%s\n%s\n%s", roleID, partLines(w), notifyLine(w), gifLine(w, len(store.WelcomeGifs(guildID, ""))))
+}
+
+// notifyLine is whether intro and welcome texts may ping beyond the newcomer.
+func notifyLine(w *storage.WelcomeRole) string {
+	switch {
+	case w.IntroNotifyAll && w.WelcomeNotifyAll:
+		return "🔔 **Pings** · intro and welcome may ping @everyone, @here and roles"
+	case w.IntroNotifyAll:
+		return "🔔 **Pings** · intro may ping @everyone, @here and roles; welcome only pings the newcomer"
+	case w.WelcomeNotifyAll:
+		return "🔔 **Pings** · welcome may ping @everyone, @here and roles; intro only pings the newcomer"
+	default:
+		return "🔕 **Pings** · only the person being welcomed"
+	}
 }
 
 // gifLine is where a role's welcome gifs come from; shared is how many the

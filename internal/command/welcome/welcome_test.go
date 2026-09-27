@@ -86,21 +86,41 @@ func TestPlanPartChecksBeforeAnythingIsPosted(t *testing.T) {
 	s := stateWith("c1")
 	v := Vars{UserID: "u1"}
 
-	if p := planPart(s, guild, "Intro", "", "", v, nil, ""); p.ok() || p.skip == "" {
+	if p := planPart(s, guild, "Intro", "", "", v, nil, "", false); p.ok() || p.skip == "" {
 		t.Errorf("an unset part was not skipped: %+v", p)
 	}
-	if p := planPart(s, guild, "Intro", "c1", "", v, nil, ""); p.ok() || !strings.Contains(p.problem, "/welcome template") {
+	if p := planPart(s, guild, "Intro", "c1", "", v, nil, "", false); p.ok() || !strings.Contains(p.problem, "/welcome template") {
 		t.Errorf("a part with no text: %+v", p)
 	}
-	if p := planPart(s, guild, "Intro", "", "hi {user}", v, nil, ""); p.ok() || !strings.Contains(p.problem, "/welcome setup") {
+	if p := planPart(s, guild, "Intro", "", "hi {user}", v, nil, "", false); p.ok() || !strings.Contains(p.problem, "/welcome setup") {
 		t.Errorf("a part with no channel: %+v", p)
 	}
-	if p := planPart(s, guild, "Intro", "c1", strings.Repeat("x", 2001), v, nil, ""); p.ok() {
+	if p := planPart(s, guild, "Intro", "c1", strings.Repeat("x", 2001), v, nil, "", false); p.ok() {
 		t.Error("a text over Discord's limit was allowed")
 	}
-	p := planPart(s, guild, "Intro", "c1", "hi {user}", v, nil, "")
+	p := planPart(s, guild, "Intro", "c1", "hi {user}", v, nil, "", false)
 	if !p.ok() || p.content != "hi <@u1>" {
 		t.Errorf("a good part: %+v", p)
+	}
+}
+
+func TestAllowedMentionsOnlyPingsNewcomerByDefault(t *testing.T) {
+	m := allowedMentions("@everyone welcome <@u1> <@&99>", "u1", false)
+	if len(m.Parse) != 0 || len(m.Roles) != 0 || len(m.Users) != 1 || m.Users[0] != "u1" {
+		t.Errorf("default mentions = %+v", m)
+	}
+}
+
+func TestAllowedMentionsPingsEveryoneWhenEnabled(t *testing.T) {
+	m := allowedMentions("@everyone welcome <@u1> <@&99>", "u1", true)
+	if len(m.Parse) != 1 || m.Parse[0] != discordgo.AllowedMentionTypeEveryone {
+		t.Errorf("parse = %+v", m.Parse)
+	}
+	if len(m.Roles) != 1 || m.Roles[0] != "99" {
+		t.Errorf("roles = %+v", m.Roles)
+	}
+	if len(m.Users) != 1 || m.Users[0] != "u1" {
+		t.Errorf("users = %+v", m.Users)
 	}
 }
 

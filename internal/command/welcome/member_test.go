@@ -111,3 +111,61 @@ func TestWelcomeMemberStillPostsBothByDefault(t *testing.T) {
 		t.Errorf("posted %v", rec.paths)
 	}
 }
+
+// With welcome_notify on, @everyone in the text is allowed through to Discord.
+func TestWelcomeMemberPingsEveryoneWhenNotifyEnabled(t *testing.T) {
+	rec := memberRunWith(t, userOpt, func(w *storage.WelcomeRole) {
+		w.WelcomeNotifyAll = true
+		w.WelcomeTemplate = "@everyone welcome {user}"
+	})
+	if !rec.postedIn(generalChannel) {
+		t.Fatalf("the welcome did not go out: %v", rec.paths)
+	}
+	body := rec.messageBody(generalChannel)
+	if !strings.Contains(body, `"everyone"`) || strings.Contains(body, `"parse":[]`) {
+		t.Errorf("allowed_mentions did not include everyone: %s", body)
+	}
+}
+
+func memberRunWith(t *testing.T, options string, setup func(*storage.WelcomeRole)) *recorder {
+	t.Helper()
+	var ic discordgo.InteractionCreate
+	if err := json.Unmarshal([]byte(strings.Replace(welcomeMember, "%s", options, 1)), &ic); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	store := testStore(t)
+	if err := store.UpdateWelcomeRole(guild, "r1", func(w *storage.WelcomeRole) {
+		w.IntroChannel, w.IntroTemplate = introChannel, "meet {user}"
+		w.WelcomeChannel, w.WelcomeTemplate = generalChannel, "welcome {user}"
+		setup(w)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rec := &recorder{}
+	state := discordgo.NewState()
+	if err := state.GuildAdd(&discordgo.Guild{ID: guild, Name: "Queen's Court",
+		Roles:    []*discordgo.Role{{ID: "r1", Name: "dommes"}},
+		Channels: []*discordgo.Channel{{ID: introChannel, GuildID: guild, Name: "introduction"}, {ID: generalChannel, GuildID: guild, Name: "general"}},
+		Members:  []*discordgo.Member{member("u1", "r1")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sess := &discordgo.Session{State: state, Client: &http.Client{Transport: rec}, Ratelimiter: discordgo.NewRatelimiter()}
+	ctx := &cmdadapter.SlashInteractionContext{Session: sess, Event: &ic, Storage: store, Config: &config.Config{}, AppLog: zerolog.Nop()}
+	if err := (&WelcomeCommand{}).Run(ctx); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	return rec
+}
+
+func (r *recorder) messageBody(channelID string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	path := http.MethodPost + " /api/v9/channels/" + channelID + "/messages"
+	for i, p := range r.paths {
+		if p == path {
+			return r.bodies[i]
+		}
+	}
+	return ""
+}

@@ -25,6 +25,12 @@ type WelcomeRole struct {
 	WelcomeChannel  string `json:"welcome_channel,omitempty"`
 	WelcomeTemplate string `json:"welcome_template,omitempty"`
 
+	// IntroNotifyAll and WelcomeNotifyAll let @everyone, @here and role
+	// mentions in that part's text actually ping. Off by default so only
+	// the person being welcomed is notified.
+	IntroNotifyAll   bool `json:"intro_notify_all,omitempty"`
+	WelcomeNotifyAll bool `json:"welcome_notify_all,omitempty"`
+
 	// Gifs are the role's own links for its welcomes to pick from. None
 	// means the guild's shared pool is used instead.
 	Gifs []string `json:"gifs,omitempty"`
