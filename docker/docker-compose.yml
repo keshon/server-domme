@@ -28,58 +28,9 @@ services:
       - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
       - SHORTLINK_ADDR=${SHORTLINK_ADDR:-:8787}
       - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
-      # Chat persona. Off unless CHAT_ENABLED is true, and then still silent
-      # until an admin runs /chat channel. CHAT_CHARACTER_PATH points inside the
-      # mounted volume, so data/character.md has to exist on the host next to
-      # this file — without it the persona logs chat_character_load_failed and
-      # stays off. Her memory (CHAT_MEMORY_PATH) is inside the same volume,
-      # which is what lets her remember across deploys.
-      - CHAT_ENABLED=${CHAT_ENABLED:-false}
-      - CHAT_NAME=${CHAT_NAME:-Domme}
-      - CHAT_CHARACTER_PATH=${CHAT_CHARACTER_PATH:-./data/character.md}
-      - CHAT_USE_G4F=${CHAT_USE_G4F:-true}
-      - CHAT_USE_POLLINATIONS=${CHAT_USE_POLLINATIONS:-false}
-      - CHAT_G4F_PICKS=${CHAT_G4F_PICKS:-3}
-      - CHAT_G4F_API_KEY=${CHAT_G4F_API_KEY}
-      - CHAT_BASE_URL=${CHAT_BASE_URL}
-      - CHAT_MODEL=${CHAT_MODEL}
-      - CHAT_API_KEY=${CHAT_API_KEY}
-      - CHAT_BACKENDS=${CHAT_BACKENDS}
-      - CHAT_BACKEND_ORDER=${CHAT_BACKEND_ORDER:-priority}
-      - CHAT_VOICE_BACKENDS=${CHAT_VOICE_BACKENDS}
-      - CHAT_SELF_FACTS=${CHAT_SELF_FACTS:-true}
-      - CHAT_EXAMPLES_SAMPLE=${CHAT_EXAMPLES_SAMPLE:-8}
-      - CHAT_REPLY_TOKENS=${CHAT_REPLY_TOKENS:-1000}
-      - CHAT_STYLE_CHECK=${CHAT_STYLE_CHECK:-true}
-      - CHAT_THINK_BUDGET=${CHAT_THINK_BUDGET:-16000}
-      - CHAT_VOICE_BUDGET=${CHAT_VOICE_BUDGET:-12000}
-      - CHAT_AGE_RESTRICTED=${CHAT_AGE_RESTRICTED:-false}
-      - CHAT_FOLLOWUP_ON_SIGHT=${CHAT_FOLLOWUP_ON_SIGHT:-true}
-      - CHAT_INTEREST=${CHAT_INTEREST:-true}
-      - CHAT_SERENDIPITY=${CHAT_SERENDIPITY:-0}
-      - CHAT_DRIFT=${CHAT_DRIFT:-0.25}
-      - CHAT_BODY=${CHAT_BODY:-true}
-      - CHAT_FEELINGS=${CHAT_FEELINGS:-true}
-      - CHAT_IDLE_MIND=${CHAT_IDLE_MIND:-true}
-      - CHAT_WALKS=${CHAT_WALKS:-true}
-      - CHAT_LOOK=${CHAT_LOOK:-true}
-      - CHAT_IMPULSES=${CHAT_IMPULSES:-true}
-      - CHAT_REACT_FIRST=${CHAT_REACT_FIRST:-true}
-      - CHAT_REQUEST_TIMEOUT=${CHAT_REQUEST_TIMEOUT:-45s}
-      - CHAT_TIMEZONE=${CHAT_TIMEZONE:-}
-      - CHAT_MEMORY_PATH=${CHAT_MEMORY_PATH:-/usr/project/data/mind}
-      - CHAT_REFLECT_HOUR=${CHAT_REFLECT_HOUR:-5}
-      - CHAT_TEMPERATURE=${CHAT_TEMPERATURE:-}
-      - CHAT_CASUAL_SLIPS=${CHAT_CASUAL_SLIPS:-0.2}
-    # Lets the container reach a service listening on the host — an SSH
-    # tunnel forwarding a home machine's LLM, for instance. Without it
-    # "localhost" inside the container is the container, not the host.
-    extra_hosts:
-      - host.docker.internal:host-gateway
     entrypoint: /usr/project/app
     networks:
       - proxy
-      - chat
     ports:
       - 8787
     labels:
@@ -98,44 +49,6 @@ services:
       # Middleware for redirecting HTTP to HTTPS
       - traefik.http.middlewares.${ALIAS}-to-https.redirectscheme.scheme=https
 
-  # Self-hosted gpt4free, reached only by the bot over the chat network.
-  #
-  # Started with `--profile g4f`, so an operator who does not want it runs
-  # nothing extra. It is the same project behind the g4f.space relay, but run
-  # here it talks to the upstream providers directly and has none of the
-  # relay's per-IP credit accounting — which is what made that relay useless
-  # from a server. Whether the providers themselves answer from this host is a
-  # separate question, and the reason /chat status quotes backend errors.
-  g4f:
-    profiles: [g4f]
-    container_name: ${ALIAS}-g4f
-    image: hlohaus789/g4f:latest-slim
-    restart: always
-    # The image's own default is `python -m g4f --port 8080`, which its CLI no
-    # longer accepts: --port moved under the `api` subcommand, so the bare 8080
-    # is read as the mode, fails the choice check, and the exception handler
-    # falls back to *tray* mode — which then dies on "Bad display name" looking
-    # for an X server in a headless container. Naming the mode explicitly fixes
-    # that and keeps working if upstream repairs its Dockerfile.
-    #
-    # Binding 0.0.0.0 rather than localhost is what lets the bot's container
-    # reach it across the chat network.
-    command: ["python", "-m", "g4f", "api", "--bind", "0.0.0.0:8080"]
-    volumes:
-      - ./data/g4f/har_and_cookies:/app/har_and_cookies
-      - ./data/g4f/generated_media:/app/generated_media
-    networks:
-      - chat
-    # Deliberately no ports and no traefik labels. This speaks the OpenAI API
-    # with no authentication of its own, so anything that can reach it can
-    # spend whatever quota the providers behind it allow. It stays on an
-    # internal network, reachable from the bot and nothing else.
-
 networks:
   proxy:
     external: true
-  # A plain bridge rather than `internal: true`: g4f needs outbound access to
-  # reach the providers it front-ends, and an internal network would leave it
-  # able to answer the bot and unable to answer anything.
-  chat:
-    driver: bridge      

@@ -41,17 +41,6 @@ type GuildSettings struct {
 	TaskCooldownDuration string            `json:"task_cooldown_duration,omitempty"`
 	TaskRole             string            `json:"task_role,omitempty"`
 	TranslateChannels    []string          `json:"translate_channels,omitempty"`
-	ChatChannels         []string          `json:"chat_channels,omitempty"`
-	ChatBrief            string            `json:"chat_brief,omitempty"`
-	// ChatProactive lists the chat channels where she may also speak without
-	// being asked. Always a subset of ChatChannels: answering and volunteering
-	// are separate permissions, and the second only makes sense on top of the
-	// first.
-	ChatProactive []string `json:"chat_proactive,omitempty"`
-	// ChatReads lists channels she reads and remembers the gist of, and
-	// never speaks in: the streets she walks. Never also in ChatChannels.
-	// See docs/persona-v3.md, F3.
-	ChatReads []string `json:"chat_reads,omitempty"`
 	// PurgeChannels lists the channels /purge may delete messages in. A
 	// purge anywhere else is refused: deleting a channel's history is not
 	// undoable, and one command in the wrong channel should not be enough.
@@ -63,25 +52,6 @@ type GuildSettings struct {
 	// once from the link's page, so a welcome can attach the file instead
 	// of posting the link. A link with no entry is looked up when used.
 	WelcomeGifMedia map[string]string `json:"welcome_gif_media,omitempty"`
-	// ChatAttentionOff stops her reaching out to anyone in the guild, whatever
-	// they opted into. An administrator's override of members' consent.
-	ChatAttentionOff bool `json:"chat_attention_off,omitempty"`
-	// ChatRoles is how she regards each Discord role, keyed by role id.
-	ChatRoles map[string]ChatRoleBias `json:"chat_roles,omitempty"`
-}
-
-// ChatRoleBias is what a Discord role means to the persona.
-//
-// Per role rather than per person because a server with roles has already
-// decided who is what, and rating members one at a time is asking an operator
-// not to use it.
-type ChatRoleBias struct {
-	// Regard runs -1 to +1. Zero says nothing.
-	Regard float64 `json:"regard"`
-	// Note is an instruction about anyone holding this role, used verbatim in
-	// the prompt. "a submissive here, speak to them as one" says something no
-	// number can, which is why it is here at all.
-	Note string `json:"note,omitempty"`
 }
 
 func (g *GuildSettings) Key() string { return g.GuildID }
@@ -161,62 +131,6 @@ type Task struct {
 }
 
 func (t *Task) Key() string { return guildScopedKey(t.GuildID, t.UserID) }
-
-// MindPerson is what the chat persona has observed about one member of one
-// guild.
-//
-// It holds only things the bot counted itself — how many messages it has seen
-// from them and when — with nothing a language model inferred. That is what
-// lets this row be trusted: a summary written by a relay we do not control
-// would be an unverifiable claim about a real person, stored under their id.
-type MindPerson struct {
-	GuildID   string    `json:"guild_id"`
-	UserID    string    `json:"user_id"`
-	Username  string    `json:"username"`
-	Messages  int       `json:"messages"`
-	FirstSeen time.Time `json:"first_seen"`
-	LastSeen  time.Time `json:"last_seen"`
-	// PrevSeen is the LastSeen value this sighting replaced, which is the only
-	// way to tell an absence from an ongoing conversation: after LastSeen is
-	// stamped with now, the gap it used to describe is gone. Whether a gap is
-	// long enough to be worth remarking on is not decided here — see
-	// mind.Acquaintance.
-	PrevSeen time.Time `json:"prev_seen,omitempty"`
-	// Attention is whether they agreed to be reached: chat.ConsentOn, or
-	// empty for everyone who has not asked. See mind.TriggerReach.
-	Attention string `json:"attention,omitempty"`
-	// LastExchangeAt is when they last spoke to her, and LastChatChannel
-	// where; LastActiveAt when they were last seen anywhere in the server,
-	// kept only for people who opted in.
-	LastExchangeAt  time.Time `json:"last_exchange_at,omitempty"`
-	LastChatChannel string    `json:"last_chat_channel,omitempty"`
-	LastActiveAt    time.Time `json:"last_active_at,omitempty"`
-	// ReachedAt is when she last reached out to them, ReachDay and
-	// ReachToday how many times on that day, and Unanswered how many in a
-	// row they have not answered.
-	ReachedAt  time.Time `json:"reached_at,omitempty"`
-	ReachDay   string    `json:"reach_day,omitempty"`
-	ReachToday int       `json:"reach_today,omitempty"`
-	Unanswered int       `json:"unanswered,omitempty"`
-}
-
-func (m *MindPerson) Key() string { return guildScopedKey(m.GuildID, m.UserID) }
-
-// MindChannel is what she has volunteered in one channel, kept so the daily
-// budget survives a restart. Held in memory it would reset on every deploy,
-// and a bot redeployed three times in an afternoon would get three budgets.
-type MindChannel struct {
-	GuildID   string `json:"guild_id"`
-	ChannelID string `json:"channel_id"`
-	// VolunteeredAt is when she last spoke here unprompted.
-	VolunteeredAt time.Time `json:"volunteered_at,omitempty"`
-	// Day is the calendar day, in the community's timezone, that Today
-	// counts. A different day means Today is stale and starts again.
-	Day   string `json:"day,omitempty"`
-	Today int    `json:"today,omitempty"`
-}
-
-func (m *MindChannel) Key() string { return guildScopedKey(m.GuildID, m.ChannelID) }
 
 // TaskCooldown blocks a member from drawing another task until Until passes.
 type TaskCooldown struct {

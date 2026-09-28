@@ -19,8 +19,8 @@ import (
 // default in Docker forever, because the compose file passes an explicit
 // allowlist rather than the whole environment.
 //
-// That is exactly how the chat persona shipped unreachable in Docker: thirteen
-// CHAT_* variables reached .env.example and none reached docker-compose.yml.
+// That is exactly how a setting can ship unreachable: it reaches .env.example
+// but is missing from the compose allowlist that actually forwards it.
 const (
 	composePath   = "docker/docker-compose.yml"
 	rootEnvPath   = ".env.example"
@@ -114,7 +114,7 @@ func TestDeclaredEnvVarsFindsTheKnownOnes(t *testing.T) {
 	for _, n := range names {
 		found[n] = true
 	}
-	for _, want := range []string{"DISCORD_TOKEN", "STORAGE_PATH", "CHAT_ENABLED"} {
+	for _, want := range []string{"DISCORD_TOKEN", "STORAGE_PATH", "HEALTHCHECK_PATH"} {
 		if !found[want] {
 			t.Errorf("declaredEnvVars did not find %s", want)
 		}
@@ -179,7 +179,7 @@ func TestEnvExampleParsingRejectsABadValue(t *testing.T) {
 	values := map[string]string{
 		"DISCORD_TOKEN":        "placeholder",
 		"TASKS_PATH":           "placeholder",
-		"CHAT_REQUEST_TIMEOUT": "45sollama|http://localhost:11434/v1|llama3.1",
+		"COMMAND_TIMEOUT": "45sollama|http://localhost:11434/v1|llama3.1",
 	}
 
 	var cfg Config

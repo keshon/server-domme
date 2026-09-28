@@ -7,10 +7,8 @@ DOCKER_COMPOSE_COMMAND="docker compose -f docker-compose.yml up -d"
 # Step 1: Load the few settings this script needs.
 #
 # Read, not sourced. `source .env` executes every line as shell, so a value
-# containing a pipe is parsed as a pipeline: CHAT_BACKENDS entries are
-# name|url|model by design, and sourcing one produced "http://g4f:8080/v1: No
-# such file or directory" and killed the deploy. Docker Compose reads this same
-# file literally, and so does this.
+# containing a pipe would be parsed as a pipeline — read literally, as Compose
+# does, so no value is misread as a command.
 #
 # Only ALIAS, GIT and GIT_URL are needed here. Everything else in .env is for
 # the container, and compose passes it through itself.
@@ -27,19 +25,6 @@ read_env() {
 ALIAS=$(read_env ALIAS)
 GIT=$(read_env GIT)
 GIT_URL=$(read_env GIT_URL)
-
-# Exported so every `docker compose` call below sees the same profiles.
-#
-# It has to be set before `compose down` as well as before `up`, not only for
-# symmetry: a service whose profile is inactive is not "stopped" by down, it is
-# an orphan, and --remove-orphans deletes it. Starting the g4f profile and then
-# redeploying without this would take the container away again.
-COMPOSE_PROFILES=$(read_env COMPOSE_PROFILES)
-export COMPOSE_PROFILES
-
-if [ -n "$COMPOSE_PROFILES" ]; then
-    echo "   profiles: $COMPOSE_PROFILES"
-fi
 
 if [ -z "$ALIAS" ]; then
     echo "ERROR: ALIAS is not set in .env — it names the image and the container."
@@ -63,18 +48,11 @@ fi
 # ./data is mounted over /usr/project/data, so anything baked into the image at
 # that path is hidden by the mount — a default has to land on the host instead.
 # Only missing files are copied: these are meant to be edited in place, and
-# overwriting an operator's character file on every deploy would silently throw
-# their work away.
+# overwriting an operator's data on every deploy would silently throw their
+# work away.
 echo "2b. Seeding missing data files..."
 mkdir -p ./data
-# g4f runs as uid 1000 inside its container and writes cookies and routing
-# config here. Created up front because Docker would otherwise make them
-# root-owned on first start and the container could not write to them.
-mkdir -p ./data/g4f/har_and_cookies ./data/g4f/generated_media
-if ! chown -R 1000:1000 ./data/g4f 2>/dev/null; then
-    echo "   note: could not chown data/g4f — do it by hand if g4f cannot write"
-fi
-for f in character.md default_task.list.json; do
+for f in default_task.list.json; do
     if [ -f "./data/$f" ]; then
         echo "   keeping existing data/$f"
     elif [ -f "./src/data/$f" ]; then

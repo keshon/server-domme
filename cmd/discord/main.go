@@ -14,10 +14,8 @@ import (
 	"github.com/keshon/buildinfo"
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/applog"
-	chatsvc "github.com/keshon/server-domme/internal/chat"
 	"github.com/keshon/server-domme/internal/command/announce"
 	"github.com/keshon/server-domme/internal/command/ask"
-	chatcmd "github.com/keshon/server-domme/internal/command/chat"
 	"github.com/keshon/server-domme/internal/command/confess"
 	"github.com/keshon/server-domme/internal/command/core/about"
 	"github.com/keshon/server-domme/internal/command/core/help"
@@ -51,7 +49,7 @@ func main() {
 	flag.Parse()
 	if *genReadme {
 		log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
-		registerCommands(log, nil, "")
+		registerCommands(log)
 		if err := readme.UpdateReadme(command.DefaultRegistry, config.CategoryWeights, log); err != nil {
 			log.Error().Err(err).Msg("readme_update_failed")
 			os.Exit(1)
@@ -88,12 +86,7 @@ func main() {
 
 	bot := discord.NewBot(cfg, store, log)
 
-	// The persona is built before the commands so the one that feeds it
-	// messages can hold it. A nil service is the ordinary state when
-	// CHAT_ENABLED is off, and every command path tolerates it.
-	chatService, chatUnavailable := buildChatService(rootCtx, cfg, store, bot, log)
-
-	registerCommands(log, chatService, chatUnavailable)
+	registerCommands(log)
 
 	var wg sync.WaitGroup
 
@@ -130,14 +123,6 @@ func main() {
 			log.Error().Err(err).Msg("shortlink_server_failed")
 		}
 	}()
-
-	if chatService != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			chatService.Run(rootCtx)
-		}()
-	}
 
 	<-rootCtx.Done()
 	log.Info().Msg("shutdown_signal_received")
@@ -192,7 +177,7 @@ func defaultMiddleware(log zerolog.Logger) []command.Middleware {
 	}
 }
 
-func registerCommands(log zerolog.Logger, chat *chatsvc.Service, chatUnavailable string) {
+func registerCommands(log zerolog.Logger) {
 	mw := defaultMiddleware(log)
 	cmdadapter.Register(&about.About{}, mw...)
 	cmdadapter.Register(&help.Help{}, mw...)
@@ -203,9 +188,6 @@ func registerCommands(log zerolog.Logger, chat *chatsvc.Service, chatUnavailable
 	cmdadapter.Register(&announce.AnnounceContextCommand{}, mw...)
 
 	cmdadapter.Register(&ask.AskCommand{}, mw...)
-
-	cmdadapter.Register(&chatcmd.ChatCommand{Service: chat, Unavailable: chatUnavailable}, mw...)
-	cmdadapter.Register(&chatcmd.AttentionCommand{Service: chat}, mw...)
 
 	cmdadapter.Register(&confess.ConfessCommand{}, mw...)
 

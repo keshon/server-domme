@@ -14,8 +14,6 @@ All in one bot, ready to whip your server into shape.”*
 * 🧹 Automates channel cleanup and message purges
 * 🎭 Supports roleplay interactions, task management, and anonymous confessions
 * ⚙️ Offers admin tools for command and server configuration
-* 💬 Responds to mentions with context-aware interactions
-* 🗣️ Can hold a conversation in character, in channels you let her into (off by default)
 
 It’s designed to be practical for server management while providing light, interactive roleplay features. The bot can be easily expanded with new commands due to its **modular architecture**. 
 
@@ -68,22 +66,6 @@ It’s designed to be practical for server management while providing light, int
   - **/discipline punish** — Assign the brat role
   - **/discipline release** — Remove the brat role
 - **/task** — Assign yourself a new random task
-
-### 💬 Chat
-
-- **/attention** — Let her come after you when she wants your attention — or stop her
-- **/chat** — Let the resident persona into a channel
-  - **/chat channel** — How she behaves in this channel — or see it, left empty
-  - **/chat brief** — Tell her what this server is, in a sentence
-  - **/chat status** — How she is here — mood, the people, what she means to do — and how the backends are
-  - **/chat role** — What a role means to her — how she treats anyone wearing it
-  - **/chat why** — Why she did what she did about a message — the latest here, or one you name
-  - **/chat about** — What she knows and thinks about someone
-  - **/chat forget** — Wipe everything she remembers about this server
-  - **/chat delete** — Delete one of her messages — and she forgets saying it
-  - **/chat backends** — Which models she thinks and speaks through (bot developer only) — or see them, left empty
-  - **/chat reflect** — Have her look back now on the days she has not made sense of yet
-  - **/chat wake** — Wake her up — early, and she knows it. One body: it wakes her on every server she is on
 
 ### 🎞️ Media
 
@@ -165,35 +147,6 @@ It’s designed to be practical for server management while providing light, int
 - **Attach Files**
 - **Read Message History**
 - **Use Application Commands**
-
-## The conversational persona
-
-She can also just talk. It is **off by default** and stays off until two things
-happen: `CHAT_ENABLED=true` in the configuration, and an administrator running
-`/chat channel` in a particular channel.
-
-Both gates exist because replies are produced by free, third-party relay
-services, which means everything posted in an opted-in channel is sent to them.
-That is a different privacy trade from the rest of the bot, so it is never
-acquired by accident — and never in a channel nobody named.
-
-Who she is lives in `data/character.md`: prose, hard limits, and example
-exchanges. Edit that file to change her; the examples do more for her voice
-than any amount of description. [docs/character-guide.md](docs/character-guide.md) says
-how to write it, and what not to undo. `/chat brief` tells her what your server
-actually is, which is what stops her sounding like a chatbot that could be
-anywhere.
-
-She remembers. What she thinks of herself, of each person, what happened each
-day and what she means to follow up on are kept as plain Markdown files under
-`data/mind` — open them to see exactly what she thinks, or correct her by hand.
-Each night she looks back on the day and rewrites them.
-
-She does not answer everything, she sometimes reacts with an emoji instead of
-words, she may come back to something you told her yesterday, and she will
-sometimes reply late rather than not at all. All of it is deliberate. For her
-to stay one person, point her at a single dependable model rather than the
-free relays. See [docs/persona.md](docs/persona.md).
 
 ---
 
