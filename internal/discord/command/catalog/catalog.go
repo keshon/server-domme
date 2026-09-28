@@ -12,7 +12,10 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/ask"
 	"github.com/keshon/server-domme/internal/discord/command/confess"
 	"github.com/keshon/server-domme/internal/discord/command/core/about"
+	"github.com/keshon/server-domme/internal/discord/command/core/help"
+	"github.com/keshon/server-domme/internal/discord/command/core/maintenance"
 	"github.com/keshon/server-domme/internal/discord/command/roll"
+	"github.com/keshon/server-domme/internal/discord/command/settings"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
 	"github.com/keshon/server-domme/internal/discord/middleware"
 )
@@ -24,6 +27,9 @@ import (
 func Register(log zerolog.Logger) {
 	mw := defaultMiddleware(log)
 	adapter.Register(&about.Command{}, mw...)
+	adapter.Register(&help.Command{}, mw...)
+	adapter.Register(&settings.SettingsCommand{}, mw...)
+	adapter.Register(&maintenance.Command{}, mw...)
 	adapter.Register(&roll.RollCommand{}, mw...)
 	adapter.Register(&ask.AskCommand{}, mw...)
 	adapter.Register(&confess.ConfessCommand{}, mw...)

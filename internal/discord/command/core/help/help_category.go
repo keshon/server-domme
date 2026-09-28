@@ -7,7 +7,7 @@ import (
 
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 )
 
 func runHelpByCategory() string {
@@ -17,7 +17,7 @@ func runHelpByCategory() string {
 	categorySort := make(map[string]int)
 
 	for _, c := range all {
-		meta, _ := command.Root(c).(cmdadapter.Meta)
+		meta, _ := command.Root(c).(adapter.Meta)
 		cat := ""
 		if meta != nil {
 			cat = meta.Category()
@@ -46,7 +46,7 @@ func runHelpByCategory() string {
 		cmds := categoryMap[cat.Name]
 		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name() < cmds[j].Name() })
 		for _, c := range cmds {
-			sb.WriteString(cmdadapter.FormatCommandWithSubcommands(c))
+			sb.WriteString(adapter.FormatCommandWithSubcommands(c))
 		}
 		sb.WriteString("\n")
 	}

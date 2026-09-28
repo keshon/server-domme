@@ -1,0 +1,107 @@
+package settings
+
+import (
+	"fmt"
+
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/announce"
+	"github.com/keshon/server-domme/internal/discord/command/confess"
+	"github.com/keshon/server-domme/internal/discord/command/core/commands"
+	"github.com/keshon/server-domme/internal/discord/command/translate"
+	"github.com/keshon/server-domme/internal/discord/perm"
+)
+
+type SettingsCommand struct{}
+
+func (c *SettingsCommand) Name() string        { return "settings" }
+func (c *SettingsCommand) Description() string { return "Server settings" }
+func (c *SettingsCommand) Group() string       { return "core" }
+func (c *SettingsCommand) Category() string    { return "⚙️ Settings" }
+func (c *SettingsCommand) UserPermissions() []int64 {
+	return []int64{perm.Administrator}
+}
+
+func (c *SettingsCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
+		Name:        c.Name(),
+		Description: c.Description(),
+		Options: []adapter.SlashOption{
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "announce",
+				Description: "Announcement settings",
+				Options:     announce.ManageChannelOptions(),
+			},
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "confess",
+				Description: "Confession settings",
+				Options:     confess.ManageChannelOptions(),
+			},
+			// TODO(melodix-stack): discipline group returns with the
+			// discipline port.
+			// TODO(melodix-stack): media group returns with the media port.
+			// TODO(melodix-stack): task group returns with the task port.
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "translate",
+				Description: "Translation settings",
+				Options:     translate.ManageChannelOptions(),
+			},
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "commands",
+				Description: "Command group management",
+				Options:     commands.SubcommandOptions(),
+			},
+		},
+	}
+}
+
+func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	group, ok := ctx.FirstOption()
+	if !ok {
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: "No settings group provided.",
+		})
+	}
+
+	sub, ok := group.First()
+	if !ok {
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: "No subcommand provided.",
+		})
+	}
+
+	switch group.Name {
+	case "announce":
+		return announce.RunManageChannel(ctx, sub)
+	case "confess":
+		return confess.RunManageChannel(ctx, sub)
+	case "translate":
+		return translate.RunManageChannel(ctx, sub)
+	case "commands":
+		return runCommandsSettings(ctx, sub)
+	default:
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: fmt.Sprintf("Unknown settings group: %s", group.Name),
+		})
+	}
+}
+
+func runCommandsSettings(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	switch sub.Name {
+	case "log":
+		return commands.RunLog(ctx)
+	case "status":
+		return commands.RunStatus(ctx)
+	case "enable":
+		return commands.RunEnable(ctx, sub)
+	case "disable":
+		return commands.RunDisable(ctx, sub)
+	default:
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+		})
+	}
+}
