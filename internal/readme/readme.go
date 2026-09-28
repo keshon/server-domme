@@ -10,34 +10,20 @@ import (
 	"text/template"
 
 	"github.com/keshon/command"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/perm"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog"
 )
 
 // RecommendedBotPermissions is the bitmask for the minimal permissions the bot
 // needs. Used in the OAuth2 invite URL so the generated README shows the
-// correct link. Combines: View Channel, Send Messages, Embed Links, Read
-// Message History, Manage Messages.
-var RecommendedBotPermissions = discordgo.PermissionManageRoles |
-	discordgo.PermissionViewChannel |
-	discordgo.PermissionSendMessages |
-	discordgo.PermissionEmbedLinks |
-	discordgo.PermissionAttachFiles |
-	discordgo.PermissionReadMessageHistory |
-	discordgo.PermissionManageMessages |
-	discordgo.PermissionUseApplicationCommands
+// correct link. See perm.RecommendedBotMask for the set.
+var RecommendedBotPermissions = perm.RecommendedBotMask()
 
 // RecommendedBotPermissionsList is a human-readable list of these permissions
 // for the README.
-var RecommendedBotPermissionsList = []string{
-	"View Channel",
-	"Send Messages",
-	"Embed Links",
-	"Read Message History",
-	"Manage Messages",
-}
+var RecommendedBotPermissionsList = perm.RecommendedBotNames()
 
 // UpdateReadme generates README.md from the command registry and category
 // ordering. categoryWeights maps category name to sort order (lower first).
@@ -45,8 +31,8 @@ func UpdateReadme(registry *command.Registry, categoryWeights map[string]int, lo
 	commands := registry.GetAll()
 
 	sort.Slice(commands, func(i, j int) bool {
-		metaI, _ := command.Root(commands[i]).(cmdadapter.Meta)
-		metaJ, _ := command.Root(commands[j]).(cmdadapter.Meta)
+		metaI, _ := command.Root(commands[i]).(adapter.Meta)
+		metaJ, _ := command.Root(commands[j]).(adapter.Meta)
 
 		catI := ""
 		catJ := ""
@@ -73,7 +59,7 @@ func UpdateReadme(registry *command.Registry, categoryWeights map[string]int, lo
 	for _, c := range commands {
 		root := command.Root(c)
 
-		meta, _ := root.(cmdadapter.Meta)
+		meta, _ := root.(adapter.Meta)
 		cat := ""
 		if meta != nil {
 			cat = meta.Category()
@@ -139,7 +125,7 @@ func renderDiscordCommand(buf *bytes.Buffer, c command.Command) {
 
 	fmt.Fprintf(buf, "- **%s** — %s\n", display, c.Description())
 
-	sp, ok := c.(cmdadapter.SlashProvider)
+	sp, ok := command.Root(c).(adapter.SlashProvider)
 	if !ok {
 		return
 	}
@@ -150,7 +136,7 @@ func renderDiscordCommand(buf *bytes.Buffer, c command.Command) {
 	}
 
 	var sub strings.Builder
-	cmdadapter.AppendSlashSubcommands(&sub, def.Name, def.Options, "")
+	adapter.AppendSlashSubcommands(&sub, def.Name, def.Options, "")
 	for _, line := range strings.Split(sub.String(), "\n") {
 		// Lines look like:  `/help category` - description
 		line = strings.TrimSpace(line)

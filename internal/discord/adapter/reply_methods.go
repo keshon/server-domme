@@ -71,13 +71,6 @@ func answerEmbedMessage(r Responder, log zerolog.Logger, embed *Embed) (string, 
 	return channelID, messageID, reported(log, "answer", err)
 }
 
-func canJoinVoice(api SessionAPI, channelID string) (bool, error) {
-	if api == nil {
-		return false, nil
-	}
-	return api.CheckBotVoicePermissions(channelID)
-}
-
 // --- SlashInteractionContext ---
 
 // Defer buys time: Discord wants an acknowledgement within three seconds, and
@@ -145,10 +138,6 @@ func (c *SlashInteractionContext) Guild() (GuildInfo, error) {
 	return c.API.GuildInfo(c.GuildID())
 }
 
-func (c *SlashInteractionContext) CanJoinVoice(channelID string) (bool, error) {
-	return canJoinVoice(c.API, channelID)
-}
-
 func (c *SlashInteractionContext) AnswerEmbedMessage(embed *Embed) (string, string, error) {
 	return answerEmbedMessage(c.Responder, c.AppLog, embed)
 }
@@ -185,10 +174,6 @@ func (c *ComponentInteractionContext) EditResponseText(content string) error {
 	return editResponse(c.Responder, c.AppLog, content)
 }
 
-func (c *ComponentInteractionContext) CanJoinVoice(channelID string) (bool, error) {
-	return canJoinVoice(c.API, channelID)
-}
-
 func (c *ComponentInteractionContext) AnswerEmbedMessage(embed *Embed) (string, string, error) {
 	return answerEmbedMessage(c.Responder, c.AppLog, embed)
 }
@@ -223,9 +208,6 @@ type Interaction interface {
 	Followup(embed *Embed) error
 	FollowupEphemeral(embed *Embed) error
 	EditResponseText(content string) error
-
-	// CanJoinVoice reports whether the bot may connect and speak in a channel.
-	CanJoinVoice(channelID string) (bool, error)
 
 	// Component reports whether the interaction came from a message
 	// component. Its own answer is then the message that carried the

@@ -65,7 +65,7 @@ func Check(ctx context.Context, token string, log zerolog.Logger) (CheckResult, 
 
 	select {
 	case <-openCtx.Done():
-		return result, fmt.Errorf("gateway opened but READY did not arrive within 30s")
+		return result, fmt.Errorf("session: gateway opened but READY did not arrive within 30s")
 	case e := <-ready:
 		result.Username = e.User.Username
 		result.Guilds = len(e.Guilds)
@@ -91,7 +91,7 @@ func Check(ctx context.Context, token string, log zerolog.Logger) (CheckResult, 
 	for guild := range client.Caches.Guilds() {
 		cmds, err := client.Rest.GetGuildCommands(client.ApplicationID, guild.ID, false)
 		if err != nil {
-			return result, fmt.Errorf("reading guild commands: %w", err)
+			return result, fmt.Errorf("session: reading guild commands: %w", err)
 		}
 		result.Commands = len(cmds)
 		result.CommandsGuild = guild.ID.String()

@@ -53,6 +53,12 @@ type Responder interface {
 	// with the same click that acts on them, so nothing can be pressed twice.
 	ReplaceMessage(embed *Embed) error
 
+	// OpenModal answers an interaction by popping up a modal editor, which is
+	// how /welcome edits paragraph texts an option line cannot hold. It must
+	// be the first answer: like any other initial response it replaces the
+	// three-second acknowledgement window rather than following one.
+	OpenModal(modal Modal) error
+
 	// ResolveDeferred removes the "thinking" placeholder when an interaction
 	// was deferred and then answered some other way.
 	//
@@ -92,8 +98,10 @@ type Reply struct {
 
 // SessionAPI is what a command asks of the connection rather than of one
 // interaction. It is separate from Responder because its answers outlive the
-// interaction token, and because the asynchronous paths -- auto-advance,
-// queue end -- have one of these and no interaction at all.
+// interaction token, and because the asynchronous paths — the purge scheduler,
+// the cooldown cleaner — have one of these and no interaction at all.
+//
+// It carries no voice surface: this bot never joins a voice channel.
 type SessionAPI interface {
 	// MemberPermissions is a caller's effective permission bits in a channel,
 	// which is roles and channel overwrites already resolved.
@@ -102,11 +110,6 @@ type SessionAPI interface {
 	// CheckBotPermissions reports whether the bot may manage messages in a
 	// channel.
 	CheckBotPermissions(channelID string) bool
-
-	// CheckBotVoicePermissions reports whether the bot may connect and speak
-	// in a voice channel. Asked before playback so a refusal is a message
-	// rather than a silent failure to join.
-	CheckBotVoicePermissions(channelID string) (bool, error)
 
 	// SendChannelMessage posts plain content to a channel, which is how a
 	// command with no interaction to answer says anything at all.
@@ -127,10 +130,8 @@ type SessionAPI interface {
 // BotAPI is SessionAPI plus what the bot itself needs and no command does.
 //
 // The split is deliberate: commands get the smaller surface, so a command
-// cannot edit a message it did not post or go looking for who is in a voice
-// channel. The voice service needs both, because the guild's music status
-// message outlives the interaction that created it and has to be edited
-// through the connection instead.
+// cannot edit a message it did not post. The services that outlive an
+// interaction — the purge scheduler editing its confirmations — need both.
 type BotAPI interface {
 	SessionAPI
 
@@ -141,13 +142,8 @@ type BotAPI interface {
 
 	// PostChannelEmbed posts an embed as the bot and reports the message id,
 	// for a message that has to be edited later and cannot be an interaction
-	// answer -- the status message a /search pick starts, whose interaction
-	// answer is an ephemeral chooser.
+	// answer.
 	PostChannelEmbed(channelID string, embed *Embed) (messageID string, err error)
-
-	// UserVoiceChannel is the voice channel a user is connected to, or an
-	// error if they are not in one.
-	UserVoiceChannel(guildID, userID string) (string, error)
 }
 
 // CommandSyncer registers a guild's slash commands with Discord.

@@ -14,26 +14,10 @@ import (
 	"github.com/keshon/buildinfo"
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/applog"
-	"github.com/keshon/server-domme/internal/command/announce"
-	"github.com/keshon/server-domme/internal/command/ask"
-	"github.com/keshon/server-domme/internal/command/confess"
-	"github.com/keshon/server-domme/internal/command/core/about"
-	"github.com/keshon/server-domme/internal/command/core/help"
-	"github.com/keshon/server-domme/internal/command/core/maintenance"
-	"github.com/keshon/server-domme/internal/command/discipline"
-	"github.com/keshon/server-domme/internal/command/media"
-	"github.com/keshon/server-domme/internal/command/purge"
-	"github.com/keshon/server-domme/internal/command/roll"
-	"github.com/keshon/server-domme/internal/command/settings"
-	"github.com/keshon/server-domme/internal/command/shortlink"
 	taskcmd "github.com/keshon/server-domme/internal/command/task"
-	"github.com/keshon/server-domme/internal/command/translate"
-	"github.com/keshon/server-domme/internal/command/welcome"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/middleware"
-	purgesvc "github.com/keshon/server-domme/internal/purge"
+	"github.com/keshon/server-domme/internal/discord/command/catalog"
 	"github.com/keshon/server-domme/internal/readme"
 	shortlinksvc "github.com/keshon/server-domme/internal/shortlink"
 	"github.com/keshon/server-domme/internal/storage"
@@ -46,10 +30,11 @@ func main() {
 	// -readme regenerates README.md from the command registry as a dev step
 	// (run from the repo root); the bot never writes files at runtime.
 	genReadme := flag.Bool("readme", false, "regenerate README.md from the command registry and exit")
+	checkConn := flag.Bool("check", false, "connect, report what the gateway sees, and exit without registering or sending anything")
 	flag.Parse()
 	if *genReadme {
 		log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
-		registerCommands(log)
+		catalog.Register(log)
 		if err := readme.UpdateReadme(command.DefaultRegistry, config.CategoryWeights, log); err != nil {
 			log.Error().Err(err).Msg("readme_update_failed")
 			os.Exit(1)
@@ -74,6 +59,11 @@ func main() {
 		log.Fatal().Msg("config_missing_token")
 	}
 
+	if *checkConn {
+		runConnectionCheck(rootCtx, cfg, log)
+		return
+	}
+
 	store, err := storage.NewStorage(cfg.StoragePath, log)
 	if err != nil {
 		log.Fatal().Err(err).Str("dir", cfg.StoragePath).Msg("storage_init_failed")
@@ -86,7 +76,7 @@ func main() {
 
 	bot := discord.NewBot(cfg, store, log)
 
-	registerCommands(log)
+	catalog.Register(log)
 
 	var wg sync.WaitGroup
 
@@ -102,19 +92,10 @@ func main() {
 		storage.RunCooldownCleaner(rootCtx, store, log)
 	}()
 
-	// The purge scheduler replays stored jobs against the gateway, so it cannot
-	// run before the first connect. It resolves the session per purge (see
-	// purge.SessionFunc) and therefore survives every later reconnect.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		select {
-		case <-rootCtx.Done():
-			return
-		case <-bot.Ready():
-		}
-		purgesvc.RunScheduler(rootCtx, store, bot.Session, log)
-	}()
+	// TODO(melodix-stack): re-enable once purge is ported to the disgo
+	// session API. The scheduler replays stored jobs against the gateway, so
+	// it waits on bot.Ready() before its first use and resolves the live
+	// connection per purge.
 
 	wg.Add(1)
 	go func() {
@@ -166,43 +147,4 @@ func runSessionLoop(ctx context.Context, bot *discord.Bot, log zerolog.Logger) {
 			}
 		}
 	}
-}
-
-func defaultMiddleware(log zerolog.Logger) []command.Middleware {
-	return []command.Middleware{
-		middleware.WithGroupAccessCheck(),
-		middleware.WithGuildOnly(),
-		middleware.WithUserPermissionCheck(),
-		middleware.WithCommandLogger(log),
-	}
-}
-
-func registerCommands(log zerolog.Logger) {
-	mw := defaultMiddleware(log)
-	cmdadapter.Register(&about.About{}, mw...)
-	cmdadapter.Register(&help.Help{}, mw...)
-	cmdadapter.Register(&settings.SettingsCommand{}, mw...)
-	cmdadapter.Register(&maintenance.Maintenance{}, mw...)
-
-	cmdadapter.Register(&announce.AnnounceCommand{}, mw...)
-	cmdadapter.Register(&announce.AnnounceContextCommand{}, mw...)
-
-	cmdadapter.Register(&ask.AskCommand{}, mw...)
-
-	cmdadapter.Register(&confess.ConfessCommand{}, mw...)
-
-	cmdadapter.Register(&discipline.DisciplineCommand{}, mw...)
-
-	cmdadapter.Register(&media.RandomMediaCommand{}, mw...)
-
-	cmdadapter.Register(&welcome.WelcomeCommand{}, mw...)
-	cmdadapter.Register(&media.UploadMediaCommand{}, mw...)
-
-	cmdadapter.Register(&purge.PurgeCommand{}, mw...)
-	cmdadapter.Register(&roll.RollCommand{}, mw...)
-	cmdadapter.Register(&shortlink.ShortlinkCommand{}, mw...)
-
-	cmdadapter.Register(&taskcmd.TaskCommand{}, mw...)
-
-	cmdadapter.Register(&translate.TranslateOnReaction{}, mw...)
 }

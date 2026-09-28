@@ -124,6 +124,9 @@ library `log` package is not imported anywhere in this repo, and reintroducing
 it means the event lands outside the configured sinks and rotation — visible in
 a terminal during development and simply missing in production, which is the
 worst shape a logging bug can take. Checked by `TestNoBannedImports`.
+`log/slog` is the one exception: disgo takes a `*slog.Logger`, so
+`internal/discord/session` bridges one into zerolog, and that bridge is the
+only `slog` import the tree may hold.
 
 **[enforced: log-event-naming]** Log events are lowercase, snake_case,
 verb-last (`purge_recurring_started`, `shortlink_redirected`,

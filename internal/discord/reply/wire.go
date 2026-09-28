@@ -90,6 +90,26 @@ func buttonStyle(s adapter.ButtonStyle) discord.ButtonStyle {
 	}
 }
 
+// Modal renders a modal editor: one labelled paragraph field per entry, the
+// shape the welcome template editor has always taken.
+func Modal(m adapter.Modal) discord.ModalCreate {
+	rows := make([]discord.LayoutComponent, 0, len(m.Fields))
+	for _, f := range m.Fields {
+		rows = append(rows, discord.LabelComponent{
+			Label: f.Label,
+			Component: discord.TextInputComponent{
+				CustomID:    f.CustomID,
+				Style:       discord.TextInputStyleParagraph,
+				MaxLength:   f.MaxLength,
+				Required:    f.Required,
+				Placeholder: f.Placeholder,
+				Value:       f.Value,
+			},
+		})
+	}
+	return discord.NewModalCreate(m.CustomID, m.Title, rows...)
+}
+
 // SlashCommandCreate renders a declaration into the form registration sends.
 //
 // disgo models the three command kinds as three types behind an interface

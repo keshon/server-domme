@@ -5,94 +5,78 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/cmdlogger"
-	"github.com/keshon/server-domme/internal/discord/cmdsync"
-	"github.com/keshon/server-domme/internal/discord/execguard"
+	"github.com/keshon/server-domme/internal/discord/queue"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
 
-// Bot is the Discord bot. Lifecycle is managed by Run/run; handlers are wired
-// in run.
+// Bot is the Discord bot. Lifecycle is managed by RunSession; handlers are
+// wired in session_run.go.
 type Bot struct {
-	dg        *discordgo.Session
-	storage   *storage.Storage
-	slashCmds map[string][]*discordgo.ApplicationCommand
-	cfg       *config.Config
-	mu        sync.RWMutex
-	log       zerolog.Logger
+	storage *storage.Storage
+	cfg     *config.Config
+	log     zerolog.Logger
 
-	cmdSyncer *cmdsync.Syncer
-	cmdLogger *cmdlogger.Logger
+	// commands runs command bodies off the gateway read goroutine. Process
+	// lifetime: a command outliving the session it arrived on is a command
+	// that cannot answer, not a command to abandon halfway.
+	commands *queue.Queue
 
-	sessionCtx atomic.Value // *sessionCtxHolder
-	cmdGuard   atomic.Value // *cmdGuardHolder
+	// Replaced wholesale when a session opens and cleared when one closes, so
+	// a reader gets a live one or the fallback, never a half-torn one.
+	sessionCtx atomic.Pointer[context.Context]
+	conn       atomic.Pointer[conn]
 
-	// ready is closed on the first successful connect and never reopened, so a
-	// caller can wait for "the bot is usable" without waking on every reconnect.
+	// ready is closed on the first successful connect and never reopened, so
+	// a caller can wait for "the bot is usable" without waking on every
+	// reconnect.
 	ready     chan struct{}
 	readyOnce sync.Once
 }
 
-// Session returns the current gateway session, or nil before the first connect.
+// slotWaitBudget bounds how long a command waits for a free slot before it
+// gives up and says the bot is busy.
 //
-// Long-lived services must call this per use rather than capturing the result:
-// RunSession builds a fresh *discordgo.Session on every restart, so a captured
-// pointer goes stale and its writes silently target a closed connection.
-func (b *Bot) Session() *discordgo.Session {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.dg
-}
+// It is short because it is measured against Discord's deadline, not ours: an
+// interaction must be acknowledged within three seconds of being created, and
+// a command that has not started by then cannot answer at all.
+const slotWaitBudget = 2 * time.Second
 
-// Ready returns a channel closed once the bot has connected at least once.
-// Services that need a live session should wait on it before their first use.
-func (b *Bot) Ready() <-chan struct{} {
-	return b.ready
-}
-
-type sessionCtxHolder struct {
-	ctx context.Context
-}
-
-type cmdGuardHolder struct {
-	g *execguard.Guard
-}
-
-var disabledGuard = execguard.New(0, 0)
+func (b *Bot) setSessionContext(ctx context.Context) { b.sessionCtx.Store(&ctx) }
 
 func (b *Bot) baseSessionContext() context.Context {
-	if v := b.sessionCtx.Load(); v != nil {
-		if holder, ok := v.(*sessionCtxHolder); ok && holder != nil && holder.ctx != nil {
-			return holder.ctx
-		}
+	if ctx := b.sessionCtx.Load(); ctx != nil && *ctx != nil {
+		return *ctx
 	}
 	return context.Background()
 }
 
-func (b *Bot) guard() *execguard.Guard {
-	if v := b.cmdGuard.Load(); v != nil {
-		if holder, ok := v.(*cmdGuardHolder); ok && holder != nil && holder.g != nil {
-			return holder.g
-		}
-	}
-	return disabledGuard
-}
-
+// commandContext is the session's context, cancelled when the session ends.
+// It carries no deadline: nothing downstream of here takes a context, so one
+// would only be a claim.
 func (b *Bot) commandContext() (context.Context, context.CancelFunc) {
-	base := b.baseSessionContext()
-	return b.guard().Context(base)
+	return context.WithCancel(b.baseSessionContext())
 }
 
 func (b *Bot) acquireCommandSlot(ctx context.Context) error {
-	return b.guard().Acquire(ctx)
+	return b.commands.Acquire(ctx)
 }
 
 func (b *Bot) releaseCommandSlot() {
-	b.guard().Release()
+	b.commands.Release()
+}
+
+// Ready returns a channel closed once the bot has connected at least once.
+// Services that need a live session wait on it before their first use.
+func (b *Bot) Ready() <-chan struct{} {
+	return b.ready
+}
+
+func (b *Bot) markReady() {
+	b.readyOnce.Do(func() { close(b.ready) })
 }
 
 func (b *Bot) isGuildBlacklisted(guildID string) bool {

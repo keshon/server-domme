@@ -31,7 +31,7 @@ func WithUserPermissionCheck() command.Middleware {
 
 			memberPerms, err := cc.MemberPermissions()
 			if err != nil {
-				return fmt.Errorf("failed to get user permissions: %w", err)
+				return fmt.Errorf("middleware: failed to get user permissions: %w", err)
 			}
 			if memberPerms&perm.Administrator != 0 {
 				return c.Run(ctx, inv)

@@ -29,6 +29,8 @@ func (a *Adapter) UserPermissions() []int64 { return a.Cmd.UserPermissions() }
 //
 // A component interaction arrives here too, after the same middleware a slash
 // invocation goes through, and is handed to the command's component handler.
+// Modals and message context-menus travel the same road: the dispatcher wraps
+// them in an invocation and middleware sees no difference.
 func (a *Adapter) Run(ctx context.Context, inv *command.Invocation) error {
 	switch data := inv.Data.(type) {
 	case *SlashInteractionContext:
@@ -39,6 +41,18 @@ func (a *Adapter) Run(ctx context.Context, inv *command.Invocation) error {
 			return fmt.Errorf("adapter: %s received a component interaction and has no handler for one", a.Name())
 		}
 		return ch.Component(data)
+	case *ModalSubmitContext:
+		mh, ok := a.Cmd.(ModalSubmitHandler)
+		if !ok {
+			return fmt.Errorf("adapter: %s received a modal submission and has no handler for one", a.Name())
+		}
+		return mh.ModalSubmit(data)
+	case *MessageCommandContext:
+		mh, ok := a.Cmd.(MessageCommandHandler)
+		if !ok {
+			return fmt.Errorf("adapter: %s received a message command and has no handler for one", a.Name())
+		}
+		return mh.MessageCommand(data)
 	default:
 		return fmt.Errorf("adapter: %s was dispatched with a %T, not an interaction it handles", a.Name(), inv.Data)
 	}
@@ -81,3 +95,19 @@ func (a *Adapter) Component(ctx *ComponentInteractionContext) error {
 	}
 	return nil
 }
+
+// ModalSubmit forwards a modal submission to the wrapped command, so the
+// dispatcher can assert the capability on what middleware unwraps to.
+func (a *Adapter) ModalSubmit(ctx *ModalSubmitContext) error {
+	return a.RunModal(ctx)
+}
+
+// MessageCommand forwards a context-menu invocation the same way.
+func (a *Adapter) MessageCommand(ctx *MessageCommandContext) error {
+	return a.RunMessageCommand(ctx)
+}
+
+var (
+	_ ModalSubmitHandler   = (*Adapter)(nil)
+	_ MessageCommandHandler = (*Adapter)(nil)
+)

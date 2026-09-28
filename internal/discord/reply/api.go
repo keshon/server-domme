@@ -7,7 +7,6 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
-	"github.com/keshon/server-domme/internal/discord/perm"
 )
 
 // The connection-level answers. Everything here reads from disgo's cache
@@ -36,7 +35,7 @@ func (a *API) MemberPermissions(userID, channelID string) (int64, error) {
 	}
 	channel, ok := a.client.Caches.Channel(cid)
 	if !ok {
-		return 0, fmt.Errorf("channel %s not in cache", channelID)
+		return 0, fmt.Errorf("reply: channel %s not in cache", channelID)
 	}
 	member, err := a.member(channel.GuildID(), uid)
 	if err != nil {
@@ -54,20 +53,9 @@ func (a *API) CheckBotPermissions(channelID string) bool {
 	return perms.Has(discord.PermissionManageMessages)
 }
 
-// CheckBotVoicePermissions reports whether the bot may connect and speak.
-// Asked before playback so a refusal is a message rather than a silent
-// failure to join.
-func (a *API) CheckBotVoicePermissions(channelID string) (bool, error) {
-	perms, err := a.botPermissions(channelID)
-	if err != nil {
-		return false, err
-	}
-	return perms.Has(perm.VoicePlayback), nil
-}
-
 func (a *API) botPermissions(channelID string) (discord.Permissions, error) {
 	if a.client == nil {
-		return 0, fmt.Errorf("no Discord session")
+		return 0, fmt.Errorf("reply: no Discord session")
 	}
 	cid, err := parseID(channelID)
 	if err != nil {
@@ -75,11 +63,11 @@ func (a *API) botPermissions(channelID string) (discord.Permissions, error) {
 	}
 	channel, ok := a.client.Caches.Channel(cid)
 	if !ok {
-		return 0, fmt.Errorf("channel %s not in cache", channelID)
+		return 0, fmt.Errorf("reply: channel %s not in cache", channelID)
 	}
 	selfUser, ok := a.client.Caches.SelfUser()
 	if !ok {
-		return 0, fmt.Errorf("bot user not known yet")
+		return 0, fmt.Errorf("reply: bot user not known yet")
 	}
 	self, err := a.member(channel.GuildID(), selfUser.ID)
 	if err != nil {
@@ -103,7 +91,7 @@ func (a *API) member(guildID, userID snowflake.ID) (discord.Member, error) {
 	}
 	member, err := a.client.Rest.GetMember(guildID, userID)
 	if err != nil {
-		return discord.Member{}, fmt.Errorf("fetching member %s: %w", userID, err)
+		return discord.Member{}, fmt.Errorf("reply: fetching member %s: %w", userID, err)
 	}
 	a.client.Caches.AddMember(*member)
 	return *member, nil
@@ -157,7 +145,7 @@ func (a *API) EditChannelEmbed(channelID, messageID string, embed *adapter.Embed
 // is what the status command has always reported.
 func (a *API) GuildInfo(guildID string) (adapter.GuildInfo, error) {
 	if a.client == nil {
-		return adapter.GuildInfo{}, fmt.Errorf("no Discord session")
+		return adapter.GuildInfo{}, fmt.Errorf("reply: no Discord session")
 	}
 	gid, err := parseID(guildID)
 	if err != nil {
@@ -188,29 +176,9 @@ func (a *API) GuildInfo(guildID string) (adapter.GuildInfo, error) {
 	}, nil
 }
 
-// UserVoiceChannel is the voice channel a user is connected to.
-func (a *API) UserVoiceChannel(guildID, userID string) (string, error) {
-	if a.client == nil {
-		return "", fmt.Errorf("no Discord session")
-	}
-	gid, err := parseID(guildID)
-	if err != nil {
-		return "", err
-	}
-	uid, err := parseID(userID)
-	if err != nil {
-		return "", err
-	}
-	state, ok := a.client.Caches.VoiceState(gid, uid)
-	if !ok || state.ChannelID == nil {
-		return "", fmt.Errorf("user not in any voice channel")
-	}
-	return state.ChannelID.String(), nil
-}
-
 func (a *API) channelID(channelID string) (snowflake.ID, error) {
 	if a.client == nil {
-		return 0, fmt.Errorf("no Discord session")
+		return 0, fmt.Errorf("reply: no Discord session")
 	}
 	return parseID(channelID)
 }
@@ -221,11 +189,11 @@ func (a *API) channelID(channelID string) (snowflake.ID, error) {
 // entry point converts here.
 func parseID(s string) (snowflake.ID, error) {
 	if s == "" {
-		return 0, fmt.Errorf("empty id")
+		return 0, fmt.Errorf("reply: empty id")
 	}
 	id, err := snowflake.Parse(s)
 	if err != nil {
-		return 0, fmt.Errorf("parsing id %q: %w", s, err)
+		return 0, fmt.Errorf("reply: parsing id %q: %w", s, err)
 	}
 	return id, nil
 }

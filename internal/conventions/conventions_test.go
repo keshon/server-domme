@@ -50,15 +50,19 @@ var project = struct {
 	// to this bot, so there is no library half to hold to a different bar.
 	libraryPrefix string
 	// skipDirs are paths that are not ours to hold to these rules.
+	// pkg/discordgo-fork-dev is vendored upstream; .kilo holds nested tool
+	// worktrees (other checkouts of this or another repo); .git is git.
 	skipDirs []string
 	// bannedImports are packages nothing in this repo may import, checked by
-	// TestNoBannedImports.
+	// TestNoBannedImports. log/slog is deliberately absent: disgo takes a
+	// *slog.Logger, so internal/discord/session bridges one into zerolog and
+	// that bridge is the only slog import the tree may hold.
 	bannedImports []string
 }{
 	docPath:       []string{"docs", "conventions.md"},
 	libraryPrefix: "",
-	skipDirs:      []string{"pkg/discordgo-fork-dev", ".git"},
-	bannedImports: []string{"log", "log/slog"},
+	skipDirs:      []string{"pkg/discordgo-fork-dev", ".git", ".kilo"},
+	bannedImports: []string{"log"},
 }
 
 // maxCommentCols is the wrap width docs/conventions.md states for comments. A

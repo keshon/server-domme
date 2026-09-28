@@ -51,7 +51,7 @@ func (m *Syncer) SyncGuildCommands(guildID string) error {
 
 	gid, err := snowflake.Parse(guildID)
 	if err != nil {
-		return fmt.Errorf("parsing guild id %q: %w", guildID, err)
+		return fmt.Errorf("slashsync: parsing guild id %q: %w", guildID, err)
 	}
 
 	// The application id is on the client. discordgo had to ask the API for
@@ -60,7 +60,7 @@ func (m *Syncer) SyncGuildCommands(guildID string) error {
 
 	existingCmds, err := m.client.Rest.GetGuildCommands(appID, gid, false)
 	if err != nil {
-		return fmt.Errorf("failed to list application commands: %w", err)
+		return fmt.Errorf("slashsync: failed to list application commands: %w", err)
 	}
 	desired := m.buildCommandDefinitions()
 

@@ -6,3 +6,9 @@ import "errors"
 // the gateway session. Callers may use it to apply a faster restart delay than
 // for non-transient failures.
 var ErrSessionUnhealthy = errors.New("discord session unhealthy")
+
+// IsSessionUnhealthyError reports whether an error means we should fast-restart
+// the session.
+func IsSessionUnhealthyError(err error) bool {
+	return errors.Is(err, ErrSessionUnhealthy)
+}

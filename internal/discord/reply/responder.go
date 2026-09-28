@@ -24,6 +24,13 @@ type respondable interface {
 	Client() *bot.Client
 }
 
+// modalOpener is the interactions a modal can be opened from: a slash answer
+// or a component click. A modal submission cannot open another one, so its
+// responder carries none.
+type modalOpener interface {
+	Modal(discord.ModalCreate, ...rest.RequestOpt) error
+}
+
 // interactionREST is the part of disgo's REST client a Responder addresses by
 // application id and token: followups, and the original response once it
 // exists. An interface so the order of those calls can be tested.
@@ -41,6 +48,9 @@ type Responder struct {
 	// component is set only for a component interaction, which is the one
 	// kind that can answer by rewriting the message it arrived on.
 	component *events.ComponentInteractionCreate
+	// openModal opens a modal editor from this interaction, or nil where the
+	// interaction cannot open one (a modal submission).
+	openModal modalOpener
 	// appID and token address the interaction for followups and edits, which
 	// go through REST rather than through the event.
 	appID snowflake.ID
@@ -56,10 +66,11 @@ var _ adapter.Responder = (*Responder)(nil)
 // NewCommandResponder binds a slash or context-menu interaction.
 func NewCommandResponder(e *events.ApplicationCommandInteractionCreate) *Responder {
 	return &Responder{
-		event: e,
-		rest:  e.Client().Rest,
-		appID: e.ApplicationID(),
-		token: e.Token(),
+		event:     e,
+		rest:      e.Client().Rest,
+		openModal: e,
+		appID:     e.ApplicationID(),
+		token:     e.Token(),
 	}
 }
 
@@ -69,8 +80,20 @@ func NewComponentResponder(e *events.ComponentInteractionCreate) *Responder {
 		event:     e,
 		rest:      e.Client().Rest,
 		component: e,
+		openModal: e,
 		appID:     e.ApplicationID(),
 		token:     e.Token(),
+	}
+}
+
+// NewModalResponder binds a modal submission. It answers like any other
+// interaction, but it cannot open another modal.
+func NewModalResponder(e *events.ModalSubmitInteractionCreate) *Responder {
+	return &Responder{
+		event: e,
+		rest:  e.Client().Rest,
+		appID: e.ApplicationID(),
+		token: e.Token(),
 	}
 }
 
@@ -312,6 +335,14 @@ func (r *Responder) editResponse(update discord.MessageUpdate) error {
 		r.markAnswered()
 	}
 	return err
+}
+
+// OpenModal answers the interaction by popping up a modal editor.
+func (r *Responder) OpenModal(modal adapter.Modal) error {
+	if r.openModal == nil {
+		return errors.New("reply: this interaction cannot open a modal")
+	}
+	return r.openModal.Modal(Modal(modal))
 }
 
 // API answers what a command asks of the connection rather than of one

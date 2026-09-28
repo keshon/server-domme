@@ -80,7 +80,7 @@ func New(opts Options) (*Session, error) {
 		bot.WithEventListeners(listeners...),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("building disgo client: %w", err)
+		return nil, fmt.Errorf("session: building disgo client: %w", err)
 	}
 
 	s.client = client
@@ -94,7 +94,7 @@ func (s *Session) Client() *bot.Client { return s.client }
 // Open connects the gateway.
 func (s *Session) Open(ctx context.Context) error {
 	if err := s.client.OpenGateway(ctx); err != nil {
-		return fmt.Errorf("opening disgo gateway: %w", err)
+		return fmt.Errorf("session: opening disgo gateway: %w", err)
 	}
 	return nil
 }
@@ -147,9 +147,16 @@ func (s *Session) onHeartbeatAck(_ *events.HeartbeatAck) {
 // all, message content by a mention dispatch path no command ever handled.
 // Asking for a privileged intent nobody reads is a gateway close code 4014
 // waiting for whoever next sets this bot up without ticking all three boxes.
+//
+// IntentGuildMessageReactions is the one intent beyond the music bot's set:
+// /translate answers flag reactions, and without it the event never arrives.
+// Voice states stay though nothing here joins voice: the member-resolving
+// cache flags below are shared with the bot this session was ported from, and
+// trimming them is a separate change from the migration.
 const botIntents = gateway.IntentGuilds |
 	gateway.IntentGuildVoiceStates |
-	gateway.IntentGuildMembers
+	gateway.IntentGuildMembers |
+	gateway.IntentGuildMessageReactions
 
 // botCaches is what the bot actually reads back: guilds and their channels and
 // roles for permission maths, members for the same, voice states to find a
