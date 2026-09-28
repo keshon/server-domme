@@ -1,7 +1,11 @@
 package reply
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
@@ -132,6 +136,145 @@ func (a *API) SendDirectMessage(userID, content string) error {
 	}
 	_, err = a.client.Rest.CreateMessage(dm.ID(), discord.MessageCreate{Content: content})
 	return err
+}
+
+// ChannelMessage fetches one message and renders it neutrally.
+func (a *API) ChannelMessage(channelID, messageID string) (*adapter.Message, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return nil, err
+	}
+	mid, err := parseID(messageID)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := a.client.Rest.GetMessage(cid, mid)
+	if err != nil {
+		return nil, fmt.Errorf("reply: fetching message: %w", err)
+	}
+	out := &adapter.Message{ID: msg.ID.String(), Content: msg.Content}
+	for _, e := range msg.Embeds {
+		e := e
+		out.Embeds = append(out.Embeds, FromWire(e))
+	}
+	for _, att := range msg.Attachments {
+		out.Attachments = append(out.Attachments, adapter.Attachment{
+			Name: att.Filename,
+			URL:  att.URL,
+		})
+	}
+	return out, nil
+}
+
+// ForwardMessage reposts a fetched message: content, embeds, attachments.
+func (a *API) ForwardMessage(targetChannelID string, msg *adapter.Message) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	if msg == nil {
+		return fmt.Errorf("reply: nothing to forward")
+	}
+	tcid, err := parseID(targetChannelID)
+	if err != nil {
+		return err
+	}
+	post := discord.MessageCreate{Content: msg.Content}
+	for _, e := range msg.Embeds {
+		post.Embeds = append(post.Embeds, Embed(e))
+	}
+	for _, att := range msg.Attachments {
+		data, ferr := fetchAttachment(att.URL)
+		if ferr != nil {
+			continue
+		}
+		post.Files = append(post.Files, discord.NewFile(att.Name, "", bytes.NewReader(data)))
+	}
+	_, err = a.client.Rest.CreateMessage(tcid, post)
+	return err
+}
+
+// attachmentFetchTimeout bounds one attachment download. The CDN is the only
+// host reached here, and a stalled fetch would otherwise hold a command slot
+// open for as long as the connection stays half-open.
+const attachmentFetchTimeout = 30 * time.Second
+
+func fetchAttachment(url string) ([]byte, error) {
+	client := &http.Client{Timeout: attachmentFetchTimeout}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("reply: attachment fetch: unexpected status %s", resp.Status)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+// RemoveReaction takes one user's reaction off a message.
+func (a *API) RemoveReaction(channelID, messageID, emoji, userID string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return err
+	}
+	mid, err := parseID(messageID)
+	if err != nil {
+		return err
+	}
+	uid, err := parseID(userID)
+	if err != nil {
+		return err
+	}
+	return a.client.Rest.RemoveUserReaction(cid, mid, emoji, uid)
+}
+
+// GuildMembers lists a guild's members for name resolution.
+func (a *API) GuildMembers(guildID string) ([]adapter.GuildMember, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return nil, err
+	}
+	var out []adapter.GuildMember
+	for member := range a.client.Caches.Members(gid) {
+		out = append(out, adapter.GuildMember{
+			UserID:     member.User.ID.String(),
+			Username:   member.User.Username,
+			Nick:       derefString(member.Nick),
+			GlobalName: derefString(member.User.GlobalName),
+		})
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	members, err := a.client.Rest.GetMembers(gid, 1000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("reply: listing members: %w", err)
+	}
+	for _, member := range members {
+		out = append(out, adapter.GuildMember{
+			UserID:     member.User.ID.String(),
+			Username:   member.User.Username,
+			Nick:       derefString(member.Nick),
+			GlobalName: derefString(member.User.GlobalName),
+		})
+	}
+	return out, nil
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (a *API) PostChannelEmbed(channelID string, embed *adapter.Embed) (string, error) {

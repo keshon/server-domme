@@ -128,6 +128,25 @@ type SessionAPI interface {
 	// callers log it and move on.
 	SendDirectMessage(userID, content string) error
 
+	// ChannelMessage fetches one message: what /announce republishes and
+	// /translate reads before translating.
+	ChannelMessage(channelID, messageID string) (*Message, error)
+
+	// ForwardMessage reposts a fetched message to another channel: content,
+	// embeds and attachments. Attachments are downloaded and re-uploaded, so
+	// a long source list costs a request per file.
+	ForwardMessage(targetChannelID string, msg *Message) error
+
+	// RemoveReaction takes one user's reaction off a message, which is how
+	// /translate consumes the flag once the DM is out. Skipped silently when
+	// the bot may not manage messages there.
+	RemoveReaction(channelID, messageID, emoji, userID string) error
+
+	// GuildMembers lists a guild's members for name resolution (/announce
+	// restores @mentions the source message spelled loosely). Cache first,
+	// REST when the cache has never heard of the guild at this size.
+	GuildMembers(guildID string) ([]GuildMember, error)
+
 	// GuildInfo describes a guild. See GuildInfo for what the counts mean.
 	GuildInfo(guildID string) (GuildInfo, error)
 
@@ -173,6 +192,13 @@ type AuditLog interface {
 // SlashProvider is implemented by commands that expose a slash definition.
 type SlashProvider interface {
 	SlashDefinition() *SlashCommand
+}
+
+// MenuProvider is implemented by commands that additionally expose a
+// context-menu entry (message or user). The menu shares the command's name:
+// Discord keys entries by name and kind, so one registration carries both.
+type MenuProvider interface {
+	MenuDefinition() *SlashCommand
 }
 
 // ComponentInteractionHandler is implemented by commands that handle message

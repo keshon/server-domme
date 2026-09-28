@@ -8,10 +8,12 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/announce"
 	"github.com/keshon/server-domme/internal/discord/command/ask"
 	"github.com/keshon/server-domme/internal/discord/command/confess"
 	"github.com/keshon/server-domme/internal/discord/command/core/about"
 	"github.com/keshon/server-domme/internal/discord/command/roll"
+	"github.com/keshon/server-domme/internal/discord/command/translate"
 	"github.com/keshon/server-domme/internal/discord/middleware"
 )
 
@@ -25,6 +27,8 @@ func Register(log zerolog.Logger) {
 	adapter.Register(&roll.RollCommand{}, mw...)
 	adapter.Register(&ask.AskCommand{}, mw...)
 	adapter.Register(&confess.ConfessCommand{}, mw...)
+	adapter.Register(&announce.AnnounceCommand{}, mw...)
+	adapter.Register(&translate.TranslateOnReaction{}, mw...)
 }
 
 func defaultMiddleware(log zerolog.Logger) []command.Middleware {

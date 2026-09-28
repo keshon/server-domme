@@ -152,6 +152,44 @@ func (c *SlashInteractionContext) AnswerEmbedMessageWithButtons(embed *Embed, bu
 
 func (c *SlashInteractionContext) Component() bool { return false }
 
+// --- MessageCommandContext ---
+
+func (c *MessageCommandContext) Defer() error {
+	return ackDeferred(c.Responder, c.AppLog, false)
+}
+
+func (c *MessageCommandContext) DeferEphemeral() error {
+	return ackDeferred(c.Responder, c.AppLog, true)
+}
+
+func (c *MessageCommandContext) Respond(e *Embed) error {
+	return respond(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: false})
+}
+
+func (c *MessageCommandContext) RespondEphemeral(e *Embed) error {
+	return respond(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: true})
+}
+
+func (c *MessageCommandContext) Followup(e *Embed) error {
+	return followup(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: false})
+}
+
+func (c *MessageCommandContext) FollowupEphemeral(e *Embed) error {
+	return followup(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: true})
+}
+
+func (c *MessageCommandContext) EditResponseText(content string) error {
+	return editResponse(c.Responder, c.AppLog, content)
+}
+
+func (c *MessageCommandContext) RespondWith(rep Reply) error {
+	return respond(c.Responder, c.AppLog, rep)
+}
+
+func (c *MessageCommandContext) FollowupWith(rep Reply) error {
+	return followup(c.Responder, c.AppLog, rep)
+}
+
 // --- ComponentInteractionContext ---
 
 func (c *ComponentInteractionContext) Defer() error {

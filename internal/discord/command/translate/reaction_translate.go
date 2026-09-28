@@ -8,20 +8,33 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 )
 
 type TranslateOnReaction struct{}
 
-func (t *TranslateOnReaction) Name() string        { return "translate (reaction)" }
+func (t *TranslateOnReaction) Name() string        { return "translate" }
 func (t *TranslateOnReaction) Description() string { return "Translate message on flag emoji reaction" }
 func (c *TranslateOnReaction) Group() string       { return "translate" }
 func (t *TranslateOnReaction) Category() string    { return "📢 Utilities" }
 func (t *TranslateOnReaction) UserPermissions() []int64 {
 	return []int64{}
 }
-func (t *TranslateOnReaction) ReactionDefinition() string { return "reaction" }
+
+func (t *TranslateOnReaction) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
+		Name:        t.Name(),
+		Description: t.Description(),
+	}
+}
+
+// Run explains the command: translation happens through flag reactions, not
+// through this invocation.
+func (t *TranslateOnReaction) Run(ctx *adapter.SlashInteractionContext) error {
+	return ctx.RespondEphemeral(&adapter.Embed{
+		Description: "React to a message with a flag (🇬🇧, 🇷🇺, …) and I'll DM you the translation.\nAn admin enables channels with `/settings translate channel-add`.",
+	})
+}
 
 var flags = map[string]string{
 	"🇷🇺": "ru",
@@ -35,23 +48,15 @@ var flags = map[string]string{
 	"🇨🇳": "zh",
 }
 
-func (t *TranslateOnReaction) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.MessageReactionContext)
-	if !ok {
-		return nil
-	}
-
-	s, e, storage := context.Session, context.Event, context.Storage
-
-	// Check if the channel is in the translate reaction list
-	channels, err := storage.GetTranslateChannels(e.GuildID)
+func (t *TranslateOnReaction) React(ctx *adapter.ReactionContext) error {
+	channels, err := ctx.Storage.GetTranslateChannels(ctx.GuildID())
 	if err != nil {
 		return nil // silently ignore if we can't fetch channels
 	}
 
 	found := false
 	for _, ch := range channels {
-		if ch == e.ChannelID {
+		if ch == ctx.ChannelID() {
 			found = true
 			break
 		}
@@ -62,13 +67,13 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 	}
 
 	// Determine target language from flag
-	toLangCode, ok := flags[e.Emoji.Name]
+	toLangCode, ok := flags[ctx.Emoji]
 	if !ok {
 		return nil
 	}
 
 	// Fetch message
-	msg, err := s.ChannelMessage(e.ChannelID, e.MessageID)
+	msg, err := ctx.API.ChannelMessage(ctx.ChannelID(), ctx.MessageID)
 	if err != nil || msg.Content == "" {
 		return nil
 	}
@@ -87,29 +92,21 @@ func (t *TranslateOnReaction) Run(ctx interface{}) error {
 			break
 		}
 	}
-	toFlag := e.Emoji.Name
 
-	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", e.GuildID, e.ChannelID, e.MessageID)
+	link := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", ctx.GuildID(), ctx.ChannelID(), ctx.MessageID)
 
-	// Send DM to user
-	dm, err := s.UserChannelCreate(e.UserID)
-	if err != nil {
-		return nil
-	}
-
-	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, toFlag, translated, link)
-	if _, err := s.ChannelMessageSend(dm.ID, content); err != nil {
-		context.AppLog.Warn().Str("user_id", e.UserID).Err(err).Msg("translate_dm_failed")
+	content := fmt.Sprintf("%s → %s\n%s\n\n%s", fromFlag, ctx.Emoji, translated, link)
+	if err := ctx.API.SendDirectMessage(ctx.UserID(), content); err != nil {
+		ctx.AppLog.Warn().Str("user_id", ctx.UserID()).Err(err).Msg("translate_dm_failed")
 		// Leave the reaction in place: it is the only cue the user gets that
 		// nothing arrived, and removing it would look like the work succeeded.
 		return nil
 	}
 
 	// Remove reaction if we have permissions
-	perms, err := s.State.UserChannelPermissions(s.State.User.ID, e.ChannelID)
-	if err == nil && perms&discordgo.PermissionManageMessages != 0 {
-		if err := s.MessageReactionRemove(e.ChannelID, e.MessageID, e.Emoji.Name, e.UserID); err != nil {
-			context.AppLog.Debug().Str("channel_id", e.ChannelID).Err(err).Msg("translate_reaction_remove_failed")
+	if ctx.API.CheckBotPermissions(ctx.ChannelID()) {
+		if err := ctx.API.RemoveReaction(ctx.ChannelID(), ctx.MessageID, ctx.Emoji, ctx.UserID()); err != nil {
+			ctx.AppLog.Debug().Str("channel_id", ctx.ChannelID()).Err(err).Msg("translate_reaction_remove_failed")
 		}
 	}
 

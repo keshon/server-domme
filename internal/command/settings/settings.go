@@ -4,12 +4,10 @@ import (
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/command/announce"
 	"github.com/keshon/server-domme/internal/command/core/commands"
 	"github.com/keshon/server-domme/internal/command/discipline"
 	"github.com/keshon/server-domme/internal/command/media"
 	"github.com/keshon/server-domme/internal/command/task"
-	"github.com/keshon/server-domme/internal/command/translate"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/storage"
@@ -30,12 +28,14 @@ func (c *SettingsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
-				Name:        "announce",
-				Description: "Announcement settings",
-				Options:     announce.AnnounceChannelOptions(),
-			},
+			// TODO(melodix-stack): announce group returns with the settings
+			// port; its helpers moved to internal/discord/command/announce.
+			//{
+			//	Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+			//	Name:        "announce",
+			//	Description: "Announcement settings",
+			//	Options:     announce.AnnounceChannelOptions(),
+			//},
 			// TODO(melodix-stack): confess group returns with the settings
 			// port; its helpers moved to internal/discord/command/confess.
 			//{
@@ -62,12 +62,14 @@ func (c *SettingsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Description: "Task settings",
 				Options:     task.TaskSettingsOptions(),
 			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
-				Name:        "translate",
-				Description: "Translation settings",
-				Options:     translate.TranslateChannelOptions(),
-			},
+			// TODO(melodix-stack): translate group returns with the settings
+			// port; its helpers moved to internal/discord/command/translate.
+			//{
+			//	Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+			//	Name:        "translate",
+			//	Description: "Translation settings",
+			//	Options:     translate.TranslateChannelOptions(),
+			//},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
 				Name:        "commands",
@@ -105,8 +107,9 @@ func (c *SettingsCommand) Run(ctx interface{}) error {
 	sub := group.Options[0]
 
 	switch group.Name {
-	case "announce":
-		return announce.RunManageAnnounceChannel(s, e, *st, sub)
+	// TODO(melodix-stack): announce group returns with the settings port.
+	//case "announce":
+	//	return announce.RunManageAnnounceChannel(s, e, *st, sub)
 	// TODO(melodix-stack): confess group returns with the settings port.
 	//case "confess":
 	//	return confess.RunManageConfessionChannel(s, e, *st, sub)
@@ -120,8 +123,9 @@ func (c *SettingsCommand) Run(ctx interface{}) error {
 		return media.RunManageMediaSettings(s, e, *st, e.GuildID, sub)
 	case "task":
 		return task.RunManageTaskSettings(s, e, st, sub)
-	case "translate":
-		return translate.RunManageTranslateChannel(s, e, *st, sub)
+	// TODO(melodix-stack): translate group returns with the settings port.
+	//case "translate":
+	//	return translate.RunManageTranslateChannel(s, e, *st, sub)
 	case "commands":
 		return runCommandsSettings(s, e, *st, context.Syncer, sub)
 	default:

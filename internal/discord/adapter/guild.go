@@ -14,3 +14,28 @@ type GuildInfo struct {
 	Roles    int
 	Channels int
 }
+
+// Message is one channel message: what /announce republishes and /translate
+// reads before translating.
+type Message struct {
+	ID          string
+	Content     string
+	Embeds      []*Embed
+	Attachments []Attachment
+}
+
+// Attachment is a file riding on a message. The bytes are fetched when the
+// message is forwarded, not when it is read.
+type Attachment struct {
+	Name string
+	URL  string
+}
+
+// GuildMember is one member for name resolution: username, server nickname
+// and display name, each of which someone may have meant by @that-guy.
+type GuildMember struct {
+	UserID     string
+	Username   string
+	Nick       string
+	GlobalName string
+}
