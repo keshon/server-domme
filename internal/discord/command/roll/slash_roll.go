@@ -7,8 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
@@ -35,14 +34,13 @@ func (c *RollCommand) UserPermissions() []int64 {
 	return []int64{}
 }
 
-func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
+func (c *RollCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Type:        discordgo.ChatApplicationCommand,
-		Options: []*discordgo.ApplicationCommandOption{
+		Options: []adapter.SlashOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionString,
+				Type:        adapter.OptionString,
 				Name:        "formula",
 				Description: "Supports `2d6+1d4*2-3` and similar math",
 				Required:    true,
@@ -51,27 +49,12 @@ func (c *RollCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *RollCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-
-	session := context.Session
-	event := context.Event
-
-	options := event.ApplicationCommandData().Options
-
-	formula := ""
-	for _, opt := range options {
-		if opt.Name == "formula" {
-			formula = strings.ReplaceAll(opt.StringValue(), " ", "")
-		}
-	}
+func (c *RollCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	formula := strings.ReplaceAll(ctx.StringOption("formula"), " ", "")
 
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
-		return reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Can't parse your formula. Try something like `2d6+1d4*2-3`",
 		})
 	}
@@ -87,7 +70,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 		val, desc, err := evaluateToken(token)
 		if err != nil {
-			reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			_ = ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to evaluate `%s`: %v", token, err),
 			})
 			return nil
@@ -106,7 +89,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		t := terms[i]
 		if t.op == "*" || t.op == "/" {
 			if len(merged) == 0 {
-				reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+				_ = ctx.RespondEphemeral(&adapter.Embed{
 					Description: "Can't multiply or divide by nothing.",
 				})
 				return nil
@@ -120,7 +103,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 				newVal = prev.value * t.value
 			case "/":
 				if t.value == 0 {
-					reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+					_ = ctx.RespondEphemeral(&adapter.Embed{
 						Description: "Can't divide by zero.",
 					})
 					return nil
@@ -154,7 +137,7 @@ func (c *RollCommand) Run(ctx interface{}) error {
 		case "-":
 			total -= t.value
 		default:
-			reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+			_ = ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Unknown operator: %s", t.op),
 			})
 			return nil
@@ -163,13 +146,11 @@ func (c *RollCommand) Run(ctx interface{}) error {
 
 	pretty := strings.Join(details, "")
 
-	embed := &discordgo.MessageEmbed{
+	return ctx.Respond(&adapter.Embed{
 		Title:       "🎲 Dice Roll",
 		Description: fmt.Sprintf("**User Input**:\t`%s`\n**Calculation**:\t%s\n**Result**:\t**%d**", formula, pretty, total),
 		Color:       reply.EmbedColor,
-	}
-
-	return reply.RespondEmbed(session, event, embed)
+	})
 }
 
 func evaluateToken(token string) (int, string, error) {

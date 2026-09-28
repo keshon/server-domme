@@ -5,7 +5,7 @@ import (
 
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/command/confess"
-	"github.com/keshon/server-domme/internal/command/roll"
+	"github.com/keshon/server-domme/internal/command/settings"
 	"github.com/keshon/server-domme/internal/discord/cmdadapter"
 
 	"github.com/rs/zerolog"
@@ -30,9 +30,9 @@ func TestCommandLoggerSkipsConfess(t *testing.T) {
 func TestCommandLoggerWrapsOrdinaryCommands(t *testing.T) {
 	mw := WithCommandLogger(zerolog.Nop())
 
-	got := command.Apply(&cmdadapter.Adapter{Cmd: &roll.RollCommand{}}, mw)
+	got := command.Apply(&cmdadapter.Adapter{Cmd: &settings.SettingsCommand{}}, mw)
 	if _, wrapped := got.(command.Unwrappable); !wrapped {
-		t.Fatal("/roll was not wrapped by the audit logger: nothing would be logged for any command")
+		t.Fatal("/settings was not wrapped by the audit logger: nothing would be logged for any command")
 	}
 }
 

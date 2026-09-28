@@ -7,15 +7,18 @@ import (
 	"github.com/keshon/command"
 	"github.com/rs/zerolog"
 
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/roll"
 	"github.com/keshon/server-domme/internal/discord/middleware"
 )
 
 // Register adds every command to command.DefaultRegistry.
 //
-// Empty until the first ported command lands; commands register here as they
-// are rewritten to the disgo adapter, commit by commit, until the discordgo
-// cmdadapter is gone.
-func Register(_ zerolog.Logger) {
+// Commands register here as they are rewritten to the disgo adapter, commit
+// by commit, until the discordgo cmdadapter is gone.
+func Register(log zerolog.Logger) {
+	mw := defaultMiddleware(log)
+	adapter.Register(&roll.RollCommand{}, mw...)
 }
 
 func defaultMiddleware(log zerolog.Logger) []command.Middleware {
