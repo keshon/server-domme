@@ -72,4 +72,11 @@ const (
 	// OptionChannel is a channel the caller picks. It arrives as the
 	// channel's id, which StringValue returns.
 	OptionChannel
+	// OptionRole is a role the caller picks. It arrives as the role's id,
+	// which StringValue returns.
+	OptionRole
+	// OptionAttachment is a file the caller uploads. It arrives as the
+	// attachment's id; the file itself is in the invocation's resolved
+	// attachments.
+	OptionAttachment
 )

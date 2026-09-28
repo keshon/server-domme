@@ -142,6 +142,16 @@ type SessionAPI interface {
 	// the bot may not manage messages there.
 	RemoveReaction(channelID, messageID, emoji, userID string) error
 
+	// AddMemberRole assigns a role to a guild member.
+	AddMemberRole(guildID, userID, roleID string) error
+
+	// RemoveMemberRole takes a role off a guild member.
+	RemoveMemberRole(guildID, userID, roleID string) error
+
+	// RoleName resolves a role id to its name, for settings that echo what
+	// was configured.
+	RoleName(guildID, roleID string) (string, error)
+
 	// GuildMembers lists a guild's members for name resolution (/announce
 	// restores @mentions the source message spelled loosely). Cache first,
 	// REST when the cache has never heard of the guild at this size.

@@ -19,6 +19,13 @@ type Invoker struct {
 	// Username is unknownUsername, or the user ID for a reaction, when the
 	// invocation carried no member.
 	Username string
+	// DisplayName is the name the caller goes by: the server display name
+	// when set, else the username. It is what "requested by" lines show.
+	DisplayName string
+
+	// Roles are the caller's role ids in the guild. Interactions deliver
+	// them; reactions resolve them on demand through the API.
+	Roles []string
 
 	// Permissions is what the caller may do in this channel, as computed by
 	// Discord and delivered with the invocation. PermissionsKnown says whether

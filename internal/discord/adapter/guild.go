@@ -15,6 +15,14 @@ type GuildInfo struct {
 	Channels int
 }
 
+// Attachment is a file: uploaded with a command, or riding on a message. The
+// bytes are fetched when the file is used, not when it is read.
+type Attachment struct {
+	ID   string
+	Name string
+	URL  string
+}
+
 // Message is one channel message: what /announce republishes and /translate
 // reads before translating.
 type Message struct {
@@ -22,13 +30,6 @@ type Message struct {
 	Content     string
 	Embeds      []*Embed
 	Attachments []Attachment
-}
-
-// Attachment is a file riding on a message. The bytes are fetched when the
-// message is forwarded, not when it is read.
-type Attachment struct {
-	Name string
-	URL  string
 }
 
 // GuildMember is one member for name resolution: username, server nickname

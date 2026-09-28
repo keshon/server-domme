@@ -24,6 +24,10 @@ type SlashInteractionContext struct {
 	// the context was built.
 	Arguments []SlashArgument
 
+	// Attachments are the files the caller uploaded, by attachment id. An
+	// OptionAttachment argument arrives as the id; the file itself is here.
+	Attachments map[string]Attachment
+
 	Args    []string
 	Storage *storage.Storage
 	Config  *config.Config

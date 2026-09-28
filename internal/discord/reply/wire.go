@@ -222,6 +222,18 @@ func option(o adapter.SlashOption) discord.ApplicationCommandOption {
 			Description: o.Description,
 			Required:    o.Required,
 		}
+	case adapter.OptionRole:
+		return discord.ApplicationCommandOptionRole{
+			Name:        o.Name,
+			Description: o.Description,
+			Required:    o.Required,
+		}
+	case adapter.OptionAttachment:
+		return discord.ApplicationCommandOptionAttachment{
+			Name:        o.Name,
+			Description: o.Description,
+			Required:    o.Required,
+		}
 	default:
 		return discord.ApplicationCommandOptionString{
 			Name:        o.Name,
@@ -410,6 +422,10 @@ func argumentType(t discord.ApplicationCommandOptionType) adapter.SlashOptionTyp
 		return adapter.OptionUser
 	case discord.ApplicationCommandOptionTypeChannel:
 		return adapter.OptionChannel
+	case discord.ApplicationCommandOptionTypeRole:
+		return adapter.OptionRole
+	case discord.ApplicationCommandOptionTypeAttachment:
+		return adapter.OptionAttachment
 	default:
 		return adapter.OptionString
 	}

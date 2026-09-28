@@ -220,6 +220,16 @@ func (c *ComponentInteractionContext) EditResponseText(content string) error {
 	return editResponse(c.Responder, c.AppLog, content)
 }
 
+// RespondWith and FollowupWith answer with more than an embed: plain content,
+// an attachment, buttons, or any combination.
+func (c *ComponentInteractionContext) RespondWith(rep Reply) error {
+	return respond(c.Responder, c.AppLog, rep)
+}
+
+func (c *ComponentInteractionContext) FollowupWith(rep Reply) error {
+	return followup(c.Responder, c.AppLog, rep)
+}
+
 func (c *ComponentInteractionContext) AnswerEmbedMessage(embed *Embed) (string, string, error) {
 	return answerEmbedMessage(c.Responder, c.AppLog, embed)
 }

@@ -7,6 +7,8 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/announce"
 	"github.com/keshon/server-domme/internal/discord/command/confess"
 	"github.com/keshon/server-domme/internal/discord/command/core/commands"
+	"github.com/keshon/server-domme/internal/discord/command/discipline"
+	"github.com/keshon/server-domme/internal/discord/command/media"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
 	"github.com/keshon/server-domme/internal/discord/perm"
 )
@@ -38,9 +40,18 @@ func (c *SettingsCommand) SlashDefinition() *adapter.SlashCommand {
 				Description: "Confession settings",
 				Options:     confess.ManageChannelOptions(),
 			},
-			// TODO(melodix-stack): discipline group returns with the
-			// discipline port.
-			// TODO(melodix-stack): media group returns with the media port.
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "discipline",
+				Description: "Discipline settings",
+				Options:     discipline.ManageRolesOptions(),
+			},
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "media",
+				Description: "Media settings",
+				Options:     media.ManageSettingsOptions(),
+			},
 			// TODO(melodix-stack): task group returns with the task port.
 			{
 				Type:        adapter.OptionSubCommandGroup,
@@ -78,6 +89,14 @@ func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		return announce.RunManageChannel(ctx, sub)
 	case "confess":
 		return confess.RunManageChannel(ctx, sub)
+	case "discipline":
+		return discipline.RunManageRoles(ctx, sub)
+	case "media":
+		if err := ctx.DeferEphemeral(); err != nil {
+			ctx.AppLog.Error().Err(err).Msg("settings_media_defer_failed")
+			return err
+		}
+		return media.RunManageSettings(ctx, sub)
 	case "translate":
 		return translate.RunManageChannel(ctx, sub)
 	case "commands":

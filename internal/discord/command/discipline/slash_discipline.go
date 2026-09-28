@@ -5,11 +5,7 @@ import (
 	"math/rand"
 	"slices"
 
-	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/reply"
-	"github.com/keshon/server-domme/internal/storage"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 )
 
 type DisciplineCommand struct{}
@@ -22,18 +18,18 @@ func (c *DisciplineCommand) UserPermissions() []int64 {
 	return []int64{}
 }
 
-func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
+func (c *DisciplineCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: "Punish or release a brat.",
-		Options: []*discordgo.ApplicationCommandOption{
+		Options: []adapter.SlashOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "punish",
 				Description: "Assign the brat role",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionUser,
+						Type:        adapter.OptionUser,
 						Name:        "target",
 						Description: "The brat who needs correction",
 						Required:    true,
@@ -41,12 +37,12 @@ func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "release",
 				Description: "Remove the brat role",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionUser,
+						Type:        adapter.OptionUser,
 						Name:        "target",
 						Description: "The brat to be released",
 						Required:    true,
@@ -57,122 +53,106 @@ func (c *DisciplineCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *DisciplineCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
+func (c *DisciplineCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	sub, ok := ctx.FirstOption()
 	if !ok {
-		return nil
-	}
-
-	s := context.Session
-	e := context.Event
-	storage := context.Storage
-
-	data := e.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No subcommand provided.",
 		})
 	}
 
-	sub := data.Options[0]
-	targetID := sub.Options[0].UserValue(nil).ID
+	targetOpt, _ := sub.Option("target")
+	targetID := targetOpt.StringValue()
 
 	switch sub.Name {
 	case "punish":
-		return c.runPunish(s, e, *storage, targetID, context.Config)
+		return c.runPunish(ctx, targetID)
 	case "release":
-		return c.runRelease(s, e, *storage, targetID)
+		return c.runRelease(ctx, targetID)
 	default:
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
 		})
 	}
 }
 
-func (c *DisciplineCommand) runPunish(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string, cfg *config.Config) error {
+func (c *DisciplineCommand) runPunish(ctx *adapter.SlashInteractionContext, targetID string) error {
 	// Guard the target, not the invoker: PROTECTED_USERS names people who may
-	// not be punished. Checking e.Member here instead had it exactly backwards —
-	// it stopped protected users from punishing anyone while leaving them
-	// punishable by everyone.
+	// not be punished.
+	cfg := ctx.Config
 	if cfg != nil && slices.Contains(cfg.ProtectedUsers, targetID) {
-		return reply.Respond(s, e, "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️")
+		return ctx.RespondWith(adapter.Reply{Text: "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️"})
 	}
 
-	punisherRoleID, _ := storage.GetPunishRole(e.GuildID, "punisher")
-	victimRoleID, _ := storage.GetPunishRole(e.GuildID, "victim")
-	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
+	store := ctx.Storage
+	punisherRoleID, _ := store.GetPunishRole(ctx.GuildID(), "punisher")
+	victimRoleID, _ := store.GetPunishRole(ctx.GuildID(), "victim")
+	assignedRoleID, _ := store.GetPunishRole(ctx.GuildID(), "assigned")
 
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
-		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Roles not configured properly. Set them first via `/settings discipline roles-set`.",
 		})
 		return nil
 	}
 
-	if !slices.Contains(e.Member.Roles, punisherRoleID) {
-		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	if !slices.Contains(ctx.Invoker.Roles, punisherRoleID) {
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Nice try, sugar. You don’t wear the right collar to give punishments.",
 		})
 		return nil
 	}
 
-	err := s.GuildMemberRoleAdd(e.GuildID, targetID, assignedRoleID)
-	if err != nil {
-		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("Failed to assign role: %v", err),
+	if err := ctx.API.AddMemberRole(ctx.GuildID(), targetID, assignedRoleID); err != nil {
+		_ = ctx.RespondEphemeral(&adapter.Embed{
+			Description: fmt.Sprintf("Failed to assign role: `%v`", err),
 		})
 		return nil
 	}
 
 	phrase := punishPhrases[rand.Intn(len(punishPhrases))]
-	return reply.Respond(s, e, fmt.Sprintf(phrase, targetID))
+	return ctx.RespondWith(adapter.Reply{Text: fmt.Sprintf(phrase, targetID)})
 }
 
-func (c *DisciplineCommand) runRelease(s *discordgo.Session, e *discordgo.InteractionCreate, storage storage.Storage, targetID string) error {
-	punisherRoleID, _ := storage.GetPunishRole(e.GuildID, "punisher")
-	assignedRoleID, _ := storage.GetPunishRole(e.GuildID, "assigned")
+func (c *DisciplineCommand) runRelease(ctx *adapter.SlashInteractionContext, targetID string) error {
+	store := ctx.Storage
+	punisherRoleID, _ := store.GetPunishRole(ctx.GuildID(), "punisher")
+	assignedRoleID, _ := store.GetPunishRole(ctx.GuildID(), "assigned")
 
 	if punisherRoleID == "" || assignedRoleID == "" {
-		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Roles not configured properly. Set them first via `/settings discipline roles-set`.",
 		})
 		return nil
 	}
 
-	if !slices.Contains(e.Member.Roles, punisherRoleID) {
-		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	if !slices.Contains(ctx.Invoker.Roles, punisherRoleID) {
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.",
 		})
 		return nil
 	}
 
-	err := s.GuildMemberRoleRemove(e.GuildID, targetID, assignedRoleID)
-	if err != nil {
-		reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("Failed to remove role: %v", err),
+	if err := ctx.API.RemoveMemberRole(ctx.GuildID(), targetID, assignedRoleID); err != nil {
+		_ = ctx.RespondEphemeral(&adapter.Embed{
+			Description: fmt.Sprintf("Failed to remove role: `%v`", err),
 		})
 		return nil
 	}
 
-	return reply.RespondEmbed(s, e, &discordgo.MessageEmbed{
+	return ctx.Respond(&adapter.Embed{
 		Description: fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave.", targetID),
 	})
 }
 
-func getRoleNameByID(s *discordgo.Session, guildID, roleID string) (string, error) {
-	guild, err := s.State.Guild(guildID)
-	if err != nil || guild == nil {
-		guild, err = s.Guild(guildID)
-		if err != nil {
-			return "", fmt.Errorf("discipline: fetch guild: %w", err)
-		}
+func roleName(api adapter.SessionAPI, guildID, roleID string) string {
+	if api == nil {
+		return roleID
 	}
-	for _, role := range guild.Roles {
-		if role.ID == roleID {
-			return role.Name, nil
-		}
+	if name, err := api.RoleName(guildID, roleID); err == nil {
+		return name
 	}
-	return "", fmt.Errorf("discipline: role ID %s not found in guild %s", roleID, guildID)
+	return roleID
 }
 
 var punishPhrases = []string{

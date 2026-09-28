@@ -34,10 +34,17 @@ func interactionInvoker(i discord.Interaction) adapter.Invoker {
 		// Discord computed these for this channel, overwrites included.
 		who.Permissions = int64(member.Permissions)
 		who.PermissionsKnown = true
+		for _, rid := range member.RoleIDs {
+			who.Roles = append(who.Roles, rid.String())
+		}
 	}
 	if user.ID != 0 {
 		who.UserID = user.ID.String()
 		who.Username = user.Username
+		who.DisplayName = user.Username
+		if user.GlobalName != nil && *user.GlobalName != "" {
+			who.DisplayName = *user.GlobalName
+		}
 	}
 	return who
 }
@@ -108,10 +115,19 @@ func (b *Bot) onApplicationCommand(
 
 	switch data := e.Data.(type) {
 	case discord.SlashCommandInteractionData:
+		attachments := make(map[string]adapter.Attachment, len(data.Resolved.Attachments))
+		for id, att := range data.Resolved.Attachments {
+			attachments[id.String()] = adapter.Attachment{
+				ID:   id.String(),
+				Name: att.Filename,
+				URL:  att.URL,
+			}
+		}
 		inv := &command.Invocation{Data: &adapter.SlashInteractionContext{
 			Invoker: who, Responder: responder, API: api,
-			Arguments: reply.SlashArguments(data),
-			Storage:   b.storage, Config: b.cfg, Audit: recorder, AppLog: b.log,
+			Arguments:   reply.SlashArguments(data),
+			Attachments: attachments,
+			Storage:     b.storage, Config: b.cfg, Audit: recorder, AppLog: b.log,
 			Syncer: syncer,
 		}}
 		b.dispatchInteraction(who, responder, "slash", name, func(cmdCtx context.Context) error {
@@ -250,6 +266,13 @@ func (b *Bot) onMessageReactionAdd(e *events.MessageReactionAdd) {
 	who.UserID = e.UserID.String()
 	if e.Member != nil {
 		who.Username = e.Member.User.Username
+		who.DisplayName = e.Member.User.Username
+		if e.Member.User.GlobalName != nil && *e.Member.User.GlobalName != "" {
+			who.DisplayName = *e.Member.User.GlobalName
+		}
+		for _, rid := range e.Member.RoleIDs {
+			who.Roles = append(who.Roles, rid.String())
+		}
 		// Effective permissions are resolved on demand through the API: the
 		// gateway member carries roles, not the channel-resolved bits that
 		// interactions deliver precomputed.

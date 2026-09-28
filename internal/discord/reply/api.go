@@ -162,6 +162,7 @@ func (a *API) ChannelMessage(channelID, messageID string) (*adapter.Message, err
 	}
 	for _, att := range msg.Attachments {
 		out.Attachments = append(out.Attachments, adapter.Attachment{
+			ID:   att.ID.String(),
 			Name: att.Filename,
 			URL:  att.URL,
 		})
@@ -275,6 +276,70 @@ func derefString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// AddMemberRole assigns a role to a guild member.
+func (a *API) AddMemberRole(guildID, userID, roleID string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return err
+	}
+	uid, err := parseID(userID)
+	if err != nil {
+		return err
+	}
+	rid, err := parseID(roleID)
+	if err != nil {
+		return err
+	}
+	return a.client.Rest.AddMemberRole(gid, uid, rid)
+}
+
+// RemoveMemberRole takes a role off a guild member.
+func (a *API) RemoveMemberRole(guildID, userID, roleID string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return err
+	}
+	uid, err := parseID(userID)
+	if err != nil {
+		return err
+	}
+	rid, err := parseID(roleID)
+	if err != nil {
+		return err
+	}
+	return a.client.Rest.RemoveMemberRole(gid, uid, rid)
+}
+
+// RoleName resolves a role id to its name, for settings that echo what was
+// configured.
+func (a *API) RoleName(guildID, roleID string) (string, error) {
+	if a.client == nil {
+		return "", fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return "", err
+	}
+	rid, err := parseID(roleID)
+	if err != nil {
+		return "", err
+	}
+	if role, ok := a.client.Caches.Role(gid, rid); ok {
+		return role.Name, nil
+	}
+	role, err := a.client.Rest.GetRole(gid, rid)
+	if err != nil {
+		return "", fmt.Errorf("reply: fetching role: %w", err)
+	}
+	return role.Name, nil
 }
 
 func (a *API) PostChannelEmbed(channelID string, embed *adapter.Embed) (string, error) {
