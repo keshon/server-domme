@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/keshon/command"
-	"github.com/keshon/server-domme/internal/command/confess"
-	"github.com/keshon/server-domme/internal/command/settings"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/confess"
+	"github.com/keshon/server-domme/internal/discord/command/core/about"
 
 	"github.com/rs/zerolog"
 )
@@ -19,7 +19,7 @@ import (
 func TestCommandLoggerSkipsConfess(t *testing.T) {
 	mw := WithCommandLogger(zerolog.Nop())
 
-	got := command.Apply(&cmdadapter.Adapter{Cmd: &confess.ConfessCommand{}}, mw)
+	got := command.Apply(&adapter.Adapter{Cmd: &confess.ConfessCommand{}}, mw)
 	if _, wrapped := got.(command.Unwrappable); wrapped {
 		t.Fatal("/confess was wrapped by the audit logger: its caller would be written to storage")
 	}
@@ -30,9 +30,9 @@ func TestCommandLoggerSkipsConfess(t *testing.T) {
 func TestCommandLoggerWrapsOrdinaryCommands(t *testing.T) {
 	mw := WithCommandLogger(zerolog.Nop())
 
-	got := command.Apply(&cmdadapter.Adapter{Cmd: &settings.SettingsCommand{}}, mw)
+	got := command.Apply(&adapter.Adapter{Cmd: &about.Command{}}, mw)
 	if _, wrapped := got.(command.Unwrappable); !wrapped {
-		t.Fatal("/settings was not wrapped by the audit logger: nothing would be logged for any command")
+		t.Fatal("/about was not wrapped by the audit logger: nothing would be logged for any command")
 	}
 }
 
@@ -46,9 +46,9 @@ func TestConfessStaysUnloggedThroughFullMiddlewareChain(t *testing.T) {
 		WithCommandLogger(zerolog.Nop()),
 	}
 
-	got := command.Apply(&cmdadapter.Adapter{Cmd: &confess.ConfessCommand{}}, chain...)
+	got := command.Apply(&adapter.Adapter{Cmd: &confess.ConfessCommand{}}, chain...)
 
-	root, ok := command.Root(got).(*cmdadapter.Adapter)
+	root, ok := command.Root(got).(*adapter.Adapter)
 	if !ok {
 		t.Fatalf("command.Root returned %T, not the Adapter the opt-out is read from", command.Root(got))
 	}

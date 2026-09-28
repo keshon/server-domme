@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/rs/zerolog"
 )
@@ -24,10 +23,7 @@ func (c *AskCommand) UserPermissions() []int64 {
 //
 // revoke and close are deliberately separate acts: revoke takes back a request
 // nobody has answered yet and belongs to the asker alone, while close ends a
-// conversation both sides agreed to and either party may do it. Serving both
-// from one action is what forced the old handler to guess which was meant by
-// reading the embed, and is why a denied request offered to "revoke an
-// agreement" that never existed.
+// conversation both sides agreed to and either party may do it.
 const (
 	actionAccept = "accept"
 	actionDeny   = "deny"
@@ -38,9 +34,7 @@ const (
 // Status markers.
 //
 // Nothing is stored: the posted message is the record, and these are what a
-// later press reads to recover the state it is acting on. A status string and
-// its marker therefore have to change together — reword one without the other
-// and every button already sitting in a channel starts misreading its state.
+// later press reads to recover the state it is acting on.
 const (
 	markerAccepted = "**accepted**"
 	markerDeclined = "**declined**"
@@ -49,9 +43,6 @@ const (
 )
 
 // reasonMarker prefixes the requester's stated reason inside the description.
-// The description is the only place it lives, so every transition has to carry
-// it forward, and the marker has to survive that unchanged — otherwise the
-// transition after it can no longer find the reason.
 const reasonMarker = "Reason:"
 
 type askState int
@@ -76,30 +67,30 @@ func stateOf(desc string) askState {
 	}
 }
 
-func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
+func (c *AskCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
+		Options: []adapter.SlashOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionString,
+				Type:        adapter.OptionString,
 				Name:        "consent_type",
 				Description: "What kind of consent are you begging for?",
 				Required:    true,
-				Choices: []*discordgo.ApplicationCommandOptionChoice{
+				Choices: []adapter.SlashChoice{
 					{Name: "DM Request", Value: "DM"},
 					{Name: "Friend Request", Value: "Friend Request"},
 					{Name: "Other Reason", Value: "Other Reason"},
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionUser,
+				Type:        adapter.OptionUser,
 				Name:        "member",
 				Description: "Who are you hoping to grovel before?",
 				Required:    true,
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionString,
+				Type:        adapter.OptionString,
 				Name:        "reason",
 				Description: "Be more specific about your request",
 				Required:    false,
@@ -108,105 +99,78 @@ func (c *AskCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *AskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
+func (c *AskCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	consentType := ctx.StringOption("consent_type")
+	targetID := ctx.StringOption("member")
+	reason := ctx.StringOption("reason")
 
-	session := context.Session
-	event := context.Event
-
-	options := event.ApplicationCommandData().Options
-
-	var consentType, reason string
-	var targetUser *discordgo.User
-
-	for _, opt := range options {
-		switch opt.Name {
-		case "consent_type":
-			consentType = opt.StringValue()
-		case "member":
-			targetUser = opt.UserValue(session)
-		case "reason":
-			reason = opt.StringValue()
-		}
-	}
-
-	askerID := event.Member.User.ID
-	if targetUser == nil || targetUser.ID == askerID {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	askerID := ctx.UserID()
+	if targetID == "" || targetID == askerID {
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "You can't ask for permission to contact yourself.",
 		})
-		return nil
 	}
 
-	embed := &discordgo.MessageEmbed{
+	embed := &adapter.Embed{
 		Title:       strings.ToUpper(consentType),
-		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetUser.ID, formatReason(reason)),
+		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetID, formatReason(reason)),
 		Color:       reply.EmbedColor,
 	}
 
-	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetUser.ID, consentType)
+	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetID, consentType)
 
-	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embed},
-			Components: []discordgo.MessageComponent{
-				discordgo.ActionsRow{Components: []discordgo.MessageComponent{
-					discordgo.Button{Label: "✅ Accept", Style: discordgo.SecondaryButton, CustomID: customPrefix + ":" + actionAccept},
-					discordgo.Button{Label: "❌ Deny", Style: discordgo.SecondaryButton, CustomID: customPrefix + ":" + actionDeny},
-					discordgo.Button{Label: "🚫 Revoke", Style: discordgo.SecondaryButton, CustomID: customPrefix + ":" + actionRevoke},
-				}},
-			},
+	// Answered rather than followed up: the message id comes back, and the DM
+	// below links the request itself rather than the channel it sits in.
+	channelID, messageID, err := ctx.AnswerEmbedMessageWithButtons(embed, []adapter.ActionRow{{
+		Buttons: []adapter.Button{
+			{Label: "✅ Accept", Style: adapter.SecondaryButton, CustomID: customPrefix + ":" + actionAccept},
+			{Label: "❌ Deny", Style: adapter.SecondaryButton, CustomID: customPrefix + ":" + actionDeny},
+			{Label: "🚫 Revoke", Style: adapter.SecondaryButton, CustomID: customPrefix + ":" + actionRevoke},
 		},
-	}); err != nil {
+	}})
+	if err != nil {
 		return fmt.Errorf("ask: failed to respond to interaction: %w", err)
 	}
 
-	dm := fmt.Sprintf(
+	dmUser(ctx.AppLog, ctx.API, targetID, fmt.Sprintf(
 		"<@%s> wants to **%s** with you.\nhttps://discord.com/channels/%s/%s/%s",
-		askerID, consentType, event.GuildID, event.ChannelID, event.ID,
-	)
-
-	dmUser(context.AppLog, session, targetUser.ID, dm)
+		askerID, consentType, ctx.GuildID(), channelID, messageID,
+	))
 
 	return nil
 }
 
-func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) error {
-	session, event := ctx.Session, ctx.Event
-	customID := event.MessageComponentData().CustomID
-	parts := strings.Split(customID, ":")
+func (c *AskCommand) Component(ctx *adapter.ComponentInteractionContext) error {
+	parts := strings.Split(ctx.ComponentID, ":")
 
 	if len(parts) != 5 || parts[0] != "ask" {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Something smells off about this button.",
 		})
-		return nil
 	}
 
 	askerID, targetID, consentType, action := parts[1], parts[2], parts[3], parts[4]
-	clickerID := event.Member.User.ID
+	clickerID := ctx.UserID()
 
 	if clickerID != askerID && clickerID != targetID {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "This ain't your party. Button's not meant for you.",
 		})
-		return nil
 	}
 
-	embed := event.Message.Embeds[0]
-	desc := embed.Description
+	desc := ""
+	title := ""
+	if ctx.MessageEmbed != nil {
+		desc = ctx.MessageEmbed.Description
+		title = ctx.MessageEmbed.Title
+	}
 	state := stateOf(desc)
-	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", event.GuildID, event.ChannelID, event.Message.ID)
+	msgLink := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", ctx.GuildID(), ctx.ChannelID(), ctx.MessageID)
 
 	action = translateLegacyAction(action, state)
 
 	if msg := refusal(action, state, clickerID, askerID, targetID); msg != "" {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: msg})
-		return nil
+		return ctx.RespondEphemeral(&adapter.Embed{Description: msg})
 	}
 
 	var status string
@@ -222,8 +186,8 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 			clickerID, markerClosed, consentType, otherParty(clickerID, askerID, targetID))
 	}
 
-	updated := &discordgo.MessageEmbed{
-		Title:       embed.Title,
+	updated := &adapter.Embed{
+		Title:       title,
 		Description: status + carryReason(desc),
 		Color:       reply.EmbedColor,
 	}
@@ -231,45 +195,31 @@ func (c *AskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) erro
 	// Only an accepted request keeps a button. Every other outcome is terminal:
 	// a denial is not something to undo, and a revoked or closed request is
 	// restarted by asking again, not by pressing anything here.
-	var components []discordgo.MessageComponent
+	var buttons []adapter.ActionRow
 	if action == actionAccept {
-		components = []discordgo.MessageComponent{
-			discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{
-					discordgo.Button{
-						Label:    "🔒 Close",
-						Style:    discordgo.SecondaryButton,
-						CustomID: fmt.Sprintf("ask:%s:%s:%s:%s", askerID, targetID, consentType, actionClose),
-					},
+		buttons = []adapter.ActionRow{{
+			Buttons: []adapter.Button{
+				{
+					Label:    "🔒 Close",
+					Style:    adapter.SecondaryButton,
+					CustomID: fmt.Sprintf("ask:%s:%s:%s:%s", askerID, targetID, consentType, actionClose),
 				},
 			},
-		}
+		}}
 	}
 
-	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{updated},
-			Components: components,
-		},
-	}); err != nil {
+	if err := ctx.ReplaceMessage(updated, buttons); err != nil {
 		return fmt.Errorf("ask: failed to update message: %w", err)
 	}
 
-	notifyParticipants(ctx.AppLog, session, action, askerID, targetID, clickerID, consentType, msgLink)
+	notifyParticipants(ctx.AppLog, ctx.API, action, askerID, targetID, clickerID, consentType, msgLink)
 
 	return nil
 }
 
 // translateLegacyAction maps a button posted before Close existed onto the act
-// it means today.
-//
-// Those messages carry :revoke on an already-accepted request, where revoke
-// meant "end the agreement" — which is now close. They are still sitting in
-// channels and their ids come back whenever someone presses one, so the id is
-// translated rather than repointed. Do not "simplify" this away by reusing
-// :revoke for closing: the two actions have different rules about who may press
-// them, and merging them is what produced the original confusion.
+// it means today. Those messages carry :revoke on an already-accepted request,
+// where revoke meant "end the agreement" — which is now close.
 func translateLegacyAction(action string, state askState) string {
 	if action == actionRevoke && state == stateActive {
 		return actionClose
@@ -277,9 +227,7 @@ func translateLegacyAction(action string, state askState) string {
 	return action
 }
 
-// refusal reports why a press cannot proceed, or "" when it may. Both halves
-// matter: the wrong person pressing, and the right person pressing a button
-// belonging to a state the request has already left.
+// refusal reports why a press cannot proceed, or "" when it may.
 func refusal(action string, state askState, clickerID, askerID, targetID string) string {
 	switch action {
 	case actionAccept, actionDeny:
@@ -335,48 +283,45 @@ func carryReason(desc string) string {
 	return "\n\n" + reasonMarker + "\n" + rest
 }
 
-func notifyParticipants(log zerolog.Logger, session *discordgo.Session, action, askerID, targetID, clickerID, consentType, link string) {
+func notifyParticipants(log zerolog.Logger, api adapter.SessionAPI, action, askerID, targetID, clickerID, consentType, link string) {
 	switch action {
 	case actionAccept:
-		dmUser(log, session, askerID,
+		dmUser(log, api, askerID,
 			fmt.Sprintf("<@%s> accepted your **%s** request.\n%s", targetID, consentType, link))
-		dmUser(log, session, targetID,
+		dmUser(log, api, targetID,
 			fmt.Sprintf("You accepted <@%s>'s **%s** request.\n%s", askerID, consentType, link))
 
 	case actionDeny:
-		dmUser(log, session, askerID,
+		dmUser(log, api, askerID,
 			fmt.Sprintf("<@%s> denied your **%s** request.\n%s", targetID, consentType, link))
-		dmUser(log, session, targetID,
+		dmUser(log, api, targetID,
 			fmt.Sprintf("You denied <@%s>'s **%s** request.\n%s", askerID, consentType, link))
 
 	case actionRevoke:
-		dmUser(log, session, askerID,
+		dmUser(log, api, askerID,
 			fmt.Sprintf("You revoked your **%s** request to <@%s>.\n%s", consentType, targetID, link))
-		dmUser(log, session, targetID,
+		dmUser(log, api, targetID,
 			fmt.Sprintf("<@%s> revoked their **%s** request to you.\n%s", askerID, consentType, link))
 
 	case actionClose:
 		other := otherParty(clickerID, askerID, targetID)
-		dmUser(log, session, clickerID,
+		dmUser(log, api, clickerID,
 			fmt.Sprintf("You closed the **%s** conversation with <@%s>. Permission ends here — a new request is needed to reopen it.\n%s",
 				consentType, other, link))
-		dmUser(log, session, other,
+		dmUser(log, api, other,
 			fmt.Sprintf("<@%s> closed the **%s** conversation with you. Permission ends here — a new request is needed to reopen it.\n%s",
 				clickerID, consentType, link))
 	}
 }
 
-// dmUser opens the user's DM channel and sends one message, logging rather than
-// failing on either step. A member who has DMs closed is the common case here,
-// not an error worth failing the interaction over — the outcome is already
-// recorded on the message by the time this runs.
-func dmUser(log zerolog.Logger, s *discordgo.Session, userID, content string) {
-	ch, err := s.UserChannelCreate(userID)
-	if err != nil {
-		log.Debug().Str("user_id", userID).Err(err).Msg("ask_dm_channel_failed")
+// dmUser sends one DM, logging rather than failing. A member who has DMs
+// closed is the common case here, not an error worth failing the interaction
+// over — the outcome is already recorded on the message by the time this runs.
+func dmUser(log zerolog.Logger, api adapter.SessionAPI, userID, content string) {
+	if api == nil {
 		return
 	}
-	if _, err := s.ChannelMessageSend(ch.ID, content); err != nil {
+	if err := api.SendDirectMessage(userID, content); err != nil {
 		log.Debug().Str("user_id", userID).Err(err).Msg("ask_dm_send_failed")
 	}
 }

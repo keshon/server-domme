@@ -278,8 +278,22 @@ func (r *Responder) Followup(rep adapter.Reply) error {
 // AnswerEmbedMessage replaces the deferred placeholder with the embed, rather
 // than posting a followup beside it. See adapter.Responder.
 func (r *Responder) AnswerEmbedMessage(embed *adapter.Embed) (string, string, error) {
-	msg, err := r.rest.UpdateInteractionResponse(r.appID, r.token,
-		discord.MessageUpdate{Embeds: &[]discord.Embed{Embed(embed)}})
+	return r.answerEmbedMessage(embed, nil)
+}
+
+// AnswerEmbedMessageWithButtons is AnswerEmbedMessage for a message that stays
+// interactive.
+func (r *Responder) AnswerEmbedMessageWithButtons(embed *adapter.Embed, buttons []adapter.ActionRow) (string, string, error) {
+	return r.answerEmbedMessage(embed, buttons)
+}
+
+func (r *Responder) answerEmbedMessage(embed *adapter.Embed, buttons []adapter.ActionRow) (string, string, error) {
+	update := discord.MessageUpdate{Embeds: &[]discord.Embed{Embed(embed)}}
+	if buttons != nil {
+		comps := Components(buttons)
+		update.Components = &comps
+	}
+	msg, err := r.rest.UpdateInteractionResponse(r.appID, r.token, update)
 	if err != nil {
 		return "", "", err
 	}
@@ -294,20 +308,25 @@ func (r *Responder) EditResponseText(content string) error {
 	return r.editResponse(discord.MessageUpdate{Content: &content})
 }
 
-// ReplaceMessage rewrites the message a component arrived on, which is how a
-// chooser is consumed: the buttons go away with the same click that acts on
-// them, so nothing can be pressed twice. The empty component slice is the
-// removal and has to be sent rather than omitted.
-func (r *Responder) ReplaceMessage(embed *adapter.Embed) error {
+// ReplaceMessage rewrites the message a component arrived on. A nil button
+// row consumes the chooser so nothing can be pressed twice; a new row keeps
+// the message interactive.
+func (r *Responder) ReplaceMessage(embed *adapter.Embed, buttons []adapter.ActionRow) error {
 	if r.component == nil {
 		// Not a component interaction; the nearest honest thing is a plain
 		// answer rather than silently doing nothing.
-		return r.Respond(adapter.Reply{Embed: embed})
+		return r.Respond(adapter.Reply{Embed: embed, Buttons: buttons})
 	}
-	err := r.component.UpdateMessage(discord.MessageUpdate{
-		Embeds:     &[]discord.Embed{Embed(embed)},
-		Components: &[]discord.LayoutComponent{},
-	})
+	update := discord.MessageUpdate{
+		Embeds: &[]discord.Embed{Embed(embed)},
+	}
+	if buttons == nil {
+		update.Components = &[]discord.LayoutComponent{}
+	} else {
+		comps := Components(buttons)
+		update.Components = &comps
+	}
+	err := r.component.UpdateMessage(update)
 	if err == nil {
 		r.markAnswered()
 	}

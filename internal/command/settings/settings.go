@@ -5,7 +5,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/command/announce"
-	"github.com/keshon/server-domme/internal/command/confess"
 	"github.com/keshon/server-domme/internal/command/core/commands"
 	"github.com/keshon/server-domme/internal/command/discipline"
 	"github.com/keshon/server-domme/internal/command/media"
@@ -37,12 +36,14 @@ func (c *SettingsCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				Description: "Announcement settings",
 				Options:     announce.AnnounceChannelOptions(),
 			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
-				Name:        "confess",
-				Description: "Confession settings",
-				Options:     confess.ConfessChannelOptions(),
-			},
+			// TODO(melodix-stack): confess group returns with the settings
+			// port; its helpers moved to internal/discord/command/confess.
+			//{
+			//	Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+			//	Name:        "confess",
+			//	Description: "Confession settings",
+			//	Options:     confess.ConfessChannelOptions(),
+			//},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
 				Name:        "discipline",
@@ -106,8 +107,9 @@ func (c *SettingsCommand) Run(ctx interface{}) error {
 	switch group.Name {
 	case "announce":
 		return announce.RunManageAnnounceChannel(s, e, *st, sub)
-	case "confess":
-		return confess.RunManageConfessionChannel(s, e, *st, sub)
+	// TODO(melodix-stack): confess group returns with the settings port.
+	//case "confess":
+	//	return confess.RunManageConfessionChannel(s, e, *st, sub)
 	case "discipline":
 		return discipline.RunManageDisciplineRoles(s, e, *st, sub)
 	case "media":

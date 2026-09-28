@@ -110,6 +110,31 @@ func Modal(m adapter.Modal) discord.ModalCreate {
 	return discord.NewModalCreate(m.CustomID, m.Title, rows...)
 }
 
+// FromWire reads one wire embed back into the neutral shape. Component
+// handlers act on the message they arrived on, and the event already carries
+// it -- refetching is a request per click for what is in hand.
+func FromWire(e discord.Embed) *adapter.Embed {
+	out := &adapter.Embed{
+		Title:       e.Title,
+		Description: e.Description,
+		Color:       e.Color,
+	}
+	if e.Footer != nil {
+		out.Footer = e.Footer.Text
+	}
+	if e.Image != nil {
+		out.ImageURL = e.Image.URL
+	}
+	for _, f := range e.Fields {
+		out.Fields = append(out.Fields, adapter.EmbedField{
+			Name:   f.Name,
+			Value:  f.Value,
+			Inline: f.Inline != nil && *f.Inline,
+		})
+	}
+	return out
+}
+
 // SlashCommandCreate renders a declaration into the form registration sends.
 //
 // disgo models the three command kinds as three types behind an interface
@@ -181,6 +206,18 @@ func option(o adapter.SlashOption) discord.ApplicationCommandOption {
 		return opt
 	case adapter.OptionBoolean:
 		return discord.ApplicationCommandOptionBool{
+			Name:        o.Name,
+			Description: o.Description,
+			Required:    o.Required,
+		}
+	case adapter.OptionUser:
+		return discord.ApplicationCommandOptionUser{
+			Name:        o.Name,
+			Description: o.Description,
+			Required:    o.Required,
+		}
+	case adapter.OptionChannel:
+		return discord.ApplicationCommandOptionChannel{
 			Name:        o.Name,
 			Description: o.Description,
 			Required:    o.Required,
@@ -369,6 +406,10 @@ func argumentType(t discord.ApplicationCommandOptionType) adapter.SlashOptionTyp
 		return adapter.OptionInteger
 	case discord.ApplicationCommandOptionTypeBool:
 		return adapter.OptionBoolean
+	case discord.ApplicationCommandOptionTypeUser:
+		return adapter.OptionUser
+	case discord.ApplicationCommandOptionTypeChannel:
+		return adapter.OptionChannel
 	default:
 		return adapter.OptionString
 	}

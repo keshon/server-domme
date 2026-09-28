@@ -461,12 +461,12 @@ var frozenLiterals = map[string][]string{
 		`TaskStatusFailed    = "failed"`,
 		`TaskStatusSafeword  = "safeword"`,
 	},
-	"internal/command/ask/slash_ask.go": {
+	"internal/discord/command/ask/slash_ask.go": {
 		`actionAccept = "accept"`,
 		`actionDeny   = "deny"`,
 		`actionRevoke = "revoke"`,
 		`actionClose  = "close"`,
-		`customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetUser.ID, consentType)`,
+		`customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetID, consentType)`,
 	},
 	"internal/command/task/slash_task.go": {
 		`"task_complete_yes"`,

@@ -41,6 +41,14 @@ type ComponentInteractionContext struct {
 	// set when the message was built.
 	ComponentID string
 
+	// MessageID is the message the component sits on.
+	MessageID string
+	// MessageEmbed is that message's first embed, or nil when it has none.
+	// Buttons act on posted state (ask's request tracking), and the message
+	// is the record -- refetching it is a request per click that the event
+	// already carried.
+	MessageEmbed *Embed
+
 	Storage *storage.Storage
 	Config  *config.Config
 	Audit   AuditLog

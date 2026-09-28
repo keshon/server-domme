@@ -8,6 +8,9 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/ask"
+	"github.com/keshon/server-domme/internal/discord/command/confess"
+	"github.com/keshon/server-domme/internal/discord/command/core/about"
 	"github.com/keshon/server-domme/internal/discord/command/roll"
 	"github.com/keshon/server-domme/internal/discord/middleware"
 )
@@ -18,7 +21,10 @@ import (
 // by commit, until the discordgo cmdadapter is gone.
 func Register(log zerolog.Logger) {
 	mw := defaultMiddleware(log)
+	adapter.Register(&about.Command{}, mw...)
 	adapter.Register(&roll.RollCommand{}, mw...)
+	adapter.Register(&ask.AskCommand{}, mw...)
+	adapter.Register(&confess.ConfessCommand{}, mw...)
 }
 
 func defaultMiddleware(log zerolog.Logger) []command.Middleware {

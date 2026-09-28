@@ -44,14 +44,20 @@ type Responder interface {
 	// which is two messages for one reply and one of them says nothing.
 	AnswerEmbedMessage(embed *Embed) (channelID, messageID string, err error)
 
+	// AnswerEmbedMessageWithButtons is AnswerEmbedMessage for a message that
+	// stays interactive: the buttons travel on the answer itself rather than
+	// a followup, so the message id comes back with them attached.
+	AnswerEmbedMessageWithButtons(embed *Embed, buttons []ActionRow) (channelID, messageID string, err error)
+
 	// EditResponseText replaces the original reply with plain text, which is
 	// the fallback when an embed could not be delivered.
 	EditResponseText(content string) error
 
 	// ReplaceMessage answers a component interaction by rewriting the message
-	// it came from, which is how a chooser is consumed: the buttons go away
-	// with the same click that acts on them, so nothing can be pressed twice.
-	ReplaceMessage(embed *Embed) error
+	// it came from. Buttons replace the row the click arrived on: passing nil
+	// consumes the chooser so nothing can be pressed twice, passing a new row
+	// keeps the message interactive (ask's accept leaves a close button).
+	ReplaceMessage(embed *Embed, buttons []ActionRow) error
 
 	// OpenModal answers an interaction by popping up a modal editor, which is
 	// how /welcome edits paragraph texts an option line cannot hold. It must
@@ -116,6 +122,11 @@ type SessionAPI interface {
 	SendChannelMessage(channelID, content string) error
 
 	SendChannelEmbed(channelID string, embed *Embed) error
+
+	// SendDirectMessage DMs a user one message. A member with DMs closed is
+	// the common failure here rather than an error worth surfacing, so
+	// callers log it and move on.
+	SendDirectMessage(userID, content string) error
 
 	// GuildInfo describes a guild. See GuildInfo for what the counts mean.
 	GuildInfo(guildID string) (GuildInfo, error)

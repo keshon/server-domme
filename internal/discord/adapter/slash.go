@@ -66,4 +66,10 @@ const (
 	OptionString
 	OptionInteger
 	OptionBoolean
+	// OptionUser is a guild member the caller picks. It arrives as the
+	// user's id, which StringValue returns.
+	OptionUser
+	// OptionChannel is a channel the caller picks. It arrives as the
+	// channel's id, which StringValue returns.
+	OptionChannel
 )

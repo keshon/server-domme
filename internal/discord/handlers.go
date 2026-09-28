@@ -159,11 +159,17 @@ func (b *Bot) onComponentInteraction(e *events.ComponentInteractionCreate, recor
 
 	responder := reply.NewComponentResponder(e)
 	who := interactionInvoker(e)
+	var firstEmbed *adapter.Embed
+	if len(e.Message.Embeds) > 0 {
+		firstEmbed = reply.FromWire(e.Message.Embeds[0])
+	}
 	cc := &adapter.ComponentInteractionContext{
 		Invoker:     who,
 		Responder:   responder,
 		API:         reply.NewSessionAPI(e.Client()),
 		ComponentID: customID,
+		MessageID:   e.Message.ID.String(),
+		MessageEmbed: firstEmbed,
 		Storage:     b.storage, Config: b.cfg, Audit: recorder, AppLog: b.log,
 	}
 

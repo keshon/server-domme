@@ -115,6 +115,25 @@ func (a *API) SendChannelEmbed(channelID string, embed *adapter.Embed) error {
 	return err
 }
 
+// SendDirectMessage DMs a user one message. Closed DMs fail here, and the
+// caller decides whether that is worth reporting: for ask's notifications it
+// is the common case and the outcome is already recorded on the message.
+func (a *API) SendDirectMessage(userID, content string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	uid, err := parseID(userID)
+	if err != nil {
+		return err
+	}
+	dm, err := a.client.Rest.CreateDMChannel(uid)
+	if err != nil {
+		return fmt.Errorf("reply: opening DM channel: %w", err)
+	}
+	_, err = a.client.Rest.CreateMessage(dm.ID(), discord.MessageCreate{Content: content})
+	return err
+}
+
 func (a *API) PostChannelEmbed(channelID string, embed *adapter.Embed) (string, error) {
 	cid, err := a.channelID(channelID)
 	if err != nil {
