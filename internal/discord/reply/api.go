@@ -109,6 +109,70 @@ func (a *API) SendChannelMessage(channelID, content string) error {
 	return err
 }
 
+// SendChannelReply posts content in reply to a message.
+func (a *API) SendChannelReply(channelID, replyToID, content string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return err
+	}
+	mid, err := parseID(replyToID)
+	if err != nil {
+		return err
+	}
+	_, err = a.client.Rest.CreateMessage(cid, discord.MessageCreate{
+		Content:          content,
+		MessageReference: &discord.MessageReference{MessageID: &mid, ChannelID: &cid},
+	})
+	return err
+}
+
+// ClearChannelComponents strips the buttons off a message the bot posted.
+func (a *API) ClearChannelComponents(channelID, messageID string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return err
+	}
+	mid, err := parseID(messageID)
+	if err != nil {
+		return err
+	}
+	empty := []discord.LayoutComponent{}
+	_, err = a.client.Rest.UpdateMessage(cid, mid, discord.MessageUpdate{Components: &empty})
+	return err
+}
+
+// RoleNames resolves a guild's roles to id-indexed names.
+func (a *API) RoleNames(guildID string) (map[string]string, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string)
+	for role := range a.client.Caches.Roles(gid) {
+		out[role.ID.String()] = role.Name
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	roles, err := a.client.Rest.GetRoles(gid)
+	if err != nil {
+		return nil, fmt.Errorf("reply: listing roles: %w", err)
+	}
+	for _, role := range roles {
+		out[role.ID.String()] = role.Name
+	}
+	return out, nil
+}
+
 func (a *API) SendChannelEmbed(channelID string, embed *adapter.Embed) error {
 	cid, err := a.channelID(channelID)
 	if err != nil {

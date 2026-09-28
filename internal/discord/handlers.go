@@ -185,6 +185,7 @@ func (b *Bot) onComponentInteraction(e *events.ComponentInteractionCreate, recor
 		API:         reply.NewSessionAPI(e.Client()),
 		ComponentID: customID,
 		MessageID:   e.Message.ID.String(),
+		MessageContent: e.Message.Content,
 		MessageEmbed: firstEmbed,
 		Storage:     b.storage, Config: b.cfg, Audit: recorder, AppLog: b.log,
 	}

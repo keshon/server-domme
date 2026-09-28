@@ -9,6 +9,7 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/core/commands"
 	"github.com/keshon/server-domme/internal/discord/command/discipline"
 	"github.com/keshon/server-domme/internal/discord/command/media"
+	"github.com/keshon/server-domme/internal/discord/command/task"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
 	"github.com/keshon/server-domme/internal/discord/perm"
 )
@@ -52,7 +53,12 @@ func (c *SettingsCommand) SlashDefinition() *adapter.SlashCommand {
 				Description: "Media settings",
 				Options:     media.ManageSettingsOptions(),
 			},
-			// TODO(melodix-stack): task group returns with the task port.
+			{
+				Type:        adapter.OptionSubCommandGroup,
+				Name:        "task",
+				Description: "Task settings",
+				Options:     task.ManageSettingsOptions(),
+			},
 			{
 				Type:        adapter.OptionSubCommandGroup,
 				Name:        "translate",
@@ -89,6 +95,8 @@ func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		return announce.RunManageChannel(ctx, sub)
 	case "confess":
 		return confess.RunManageChannel(ctx, sub)
+	case "task":
+		return task.RunManageSettings(ctx, sub)
 	case "discipline":
 		return discipline.RunManageRoles(ctx, sub)
 	case "media":

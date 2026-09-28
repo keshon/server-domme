@@ -278,21 +278,37 @@ func (r *Responder) Followup(rep adapter.Reply) error {
 // AnswerEmbedMessage replaces the deferred placeholder with the embed, rather
 // than posting a followup beside it. See adapter.Responder.
 func (r *Responder) AnswerEmbedMessage(embed *adapter.Embed) (string, string, error) {
-	return r.answerEmbedMessage(embed, nil)
+	return r.answerMessage(discord.MessageUpdate{
+		Embeds: &[]discord.Embed{Embed(embed)},
+	})
 }
 
 // AnswerEmbedMessageWithButtons is AnswerEmbedMessage for a message that stays
 // interactive.
 func (r *Responder) AnswerEmbedMessageWithButtons(embed *adapter.Embed, buttons []adapter.ActionRow) (string, string, error) {
-	return r.answerEmbedMessage(embed, buttons)
+	return r.answerMessage(discord.MessageUpdate{
+		Embeds:     &[]discord.Embed{Embed(embed)},
+		Components: componentsOrNil(buttons),
+	})
 }
 
-func (r *Responder) answerEmbedMessage(embed *adapter.Embed, buttons []adapter.ActionRow) (string, string, error) {
-	update := discord.MessageUpdate{Embeds: &[]discord.Embed{Embed(embed)}}
-	if buttons != nil {
-		comps := Components(buttons)
-		update.Components = &comps
+// AnswerTextMessageWithButtons is the same for a plain-text message.
+func (r *Responder) AnswerTextMessageWithButtons(text string, buttons []adapter.ActionRow) (string, string, error) {
+	return r.answerMessage(discord.MessageUpdate{
+		Content:    &text,
+		Components: componentsOrNil(buttons),
+	})
+}
+
+func componentsOrNil(buttons []adapter.ActionRow) *[]discord.LayoutComponent {
+	if buttons == nil {
+		return &[]discord.LayoutComponent{}
 	}
+	comps := Components(buttons)
+	return &comps
+}
+
+func (r *Responder) answerMessage(update discord.MessageUpdate) (string, string, error) {
 	msg, err := r.rest.UpdateInteractionResponse(r.appID, r.token, update)
 	if err != nil {
 		return "", "", err
@@ -311,19 +327,26 @@ func (r *Responder) EditResponseText(content string) error {
 // ReplaceMessage rewrites the message a component arrived on. A nil button
 // row consumes the chooser so nothing can be pressed twice; a new row keeps
 // the message interactive.
-func (r *Responder) ReplaceMessage(embed *adapter.Embed, buttons []adapter.ActionRow) error {
+func (r *Responder) ReplaceMessage(rep adapter.Reply) error {
 	if r.component == nil {
 		// Not a component interaction; the nearest honest thing is a plain
 		// answer rather than silently doing nothing.
-		return r.Respond(adapter.Reply{Embed: embed, Buttons: buttons})
+		return r.Respond(rep)
+	}
+	embeds := []discord.Embed{}
+	if rep.Embed != nil {
+		embeds = []discord.Embed{Embed(rep.Embed)}
 	}
 	update := discord.MessageUpdate{
-		Embeds: &[]discord.Embed{Embed(embed)},
+		Embeds: &embeds,
 	}
-	if buttons == nil {
+	if rep.Text != "" {
+		update.Content = &rep.Text
+	}
+	if rep.Buttons == nil {
 		update.Components = &[]discord.LayoutComponent{}
 	} else {
-		comps := Components(buttons)
+		comps := Components(rep.Buttons)
 		update.Components = &comps
 	}
 	err := r.component.UpdateMessage(update)

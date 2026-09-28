@@ -17,6 +17,8 @@ type channel struct {
 func (c *channel) MemberPermissions(_, _ string) (int64, error) { return 0, nil }
 func (c *channel) CheckBotPermissions(_ string) bool            { return true }
 func (c *channel) SendChannelMessage(_, _ string) error         { return nil }
+func (c *channel) SendChannelReply(_, _, _ string) error        { return nil }
+func (c *channel) ClearChannelComponents(_, _ string) error     { return nil }
 func (c *channel) SendChannelEmbed(_ string, _ *adapter.Embed) error {
 	return nil
 }
@@ -28,6 +30,9 @@ func (c *channel) ForwardMessage(_ string, _ *adapter.Message) error { return ni
 func (c *channel) RemoveReaction(_, _, _, _ string) error            { return nil }
 func (c *channel) GuildMembers(_ string) ([]adapter.GuildMember, error) {
 	return nil, nil
+}
+func (c *channel) RoleNames(_ string) (map[string]string, error) {
+	return map[string]string{}, nil
 }
 func (c *channel) AddMemberRole(_, _, _ string) error    { return nil }
 func (c *channel) RemoveMemberRole(_, _, _ string) error { return nil }

@@ -14,7 +14,7 @@ import (
 	"github.com/keshon/buildinfo"
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/applog"
-	taskcmd "github.com/keshon/server-domme/internal/command/task"
+	taskcmd "github.com/keshon/server-domme/internal/discord/command/task"
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord"
 	"github.com/keshon/server-domme/internal/discord/command/catalog"

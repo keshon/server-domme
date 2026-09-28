@@ -208,7 +208,7 @@ func (c *AskCommand) Component(ctx *adapter.ComponentInteractionContext) error {
 		}}
 	}
 
-	if err := ctx.ReplaceMessage(updated, buttons); err != nil {
+	if err := ctx.ReplaceMessage(adapter.Reply{Embed: updated, Buttons: buttons}); err != nil {
 		return fmt.Errorf("ask: failed to update message: %w", err)
 	}
 

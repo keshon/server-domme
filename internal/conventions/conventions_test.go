@@ -468,7 +468,7 @@ var frozenLiterals = map[string][]string{
 		`actionClose  = "close"`,
 		`customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetID, consentType)`,
 	},
-	"internal/command/task/slash_task.go": {
+	"internal/discord/command/task/slash_task.go": {
 		`"task_complete_yes"`,
 		`"task_complete_no"`,
 		`"task_complete_safeword"`,

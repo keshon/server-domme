@@ -11,10 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
-	"github.com/keshon/server-domme/internal/discord/reply"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 	st "github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -44,41 +42,32 @@ func (c *TaskCommand) UserPermissions() []int64 {
 	return []int64{}
 }
 
-func (c *TaskCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
+func (c *TaskCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
 	}
 }
 
-func (c *TaskCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
-	if !ok {
-		return nil
-	}
-	return c.runSelfAssign(context)
+func (c *TaskCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	return c.runSelfAssign(ctx)
 }
 
-func (c *TaskCommand) runSelfAssign(context *cmdadapter.SlashInteractionContext) error {
+func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error {
+	store := ctx.Storage
+	guildID := ctx.GuildID()
+	userID := ctx.UserID()
 
-	session := context.Session
-	event := context.Event
-	storage := context.Storage
-
-	guildID := event.GuildID
-	member := event.Member
-	userID := member.User.ID
-
-	if cooldownUntil, err := storage.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	if cooldownUntil, err := store.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(time.Until(cooldownUntil))),
 		})
 		return nil
 	}
 
-	if context.Config != nil && slices.Contains(context.Config.ProtectedUsers, userID) {
-		return reply.RespondEmbed(session, event, &discordgo.MessageEmbed{
-			Description: "You're above this. No tasks for you.",
+	if ctx.Config != nil && slices.Contains(ctx.Config.ProtectedUsers, userID) {
+		return ctx.RespondWith(adapter.Reply{
+			Text: "You're above this. No tasks for you.",
 		})
 	}
 
@@ -89,42 +78,45 @@ func (c *TaskCommand) runSelfAssign(context *cmdadapter.SlashInteractionContext)
 	}
 	taskCancelMutex.Unlock()
 
-	existing, _ := storage.GetTask(guildID, userID)
+	existing, _ := store.GetTask(guildID, userID)
 	if existing != nil && existing.Status == st.TaskStatusPending {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "You already have a task pending.",
 		})
 		return nil
 	}
 
-	taskerRoles, _ := storage.GetTaskRole(guildID)
+	taskerRoles, _ := store.GetTaskRole(guildID)
 	if len(taskerRoles) == 0 {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No tasker roles set. Ask an Admin to set them.",
 		})
 		return nil
 	}
 
-	memberRoleNames := getMemberRoleNames(session, guildID, event.Member.Roles)
+	roleNames, err := memberRoleNames(ctx.API, guildID, ctx.Invoker.Roles)
+	if err != nil {
+		ctx.AppLog.Warn().Str("guild_id", guildID).Err(err).Msg("task_roles_resolve_failed")
+	}
 	tasks, err := loadTasksForGuild(guildID)
 	if err != nil {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to load tasks.\nAsk an Admin to set them.",
 		})
-		context.AppLog.Error().Str("guild_id", guildID).Err(err).Msg("task_list_load_failed")
+		ctx.AppLog.Error().Str("guild_id", guildID).Err(err).Msg("task_list_load_failed")
 		return nil
 	}
 
-	filtered := filterTasksByRoles(tasks, memberRoleNames)
+	filtered := filterTasksByRoles(tasks, roleNames)
 	if len(filtered) == 0 {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No task suits your... profile.\nAsk an Admin to upload tasks for your gender role and try again.",
 		})
 		return nil
 	}
 
 	task := filtered[rand.Intn(len(filtered))]
-	c.assignTask(context.AppLog, session, event, task, storage)
+	c.assignTask(ctx, task)
 
 	return nil
 }
@@ -139,9 +131,11 @@ func loadTasksForGuild(guildID string) ([]Task, error) {
 	return tasks, json.Unmarshal(raw, &tasks)
 }
 
-func (c *TaskCommand) assignTask(log zerolog.Logger, session *discordgo.Session, event *discordgo.InteractionCreate, task Task, storage *st.Storage) {
-	guildID := event.GuildID
-	userID := event.Member.User.ID
+func (c *TaskCommand) assignTask(ctx *adapter.SlashInteractionContext, task Task) {
+	log := ctx.AppLog
+	store := ctx.Storage
+	guildID := ctx.GuildID()
+	userID := ctx.UserID()
 
 	now := time.Now()
 	expiry := now.Add(time.Duration(task.DurationMin) * time.Minute)
@@ -152,38 +146,26 @@ func (c *TaskCommand) assignTask(log zerolog.Logger, session *discordgo.Session,
 		"**New Task**\n<@%s> %s\n\n*You have %s to complete this task so don't disappoint me.*",
 		userID, task.Description, humanDuration(time.Until(expiry)))
 
-	err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: taskMsg,
-			Components: []discordgo.MessageComponent{
-				discordgo.ActionsRow{Components: []discordgo.MessageComponent{
-					discordgo.Button{Label: "Manage", Style: discordgo.PrimaryButton, CustomID: "task_complete_trigger"},
-				}},
-			},
+	_, msgID, err := ctx.AnswerTextMessageWithButtons(taskMsg, []adapter.ActionRow{{
+		Buttons: []adapter.Button{
+			{Label: "Manage", Style: adapter.PrimaryButton, CustomID: "task_complete_trigger"},
 		},
-	})
+	}})
 	if err != nil {
 		log.Error().Err(err).Msg("task_respond_failed")
 		return
 	}
 
-	msg, err := session.InteractionResponse(event.Interaction)
-	if err != nil {
-		log.Error().Err(err).Msg("task_response_fetch_failed")
-		return
-	}
-
 	entry := st.Task{
 		UserID:     userID,
-		MessageID:  msg.ID,
+		MessageID:  msgID,
 		AssignedAt: now,
 		ExpiresAt:  expiry,
 		Status:     st.TaskStatusPending,
 	}
 	// Bail if the record did not land: the timers below drive off it, and an
 	// unrecorded task would leave the holder with a button and no state behind it.
-	if err := storage.SetTask(guildID, userID, entry); err != nil {
+	if err := store.SetTask(guildID, userID, entry); err != nil {
 		log.Error().Str("guild_id", guildID).Str("user_id", userID).Err(err).Msg("task_store_failed")
 		return
 	}
@@ -193,68 +175,56 @@ func (c *TaskCommand) assignTask(log zerolog.Logger, session *discordgo.Session,
 	taskCancels[userID] = cancel
 	taskCancelMutex.Unlock()
 
-	go handleTimers(log, session, storage, ctxTimer, guildID, userID, event.ChannelID, msg.ID, time.Until(expiry), reminderDelay)
-
+	go handleTimers(log, ctx.API, store, ctxTimer, guildID, userID, ctx.ChannelID(), msgID, time.Until(expiry), reminderDelay)
 }
 
-func (c *TaskCommand) Component(ctx *cmdadapter.ComponentInteractionContext) error {
-	session := ctx.Session
-	event := ctx.Event
-	guildID := event.GuildID
-	userID := event.Member.User.ID
+func (c *TaskCommand) Component(ctx *adapter.ComponentInteractionContext) error {
+	guildID := ctx.GuildID()
+	userID := ctx.UserID()
 
 	task, err := ctx.Storage.GetTask(guildID, userID)
 	if err != nil || task == nil {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No active task found. Trying to cheat, hmm?",
 		})
 		return nil
 	}
 
 	if task.UserID != userID {
-		reply.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "That task doesn’t belong to you. Greedy little fingers, aren't you?",
 		})
 		return nil
 	}
 
 	if task.Status != st.TaskStatusPending {
-		if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseDeferredMessageUpdate,
-		}); err != nil {
-			ctx.AppLog.Error().Str("custom_id", event.MessageComponentData().CustomID).Err(err).Msg("task_defer_update_failed")
-		}
-		return nil
+		return ctx.ReplaceMessage(adapter.Reply{
+			Text: ctx.MessageContent,
+		})
 	}
 
-	switch event.MessageComponentData().CustomID {
+	switch ctx.ComponentID {
 	case "task_complete_trigger":
-		if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseUpdateMessage,
-			Data: &discordgo.InteractionResponseData{
-				Content: event.Message.Content,
-				Components: []discordgo.MessageComponent{
-					discordgo.ActionsRow{Components: []discordgo.MessageComponent{
-						discordgo.Button{Label: "Yes", Style: discordgo.SuccessButton, CustomID: "task_complete_yes"},
-						discordgo.Button{Label: "No", Style: discordgo.DangerButton, CustomID: "task_complete_no"},
-						discordgo.Button{Label: "Safeword", Style: discordgo.SecondaryButton, CustomID: "task_complete_safeword"},
-					}},
+		return ctx.ReplaceMessage(adapter.Reply{
+			Text: ctx.MessageContent,
+			Buttons: []adapter.ActionRow{{
+				Buttons: []adapter.Button{
+					{Label: "Yes", Style: adapter.SuccessButton, CustomID: "task_complete_yes"},
+					{Label: "No", Style: adapter.DangerButton, CustomID: "task_complete_no"},
+					{Label: "Safeword", Style: adapter.SecondaryButton, CustomID: "task_complete_safeword"},
 				},
-			},
-		}); err != nil {
-			ctx.AppLog.Error().Err(err).Msg("task_completion_prompt_failed")
-		}
+			}},
+		})
 	case "task_complete_yes", "task_complete_no", "task_complete_safeword":
-		c.handleTaskCompletion(ctx, event, task)
+		c.handleTaskCompletion(ctx, task)
 	}
 
 	return nil
 }
 
-func (c *TaskCommand) handleTaskCompletion(ctx *cmdadapter.ComponentInteractionContext, event *discordgo.InteractionCreate, task *st.Task) {
-	session := ctx.Session
-	userID, guildID := event.Member.User.ID, event.GuildID
-	customID := event.MessageComponentData().CustomID
+func (c *TaskCommand) handleTaskCompletion(ctx *adapter.ComponentInteractionContext, task *st.Task) {
+	userID, guildID := ctx.UserID(), ctx.GuildID()
+	customID := ctx.ComponentID
 
 	var msg string
 	switch customID {
@@ -283,18 +253,10 @@ func (c *TaskCommand) handleTaskCompletion(ctx *cmdadapter.ComponentInteractionC
 	}
 	taskCancelMutex.Unlock()
 
-	if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Content:    event.Message.Content,
-			Components: []discordgo.MessageComponent{},
-		},
-	}); err != nil {
+	if err := ctx.ReplaceMessage(adapter.Reply{Text: ctx.MessageContent}); err != nil {
 		ctx.AppLog.Error().Str("custom_id", customID).Err(err).Msg("task_completion_ack_failed")
 	}
-	if _, err := session.FollowupMessageCreate(event.Interaction, false, &discordgo.WebhookParams{
-		Content: msg,
-	}); err != nil {
+	if err := ctx.FollowupWith(adapter.Reply{Text: msg}); err != nil {
 		ctx.AppLog.Error().Str("custom_id", customID).Err(err).Msg("task_completion_followup_failed")
 	}
 }
@@ -318,17 +280,13 @@ func InitFromConfig(cfg *config.Config, log zerolog.Logger) error {
 	return nil
 }
 
-func handleTimers(log zerolog.Logger, session *discordgo.Session, storage *st.Storage, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {
+func handleTimers(log zerolog.Logger, api adapter.SessionAPI, storage *st.Storage, ctxTimer context.Context, guildID, userID, channelID, taskMsgID string, expiryDelay, reminderDelay time.Duration) {
 	select {
 	case <-time.After(reminderDelay):
 		current, _ := storage.GetTask(guildID, userID)
 		if current != nil && current.Status == st.TaskStatusPending {
-			if _, err := session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-				Content: "**Task Reminder**\n" + fmt.Sprintf(randomLine(taskReminders), userID, humanDuration(expiryDelay-reminderDelay)),
-				Reference: &discordgo.MessageReference{
-					MessageID: taskMsgID, ChannelID: channelID, GuildID: guildID,
-				},
-			}); err != nil {
+			if err := api.SendChannelReply(channelID, taskMsgID,
+				"**Task Reminder**\n"+fmt.Sprintf(randomLine(taskReminders), userID, humanDuration(expiryDelay-reminderDelay))); err != nil {
 				log.Warn().Str("channel_id", channelID).Err(err).Msg("task_reminder_failed")
 			}
 		}
@@ -340,12 +298,8 @@ func handleTimers(log zerolog.Logger, session *discordgo.Session, storage *st.St
 	case <-time.After(expiryDelay - reminderDelay):
 		current, _ := storage.GetTask(guildID, userID)
 		if current != nil && current.Status == st.TaskStatusPending {
-			if _, err := session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-				Content: "**Task Expired**\n" + fmt.Sprintf(randomLine(taskFailures), userID),
-				Reference: &discordgo.MessageReference{
-					MessageID: taskMsgID, ChannelID: channelID, GuildID: guildID,
-				},
-			}); err != nil {
+			if err := api.SendChannelReply(channelID, taskMsgID,
+				"**Task Expired**\n"+fmt.Sprintf(randomLine(taskFailures), userID)); err != nil {
 				log.Warn().Str("channel_id", channelID).Err(err).Msg("task_expiry_notice_failed")
 			}
 			if err := storage.ClearTask(guildID, userID); err != nil {
@@ -356,9 +310,7 @@ func handleTimers(log zerolog.Logger, session *discordgo.Session, storage *st.St
 			}
 			// Strip the Manage button: the task is over, and leaving it live would
 			// let the holder answer a prompt with no record behind it.
-			if _, err := session.ChannelMessageEditComplex(&discordgo.MessageEdit{
-				ID: taskMsgID, Channel: channelID, Components: &[]discordgo.MessageComponent{},
-			}); err != nil {
+			if err := api.ClearChannelComponents(channelID, taskMsgID); err != nil {
 				log.Warn().Str("channel_id", channelID).Err(err).Msg("task_button_strip_failed")
 			}
 		}
@@ -384,24 +336,21 @@ func cooldownForGuild(storage *st.Storage, guildID string) time.Duration {
 	return duration
 }
 
-func getMemberRoleNames(session *discordgo.Session, guildID string, roleIDs []string) map[string]bool {
+func memberRoleNames(api adapter.SessionAPI, guildID string, roleIDs []string) (map[string]bool, error) {
 	names := make(map[string]bool)
+	if api == nil {
+		return names, nil
+	}
+	byID, err := api.RoleNames(guildID)
+	if err != nil {
+		return names, err
+	}
 	for _, rid := range roleIDs {
-		role, err := session.State.Role(guildID, rid)
-		if err != nil || role == nil {
-			allRoles, _ := session.GuildRoles(guildID)
-			for _, r := range allRoles {
-				if r.ID == rid {
-					role = r
-					break
-				}
-			}
-		}
-		if role != nil {
-			names[role.Name] = true
+		if name, ok := byID[rid]; ok {
+			names[name] = true
 		}
 	}
-	return names
+	return names, nil
 }
 
 func filterTasksByRoles(all []Task, roles map[string]bool) []Task {

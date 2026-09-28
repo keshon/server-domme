@@ -49,15 +49,20 @@ type Responder interface {
 	// a followup, so the message id comes back with them attached.
 	AnswerEmbedMessageWithButtons(embed *Embed, buttons []ActionRow) (channelID, messageID string, err error)
 
+	// AnswerTextMessageWithButtons is the same for a plain-text message: the
+	// task assignment, which reads as a message rather than a card.
+	AnswerTextMessageWithButtons(text string, buttons []ActionRow) (channelID, messageID string, err error)
+
 	// EditResponseText replaces the original reply with plain text, which is
 	// the fallback when an embed could not be delivered.
 	EditResponseText(content string) error
 
 	// ReplaceMessage answers a component interaction by rewriting the message
-	// it came from. Buttons replace the row the click arrived on: passing nil
-	// consumes the chooser so nothing can be pressed twice, passing a new row
-	// keeps the message interactive (ask's accept leaves a close button).
-	ReplaceMessage(embed *Embed, buttons []ActionRow) error
+	// it came from. What it becomes is one reply: text, embed, buttons, or
+	// any combination. A nil button row consumes the chooser so nothing can
+	// be pressed twice; a new row keeps the message interactive (ask's accept
+	// leaves a close button, task's trigger opens the verdict row).
+	ReplaceMessage(rep Reply) error
 
 	// OpenModal answers an interaction by popping up a modal editor, which is
 	// how /welcome edits paragraph texts an option line cannot hold. It must
@@ -121,6 +126,14 @@ type SessionAPI interface {
 	// command with no interaction to answer says anything at all.
 	SendChannelMessage(channelID, content string) error
 
+	// SendChannelReply posts content in reply to a message, which is how
+	// task reminders and expiry notices point at the assignment.
+	SendChannelReply(channelID, replyToID, content string) error
+
+	// ClearChannelComponents strips the buttons off a message the bot posted,
+	// which is how an expired task loses a button whose record is gone.
+	ClearChannelComponents(channelID, messageID string) error
+
 	SendChannelEmbed(channelID string, embed *Embed) error
 
 	// SendDirectMessage DMs a user one message. A member with DMs closed is
@@ -161,6 +174,10 @@ type SessionAPI interface {
 	// calls rather than here: the cadence is the caller's policy, not the
 	// connection's.
 	DeleteMessage(channelID, messageID string) error
+
+	// RoleNames resolves a guild's roles to id-indexed names, for matching a
+	// caller's roles against task lists written in names.
+	RoleNames(guildID string) (map[string]string, error)
 
 	// GuildMembers lists a guild's members for name resolution (/announce
 	// restores @mentions the source message spelled loosely). Cache first,
