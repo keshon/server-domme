@@ -2,7 +2,6 @@ package reply
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/disgoorg/disgo/discord"
-	"github.com/disgoorg/disgo/rest"
 	"github.com/disgoorg/snowflake/v2"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
@@ -711,16 +709,6 @@ func allowedMentions(msg adapter.OutgoingMessage) *discord.AllowedMentions {
 		}
 	}
 	return m
-}
-
-// missingPermissions is Discord's code for "Missing Permissions".
-const missingPermissions = 50013
-
-// isMissingPermissions reports whether Discord refused something for want of
-// a permission, as opposed to any other refusal.
-func isMissingPermissions(err error) bool {
-	var restErr *rest.Error
-	return errors.As(err, &restErr) && restErr.Code == missingPermissions
 }
 
 // CanPostIn reports why the bot could not post in a channel, or "" when it

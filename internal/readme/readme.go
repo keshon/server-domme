@@ -98,7 +98,7 @@ func UpdateReadme(registry *command.Registry, categoryWeights map[string]int, lo
 		BotPermissionsList string
 	}{
 		CommandSections:    buf.String(),
-		BotPermissions:     int64(RecommendedBotPermissions),
+		BotPermissions:     RecommendedBotPermissions,
 		BotPermissionsList: permListBuf.String(),
 	}
 

@@ -17,7 +17,7 @@ func modalCtx(t *testing.T, api *apiFake, store *storage.Storage, text string) (
 		Invoker: adapter.Invoker{
 			GuildID: guild, ChannelID: "c1",
 			UserID: "admin", Username: "admin", DisplayName: "admin",
-			Permissions: int64(perm.Administrator), PermissionsKnown: true,
+			Permissions: perm.Administrator, PermissionsKnown: true,
 		},
 		Responder:   resp,
 		API:         api,

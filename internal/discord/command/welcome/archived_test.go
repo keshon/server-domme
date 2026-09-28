@@ -11,10 +11,10 @@ import (
 // nothing.
 func TestInvisibleCharactersFromDiscordAreDropped(t *testing.T) {
 	chans := []adapter.Channel{{ID: "1", Name: "information"}}
-	if got := Render("in ⁠#information and", Vars{}, chans); got != "in <#1> and" {
+	if got := Render("in \u2060#information and", Vars{}, chans); got != "in <#1> and" {
 		t.Errorf("rendered %q", got)
 	}
-	if got := unlinked(Render("list here: ⁠#Domme Icons Full List .", Vars{}, chans)); len(got) != 1 {
+	if got := unlinked(Render("list here: \u2060#Domme Icons Full List .", Vars{}, chans)); len(got) != 1 {
 		t.Errorf("an unmatched pasted name was not flagged: %v", got)
 	}
 	// Emoji built with a zero-width joiner are left whole.
@@ -33,7 +33,7 @@ func TestSavingLinksArchivedThreads(t *testing.T) {
 		{ID: "9", Name: "information"},
 	}
 	ctx := testCtx(testStore(t), api)
-	text := "{user} see ⁠#information and the list here: #Domme Icons Full List . Welcome to {server}"
+	text := "{user} see \u2060#information and the list here: #Domme Icons Full List . Welcome to {server}"
 	got := linkArchived(ctx, text, api.channels)
 	want := "{user} see #information and the list here: <#7> . Welcome to {server}"
 	if got != want {

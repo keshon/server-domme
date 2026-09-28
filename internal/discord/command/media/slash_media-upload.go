@@ -26,7 +26,7 @@ func (c *UploadMediaCommand) SlashDefinition() *adapter.SlashCommand {
 	opts := []adapter.SlashOption{}
 	for i := 1; i <= 10; i++ {
 		required := i == 1
-		desc := fmt.Sprintf("Upload a media file (image/video/etc)")
+		desc := "Upload a media file (image/video/etc)"
 		if !required {
 			desc = fmt.Sprintf("Optional %s file", ordinal(i))
 		}

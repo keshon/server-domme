@@ -511,9 +511,6 @@ func isMissingPermissions(err error) bool {
 		strings.Contains(err.Error(), "50013")
 }
 
-// errMissingPermissions is Discord's code for "Missing Permissions".
-const errMissingPermissions = 50013
-
 // refused puts a Discord refusal in words an administrator can act on.
 func refused(err error, channelID string) string {
 	if isMissingPermissions(err) {
