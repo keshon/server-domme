@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/keshon/server-domme/internal/discord/adapter"
 )
 
 // Placeholders a template can use.
@@ -30,20 +32,16 @@ type Vars struct {
 	Role string
 }
 
-// Channel is one channel a template may name.
-type Channel struct {
-	ID   string
-	Name string
-}
-
-// Render fills a template for one person.
+// Render fills a template for one person. Channels are adapter.Channel: the
+// same list the connection reports, so no conversion sits between listing
+// and rendering.
 //
 // "#channel-name" becomes a link to that channel. Templates are written by
 // pasting text copied out of Discord, and copied text carries a channel as
 // "#introduction", not as the "<#id>" a message needs to link it — so without
 // this every channel in a pasted template would arrive as plain grey text.
 // A name that matches no channel is left as it was written.
-func Render(template string, v Vars, channels []Channel) string {
+func Render(template string, v Vars, channels []adapter.Channel) string {
 	template = invisible.Replace(template)
 	out := strings.NewReplacer(
 		placeUser, "<@"+v.UserID+">",
@@ -63,11 +61,11 @@ var invisible = strings.NewReplacer("\u2060", "", "\u200b", "", "\ufeff", "")
 
 // linkChannels turns "#name" into "<#id>" for channels that exist, longest
 // name first so "#roles-info" is not taken for "#roles".
-func linkChannels(text string, channels []Channel) string {
+func linkChannels(text string, channels []adapter.Channel) string {
 	if !strings.Contains(text, "#") || len(channels) == 0 {
 		return text
 	}
-	sorted := append([]Channel(nil), channels...)
+	sorted := append([]adapter.Channel(nil), channels...)
 	sort.SliceStable(sorted, func(i, j int) bool { return len(sorted[i].Name) > len(sorted[j].Name) })
 
 	var b strings.Builder

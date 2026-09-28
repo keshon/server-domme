@@ -184,6 +184,30 @@ type SessionAPI interface {
 	// REST when the cache has never heard of the guild at this size.
 	GuildMembers(guildID string) ([]GuildMember, error)
 
+	// Member fetches one guild member: what /welcome checks before posting.
+	Member(guildID, userID string) (*Member, error)
+
+	// GuildChannels lists the channels and open threads a template may name.
+	GuildChannels(guildID string) ([]Channel, error)
+
+	// GuildArchivedThreads lists archived threads under the guild's channels,
+	// for writing thread links into a template being saved.
+	GuildArchivedThreads(guildID string) ([]Channel, error)
+
+	// PostMessage posts content with at most one file and explicit mentions,
+	// and reports the message id. Welcomes go out this way.
+	PostMessage(channelID string, msg OutgoingMessage) (string, error)
+
+	// CanPostIn reports why the bot could not post in a channel, or "" when
+	// it can. Checked before anything is posted, so a refusal names the
+	// channel and the missing permission rather than surfacing Discord's raw
+	// body.
+	CanPostIn(channelID, guildID string) string
+
+	// CanMentionEveryone reports why @everyone/@here would not ping here, or
+	// "" when they would.
+	CanMentionEveryone(channelID string) string
+
 	// GuildInfo describes a guild. See GuildInfo for what the counts mean.
 	GuildInfo(guildID string) (GuildInfo, error)
 

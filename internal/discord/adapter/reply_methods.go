@@ -198,6 +198,44 @@ func (c *MessageCommandContext) FollowupWith(rep Reply) error {
 	return followup(c.Responder, c.AppLog, rep)
 }
 
+// --- ModalSubmitContext ---
+
+func (c *ModalSubmitContext) Defer() error {
+	return ackDeferred(c.Responder, c.AppLog, false)
+}
+
+func (c *ModalSubmitContext) DeferEphemeral() error {
+	return ackDeferred(c.Responder, c.AppLog, true)
+}
+
+func (c *ModalSubmitContext) Respond(e *Embed) error {
+	return respond(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: false})
+}
+
+func (c *ModalSubmitContext) RespondEphemeral(e *Embed) error {
+	return respond(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: true})
+}
+
+func (c *ModalSubmitContext) Followup(e *Embed) error {
+	return followup(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: false})
+}
+
+func (c *ModalSubmitContext) FollowupEphemeral(e *Embed) error {
+	return followup(c.Responder, c.AppLog, Reply{Embed: e, Ephemeral: true})
+}
+
+func (c *ModalSubmitContext) EditResponseText(content string) error {
+	return editResponse(c.Responder, c.AppLog, content)
+}
+
+func (c *ModalSubmitContext) RespondWith(rep Reply) error {
+	return respond(c.Responder, c.AppLog, rep)
+}
+
+func (c *ModalSubmitContext) FollowupWith(rep Reply) error {
+	return followup(c.Responder, c.AppLog, rep)
+}
+
 // --- ComponentInteractionContext ---
 
 func (c *ComponentInteractionContext) Defer() error {

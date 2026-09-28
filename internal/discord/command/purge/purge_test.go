@@ -31,6 +31,20 @@ func (c *channel) RemoveReaction(_, _, _, _ string) error            { return ni
 func (c *channel) GuildMembers(_ string) ([]adapter.GuildMember, error) {
 	return nil, nil
 }
+func (c *channel) Member(_, _ string) (*adapter.Member, error) {
+	return &adapter.Member{}, nil
+}
+func (c *channel) GuildChannels(_ string) ([]adapter.Channel, error) {
+	return nil, nil
+}
+func (c *channel) GuildArchivedThreads(_ string) ([]adapter.Channel, error) {
+	return nil, nil
+}
+func (c *channel) PostMessage(_ string, _ adapter.OutgoingMessage) (string, error) {
+	return "m1", nil
+}
+func (c *channel) CanPostIn(_, _ string) string        { return "" }
+func (c *channel) CanMentionEveryone(_ string) string { return "" }
 func (c *channel) RoleNames(_ string) (map[string]string, error) {
 	return map[string]string{}, nil
 }

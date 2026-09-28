@@ -1,6 +1,9 @@
 package adapter
 
-import "time"
+import (
+	"io"
+	"time"
+)
 
 // GuildInfo is what a command can learn about a guild without naming the
 // library that fetched it.
@@ -48,4 +51,55 @@ type GuildMember struct {
 	Username   string
 	Nick       string
 	GlobalName string
+}
+
+// Member is one guild member: who they are, what they wear, whether they
+// are a bot. Welcomes refuse bots and check roles off this.
+type Member struct {
+	UserID     string
+	Username   string
+	GlobalName string
+	Nick       string
+	Roles      []string
+	Bot        bool
+}
+
+// DisplayName is how they are shown in the server: nickname, display name,
+// username, in that order.
+func (m *Member) DisplayName() string {
+	if m == nil {
+		return "there"
+	}
+	switch {
+	case m.Nick != "":
+		return m.Nick
+	case m.GlobalName != "":
+		return m.GlobalName
+	case m.Username != "":
+		return m.Username
+	default:
+		return "there"
+	}
+}
+
+// Channel is one channel or open thread a template may name.
+type Channel struct {
+	ID   string
+	Name string
+}
+
+// OutgoingMessage is a channel post: words, at most one file, and who may
+// be notified. Mentions default to nobody; the welcome passes its newcomer,
+// plus everyone and roles only where the settings allow.
+type OutgoingMessage struct {
+	Content string
+	// File is attached when non-nil; the caller keeps ownership of closing it.
+	File     io.Reader
+	FileName string
+	// MentionUser is always notified.
+	MentionUser string
+	// AllowEveryone lets @everyone and @here in the text ping.
+	AllowEveryone bool
+	// AllowRoles lets these role mentions ping.
+	AllowRoles []string
 }

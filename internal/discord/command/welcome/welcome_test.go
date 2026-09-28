@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -21,12 +21,26 @@ func testStore(t *testing.T) *storage.Storage {
 	return s
 }
 
-func member(id string, roles ...string) *discordgo.Member {
-	return &discordgo.Member{GuildID: guild, User: &discordgo.User{ID: id}, Roles: roles}
+func member(id string, roles ...string) *adapter.Member {
+	return &adapter.Member{UserID: id, Username: id, Roles: roles}
 }
 
-func roleOpt(id string) *discordgo.ApplicationCommandInteractionDataOption {
-	return &discordgo.ApplicationCommandInteractionDataOption{Name: optRole, Type: discordgo.ApplicationCommandOptionRole, Value: id}
+func roleOpt(id string) adapter.SlashArgument {
+	return adapter.SlashArgument{Name: optRole, Type: adapter.OptionRole, Value: id}
+}
+
+func testCtx(store *storage.Storage, api *apiFake) *adapter.SlashInteractionContext {
+	return &adapter.SlashInteractionContext{
+		Invoker: adapter.Invoker{
+			GuildID: "g1", ChannelID: "ticket-1",
+			UserID: "admin", Username: "admin", DisplayName: "admin",
+			Permissions: 8, PermissionsKnown: true,
+		},
+		Responder: &responderFake{},
+		API:       api,
+		Storage:   store,
+		AppLog:    zerolog.Nop(),
+	}
 }
 
 func setUp(t *testing.T, store *storage.Storage, roles ...string) {
@@ -55,18 +69,18 @@ func TestPickRoleRefusesARoleTheyDoNotHave(t *testing.T) {
 func TestPickRoleWorksOutTheirRoleOrAsks(t *testing.T) {
 	store := testStore(t)
 
-	if _, problem := pickRole(store, guild, member("u1", "sub"), nil); !strings.Contains(problem, "/welcome setup") {
+	if _, problem := pickRole(store, guild, member("u1", "sub"), adapter.SlashArgument{}); !strings.Contains(problem, "/welcome setup") {
 		t.Errorf("with nothing set up: %q", problem)
 	}
 
 	setUp(t, store, "sub", "domme")
-	if got, problem := pickRole(store, guild, member("u1", "sub", "unrelated"), nil); problem != "" || got != "sub" {
+	if got, problem := pickRole(store, guild, member("u1", "sub", "unrelated"), adapter.SlashArgument{}); problem != "" || got != "sub" {
 		t.Errorf("one configured role: got %q, %q", got, problem)
 	}
-	if _, problem := pickRole(store, guild, member("u1", "sub", "domme"), nil); !strings.Contains(problem, "role:") {
+	if _, problem := pickRole(store, guild, member("u1", "sub", "domme"), adapter.SlashArgument{}); !strings.Contains(problem, "role:") {
 		t.Errorf("two configured roles did not ask which: %q", problem)
 	}
-	if _, problem := pickRole(store, guild, member("u1", "unrelated"), nil); !strings.Contains(problem, "Give them one first") {
+	if _, problem := pickRole(store, guild, member("u1", "unrelated"), adapter.SlashArgument{}); !strings.Contains(problem, "Give them one first") {
 		t.Errorf("no configured role: %q", problem)
 	}
 	if _, problem := pickRole(store, guild, member("u1", "vip"), roleOpt("vip")); !strings.Contains(problem, "no welcome set up") {
@@ -74,53 +88,35 @@ func TestPickRoleWorksOutTheirRoleOrAsks(t *testing.T) {
 	}
 }
 
-// A session whose cache knows one text channel the bot may post in.
-func stateWith(channelID string) *discordgo.Session {
-	st := discordgo.NewState()
-	_ = st.GuildAdd(&discordgo.Guild{ID: guild, Name: "The Parlour"})
-	_ = st.ChannelAdd(&discordgo.Channel{ID: channelID, GuildID: guild, Name: "mousey", Type: discordgo.ChannelTypeGuildText})
-	return &discordgo.Session{State: st}
+func testAPI() *apiFake {
+	api := newAPIFake()
+	api.channels = []adapter.Channel{
+		{ID: "c1", Name: "mousey"},
+	}
+	api.guild = adapter.GuildInfo{ID: guild, Name: "The Parlour"}
+	return api
 }
 
 func TestPlanPartChecksBeforeAnythingIsPosted(t *testing.T) {
-	s := stateWith("c1")
+	api := testAPI()
+	ctx := testCtx(testStore(t), api)
 	v := Vars{UserID: "u1"}
 
-	if p := planPart(s, guild, "Intro", "", "", v, nil, "", false); p.ok() || p.skip == "" {
+	if p := planPart(ctx, guild, "Intro", "", "", v, nil, "", false); p.ok() || p.skip == "" {
 		t.Errorf("an unset part was not skipped: %+v", p)
 	}
-	if p := planPart(s, guild, "Intro", "c1", "", v, nil, "", false); p.ok() || !strings.Contains(p.problem, "/welcome template") {
+	if p := planPart(ctx, guild, "Intro", "c1", "", v, nil, "", false); p.ok() || !strings.Contains(p.problem, "/welcome template") {
 		t.Errorf("a part with no text: %+v", p)
 	}
-	if p := planPart(s, guild, "Intro", "", "hi {user}", v, nil, "", false); p.ok() || !strings.Contains(p.problem, "/welcome setup") {
+	if p := planPart(ctx, guild, "Intro", "", "hi {user}", v, nil, "", false); p.ok() || !strings.Contains(p.problem, "/welcome setup") {
 		t.Errorf("a part with no channel: %+v", p)
 	}
-	if p := planPart(s, guild, "Intro", "c1", strings.Repeat("x", 2001), v, nil, "", false); p.ok() {
+	if p := planPart(ctx, guild, "Intro", "c1", strings.Repeat("x", 2001), v, nil, "", false); p.ok() {
 		t.Error("a text over Discord's limit was allowed")
 	}
-	p := planPart(s, guild, "Intro", "c1", "hi {user}", v, nil, "", false)
+	p := planPart(ctx, guild, "Intro", "c1", "hi {user}", v, nil, "", false)
 	if !p.ok() || p.content != "hi <@u1>" {
 		t.Errorf("a good part: %+v", p)
-	}
-}
-
-func TestAllowedMentionsOnlyPingsNewcomerByDefault(t *testing.T) {
-	m := allowedMentions("@everyone welcome <@u1> <@&99>", "u1", false)
-	if len(m.Parse) != 0 || len(m.Roles) != 0 || len(m.Users) != 1 || m.Users[0] != "u1" {
-		t.Errorf("default mentions = %+v", m)
-	}
-}
-
-func TestAllowedMentionsPingsEveryoneWhenEnabled(t *testing.T) {
-	m := allowedMentions("@everyone welcome <@u1> <@&99>", "u1", true)
-	if len(m.Parse) != 1 || m.Parse[0] != discordgo.AllowedMentionTypeEveryone {
-		t.Errorf("parse = %+v", m.Parse)
-	}
-	if len(m.Roles) != 1 || m.Roles[0] != "99" {
-		t.Errorf("roles = %+v", m.Roles)
-	}
-	if len(m.Users) != 1 || m.Users[0] != "u1" {
-		t.Errorf("users = %+v", m.Users)
 	}
 }
 
@@ -132,13 +128,9 @@ func TestUnlinkedFlagsChannelNamesThatMatchNothing(t *testing.T) {
 }
 
 func TestModalValueReadsTheSubmittedText(t *testing.T) {
-	components := []discordgo.MessageComponent{
-		&discordgo.ActionsRow{Components: []discordgo.MessageComponent{
-			&discordgo.TextInput{CustomID: modalField, Value: "WELCOME {user}"},
-		}},
-	}
-	if got := modalValue(components, modalField); got != "WELCOME {user}" {
-		t.Errorf("modalValue = %q", got)
+	ctx := &adapter.ModalSubmitContext{Values: map[string]string{modalField: "WELCOME {user}"}}
+	if got := ctx.ModalValue(modalField); got != "WELCOME {user}" {
+		t.Errorf("ModalValue = %q", got)
 	}
 }
 
@@ -161,22 +153,6 @@ func TestEverySubcommandIsHandled(t *testing.T) {
 				t.Errorf("%s %s description is %d characters; Discord allows 100", o.Name, inner.Name, len(inner.Description))
 			}
 		}
-	}
-}
-
-// Threads are kept apart from channels in the guild's state; a template
-// can name either.
-func TestGuildChannelsIncludeOpenThreads(t *testing.T) {
-	s := &discordgo.Session{State: discordgo.NewState()}
-	if err := s.State.GuildAdd(&discordgo.Guild{ID: "g",
-		Channels: []*discordgo.Channel{{ID: "1", GuildID: "g", Name: "introduction"}},
-		Threads:  []*discordgo.Channel{{ID: "7", GuildID: "g", Name: "Domme Icons Full List", Type: discordgo.ChannelTypeGuildPublicThread}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	got := Render("see #introduction and #Domme Icons Full List", Vars{}, guildChannels(s, "g"))
-	if got != "see <#1> and <#7>" {
-		t.Errorf("rendered %q", got)
 	}
 }
 

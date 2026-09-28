@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"bytes"
 )
 
 // Gifs are posted as files, not links. A link to a gif page posted with the
@@ -131,8 +131,18 @@ func resolveGif(ctx context.Context, c *http.Client, link string) (string, error
 	return "", errNoGif
 }
 
+// gifAttachment is a gif file to attach to a welcome.
+type gifAttachment struct {
+	name string
+	data []byte
+}
+
+func (g *gifAttachment) reader() io.Reader {
+	return bytes.NewReader(g.data)
+}
+
 // fetchGif downloads a gif file to attach.
-func fetchGif(ctx context.Context, c *http.Client, media string) (*discordgo.File, error) {
+func fetchGif(ctx context.Context, c *http.Client, media string) (*gifAttachment, error) {
 	resp, err := get(ctx, c, media)
 	if err != nil {
 		return nil, fmt.Errorf("welcome: gif file: %w", err)
@@ -152,7 +162,7 @@ func fetchGif(ctx context.Context, c *http.Client, media string) (*discordgo.Fil
 	if len(body) > maxGifBytes {
 		return nil, fmt.Errorf("welcome: gif file is over %d MB", maxGifBytes>>20)
 	}
-	return &discordgo.File{Name: gifName(media, ct), ContentType: ct, Reader: strings.NewReader(string(body))}, nil
+	return &gifAttachment{name: gifName(media, ct), data: body}, nil
 }
 
 // isMedia reports whether a content type is a picture or a video.

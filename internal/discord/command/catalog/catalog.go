@@ -22,6 +22,7 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/shortlink"
 	"github.com/keshon/server-domme/internal/discord/command/task"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
+	"github.com/keshon/server-domme/internal/discord/command/welcome"
 	"github.com/keshon/server-domme/internal/discord/middleware"
 )
 
@@ -46,6 +47,7 @@ func Register(log zerolog.Logger) {
 	adapter.Register(&confess.ConfessCommand{}, mw...)
 	adapter.Register(&announce.AnnounceCommand{}, mw...)
 	adapter.Register(&translate.TranslateOnReaction{}, mw...)
+	adapter.Register(&welcome.WelcomeCommand{}, mw...)
 }
 
 func defaultMiddleware(log zerolog.Logger) []command.Middleware {

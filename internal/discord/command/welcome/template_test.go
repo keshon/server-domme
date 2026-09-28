@@ -1,8 +1,12 @@
 package welcome
 
-import "testing"
+import (
+	"testing"
 
-var channels = []Channel{
+	"github.com/keshon/server-domme/internal/discord/adapter"
+)
+
+var channels = []adapter.Channel{
 	{ID: "1", Name: "introduction"},
 	{ID: "2", Name: "roles"},
 	{ID: "3", Name: "😍-kinks"},
@@ -42,9 +46,9 @@ func TestRenderLeavesWhatItCannotLink(t *testing.T) {
 // links like a channel does, and a channel whose name starts the same is
 // still itself.
 func TestRenderLinksThreadsWithSpaces(t *testing.T) {
-	withThreads := append(append([]Channel(nil), channels...),
-		Channel{ID: "7", Name: "Domme Icons Full List"},
-		Channel{ID: "8", Name: "domme"},
+	withThreads := append(append([]adapter.Channel(nil), channels...),
+		adapter.Channel{ID: "7", Name: "Domme Icons Full List"},
+		adapter.Channel{ID: "8", Name: "domme"},
 	)
 	cases := map[string]string{
 		"icons are in #Domme Icons Full List, pick one": "icons are in <#7>, pick one",

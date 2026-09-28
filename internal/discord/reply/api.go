@@ -2,12 +2,15 @@ package reply
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/rest"
 	"github.com/disgoorg/snowflake/v2"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
@@ -535,4 +538,247 @@ func parseID(s string) (snowflake.ID, error) {
 		return 0, fmt.Errorf("reply: parsing id %q: %w", s, err)
 	}
 	return id, nil
+}
+
+// Member fetches one guild member: what /welcome checks before posting.
+func (a *API) Member(guildID, userID string) (*adapter.Member, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return nil, err
+	}
+	uid, err := parseID(userID)
+	if err != nil {
+		return nil, err
+	}
+	m, err := a.member(gid, uid)
+	if err != nil {
+		return nil, err
+	}
+	out := &adapter.Member{
+		UserID:     m.User.ID.String(),
+		Username:   m.User.Username,
+		GlobalName: derefString(m.User.GlobalName),
+		Nick:       derefString(m.Nick),
+		Bot:        m.User.Bot,
+	}
+	for _, rid := range m.RoleIDs {
+		out.Roles = append(out.Roles, rid.String())
+	}
+	return out, nil
+}
+
+// GuildChannels lists the channels and open threads a template may name.
+func (a *API) GuildChannels(guildID string) ([]adapter.Channel, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool)
+	var out []adapter.Channel
+	for ch := range a.client.Caches.Channels() {
+		if ch.GuildID() != gid {
+			continue
+		}
+		id := ch.ID().String()
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, adapter.Channel{ID: id, Name: ch.Name()})
+	}
+	if channels, err := a.client.Rest.GetGuildChannels(gid); err == nil {
+		for _, ch := range channels {
+			id := ch.ID().String()
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, adapter.Channel{ID: id, Name: ch.Name()})
+		}
+	}
+	if active, err := a.client.Rest.GetActiveGuildThreads(gid); err == nil {
+		for _, t := range active.Threads {
+			id := t.ID().String()
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, adapter.Channel{ID: id, Name: t.Name()})
+		}
+	}
+	return out, nil
+}
+
+// GuildArchivedThreads lists archived threads under the guild's channels,
+// the most recent hundred of each. A channel that cannot be read is skipped.
+func (a *API) GuildArchivedThreads(guildID string) ([]adapter.Channel, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	gid, err := parseID(guildID)
+	if err != nil {
+		return nil, err
+	}
+	channels, err := a.client.Rest.GetGuildChannels(gid)
+	if err != nil {
+		return nil, fmt.Errorf("reply: listing channels: %w", err)
+	}
+	var parents []snowflake.ID
+	for _, ch := range channels {
+		switch ch.Type() {
+		case discord.ChannelTypeGuildText, discord.ChannelTypeGuildNews,
+			discord.ChannelTypeGuildForum, discord.ChannelTypeGuildMedia:
+			parents = append(parents, ch.ID())
+		}
+	}
+	// A few at a time: one after another, a server with a few dozen
+	// channels keeps the administrator waiting on "thinking".
+	found := make([][]adapter.Channel, len(parents))
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, 4)
+	for i, id := range parents {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-slots }()
+			list, err := a.client.Rest.GetPublicArchivedThreads(id, time.Now().UTC(), 100)
+			if err != nil || list == nil {
+				return
+			}
+			for _, t := range list.Threads {
+				found[i] = append(found[i], adapter.Channel{ID: t.ID().String(), Name: t.Name()})
+			}
+		}()
+	}
+	wg.Wait()
+	var out []adapter.Channel
+	for _, f := range found {
+		out = append(out, f...)
+	}
+	return out, nil
+}
+
+// PostMessage posts content with at most one file and explicit mentions, and
+// reports the message id.
+func (a *API) PostMessage(channelID string, msg adapter.OutgoingMessage) (string, error) {
+	if a.client == nil {
+		return "", fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return "", err
+	}
+	post := discord.MessageCreate{
+		Content:         msg.Content,
+		AllowedMentions: allowedMentions(msg),
+	}
+	if msg.File != nil {
+		post.Files = []*discord.File{discord.NewFile(msg.FileName, "", msg.File)}
+	}
+	sent, err := a.client.Rest.CreateMessage(cid, post)
+	if err != nil {
+		return "", err
+	}
+	return sent.ID.String(), nil
+}
+
+func allowedMentions(msg adapter.OutgoingMessage) *discord.AllowedMentions {
+	m := &discord.AllowedMentions{}
+	if msg.MentionUser != "" {
+		if uid, err := snowflake.Parse(msg.MentionUser); err == nil {
+			m.Users = append(m.Users, uid)
+		}
+	}
+	if msg.AllowEveryone {
+		m.Parse = append(m.Parse, discord.AllowedMentionTypeEveryone)
+	}
+	seen := make(map[string]bool)
+	for _, id := range msg.AllowRoles {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if rid, err := snowflake.Parse(id); err == nil {
+			m.Roles = append(m.Roles, rid)
+		}
+	}
+	return m
+}
+
+// missingPermissions is Discord's code for "Missing Permissions".
+const missingPermissions = 50013
+
+// isMissingPermissions reports whether Discord refused something for want of
+// a permission, as opposed to any other refusal.
+func isMissingPermissions(err error) bool {
+	var restErr *rest.Error
+	return errors.As(err, &restErr) && restErr.Code == missingPermissions
+}
+
+// CanPostIn reports why the bot could not post in a channel, or "" when it
+// can.
+func (a *API) CanPostIn(channelID, guildID string) string {
+	if a.client == nil {
+		return "no Discord session"
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return fmt.Sprintf("<#%s> no longer exists", channelID)
+	}
+	ch, ok := a.client.Caches.Channel(cid)
+	if !ok {
+		fetched, err := a.client.Rest.GetChannel(cid)
+		if err != nil || fetched == nil {
+			return fmt.Sprintf("<#%s> no longer exists", channelID)
+		}
+		gch, ok := fetched.(discord.GuildChannel)
+		if !ok {
+			return fmt.Sprintf("<#%s> is not in this server", channelID)
+		}
+		ch = gch
+	}
+	if gid, err := parseID(guildID); err != nil || ch.GuildID() != gid {
+		return fmt.Sprintf("<#%s> is not in this server", channelID)
+	}
+	perms, err := a.botPermissions(channelID)
+	if err != nil {
+		// Permissions could not be worked out from the cache; let Discord
+		// be the judge rather than refusing on a guess.
+		return ""
+	}
+	need := discord.PermissionViewChannel | discord.PermissionSendMessages
+	say := "View Channel and Send Messages"
+	switch ch.Type() {
+	case discord.ChannelTypeGuildNewsThread, discord.ChannelTypeGuildPublicThread,
+		discord.ChannelTypeGuildPrivateThread:
+		// A thread takes its own permission, which Send Messages does not
+		// carry: a welcome pointed at one would pass this check and be
+		// refused by Discord.
+		need = discord.PermissionViewChannel | discord.PermissionSendMessagesInThreads
+		say = "View Channel and Send Messages in Threads"
+	}
+	if perms&need != need {
+		return fmt.Sprintf("I cannot post in <#%s> — give me %s there", channelID, say)
+	}
+	return ""
+}
+
+// CanMentionEveryone reports why @everyone/@here would not ping here, or ""
+// when they would.
+func (a *API) CanMentionEveryone(channelID string) string {
+	perms, err := a.botPermissions(channelID)
+	if err != nil {
+		return ""
+	}
+	if perms&discord.PermissionMentionEveryone == 0 {
+		return fmt.Sprintf("the text pings @everyone or @here but I do not have Mention Everyone in <#%s>", channelID)
+	}
+	return ""
 }
