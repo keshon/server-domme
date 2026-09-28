@@ -11,7 +11,6 @@ require (
 )
 
 require (
-	github.com/cloudflare/circl v1.6.5 // indirect
 	github.com/disgoorg/godave v0.1.0 // indirect
 	github.com/disgoorg/json/v2 v2.0.0 // indirect
 	github.com/disgoorg/omit v1.0.0 // indirect
@@ -24,16 +23,9 @@ require (
 )
 
 require (
-	github.com/bwmarrin/discordgo v0.29.0
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/joho/godotenv v1.5.1
 	github.com/keshon/buildinfo v0.1.0
 	github.com/keshon/command v0.1.0
 )
-
-// discordgo is pinned to a local fork, shared byte-identical with melodix.
-// Upstream deadlocks when an Op 7 or Op 9 arrives as the second packet of
-// Open(): both handlers call CloseWithCode, which takes the session lock Open
-// already holds. See docs/architecture.md.
-replace github.com/bwmarrin/discordgo => ./pkg/discordgo-fork-dev

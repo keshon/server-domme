@@ -2,14 +2,13 @@
 
 Server Domme is a Discord bot for server management: scheduled channel purges,
 roleplay tasks, anonymous confessions, announcements, short links,
-reaction-triggered translation, and an optional conversational persona.
+reaction-triggered translation, and guided member welcomes.
 
-It shares its Discord plumbing with [melodix](https://github.com/keshon/melodix)
-— the `internal/discord` tree, the command adapter, the middleware chain and the
-storage layer are deliberately the same shape in both, so a fix in one can be
-lifted into the other. That now includes the vendored `discordgo` fork under
-`pkg/discordgo-fork-dev`, which both bots carry byte-identical. What melodix has
-and this bot does not is the playback engine; there is no voice code here.
+It shares its Discord stack with [melodix](https://github.com/keshon/melodix)
+— `internal/discord` (disgo session, adapter, reply, queue, slashsync,
+middleware), the command catalog shape and the storage layer are deliberately
+the same in both, so a fix in one can be lifted into the other. What melodix
+has and this bot does not is the playback engine; there is no voice code here.
 
 ## Lifecycle
 
@@ -22,79 +21,69 @@ main
  ├── runSessionLoop      RunSession, reconnecting until rootCtx ends
  ├── RunCooldownCleaner  sweeps elapsed task cooldowns
  ├── purge.RunScheduler  waits for bot.Ready(), then replays stored purge jobs
- ├── shortlink.RunServer HTTP redirects + health endpoint
- └── chat.Run            persona workers + deferred-reply retries (optional)
+ └── shortlink.RunServer HTTP redirects + health endpoint
 ```
 
 Every one of these takes `rootCtx`, which `signal.NotifyContext` cancels on
 SIGINT/SIGTERM, and every one is in the `sync.WaitGroup` that `main` waits on
 before closing the store.
 
-`RunSession` builds a **fresh** `*discordgo.Session` on each call. Anything that
-outlives one session must therefore resolve the session per use rather than
-capture the pointer — `Bot.Session()` exists for exactly this, and
-`purge.SessionFunc` is how the scheduler consumes it. A captured session goes
-stale on the first reconnect and its writes then target a closed connection.
+`RunSession` builds a **fresh** disgo client on each call. Anything that
+outlives one session must therefore resolve the connection per use rather than
+capture the API — `Bot.SessionAPI()` exists for exactly this, and
+`purge.APIFunc` is how the scheduler consumes it. A captured API goes stale on
+the first reconnect and its writes then target a closed connection.
 
 `Bot.Ready()` closes once, on the first successful connect. It is the signal for
 services that need a live gateway before their first action.
 
 ## Health and restarts
 
-Two watchdogs decide a session is unhealthy, and both funnel into the same
-notifier:
-
-- **`watchdog.WSSilence`** — trips when dispatch traffic *and* heartbeat ACKs
-  have both been stale past `WS_SILENCE_TIMEOUT`. Requiring both matters: a
-  quiet guild legitimately sends no events for minutes, and the heartbeat is
-  what separates "nothing to say" from "nobody home".
-- **API probe** — calls `User("@me")` on a timer and trips after three
-  consecutive failures.
+One watchdog decides a session is unhealthy: **`watchdog.WSSilence`** trips
+when dispatch traffic *and* heartbeat ACKs have both been stale past
+`WS_SILENCE_TIMEOUT`. Requiring both matters: a quiet guild legitimately sends
+no events for minutes, and the heartbeat is what separates "nothing to say"
+from "nobody home".
 
 `DISCORD_UNHEALTHY_GRACE` lets the first N signals inside
 `DISCORD_UNHEALTHY_WINDOW` pass before a restart actually happens.
 
-Both watchdogs read the heartbeat ACK, and that read is the one place this
-design has already failed in production. `discordgo` holds the session write
-lock across gateway reads that carry no deadline, so a wedged session parks
-every reader — including both watchdogs, which is how one session ran 22 hours
-with a dead gateway and nothing in the log but the datastore compaction ticker.
-`lastHeartbeatAck` therefore reads with a timeout and reports the give-up as
-its own unhealthy signal (`session_lock_wedged`), and `closeSession` abandons a
-session whose close will not return, so the restart loop is never stranded on
-the same lock.
-
-Note what is *not* used: `discordgo.Session.HeartbeatLatency()`. It is race-free
-in the vendored fork, but it reports the last *completed* exchange, so on a dead
-connection it goes stale and then negative rather than growing — the wrong shape
-for a staleness check.
+disgo delivers heartbeats as events, so the ACK is recorded on arrival and
+read without contending with anything — there is no session lock to wedge and
+nothing to time out reading. Teardown is still bounded and abandonable
+(`closeWithin`): a step that blocks would strand the restart loop with it, and
+the bot a watchdog just correctly declared dead would never come back.
 
 ## Commands
 
-A command is a struct implementing `cmdadapter.Handler` — `Name`, `Description`,
+A command is a struct implementing `adapter.Handler` — `Name`, `Description`,
 `Run`, plus the `Meta` classification (`Group`, `Category`, `UserPermissions`).
 It opts into surfaces by implementing more interfaces:
 
 | Interface | Gives the command |
 |---|---|
 | `SlashProvider` | a `/slash` definition |
-| `ContextMenuProvider` | a right-click context entry |
-| `ReactionProvider` | reaction-triggered dispatch |
-| `ComponentInteractionHandler` | button and select handling |
-| `MessageObserver` | every message in a guild, not only mentions |
+| `MenuProvider` | a message context-menu entry under the same name |
+| `ReactionHandler` | reaction-triggered dispatch (`/translate`) |
+| `ComponentInteractionHandler` | button handling |
+| `ModalSubmitHandler` | a modal editor's submission (`/welcome template`) |
+| `MessageCommandHandler` | a context-menu invocation (`/announce`) |
+| `Unlogged` | exclusion from the audit log (`/confess`) |
 
-`cmdadapter.Register` wraps the handler and puts it in `command.DefaultRegistry`.
-Dispatch reads that registry: `handlers_interactions.go` for slash and component
-interactions, `handlers_messages.go` for mentions and reactions.
+`catalog.Register` wraps each handler in `adapter.Adapter` with the middleware
+and puts it in `command.DefaultRegistry`. Dispatch reads that registry:
+`handlers.go` for slash, menu, component, modal and reaction events.
 
-Component custom IDs are matched by prefix against command names — `"name"`,
-`"name:..."` or `"name_..."`. A chooser already posted to a channel keeps sitting
-there, so its ids come back long after a restart: **custom ID formats are
-effectively frozen once shipped.** Add new ids rather than repointing old ones,
-and let an unrecognised one fail closed.
+Component and modal custom IDs are matched by prefix against command names —
+`"name"`, `"name:..."` or `"name_..."`. A button already posted to a channel
+keeps sitting there, so its ids come back long after a restart: **custom ID
+formats are effectively frozen once shipped.** Add new ids rather than
+repointing old ones, and let an unrecognised one fail closed.
 
-Every command runs under `execguard`, which timeboxes it at `COMMAND_TIMEOUT`
-and caps concurrency at `COMMAND_PARALLELISM`.
+Command bodies run off the gateway goroutine on per-guild queue lanes, so the
+socket stays read while a command works. Waiting for a slot is bounded by the
+interaction acknowledgement deadline; running is not. Concurrency is capped at
+`COMMAND_PARALLELISM` across every guild.
 
 ### Middleware
 
@@ -163,186 +152,9 @@ Placeholders: `{user}` (the tag), `{name}`, `{server}`, `{role}` — the role as
 text, never as a mention.
 
 Modal submissions route like components, by a customID starting with the
-command name (`cmdadapter.ModalSubmitHandler`). A submission arrives without
+command name (`adapter.ModalSubmitHandler`). A submission arrives without
 the command's permission check, which only ran when the modal was opened, so
 the handler checks the submitter itself.
-
-## The chat persona
-
-Off unless `CHAT_ENABLED` is set, and then still silent until an admin runs
-`/chat channel` in a specific channel. Two gates rather than one, because turning
-it on sends the contents of those channels to a model provider — a different
-privacy posture from the rest of this bot, and not one to acquire by default.
-
-The design, and why v1 was retired, is in [persona.md](persona.md). In short:
-the model is the mind and the code is the body. Each moment is two calls — a
-private appraisal returned as JSON (what she makes of it, what she wants to do,
-what she takes away) and her voice — and what she knows lives as Markdown under
-`CHAT_MEMORY_PATH`, which she writes as she goes and rewrites when she reflects
-at night.
-
-| Package | Knows about | Holds |
-|---|---|---|
-| `internal/mind` | `ai`, `memory` | the character, prompts, appraisal, voice, initiative, reflection |
-| `internal/memory` | the filesystem | self, dossiers, days, intentions — as Markdown |
-| `internal/chat` | Discord, storage, `mind` | the running service: workers, deferrals, the rails |
-| `internal/ai` | HTTP | OpenAI-compatible clients and the failover pool |
-
-`mind` knows nothing about Discord, so every decision and every prompt is
-testable without a gateway, and `cmd/chatprobe` can replay a conversation
-copied out of Discord through her.
-
-### What stayed from v1
-
-The Discord plumbing did, because none of it was the problem:
-
-- **`Observe` never calls a backend.** It runs on the gateway goroutine, where a
-  call of most of a minute would outlive `COMMAND_TIMEOUT`. It records, classifies
-  and queues; workers `main` owns do the rest.
-- **How a message reached her** — a mention, a reply to her (detected by both
-  `ReferencedMessage` and her own sent message ids, since the first is
-  best-effort), her name, or the next line from the person she is talking to
-  when nobody else has spoken since — is stated to the appraisal as a fact.
-  It no longer carries odds; whether she answers is hers to decide.
-- **A burst gets one answer.** She waits until its author stops typing, and a
-  line arriving while an answer to them is on its way is part of that answer.
-- **Failing to answer is not choosing not to.** An answer no backend would
-  produce is held and retried, goes out late as a Discord reply to what it
-  answers, and the message's age in the transcript is what makes her
-  acknowledge the gap. At most one held per channel, a few attempts, typing
-  shown only on the first.
-- **Typed, not composed.** `mind.Casual` evens out the final full stop,
-  em-dashes and typographer's quotes on the way out, and now and then drops an
-  apostrophe.
-- **Only the person she answers can be notified** by a mention she writes.
-- **Echoes and repeats are caught** before posting; a repeat is retried once
-  with what she already said ruled out, including a line that opens the way her
-  last two did.
-
-### The rails
-
-The model decides; the code keeps the promises a model cannot be trusted with.
-She never ignores the same person's direct approach twice running — a second
-silence in a row is overruled into an answer, because from outside it is
-indistinguishable from a broken bot. Nothing that is not speech (a control
-word, JSON) reaches a channel. Nothing she starts arrives at night, more than
-a few times a day, or to someone who has not agreed with `/attention`.
-
-### Commands
-
-`/chat channel mode:off|answers|speaks-first` sets how she behaves in a
-channel. `/chat status` shows the backends and how she is in this channel —
-her mood, how she has been lately in her own words, how she feels about the
-people here and what she means to do. `/chat why` shows what she made of a
-particular message and what she decided; `/chat about` shows her file on a
-person; `/chat brief` and `/chat role` tell her what the server and its roles
-are; `/chat delete` takes back one of her messages — deleted from the channel,
-dropped from the conversation and from her memory of saying it, hers only;
-`/chat forget` moves her memory of a server aside; `/chat reflect` has
-her look back now rather than in the early morning, on today so far as well
-if asked, leaving today open for the night. `/attention` is a member's
-consent to be sought out.
-
-### Backends
-
-The endpoints are donated public infrastructure with no guarantees, and they
-behave accordingly: `g4f.space` relays volunteer servers that each allow only
-their own model list and have been observed answering with a different model
-than the one requested. `ai.Pool` therefore fails over: a backend that fails
-is put in cooldown, and each cooldown in a row doubles the next, from 90
-seconds up to half an hour, so a flaky backend is not retried on every
-message. `ai.PickModels` takes at most one model per donated server, so the
-pool is not three entries on one machine.
-
-Which backend answers is the operator's choice, not the pool's. By default
-(`CHAT_BACKEND_ORDER=priority`) backends are tried in the configured order and
-the pool moves past one only while it rests, because every model has a native
-voice and a pool that re-ranks itself on every call makes her a different
-speaker from one message to the next; `score` restores ranking by what each
-backend has done lately. Her voice can prefer its own backends
-(`CHAT_VOICE_BACKENDS`), with thinking still using the whole list and the voice
-falling back to it when every preferred one is down. Once her voice has spoken
-through a backend it stays on it for the session, so a failover does not
-change her voice twice. `/chat backends`, for the bot's developer only, changes
-the order, the voice order and which backends are switched off at runtime; the
-arrangement is stored and survives a restart. See
-[persona-v3.md](persona-v3.md), workstream A.
-
-`CHAT_BASE_URL` points at any other OpenAI-compatible endpoint — a local Ollama
-or a paid API — and is tried first when set.
-
-**The free tiers do not survive a move to a server.** g4f.space grants its
-anonymous allowance as proof-of-work "cakes" baked in a browser and credited,
-in its own words, *to the IP that baked it*; a host nobody browses from has
-none, and every call returns 402. Pollinations refuses a prompt of this size
-anonymously for the same sort of reason. Both work from a desktop and neither
-works from a VPS, which is a difference that will not show up in testing.
-`CHAT_G4F_API_KEY` sends an account token instead, which is bound to the
-account rather than the address; a real deployment is better off pointing
-`CHAT_BASE_URL` at something it controls.
-
-`CHAT_BACKENDS` adds any number of further endpoints as
-`name|baseURL|model|key` specs. More independent endpoints is the whole of the
-resilience story here, and which ones are worth having goes stale faster than a
-release: a list an operator can edit outlives any set compiled in.
-
-What does **not** belong in it is most of what circulates as "free AI provider"
-lists. Those are overwhelmingly web UIs rather than APIs — measured, one
-evening: Cloudflare challenges on `chat.ai365vip.com` and `heck.ai`, a
-client-computed request signature on `free2gpt` (`401 Invalid signature`),
-plain 403s behind the redirects from `free.netfly.top` and `freegpt.es`, and no
-such endpoint at all on `sur.pollinations.ai`. Reaching them means a
-per-site scraper of the kind that breaks weekly, and for the large vendors it
-also means automating a service whose terms forbid it. An endpoint qualifies
-here only if it answers `POST {base}/chat/completions` with an OpenAI-shaped
-body.
-
-gpt4free itself is open source and its slim image serves the same
-OpenAI-compatible route, so `docker compose --profile g4f up -d` puts a copy on
-the internal network at `http://g4f:8080/v1` with none of the hosted relay's
-per-IP credit accounting. It does not escape the providers' own bot detection,
-which is a different obstacle in the same place; see
-[docker/README.md](../docker/README.md).
-
-### Reaching a model on someone's own machine
-
-`koboldcpp` and `llama.cpp`'s `llama-server` both serve the same
-OpenAI-compatible route the relays do, so pointing at one is a `CHAT_BACKENDS`
-entry and nothing more. The work is networking, not code: the bot is on a
-public host and the model usually is not.
-
-A private network between the two — Tailscale, or plain WireGuard — is the
-arrangement that survives contact with a home connection. It needs no inbound
-port, no static address, and exposes nothing publicly; a reverse SSH tunnel
-does the same job with no new software. Port-forwarding an inference server to
-the internet does not belong on this list: these servers authenticate weakly if
-at all, and anyone who finds one owns the GPU behind it.
-
-Three settings exist because of this case. `CHAT_TEMPERATURE` sets how freely
-every backend samples, sent with each request (`ai.Options.Temperature`);
-empty, it is left out, and each backend samples the way it does by default,
-which is what the character was tuned against on the relays. A local model's
-default can be far more deterministic: KoboldCpp answered the same message
-with the same words run after run, and a character who says exactly the same
-thing to the same situation reads as a machine however good the line is.
-Around 0.8 to 1.0 is a start. It is one setting for the pool rather than one
-per kind of call, because nothing measured says her note-taking wants
-different sampling from her speech. `CHAT_REQUEST_TIMEOUT` raises the
-per-backend deadline, since a model on CPU can spend most of a minute on a
-prompt a hosted GPU answers in two seconds, and the whole attempt is allowed
-twice that so failover still fits. The compose file sets
-`host.docker.internal` so a tunnel terminating on the host is reachable from
-inside the container, where "localhost" otherwise means the container itself.
-
-A home machine sleeps, reboots and loses power, which is the ordinary case
-rather than the failure case: keep a second entry in `CHAT_BACKENDS` and the
-pool fails over to it, then returns to the local one when it comes back.
-
-A 401, 402 or 403 is therefore treated as `ai.ErrBackendRefused`: the backend
-gets no second attempt and rests for `refusedCooldown` rather than 90 seconds,
-because nothing this process does will change the answer and each attempt
-spends a request to hear it again. 429 is deliberately excluded — a backend
-that is merely busy should come back quickly.
 
 ## Storage
 
@@ -351,7 +163,7 @@ a write-ahead log plus periodic snapshots, in a directory the process locks for
 its lifetime. A second process opening the same directory fails with
 `datastore.ErrLocked`.
 
-Seven collections, each registered before `Open` so the schema is described in
+Eight collections, each registered before `Open` so the schema is described in
 exactly one place:
 
 | Collection | Key | Indexed by |
@@ -362,7 +174,8 @@ exactly one place:
 | `short_links` | `<shortID>` | guild |
 | `tasks` | `<guildID>:<userID>` | guild |
 | `task_cooldowns` | `<guildID>:<userID>` | guild |
-| `mind_people` | `<guildID>:<userID>` | guild |
+| `welcome_roles` | `<guildID>:<roleID>` | guild |
+| `welcomed` | `<guildID>:<userID>:<roleID>` | — |
 
 Two key shapes, for two reasons. Append-only rows zero-pad their id so
 lexicographic key order equals chronological order — that is what lets an index

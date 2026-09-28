@@ -45,14 +45,13 @@ It’s designed to be practical for server management while providing light, int
 
 ### 📢 Utilities
 
-- **Announce (context command)** — Send a message on bot's behalf
 - **/announce** — Send a message on bot's behalf
 - **/shortlink** — Shorten URLs and manage your links
   - **/shortlink create** — Shorten a URL
   - **/shortlink list** — List your shortened URLs
   - **/shortlink delete** — Delete a specific shortened URL
   - **/shortlink clear** — Clear all your shortened URLs
-- **translate (reaction)** — Translate message on flag emoji reaction
+- **/translate** — Translate message on flag emoji reaction
 
 ### 🎲 Gameplay
 

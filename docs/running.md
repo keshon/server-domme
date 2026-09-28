@@ -27,8 +27,7 @@ The rest have working defaults. The ones worth knowing:
 | `DEVELOPER_ID` | — | Your Discord user id; unlocks developer-only actions. |
 | `DISCORD_GUILD_BLACKLIST` | — | Comma-separated guild ids the bot leaves on sight. |
 | `PROTECTED_USERS` | — | Comma-separated user ids that `/discipline` and `/task` refuse to target. |
-| `COMMAND_TIMEOUT` | `30s` | Hard timebox for one command. |
-| `COMMAND_PARALLELISM` | `16` | Concurrent command cap. |
+| `COMMAND_PARALLELISM` | `16` | Cap on concurrently running command bodies, across every guild. |
 | `WS_SILENCE_TIMEOUT` | `2m` | Gateway staleness before the session is called unhealthy. |
 | `DISCORD_UNHEALTHY_MODE` | `restart-session` | Or `ignore` to only log. |
 | `SHORTLINK_BASE_URL` | — | Public origin the short links are built from — no trailing slash. |
@@ -82,7 +81,9 @@ go run ./cmd/discord
 ```
 
 On Windows, `build-n-run.bat` builds with version metadata baked in and then
-runs the result.
+runs the result. `go run ./cmd/discord -check` connects with the real token,
+reports what the gateway sees, and exits without registering or sending
+anything — the way to judge an intent or token change before deploying it.
 
 Regenerate `README.md` from the command registry after adding or changing a
 command — it is generated from `README.md.tmpl`, never hand-edited:

@@ -119,6 +119,6 @@ func (a *Adapter) MessageCommand(ctx *MessageCommandContext) error {
 }
 
 var (
-	_ ModalSubmitHandler   = (*Adapter)(nil)
+	_ ModalSubmitHandler    = (*Adapter)(nil)
 	_ MessageCommandHandler = (*Adapter)(nil)
 )

@@ -39,11 +39,11 @@ type postedMessage struct {
 
 func newAPIFake() *apiFake {
 	return &apiFake{
-		members:  make(map[string]*adapter.Member),
-		roles:    make(map[string]string),
-		canPost:  make(map[string]string),
-		canPing:  make(map[string]string),
-		guild:    adapter.GuildInfo{ID: "g1", Name: "Queen's Court"},
+		members: make(map[string]*adapter.Member),
+		roles:   make(map[string]string),
+		canPost: make(map[string]string),
+		canPing: make(map[string]string),
+		guild:   adapter.GuildInfo{ID: "g1", Name: "Queen's Court"},
 	}
 }
 

@@ -43,7 +43,7 @@ func (c *channel) GuildArchivedThreads(_ string) ([]adapter.Channel, error) {
 func (c *channel) PostMessage(_ string, _ adapter.OutgoingMessage) (string, error) {
 	return "m1", nil
 }
-func (c *channel) CanPostIn(_, _ string) string        { return "" }
+func (c *channel) CanPostIn(_, _ string) string       { return "" }
 func (c *channel) CanMentionEveryone(_ string) string { return "" }
 func (c *channel) RoleNames(_ string) (map[string]string, error) {
 	return map[string]string{}, nil

@@ -143,7 +143,7 @@ func repoRoot(t *testing.T) string {
 //
 // An earlier version of this file only checked that each variable name
 // appeared somewhere, and passed happily on
-// `CHAT_REQUEST_TIMEOUT=45sollama|http://localhost:11434/v1|...` — a botched
+// `COMMAND_TIMEOUT=30sollama|http://localhost:11434/v1|...` — a botched
 // edit that spliced one setting into the middle of another's example. The name
 // was present, so the check was satisfied, and the file it was guarding was
 // nonsense. A value that cannot be parsed is the failure worth catching:
@@ -177,9 +177,9 @@ func TestEnvExamplesParseIntoAValidConfig(t *testing.T) {
 // fails it.
 func TestEnvExampleParsingRejectsABadValue(t *testing.T) {
 	values := map[string]string{
-		"DISCORD_TOKEN":        "placeholder",
-		"TASKS_PATH":           "placeholder",
-		"COMMAND_TIMEOUT": "45sollama|http://localhost:11434/v1|llama3.1",
+		"DISCORD_TOKEN":      "placeholder",
+		"TASKS_PATH":         "placeholder",
+		"WS_SILENCE_TIMEOUT": "2m-ollama|http://localhost:11434/v1|llama3.1",
 	}
 
 	var cfg Config

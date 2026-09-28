@@ -66,7 +66,7 @@ unstoppable. Publish readiness and let `main` react.
 ## Naming
 
 **[practice]** Package names are single lowercase words describing what the
-package does (`reply`, `perm`, `watchdog`, `execguard`). A package inside
+package does (`reply`, `perm`, `watchdog`, `queue`). A package inside
 `internal/discord` does not repeat "discord" in its own name.
 
 **[enforced: named-constants]** Strings that select behavior get named
@@ -103,10 +103,10 @@ doing, sometimes — but deliberately, not as a drive-by.
 
 ## Concurrency contracts
 
-**[invariant]** `RunSession` builds a fresh `*discordgo.Session` every call.
-Anything outliving one session resolves it per use via `Bot.Session()` — never
-by capturing the pointer, because a captured session goes stale and its writes
-target a closed connection.
+**[invariant]** `RunSession` builds a fresh disgo client every call.
+Anything outliving one session resolves the connection per use via
+`Bot.SessionAPI()` — never by capturing the API, because a captured one goes
+stale and its writes target a closed connection.
 
 **[invariant]** Every goroutine has an owner and a clear way to exit.
 Background services take `rootCtx` and are awaited in `main`'s WaitGroup; a
@@ -164,8 +164,9 @@ keep in sync, and it sits in the way of the comment that actually matters.
 and so is a doc comment that only expands the identifier back into a sentence.
 
 The comments worth writing answer a question the code raises but cannot
-settle. Why the purge scheduler resolves the session per use. Why short-link
-ids have no guild prefix. Why `HeartbeatLatency()` is avoided. Whoever asks
+settle. Why the purge scheduler resolves the connection per use. Why
+short-link ids have no guild prefix. Why `ReplaceMessage` takes the whole
+reply rather than an embed. Whoever asks
 those next — a maintainer months from now, or an agent told to "clean this
 up" — cannot recover the answer from the code, and will helpfully undo it.
 
@@ -181,12 +182,13 @@ target a closed connection" turns an arbitrary-looking indirection into
 something nobody deletes by accident. A rule with no consequence attached reads
 as a preference.
 
-**Say what not to do.** `Do NOT call ClearExpiredCooldowns here`, `do not reach
-for HeartbeatLatency`. A deliberate non-obvious choice needs a fence around it
+**Say what not to do.** `Do NOT call ClearExpiredCooldowns here`, `do not pass
+an embed where a reply carries the buttons`. A deliberate non-obvious choice
+needs a fence around it
 or it gets optimized away — this is the highest-value kind of comment here, and
 the one an agent is likeliest to violate in its absence.
 
-**Point at the next hop by name.** `see purge.SessionFunc`, `see
+**Point at the next hop by name.** `see purge.APIFunc`, `see
 storage/schema.go`. A reader who needs more should be told where it is, in a
 form that greps.
 
@@ -296,9 +298,10 @@ on every push and PR, then cross-compiles all release targets.
 
 **[invariant]** `README.md` is generated, not hand-edited: change
 `README.md.tmpl` and run `go run ./cmd/discord -readme` from the repo root.
-Editing the output means losing the edit on the next regeneration. The bot
-writes no files at runtime except the persona's memory, which lives under
-`CHAT_MEMORY_PATH` and nowhere else; see `internal/memory`.
+Editing the output means losing the edit on the next regeneration. The bot's
+runtime writes are the store directory it locks, the per-guild task lists
+under `data/`, and the media library under `assets/media/` — everything else
+it only reads.
 
 ## Release notes
 

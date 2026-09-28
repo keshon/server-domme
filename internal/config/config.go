@@ -17,9 +17,11 @@ type Config struct {
 	DeveloperID           string   `env:"DEVELOPER_ID"`
 	InitSlashCommands     bool     `env:"INIT_SLASH_COMMANDS" envDefault:"false"`
 
-	// CommandTimeout is a hard timebox for command execution.
-	CommandTimeout time.Duration `env:"COMMAND_TIMEOUT" envDefault:"30s"`
-	// CommandParallelism limits concurrently running command handlers.
+	// CommandParallelism caps how many command bodies run at once, across
+	// every guild. Commands within one guild run one at a time regardless:
+	// waiting for a slot is bounded by the interaction acknowledgement
+	// deadline, but running is not — a command's Run takes the invocation,
+	// not a context, so a timeout could only relabel a slow command's error.
 	CommandParallelism int `env:"COMMAND_PARALLELISM" envDefault:"16"`
 	// WSSilenceTimeout triggers a session restart if no gateway messages are
 	// received.

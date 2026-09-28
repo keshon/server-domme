@@ -15,6 +15,7 @@ import (
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
 )
+
 // The connection-level answers. Everything here reads from disgo's cache
 // first and falls back to REST only where the cache cannot answer at all,
 // which is the same order the discordgo backend uses and for the same reason:

@@ -19,6 +19,9 @@ import (
 	"github.com/keshon/server-domme/internal/discord/adapter"
 )
 
+// EmbedColor is the default colour for an embed that did not choose one.
+const EmbedColor = 0xb01e66
+
 // Embed renders an embed. A nil Embed renders as the zero value, which the
 // callers here never send: they check first, because disgo takes embeds by
 // value and there is no nil to pass through.

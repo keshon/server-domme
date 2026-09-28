@@ -180,14 +180,14 @@ func (b *Bot) onComponentInteraction(e *events.ComponentInteractionCreate, recor
 		firstEmbed = reply.FromWire(e.Message.Embeds[0])
 	}
 	cc := &adapter.ComponentInteractionContext{
-		Invoker:     who,
-		Responder:   responder,
-		API:         reply.NewSessionAPI(e.Client()),
-		ComponentID: customID,
-		MessageID:   e.Message.ID.String(),
+		Invoker:        who,
+		Responder:      responder,
+		API:            reply.NewSessionAPI(e.Client()),
+		ComponentID:    customID,
+		MessageID:      e.Message.ID.String(),
 		MessageContent: e.Message.Content,
-		MessageEmbed: firstEmbed,
-		Storage:     b.storage, Config: b.cfg, Audit: recorder, AppLog: b.log,
+		MessageEmbed:   firstEmbed,
+		Storage:        b.storage, Config: b.cfg, Audit: recorder, AppLog: b.log,
 	}
 
 	b.dispatchInteraction(who, responder, "component", matched.Name(), func(cmdCtx context.Context) error {
