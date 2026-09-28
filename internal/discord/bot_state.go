@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/keshon/server-domme/internal/config"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/queue"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
@@ -73,6 +74,12 @@ func (b *Bot) releaseCommandSlot() {
 // Services that need a live session wait on it before their first use.
 func (b *Bot) Ready() <-chan struct{} {
 	return b.ready
+}
+
+// SessionAPI is the neutral surface over the live connection, or nil between
+// sessions. Long-lived services resolve it per use rather than capturing it.
+func (b *Bot) SessionAPI() adapter.BotAPI {
+	return b.sessionAPI()
 }
 
 func (b *Bot) markReady() {

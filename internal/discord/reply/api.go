@@ -12,7 +12,6 @@ import (
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
 )
-
 // The connection-level answers. Everything here reads from disgo's cache
 // first and falls back to REST only where the cache cannot answer at all,
 // which is the same order the discordgo backend uses and for the same reason:
@@ -276,6 +275,55 @@ func derefString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// ChannelMessages lists a channel's history newest-first.
+func (a *API) ChannelMessages(channelID, beforeID string, limit int) ([]adapter.ListedMessage, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return nil, err
+	}
+	var before snowflake.ID
+	if beforeID != "" {
+		before, err = parseID(beforeID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	msgs, err := a.client.Rest.GetMessages(cid, 0, before, 0, limit)
+	if err != nil {
+		return nil, fmt.Errorf("reply: listing messages: %w", err)
+	}
+	out := make([]adapter.ListedMessage, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, adapter.ListedMessage{
+			ID:        m.ID.String(),
+			Timestamp: m.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// DeleteMessage deletes one message.
+func (a *API) DeleteMessage(channelID, messageID string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return err
+	}
+	mid, err := parseID(messageID)
+	if err != nil {
+		return err
+	}
+	return a.client.Rest.DeleteMessage(cid, mid)
 }
 
 // AddMemberRole assigns a role to a guild member.

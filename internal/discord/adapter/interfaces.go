@@ -152,6 +152,16 @@ type SessionAPI interface {
 	// was configured.
 	RoleName(guildID, roleID string) (string, error)
 
+	// ChannelMessages lists a channel's history newest-first, for purges.
+	// beforeID pages backwards (empty starts at the newest); limit caps the
+	// page at Discord's 100.
+	ChannelMessages(channelID, beforeID string, limit int) ([]ListedMessage, error)
+
+	// DeleteMessage deletes one message. Purges pace themselves between
+	// calls rather than here: the cadence is the caller's policy, not the
+	// connection's.
+	DeleteMessage(channelID, messageID string) error
+
 	// GuildMembers lists a guild's members for name resolution (/announce
 	// restores @mentions the source message spelled loosely). Cache first,
 	// REST when the cache has never heard of the guild at this size.

@@ -8,11 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/config"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
-	"github.com/keshon/server-domme/internal/storage"
 )
 
 type ShortlinkCommand struct{}
@@ -23,18 +20,18 @@ func (c *ShortlinkCommand) Group() string            { return "shortlink" }
 func (c *ShortlinkCommand) Category() string         { return "📢 Utilities" }
 func (c *ShortlinkCommand) UserPermissions() []int64 { return []int64{} }
 
-func (c *ShortlinkCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
+func (c *ShortlinkCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
+		Options: []adapter.SlashOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "create",
 				Description: "Shorten a URL",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "url",
 						Description: "The URL to shorten",
 						Required:    true,
@@ -42,17 +39,17 @@ func (c *ShortlinkCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "list",
 				Description: "List your shortened URLs",
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "delete",
 				Description: "Delete a specific shortened URL",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "id",
 						Description: "The short ID of the link to delete (e.g. abc123)",
 						Required:    true,
@@ -60,7 +57,7 @@ func (c *ShortlinkCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "clear",
 				Description: "Clear all your shortened URLs",
 			},
@@ -68,50 +65,40 @@ func (c *ShortlinkCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *ShortlinkCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
+func (c *ShortlinkCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	sub, ok := ctx.FirstOption()
 	if !ok {
-		return nil
-	}
-	s := context.Session
-	e := context.Event
-	st := context.Storage
-	data := e.ApplicationCommandData()
-
-	if len(data.Options) == 0 {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No subcommand provided.",
 		})
 	}
 
-	opt := data.Options[0]
-	switch opt.Name {
+	switch sub.Name {
 	case "create":
-		return c.runCreate(s, e, st, opt, context.Config)
+		return c.runCreate(ctx, sub)
 	case "list":
-		return c.runList(s, e, st, context.Config)
+		return c.runList(ctx)
 	case "delete":
-		return c.runDelete(s, e, st, opt)
+		return c.runDelete(ctx, sub)
 	case "clear":
-		return c.runClear(s, e, st)
+		return c.runClear(ctx)
 	default:
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
 		})
 	}
 }
 
 func (c *ShortlinkCommand) runCreate(
-	s *discordgo.Session,
-	e *discordgo.InteractionCreate,
-	st *storage.Storage,
-	opt *discordgo.ApplicationCommandInteractionDataOption,
-	cfg *config.Config,
+	ctx *adapter.SlashInteractionContext,
+	sub adapter.SlashArgument,
 ) error {
+	cfg := ctx.Config
 	if cfg == nil {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: "Config not available."})
 	}
-	raw := strings.TrimSpace(opt.Options[0].StringValue())
+	urlOpt, _ := sub.Option("url")
+	raw := strings.TrimSpace(urlOpt.StringValue())
 
 	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
 		if looksLikeDomain(raw) {
@@ -120,18 +107,18 @@ func (c *ShortlinkCommand) runCreate(
 	}
 
 	if !isValidURL(raw) {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Color:       reply.EmbedColor,
 			Description: fmt.Sprintf("`%s` doesn’t look like a valid link.\nTry something like `https://example.com`.", raw),
 		})
 	}
 
-	userID := e.Member.User.ID
-	guildID := e.GuildID
+	userID := ctx.UserID()
+	guildID := ctx.GuildID()
 
-	links, _ := st.GetUserShortLinks(guildID, userID)
+	links, _ := ctx.Storage.GetUserShortLinks(guildID, userID)
 	if len(links) >= 50 {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Color:       reply.EmbedColor,
 			Description: "You have reached the maximum number of short links (50). Use `/shortlink clear` to clear them or `/shortlink delete` to delete some.",
 		})
@@ -140,14 +127,14 @@ func (c *ShortlinkCommand) runCreate(
 	shortID := randomID(6)
 	shortURL := fmt.Sprintf("%s/%s", cfg.ShortLinkBaseURL, shortID)
 
-	if err := st.AddShortLink(guildID, userID, raw, shortID); err != nil {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	if err := ctx.Storage.AddShortLink(guildID, userID, raw, shortID); err != nil {
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Color:       reply.EmbedColor,
-			Description: fmt.Sprintf("Failed to save short link: %v", err),
+			Description: fmt.Sprintf("Failed to save short link: `%v`", err),
 		})
 	}
 
-	return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return ctx.RespondEphemeral(&adapter.Embed{
 		Color: reply.EmbedColor,
 		Title: "Short Link Created",
 		Description: fmt.Sprintf(
@@ -157,16 +144,17 @@ func (c *ShortlinkCommand) runCreate(
 	})
 }
 
-func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage, cfg *config.Config) error {
+func (c *ShortlinkCommand) runList(ctx *adapter.SlashInteractionContext) error {
+	cfg := ctx.Config
 	if cfg == nil {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{Description: "Config not available."})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: "Config not available."})
 	}
-	userID := e.Member.User.ID
-	guildID := e.GuildID
+	userID := ctx.UserID()
+	guildID := ctx.GuildID()
 
-	links, err := st.GetUserShortLinks(guildID, userID)
+	links, err := ctx.Storage.GetUserShortLinks(guildID, userID)
 	if err != nil || len(links) == 0 {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "You don’t have any shortened links yet.",
 		})
 	}
@@ -177,7 +165,7 @@ func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.Interactio
 	}
 
 	shortDomain := cfg.ShortLinkBaseURL
-	var embeds []*discordgo.MessageEmbed
+	var embeds []*adapter.Embed
 	var current strings.Builder
 	current.WriteString("**Your Shortened Links (newest first):**\n\n")
 
@@ -194,7 +182,7 @@ func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.Interactio
 		)
 
 		if len(current.String())+len(line) > 3800 {
-			embeds = append(embeds, &discordgo.MessageEmbed{Description: current.String()})
+			embeds = append(embeds, &adapter.Embed{Description: current.String()})
 			current.Reset()
 			current.WriteString("**(continued)**\n\n")
 		}
@@ -202,17 +190,15 @@ func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.Interactio
 		current.WriteString(line)
 	}
 
-	embeds = append(embeds, &discordgo.MessageEmbed{Description: current.String()})
+	embeds = append(embeds, &adapter.Embed{Description: current.String()})
 
 	for i, embed := range embeds {
 		if i == 0 {
-			if err := reply.RespondEmbedEphemeral(s, e, embed); err != nil {
+			if err := ctx.RespondEphemeral(embed); err != nil {
 				return fmt.Errorf("shortlink: failed to respond to interaction: %w", err)
 			}
 		} else {
-			if _, err := s.FollowupMessageCreate(e.Interaction, true, &discordgo.WebhookParams{
-				Embeds: []*discordgo.MessageEmbed{embed},
-			}); err != nil {
+			if err := ctx.FollowupEphemeral(embed); err != nil {
 				return fmt.Errorf("shortlink: failed to send followup (%d/%d): %w", i+1, len(embeds), err)
 			}
 		}
@@ -221,37 +207,39 @@ func (c *ShortlinkCommand) runList(s *discordgo.Session, e *discordgo.Interactio
 	return nil
 }
 
-func (c *ShortlinkCommand) runDelete(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage, opt *discordgo.ApplicationCommandInteractionDataOption) error {
-	shortID := opt.Options[0].StringValue()
-	userID := e.Member.User.ID
-	guildID := e.GuildID
+func (c *ShortlinkCommand) runDelete(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	idOpt, _ := sub.Option("id")
+	shortID := idOpt.StringValue()
+	userID := ctx.UserID()
+	guildID := ctx.GuildID()
 
+	st := ctx.Storage
 	err := st.DeleteShortLink(guildID, userID, shortID)
 	if err != nil {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Color:       reply.EmbedColor,
-			Description: fmt.Sprintf("Failed to delete short link: %v", err),
+			Description: fmt.Sprintf("Failed to delete short link: `%v`", err),
 		})
 	}
 
-	return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return ctx.RespondEphemeral(&adapter.Embed{
 		Color:       reply.EmbedColor,
 		Description: fmt.Sprintf("Short link **%s** has been deleted.", shortID),
 	})
 }
 
-func (c *ShortlinkCommand) runClear(s *discordgo.Session, e *discordgo.InteractionCreate, st *storage.Storage) error {
-	userID := e.Member.User.ID
-	guildID := e.GuildID
+func (c *ShortlinkCommand) runClear(ctx *adapter.SlashInteractionContext) error {
+	userID := ctx.UserID()
+	guildID := ctx.GuildID()
 
-	if err := st.ClearUserShortLinks(guildID, userID); err != nil {
-		return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	if err := ctx.Storage.ClearUserShortLinks(guildID, userID); err != nil {
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Color:       reply.EmbedColor,
-			Description: fmt.Sprintf("Failed to clear links: %v", err),
+			Description: fmt.Sprintf("Failed to clear links: `%v`", err),
 		})
 	}
 
-	return reply.RespondEmbedEphemeral(s, e, &discordgo.MessageEmbed{
+	return ctx.RespondEphemeral(&adapter.Embed{
 		Color:       reply.EmbedColor,
 		Description: "All your shortened links have been cleared.",
 	})

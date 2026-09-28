@@ -17,7 +17,9 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/discipline"
 	"github.com/keshon/server-domme/internal/discord/command/media"
 	"github.com/keshon/server-domme/internal/discord/command/roll"
+	"github.com/keshon/server-domme/internal/discord/command/purge"
 	"github.com/keshon/server-domme/internal/discord/command/settings"
+	"github.com/keshon/server-domme/internal/discord/command/shortlink"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
 	"github.com/keshon/server-domme/internal/discord/middleware"
 )
@@ -35,6 +37,8 @@ func Register(log zerolog.Logger) {
 	adapter.Register(&discipline.DisciplineCommand{}, mw...)
 	adapter.Register(&media.RandomMediaCommand{}, mw...)
 	adapter.Register(&media.UploadMediaCommand{}, mw...)
+	adapter.Register(&purge.PurgeCommand{}, mw...)
+	adapter.Register(&shortlink.ShortlinkCommand{}, mw...)
 	adapter.Register(&roll.RollCommand{}, mw...)
 	adapter.Register(&ask.AskCommand{}, mw...)
 	adapter.Register(&confess.ConfessCommand{}, mw...)

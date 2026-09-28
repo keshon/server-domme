@@ -1,5 +1,7 @@
 package adapter
 
+import "time"
+
 // GuildInfo is what a command can learn about a guild without naming the
 // library that fetched it.
 //
@@ -30,6 +32,13 @@ type Message struct {
 	Content     string
 	Embeds      []*Embed
 	Attachments []Attachment
+}
+
+// ListedMessage is one message in a channel listing: id and time, which is
+// all a purge selects on.
+type ListedMessage struct {
+	ID        string
+	Timestamp time.Time
 }
 
 // GuildMember is one member for name resolution: username, server nickname

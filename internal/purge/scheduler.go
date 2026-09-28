@@ -4,24 +4,24 @@ import (
 	"context"
 	"time"
 
-	"github.com/keshon/server-domme/internal/command/purge"
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/purge"
 	"github.com/keshon/server-domme/internal/storage"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog"
 )
 
-// SessionFunc yields the gateway session in use right now.
+// APIFunc yields the live connection's neutral surface right now.
 //
 // The scheduler's goroutines outlive any single session — RunSession builds a
-// fresh one on every restart — so they resolve the session per purge instead of
-// closing over one pointer, which would keep writing to a closed connection.
-type SessionFunc func() *discordgo.Session
+// fresh client on every restart — so they resolve the connection per purge
+// instead of closing over one API, which would keep writing to a dead one.
+type APIFunc func() adapter.BotAPI
 
 // RunScheduler replays the stored purge jobs (delayed and recurring) and keeps
 // the recurring ones ticking until ctx is cancelled. It returns once every job
 // has been scheduled; the work itself continues in the background.
-func RunScheduler(ctx context.Context, store *storage.Storage, session SessionFunc, log zerolog.Logger) {
+func RunScheduler(ctx context.Context, store *storage.Storage, api APIFunc, log zerolog.Logger) {
 	log.Info().Msg("purge_scheduler_starting")
 
 	for _, job := range store.AllPurgeJobs() {
@@ -44,20 +44,20 @@ func RunScheduler(ctx context.Context, store *storage.Storage, session SessionFu
 
 		switch job.Mode {
 		case storage.PurgeModeDelayed:
-			scheduleDelayed(ctx, store, session, jobLog, job)
+			scheduleDelayed(ctx, store, api, jobLog, job)
 		case storage.PurgeModeRecurring:
-			scheduleRecurring(ctx, store, session, jobLog, job)
+			scheduleRecurring(ctx, store, api, jobLog, job)
 		default:
 			jobLog.Error().Msg("purge_job_mode_unknown")
 		}
 	}
 }
 
-func scheduleDelayed(ctx context.Context, store *storage.Storage, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
+func scheduleDelayed(ctx context.Context, store *storage.Storage, api APIFunc, log zerolog.Logger, job storage.PurgeJob) {
 	dur := time.Until(job.DelayUntil)
 	if dur <= 0 {
 		log.Info().Msg("purge_delayed_overdue")
-		runDelayed(store, session, log, job)
+		runDelayed(store, api, log, job)
 		return
 	}
 
@@ -70,13 +70,13 @@ func scheduleDelayed(ctx context.Context, store *storage.Storage, session Sessio
 			return
 		case <-timer.C:
 		}
-		runDelayed(store, session, log, job)
+		runDelayed(store, api, log, job)
 	}()
 }
 
-func runDelayed(store *storage.Storage, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
-	s := session()
-	if s == nil {
+func runDelayed(store *storage.Storage, api APIFunc, log zerolog.Logger, job storage.PurgeJob) {
+	a := api()
+	if a == nil {
 		log.Warn().Msg("purge_skipped_no_session")
 		return
 	}
@@ -85,7 +85,7 @@ func runDelayed(store *storage.Storage, session SessionFunc, log zerolog.Logger,
 		return
 	}
 	log.Info().Msg("purge_delayed_running")
-	purge.DeleteMessages(s, job.ChannelID, nil, nil, nil)
+	purge.DeleteMessages(a, job.ChannelID, nil, nil, nil)
 
 	if err := store.ClearDeletionJob(job.GuildID, job.ChannelID); err != nil {
 		log.Error().Err(err).Msg("purge_job_clear_failed")
@@ -94,7 +94,7 @@ func runDelayed(store *storage.Storage, session SessionFunc, log zerolog.Logger,
 	log.Info().Msg("purge_delayed_done")
 }
 
-func scheduleRecurring(ctx context.Context, store *storage.Storage, session SessionFunc, log zerolog.Logger, job storage.PurgeJob) {
+func scheduleRecurring(ctx context.Context, store *storage.Storage, api APIFunc, log zerolog.Logger, job storage.PurgeJob) {
 	dur, err := time.ParseDuration(job.OlderThan)
 	if err != nil {
 		log.Error().Str("older_than", job.OlderThan).Err(err).Msg("purge_older_than_invalid")
@@ -121,8 +121,8 @@ func scheduleRecurring(ctx context.Context, store *storage.Storage, session Sess
 				log.Info().Msg("purge_recurring_stopped_shutdown")
 				return
 			case <-ticker.C:
-				s := session()
-				if s == nil {
+				a := api()
+				if a == nil {
 					log.Warn().Msg("purge_skipped_no_session")
 					continue
 				}
@@ -131,7 +131,7 @@ func scheduleRecurring(ctx context.Context, store *storage.Storage, session Sess
 					return
 				}
 				log.Debug().Msg("purge_recurring_tick")
-				purge.DeleteOlderThan(s, job.ChannelID, dur, stopChan)
+				purge.DeleteOlderThan(a, job.ChannelID, dur, stopChan)
 			}
 		}
 	}()

@@ -19,6 +19,7 @@ import (
 	"github.com/keshon/server-domme/internal/discord"
 	"github.com/keshon/server-domme/internal/discord/command/catalog"
 	"github.com/keshon/server-domme/internal/readme"
+	purgesvc "github.com/keshon/server-domme/internal/purge"
 	shortlinksvc "github.com/keshon/server-domme/internal/shortlink"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
@@ -92,10 +93,19 @@ func main() {
 		storage.RunCooldownCleaner(rootCtx, store, log)
 	}()
 
-	// TODO(melodix-stack): re-enable once purge is ported to the disgo
-	// session API. The scheduler replays stored jobs against the gateway, so
-	// it waits on bot.Ready() before its first use and resolves the live
-	// connection per purge.
+	// The purge scheduler replays stored jobs against the gateway, so it cannot
+	// run before the first connect. It resolves the live connection per purge
+	// and therefore survives every later reconnect.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		select {
+		case <-rootCtx.Done():
+			return
+		case <-bot.Ready():
+		}
+		purgesvc.RunScheduler(rootCtx, store, bot.SessionAPI, log)
+	}()
 
 	wg.Add(1)
 	go func() {

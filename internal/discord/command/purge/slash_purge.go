@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
-	"github.com/keshon/server-domme/internal/discord/cmdadapter"
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/perm"
 	st "github.com/keshon/server-domme/internal/storage"
+	"github.com/rs/zerolog"
 )
 
 type PurgeCommand struct{}
@@ -22,37 +23,37 @@ func (c *PurgeCommand) Description() string { return "Manage message purges" }
 func (c *PurgeCommand) Group() string       { return "purge" }
 func (c *PurgeCommand) Category() string    { return "🧹 Cleanup" }
 func (c *PurgeCommand) UserPermissions() []int64 {
-	return []int64{discordgo.PermissionAdministrator}
+	return []int64{perm.Administrator}
 }
 
-func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
+func (c *PurgeCommand) SlashDefinition() *adapter.SlashCommand {
+	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options: []*discordgo.ApplicationCommandOption{
+		Options: []adapter.SlashOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "auto",
 				Description: "Regularly purge old messages in this channel",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "older_than",
 						Description: "Purge messages older than this (e.g. 10m, 1h, 1d, 1w)",
 						Required:    true,
 					},
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "notify_all",
 						Description: "Post a notification message",
 						Required:    true,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
+						Choices: []adapter.SlashChoice{
 							{Name: "Yes (default)", Value: "true"},
 							{Name: "No", Value: "false"},
 						},
 					},
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "confirm",
 						Description: "Type 'yes' to confirm the action",
 						Required:    true,
@@ -60,16 +61,16 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "now",
 				Description: "Schedule or perform an immediate purge",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "delay",
 						Description: "Delay before purge starts",
 						Required:    true,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
+						Choices: []adapter.SlashChoice{
 							{Name: "Now (no delay)", Value: "0s"},
 							{Name: "10 minutes", Value: "10m"},
 							{Name: "30 minutes", Value: "30m"},
@@ -79,17 +80,17 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 						},
 					},
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "notify_all",
 						Description: "Post a notification message",
 						Required:    true,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
+						Choices: []adapter.SlashChoice{
 							{Name: "Yes (default)", Value: "true"},
 							{Name: "No", Value: "false"},
 						},
 					},
 					{
-						Type:        discordgo.ApplicationCommandOptionString,
+						Type:        adapter.OptionString,
 						Name:        "confirm",
 						Description: "Type 'yes' to confirm the action",
 						Required:    true,
@@ -97,24 +98,24 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        subChannel,
 				Description: "Allow or forbid purges in this channel — or see whether they are allowed, left empty",
-				Options: []*discordgo.ApplicationCommandOption{
+				Options: []adapter.SlashOption{
 					{
-						Type:        discordgo.ApplicationCommandOptionBoolean,
+						Type:        adapter.OptionBoolean,
 						Name:        optAllowed,
 						Description: "true: purges may run here · false: forbidden, and any job here is stopped",
 					},
 				},
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "jobs",
 				Description: "List all active purge jobs and the channels purges are allowed in",
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Type:        adapter.OptionSubCommand,
 				Name:        "stop",
 				Description: "Stop ongoing purge in this channel",
 			},
@@ -122,171 +123,143 @@ func (c *PurgeCommand) SlashDefinition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *PurgeCommand) Run(ctx interface{}) error {
-	context, ok := ctx.(*cmdadapter.SlashInteractionContext)
+func (c *PurgeCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	sub, ok := ctx.FirstOption()
 	if !ok {
-		return nil
-	}
-
-	event := context.Event
-	session := context.Session
-
-	data := event.ApplicationCommandData()
-	if len(data.Options) == 0 {
-		return context.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Please select a subcommand: `auto`, `now`, `channel`, `jobs`, or `stop`.",
 		})
 	}
 
-	sub := data.Options[0]
 	switch sub.Name {
 	case "auto":
-		return runPurgeAuto(context, sub)
+		return runPurgeAuto(ctx, sub)
 	case "now":
-		return runPurgeNow(context, sub)
+		return runPurgeNow(ctx, sub)
 	case subChannel:
-		return runPurgeChannel(context, sub)
+		return runPurgeChannel(ctx, sub)
 	case "jobs":
-		return runPurgeJobs(context)
+		return runPurgeJobs(ctx)
 	case "stop":
-		return runPurgeStop(context)
+		return runPurgeStop(ctx)
 	default:
-		return context.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
 		})
 	}
 }
 
-func runPurgeAuto(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-	session := ctx.Session
-	event := ctx.Event
-	storage := ctx.Storage
+func subString(sub adapter.SlashArgument, name string) string {
+	opt, _ := sub.Option(name)
+	return opt.StringValue()
+}
 
-	var olderThan, confirm string
-	var notifyAll bool
+func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	olderThan := subString(sub, "older_than")
+	confirm := subString(sub, "confirm")
+	notifyAll := strings.ToLower(subString(sub, "notify_all")) == "true"
 
-	for _, opt := range sub.Options {
-		switch opt.Name {
-		case "older_than":
-			olderThan = opt.StringValue()
-		case "confirm":
-			confirm = opt.StringValue()
-		case "notify_all":
-			notifyAll = strings.ToLower(opt.StringValue()) == "true"
-		}
-	}
-
-	if !storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: notAllowed})
+	store := ctx.Storage
+	if !store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
+		return ctx.RespondEphemeral(&adapter.Embed{Description: notAllowed})
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
 		})
 	}
 
 	dur, err := parseDuration(olderThan)
 	if err != nil {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Invalid duration format. Use `10m`, `2h`, `1d`, etc.",
 		})
 	}
 
-	if !ctx.Responder.CheckBotPermissions(session, event.ChannelID) {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	if !ctx.API.CheckBotPermissions(ctx.ChannelID()) {
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Missing permissions to purge messages.",
 		})
 	}
 
 	ActiveDeletionsMu.Lock()
-	if _, exists := ActiveDeletions[event.ChannelID]; exists {
+	if _, exists := ActiveDeletions[ctx.ChannelID()]; exists {
 		ActiveDeletionsMu.Unlock()
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "A purge job is already running in this channel.",
 		})
 	}
 	stopChan := make(chan struct{})
-	ActiveDeletions[event.ChannelID] = stopChan
+	ActiveDeletions[ctx.ChannelID()] = stopChan
 	ActiveDeletionsMu.Unlock()
 
-	err = storage.SetDeletionJob(event.GuildID, event.ChannelID, st.PurgeModeRecurring, time.Now(), notifyAll, olderThan)
+	err = store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeRecurring, time.Now(), notifyAll, olderThan)
 	if err != nil {
-		stopDeletion(event.ChannelID)
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		stopDeletion(ctx.ChannelID())
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to set deletion job: " + err.Error(),
 		})
 	}
 
-	embedColor := ctx.Responder.EmbedColor()
-	ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	_ = ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Recurring purge started. Messages older than **" + dur.String() + "** will be erased.",
 	})
 
 	if notifyAll {
-		if _, err := session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
+		if err := ctx.API.SendChannelEmbed(ctx.ChannelID(), &adapter.Embed{
 			Title:       "☢️ Recurring Nuke Detonation",
 			Description: fmt.Sprintf("All messages older than `%s` will be **systematically erased**.", dur.String()),
-			Color:       embedColor,
-			Image:       &discordgo.MessageEmbedImage{URL: "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp"},
-			Footer:      &discordgo.MessageEmbedFooter{Text: "History has a half-life."},
+			Color:       ctx.API.EmbedColor(),
+			ImageURL:    "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp",
+			Footer:      "History has a half-life.",
 		}); err != nil {
-			announceFailed(ctx, err)
+			announceFailed(ctx.AppLog, ctx.ChannelID(), err)
 		}
 	}
 
+	api := ctx.API
+	guildID, channelID := ctx.GuildID(), ctx.ChannelID()
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		defer stopDeletion(event.ChannelID)
+		defer stopDeletion(channelID)
 
 		for {
 			select {
 			case <-stopChan:
 				return
 			case <-ticker.C:
-				if !storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
+				if !store.IsPurgeAllowed(guildID, channelID) {
 					return
 				}
-				DeleteOlderThan(session, event.ChannelID, dur, stopChan)
+				DeleteOlderThan(api, channelID, dur, stopChan)
 			}
 		}
 	}()
 	return nil
 }
 
-func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-	session := ctx.Session
-	event := ctx.Event
-	storage := ctx.Storage
+func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	delayStr := subString(sub, "delay")
+	confirm := subString(sub, "confirm")
+	notifyAll := strings.ToLower(subString(sub, "notify_all")) == "true"
 
-	var delayStr, confirm string
-	var notifyAll bool
-	for _, opt := range sub.Options {
-		switch opt.Name {
-		case "delay":
-			delayStr = opt.StringValue()
-		case "confirm":
-			confirm = opt.StringValue()
-		case "notify_all":
-			notifyAll = strings.ToLower(opt.StringValue()) == "true"
-		}
-	}
-
-	if !storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: notAllowed})
+	store := ctx.Storage
+	if !store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
+		return ctx.RespondEphemeral(&adapter.Embed{Description: notAllowed})
 	}
 
 	if strings.ToLower(confirm) != "yes" {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
 		})
 	}
 
 	ActiveDeletionsMu.Lock()
-	if _, exists := ActiveDeletions[event.ChannelID]; exists {
+	if _, exists := ActiveDeletions[ctx.ChannelID()]; exists {
 		ActiveDeletionsMu.Unlock()
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "A purge job is already running in this channel.",
 		})
 	}
@@ -298,44 +271,44 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 
 	dur, err := parseDuration(delayStr)
 	if err != nil {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Invalid delay format. Use formats like `10m`, `1h`, `1d`.",
 		})
 	}
 
 	delayUntil := time.Now().Add(dur)
-	if err := storage.SetDeletionJob(event.GuildID, event.ChannelID, st.PurgeModeDelayed, delayUntil, notifyAll); err != nil {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	if err := store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeDelayed, delayUntil, notifyAll); err != nil {
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to schedule purge: " + err.Error(),
 		})
 	}
 
-	embedColor := ctx.Responder.EmbedColor()
-	ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+	_ = ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Purge scheduled — will start in **" + dur.String() + "**.",
 	})
 
 	if notifyAll {
-		if _, err := session.ChannelMessageSendEmbed(event.ChannelID, &discordgo.MessageEmbed{
+		if err := ctx.API.SendChannelEmbed(ctx.ChannelID(), &adapter.Embed{
 			Title:       "☢️ Upcoming Nuke Detonation",
 			Description: "Countdown initiated — all messages will be purged in `" + dur.String() + "`.",
-			Color:       embedColor,
-			Image:       &discordgo.MessageEmbedImage{URL: "https://c.tenor.com/qDvLEFO5bAkAAAAd/tenor.gif"},
-			Footer:      &discordgo.MessageEmbedFooter{Text: "May your sins be incinerated."},
+			Color:       ctx.API.EmbedColor(),
+			ImageURL:    "https://c.tenor.com/qDvLEFO5bAkAAAAd/tenor.gif",
+			Footer:      "May your sins be incinerated.",
 		}); err != nil {
-			announceFailed(ctx, err)
+			announceFailed(ctx.AppLog, ctx.ChannelID(), err)
 		}
 	}
 
 	// Registered for the whole countdown, not only the deleting: /purge stop
-	// and /purge channel allowed:false close it. The countdown used to be a
-	// time.Sleep, which nothing could interrupt — stopping a scheduled purge
-	// cleared its record and the purge still ran.
+	// and /purge channel allowed:false close it.
 	stopChan := make(chan struct{})
 	ActiveDeletionsMu.Lock()
-	ActiveDeletions[event.ChannelID] = stopChan
+	ActiveDeletions[ctx.ChannelID()] = stopChan
 	ActiveDeletionsMu.Unlock()
 
+	api := ctx.API
+	guildID, channelID := ctx.GuildID(), ctx.ChannelID()
+	appLog := ctx.AppLog
 	go func() {
 		timer := time.NewTimer(dur)
 		defer timer.Stop()
@@ -344,18 +317,18 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 			return
 		case <-timer.C:
 		}
-		if storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
-			DeleteMessages(session, event.ChannelID, nil, nil, stopChan)
+		if store.IsPurgeAllowed(guildID, channelID) {
+			DeleteMessages(api, channelID, nil, nil, stopChan)
 		}
 
 		ActiveDeletionsMu.Lock()
-		if ActiveDeletions[event.ChannelID] == stopChan {
-			delete(ActiveDeletions, event.ChannelID)
+		if ActiveDeletions[channelID] == stopChan {
+			delete(ActiveDeletions, channelID)
 		}
 		ActiveDeletionsMu.Unlock()
-		if err := storage.ClearDeletionJob(event.GuildID, event.ChannelID); err != nil {
-			ctx.AppLog.Error().
-				Str("channel_id", event.ChannelID).
+		if err := store.ClearDeletionJob(guildID, channelID); err != nil {
+			appLog.Error().
+				Str("channel_id", channelID).
 				Err(err).
 				Msg("purge_job_clear_failed")
 		}
@@ -363,15 +336,12 @@ func runPurgeNow(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.Applica
 	return nil
 }
 
-func runPurgeJobs(ctx *cmdadapter.SlashInteractionContext) error {
-	session := ctx.Session
-	event := ctx.Event
-	storage := ctx.Storage
-
-	jobs, err := storage.GetDeletionJobsList(event.GuildID)
-	allowed := allowedList(storage.GetPurgeChannels(event.GuildID))
+func runPurgeJobs(ctx *adapter.SlashInteractionContext) error {
+	store := ctx.Storage
+	jobs, err := store.GetDeletionJobsList(ctx.GuildID())
+	allowed := allowedList(store.GetPurgeChannels(ctx.GuildID()))
 	if err != nil || len(jobs) == 0 {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No active purge jobs found.\n\n" + allowed,
 		})
 	}
@@ -397,22 +367,19 @@ func runPurgeJobs(ctx *cmdadapter.SlashInteractionContext) error {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("Use `/purge stop` to cancel any listed job.")
-	return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: sb.String()})
+	return ctx.RespondEphemeral(&adapter.Embed{Description: sb.String()})
 }
 
-func runPurgeStop(ctx *cmdadapter.SlashInteractionContext) error {
-	session := ctx.Session
-	event := ctx.Event
-	storage := ctx.Storage
-
-	stopDeletion(event.ChannelID)
-	if _, err := storage.GetDeletionJob(event.GuildID, event.ChannelID); err == nil {
-		_ = storage.ClearDeletionJob(event.GuildID, event.ChannelID)
-		ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+func runPurgeStop(ctx *adapter.SlashInteractionContext) error {
+	store := ctx.Storage
+	stopDeletion(ctx.ChannelID())
+	if _, err := store.GetDeletionJob(ctx.GuildID(), ctx.ChannelID()); err == nil {
+		_ = store.ClearDeletionJob(ctx.GuildID(), ctx.ChannelID())
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Message purge job stopped.",
 		})
 	} else {
-		ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{
+		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No active purge job in this channel.",
 		})
 	}
@@ -431,37 +398,32 @@ const notAllowed = "Purges are not allowed in this channel. An administrator all
 
 // runPurgeChannel allows or forbids purges in the channel it is run in, or
 // says which it is. Forbidding also stops and clears any job here.
-func runPurgeChannel(ctx *cmdadapter.SlashInteractionContext, sub *discordgo.ApplicationCommandInteractionDataOption) error {
-	session, event, storage := ctx.Session, ctx.Event, ctx.Storage
-	var opt *discordgo.ApplicationCommandInteractionDataOption
-	for _, o := range sub.Options {
-		if o.Name == optAllowed {
-			opt = o
-		}
-	}
+func runPurgeChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	store := ctx.Storage
+	opt, ok := sub.Option(optAllowed)
 	respond := func(msg string) error {
-		return ctx.Responder.RespondEmbedEphemeral(session, event, &discordgo.MessageEmbed{Description: msg})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: msg})
 	}
-	if opt == nil {
-		if storage.IsPurgeAllowed(event.GuildID, event.ChannelID) {
-			return respond(fmt.Sprintf("Purges are allowed in <#%s>.", event.ChannelID))
+	if !ok {
+		if store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
+			return respond(fmt.Sprintf("Purges are allowed in <#%s>.", ctx.ChannelID()))
 		}
-		return respond(fmt.Sprintf("Purges are not allowed in <#%s>.", event.ChannelID))
+		return respond(fmt.Sprintf("Purges are not allowed in <#%s>.", ctx.ChannelID()))
 	}
 	if opt.BoolValue() {
-		if err := storage.SetPurgeAllowed(event.GuildID, event.ChannelID, true); err != nil {
+		if err := store.SetPurgeAllowed(ctx.GuildID(), ctx.ChannelID(), true); err != nil {
 			return fmt.Errorf("purge: allow channel: %w", err)
 		}
-		return respond(fmt.Sprintf("Purges are now allowed in <#%s>. `/purge now` and `/purge auto` work here.", event.ChannelID))
+		return respond(fmt.Sprintf("Purges are now allowed in <#%s>. `/purge now` and `/purge auto` work here.", ctx.ChannelID()))
 	}
-	stopDeletion(event.ChannelID)
-	if err := storage.ClearDeletionJob(event.GuildID, event.ChannelID); err != nil {
+	stopDeletion(ctx.ChannelID())
+	if err := store.ClearDeletionJob(ctx.GuildID(), ctx.ChannelID()); err != nil {
 		return fmt.Errorf("purge: clear job: %w", err)
 	}
-	if err := storage.SetPurgeAllowed(event.GuildID, event.ChannelID, false); err != nil {
+	if err := store.SetPurgeAllowed(ctx.GuildID(), ctx.ChannelID(), false); err != nil {
 		return fmt.Errorf("purge: forbid channel: %w", err)
 	}
-	return respond(fmt.Sprintf("Purges are no longer allowed in <#%s>, and any purge job here was stopped.", event.ChannelID))
+	return respond(fmt.Sprintf("Purges are no longer allowed in <#%s>, and any purge job here was stopped.", ctx.ChannelID()))
 }
 
 // allowedList says where purges are allowed.
@@ -531,12 +493,12 @@ func parseDuration(input string) (time.Duration, error) {
 // [now-age, now] and deleted the newest messages instead of the oldest — a
 // recurring "older than 1d" purge, replayed after a restart, wiped the last
 // day of the channel every thirty seconds.
-func DeleteOlderThan(s *discordgo.Session, channelID string, age time.Duration, stopChan <-chan struct{}) {
+func DeleteOlderThan(api adapter.SessionAPI, channelID string, age time.Duration, stopChan <-chan struct{}) {
 	cutoff := time.Now().Add(-age)
-	DeleteMessages(s, channelID, nil, &cutoff, stopChan)
+	DeleteMessages(api, channelID, nil, &cutoff, stopChan)
 }
 
-func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *time.Time, stopChan <-chan struct{}) {
+func DeleteMessages(api adapter.SessionAPI, channelID string, startTime, endTime *time.Time, stopChan <-chan struct{}) {
 	var lastID string
 
 	for {
@@ -546,7 +508,7 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 		default:
 		}
 
-		msgs, err := s.ChannelMessages(channelID, 100, lastID, "", "")
+		msgs, err := api.ChannelMessages(channelID, lastID, 100)
 		if err != nil || len(msgs) == 0 {
 			break
 		}
@@ -565,7 +527,7 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 				continue
 			}
 
-			_ = s.ChannelMessageDelete(channelID, msg.ID)
+			_ = api.DeleteMessage(channelID, msg.ID)
 			time.Sleep(300 * time.Millisecond)
 		}
 
@@ -580,9 +542,9 @@ func DeleteMessages(s *discordgo.Session, channelID string, startTime, endTime *
 // instead of propagating it. The purge itself is already scheduled by this
 // point, so a missing warning must not read back to the invoker as "the purge
 // did not start".
-func announceFailed(ctx *cmdadapter.SlashInteractionContext, err error) {
-	ctx.AppLog.Warn().
-		Str("channel_id", ctx.Event.ChannelID).
+func announceFailed(log zerolog.Logger, channelID string, err error) {
+	log.Warn().
+		Str("channel_id", channelID).
 		Err(err).
 		Msg("purge_announce_failed")
 }
