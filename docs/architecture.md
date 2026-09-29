@@ -85,6 +85,24 @@ socket stays read while a command works. Waiting for a slot is bounded by the
 interaction acknowledgement deadline; running is not. Concurrency is capped at
 `COMMAND_PARALLELISM` across every guild.
 
+### Where a feature is configured
+
+Single-action commands configure under `/settings <feature>`: `announce`,
+`confess`, `discipline`, `media`, `task`, `translate`. A bare
+`/confess message:` has nowhere to put channel config, so it lives next to
+its feature rather than inside it.
+
+Commands that are already management surfaces carry their own: `/purge`
+(`channel`, `jobs`, `stop`), `/welcome` (`setup`, `template`, `preview`,
+`roles`, `move`, `remove`, `gifs`) and `/shortlink` (`create`, `list`,
+`delete`, `clear`) — splitting their management verbs out would scatter
+coherent workflows across two command trees for symmetry's sake. Stateless
+commands (`ask`, `roll`, core) configure nothing anywhere.
+
+`/settings commands` (log, status, enable, disable) governs every group
+including the self-managing ones, and the middleware group-check applies to
+all invocations equally — so there is still one global switchboard.
+
 ### User-facing copy
 
 Three voices share one bot, and each command picks one on purpose:
