@@ -118,7 +118,7 @@ func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, tex
 	case llm.IntentKnowledge:
 		out = "Server knowledge answers land with the knowledge base slice. For now ask an admin or check pinned messages."
 	case llm.IntentTaskAsk:
-		out = fmt.Sprintf("Task requests over mentions land next. For now use `/task`. You asked: %s", llm.Sanitize(intent.StringArg("query"), 200))
+		out = "I can refine task picks now: use `/task request: something quick and easy` or add `variant: True` for an AI rephrase. Mention-task assignment lands next."
 	default:
 		out = fmt.Sprintf("I didn't get that. I handle summaries, server questions, and task requests — or use `/help`. Heard: %s", llm.Sanitize(text, 200))
 		_ = api.SendChannelReply(channelID, messageID, out)
