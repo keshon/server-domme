@@ -12,8 +12,8 @@ import (
 
 // Limits: one page of history, bounded transcript into the model.
 const (
-	defaultLimit = 50
-	maxLimit     = 100
+	defaultLimit       = 50
+	maxLimit           = 100
 	maxTranscriptChars = 12000
 )
 
@@ -63,7 +63,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 
 	if !llm.Ready(ctx.Config) {
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: "Summaries need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL` first.",
+			Description: "Summaries need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL`, or enable a free relay with `LLM_USE_G4F=true`.",
 			Color:       reply.EmbedColor,
 		})
 	}
@@ -73,7 +73,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 		return nil
 	}
 
-	text, count, err := Run(context.Background(), ctx.API, ctx.ChannelID(), limit, llm.NewFromConfig(ctx.Config))
+	text, count, err := Run(context.Background(), ctx.API, ctx.ChannelID(), limit, llm.ProviderForConfig(ctx.Config))
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to summarize: `%v`", err),
@@ -90,7 +90,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 // Run fetches history, builds a transcript, and returns sanitized summary
 // text plus the message count actually summarized. Shared by the slash
 // command and the mention router so both read the same history the same way.
-func Run(ctx context.Context, api adapter.SessionAPI, channelID string, limit int, client *llm.Client) (string, int, error) {
+func Run(ctx context.Context, api adapter.SessionAPI, channelID string, limit int, client llm.Provider) (string, int, error) {
 	if api == nil {
 		return "", 0, fmt.Errorf("summarize: no Discord session")
 	}

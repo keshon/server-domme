@@ -87,7 +87,7 @@ func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, tex
 	intent := llm.KeywordFallback(text)
 	usedLLM := false
 	if llm.Ready(b.cfg) {
-		client := llm.NewFromConfig(b.cfg)
+		client := llm.ProviderForConfig(b.cfg)
 		ctx := context.Background()
 		if parsed := llm.ParseIntent(ctx, client, text); parsed.Name != llm.IntentUnknown || intent.Name == llm.IntentUnknown {
 			intent = parsed
@@ -103,14 +103,14 @@ func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, tex
 		out = "I route plain speech to bot actions. Try `@me summarize this channel`, `@me what are the server rules?`, or `@me give me a task`. Slash still works: `/summarize`, `/task`, `/help`."
 	case llm.IntentSummarize:
 		if !llm.Ready(b.cfg) {
-			out = "Summaries need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL` first."
+			out = "Summaries need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL`, or enable a free relay with `LLM_USE_G4F=true`."
 			break
 		}
 		limit := intent.IntArg("limit")
 		if limit == 0 {
 			limit = 50
 		}
-		summary, count, err := summarize.Run(context.Background(), api, channelID, limit, llm.NewFromConfig(b.cfg))
+		summary, count, err := summarize.Run(context.Background(), api, channelID, limit, llm.ProviderForConfig(b.cfg))
 		if err != nil {
 			out = fmt.Sprintf("Failed to summarize: `%v`", err)
 			break
@@ -118,14 +118,14 @@ func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, tex
 		out = fmt.Sprintf("Summary of the last %d messages:\n%s", count, summary)
 	case llm.IntentKnowledge:
 		if !llm.Ready(b.cfg) {
-			out = "Knowledge answers need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL` first."
+			out = "Knowledge answers need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL`, or enable a free relay with `LLM_USE_G4F=true`."
 			break
 		}
 		query := intent.StringArg("query")
 		if query == "" {
 			query = text
 		}
-		answer, err := knowledge.Run(context.Background(), b.storage, guildID, query, llm.NewFromConfig(b.cfg))
+		answer, err := knowledge.Run(context.Background(), b.storage, guildID, query, llm.ProviderForConfig(b.cfg))
 		if err != nil {
 			out = fmt.Sprintf("Failed to answer: `%v`", err)
 			break

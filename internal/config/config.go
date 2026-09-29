@@ -64,6 +64,16 @@ type Config struct {
 	LLMAPIKey        string `env:"LLM_API_KEY"`
 	LLMTimeoutSec    int    `env:"LLM_TIMEOUT_SEC" envDefault:"20"`
 	LLMMaxTokens     int    `env:"LLM_MAX_TOKENS" envDefault:"512"`
+	// Free public relays, off by default. When enabled they join the pool
+	// behind the explicit endpoint above: custom first, then LLM_BACKENDS,
+	// then g4f.space catalogue picks, then pollinations. The pool fails
+	// over between all of them and rests backends that keep failing.
+	LLMUseG4F          bool     `env:"LLM_USE_G4F" envDefault:"false"`
+	LLMUsePollinations bool     `env:"LLM_USE_POLLINATIONS" envDefault:"false"`
+	LLMG4FPicks        int      `env:"LLM_G4F_PICKS" envDefault:"3"`
+	LLMG4FAPIKey       string   `env:"LLM_G4F_API_KEY"`
+	LLMBackends        []string `env:"LLM_BACKENDS" envSeparator:","`
+	LLMBackendOrder    string   `env:"LLM_BACKEND_ORDER" envDefault:"priority"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

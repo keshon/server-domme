@@ -49,7 +49,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 	}
 	if !llm.Ready(ctx.Config) {
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: "Knowledge answers need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL` first.",
+			Description: "Knowledge answers need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL`, or enable a free relay with `LLM_USE_G4F=true`.",
 			Color:       reply.EmbedColor,
 		})
 	}
@@ -57,7 +57,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 		ctx.AppLog.Error().Err(err).Msg("knowledge_ack_failed")
 		return nil
 	}
-	text, err := Run(context.Background(), ctx.Storage, ctx.GuildID(), query, llm.NewFromConfig(ctx.Config))
+	text, err := Run(context.Background(), ctx.Storage, ctx.GuildID(), query, llm.ProviderForConfig(ctx.Config))
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to answer: `%v`", err),
@@ -72,7 +72,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 }
 
 // Run retrieves docs and answers with citations. Shared by slash and router.
-func Run(ctx context.Context, store *st.Storage, guildID, query string, client *llm.Client) (string, error) {
+func Run(ctx context.Context, store *st.Storage, guildID, query string, client llm.Provider) (string, error) {
 	if store == nil {
 		return "", fmt.Errorf("knowledge: no storage")
 	}

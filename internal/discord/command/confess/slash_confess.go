@@ -55,7 +55,7 @@ func (c *ConfessCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	// Never log the message here: Unlogged keeps the author unknown and the
 	// content stays out of every log by the same rule.
 	if ctx.Storage.GetConfessAICheck(ctx.GuildID()) && llm.Ready(ctx.Config) {
-		v := CheckConfession(context.Background(), llm.NewFromConfig(ctx.Config), message)
+		v := CheckConfession(context.Background(), llm.ProviderForConfig(ctx.Config), message)
 		if v.Risky {
 			reason := v.Reason
 			if reason == "" {

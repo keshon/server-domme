@@ -24,7 +24,7 @@ Rules: duration_min is a number or 0 when none is named. Keywords are content wo
 // ParseRequestSpec turns free text into a RequestSpec via LLM. Any failure
 // (disabled, unconfigured, bad JSON) returns an empty spec so the caller
 // falls back to a random pick: NL refines selection, never blocks it.
-func ParseRequestSpec(ctx context.Context, client *llm.Client, text string) RequestSpec {
+func ParseRequestSpec(ctx context.Context, client llm.Provider, text string) RequestSpec {
 	if client == nil || strings.TrimSpace(text) == "" {
 		return RequestSpec{}
 	}
@@ -120,7 +120,7 @@ const rephraseSystem = `Rephrase this task in the same dominant, teasing voice, 
 
 // RephraseTask rephrases one picked task description. Failure returns the
 // original: variant polishes, never blocks.
-func RephraseTask(ctx context.Context, client *llm.Client, description string) string {
+func RephraseTask(ctx context.Context, client llm.Provider, description string) string {
 	if client == nil || strings.TrimSpace(description) == "" {
 		return description
 	}

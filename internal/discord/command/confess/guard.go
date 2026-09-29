@@ -24,7 +24,7 @@ Everything else is risky=false: embarrassment, kink, insults, profanity, and dar
 // unconfigured, timeout, bad JSON) returns not-risky so confessions keep
 // flowing: the guard refines, never blocks on backend trouble. Callers must
 // not log the message alongside the verdict.
-func CheckConfession(ctx context.Context, client *llm.Client, message string) Verdict {
+func CheckConfession(ctx context.Context, client llm.Provider, message string) Verdict {
 	if client == nil || strings.TrimSpace(message) == "" {
 		return Verdict{}
 	}

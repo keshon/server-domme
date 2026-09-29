@@ -11,11 +11,11 @@ import (
 // refused: the model proposes, the code commits, and the code only knows
 // these four.
 const (
-	IntentHelp       = "help.route"
-	IntentSummarize  = "summarize"
-	IntentKnowledge  = "knowledge.ask"
-	IntentTaskAsk    = "task.request"
-	IntentUnknown    = "unknown"
+	IntentHelp      = "help.route"
+	IntentSummarize = "summarize"
+	IntentKnowledge = "knowledge.ask"
+	IntentTaskAsk   = "task.request"
+	IntentUnknown   = "unknown"
 )
 
 // Intent is one parsed request: what to do plus the args the executor reads.
@@ -41,7 +41,10 @@ func RouterPrompt(text string) []Message {
 
 // ParseIntent classifies text via LLM. Low confidence, bad JSON or unknown
 // names all collapse to IntentUnknown with the error for logging.
-func ParseIntent(ctx context.Context, c *Client, text string) Intent {
+func ParseIntent(ctx context.Context, c Provider, text string) Intent {
+	if c == nil {
+		return Intent{Name: IntentUnknown}
+	}
 	low := 0.4
 	raw, err := c.Complete(ctx, RouterPrompt(text), ptrFloat(float64(low)))
 	if err != nil {
