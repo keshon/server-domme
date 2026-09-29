@@ -119,6 +119,13 @@ func (c *AskCommand) Run(ctx *adapter.SlashInteractionContext) error {
 
 	customPrefix := fmt.Sprintf("ask:%s:%s:%s", askerID, targetID, consentType)
 
+	// Deferred first: answering edits the placeholder, and the edit is what
+	// hands back the message id the DM below links. Answering unacknowledged
+	// fails with an unknown webhook — there is nothing to edit yet.
+	if err := ctx.Defer(); err != nil {
+		return fmt.Errorf("ask: failed to acknowledge interaction: %w", err)
+	}
+
 	// Answered rather than followed up: the message id comes back, and the DM
 	// below links the request itself rather than the channel it sits in.
 	channelID, messageID, err := ctx.AnswerEmbedMessageWithButtons(embed, []adapter.ActionRow{{

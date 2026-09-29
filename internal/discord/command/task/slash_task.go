@@ -146,6 +146,13 @@ func (c *TaskCommand) assignTask(ctx *adapter.SlashInteractionContext, task Task
 		"**New Task**\n<@%s> %s\n\n*You have %s to complete this task so don't disappoint me.*",
 		userID, task.Description, humanDuration(time.Until(expiry)))
 
+	// Deferred first, same as ask: the answer edits the placeholder, and an
+	// unacknowledged interaction has no webhook to edit yet.
+	if err := ctx.Defer(); err != nil {
+		log.Error().Err(err).Msg("task_ack_failed")
+		return
+	}
+
 	_, msgID, err := ctx.AnswerTextMessageWithButtons(taskMsg, []adapter.ActionRow{{
 		Buttons: []adapter.Button{
 			{Label: "Manage", Style: adapter.PrimaryButton, CustomID: "task_complete_trigger"},

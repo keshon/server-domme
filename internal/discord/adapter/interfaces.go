@@ -34,6 +34,10 @@ type Responder interface {
 	// reports where it landed, so a caller that means to edit it later can
 	// find it again.
 	//
+	// Call it after Defer: it edits the placeholder the deferral posted, and
+	// an interaction that was never acknowledged has no webhook to edit yet
+	// (Discord answers 10015 Unknown Webhook).
+	//
 	// The guild's music status message works this way: created from the
 	// interaction that started playback, then edited for as long as the track
 	// plays -- well past the token's expiry, so the later edits go through
