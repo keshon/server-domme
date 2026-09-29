@@ -106,6 +106,9 @@ The mechanical rules, so review catches drift:
   `add/remove/list` plus `clear`.
 - Every user sentence ends with a period. Straight apostrophes, never curly.
 - Errors carry the raw cause backticked: `Failed to …: \`%v\``.
+- Destructive actions take `confirm: "Type 'yes' to confirm the action"` and
+  refuse anything else. Purge warnings always go to the channel; no flag
+  silences them.
 - Every embed sets `Color` (`reply.EmbedColor` unless there is a reason).
 - Ephemeral embeds carry no title. Public posts do: emoji prefix + Title Case.
 - Component custom IDs are `<command>:<args...>` with colons, e.g.

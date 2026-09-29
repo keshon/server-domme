@@ -358,7 +358,7 @@ func runMove(ctx *adapter.SlashInteractionContext, opts options) error {
 		return respond(ctx, fmt.Sprintf("<@&%s> has no welcome to move. `/welcome roles` lists the ones that do.", from))
 	case errors.Is(err, storage.ErrWelcomeRoleTaken):
 		return respond(ctx, fmt.Sprintf("<@&%s> already has a welcome, and it is not written over. "+
-			"`/welcome remove` it first if this one should take its place.", to))
+			"`/welcome remove confirm:yes` it first if this one should take its place.", to))
 	case err != nil:
 		return fmt.Errorf("welcome: move: %w", err)
 	}
@@ -386,6 +386,9 @@ func runMove(ctx *adapter.SlashInteractionContext, opts options) error {
 
 func runRemove(ctx *adapter.SlashInteractionContext, opts options) error {
 	roleID := roleIDOf(opts)
+	if strings.ToLower(optString(opts, "confirm")) != "yes" {
+		return respond(ctx, "Action not confirmed. Please type 'yes' to proceed.")
+	}
 	if ctx.Storage.WelcomeRoleFor(ctx.GuildID(), roleID) == nil {
 		return respond(ctx, fmt.Sprintf("<@&%s> had no welcome set up.", roleID))
 	}

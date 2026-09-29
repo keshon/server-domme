@@ -109,7 +109,7 @@ It’s designed to be practical for server management while providing light, int
   - **/settings translate channel-add** — Enable translation reactions in a channel
   - **/settings translate channel-remove** — Disable translation reactions in a channel
   - **/settings translate channel-list** — List translation-enabled channels
-  - **/settings translate channels-clear** — Remove all translation-enabled channels
+  - **/settings translate channel-clear** — Remove all translation-enabled channels
   - **/settings commands log** — Review recently used commands
   - **/settings commands status** — Show enabled and disabled command groups
   - **/settings commands enable** — Enable a command group

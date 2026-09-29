@@ -60,6 +60,14 @@ func (c *ShortlinkCommand) SlashDefinition() *adapter.SlashCommand {
 				Type:        adapter.OptionSubCommand,
 				Name:        "clear",
 				Description: "Clear all your shortened URLs",
+				Options: []adapter.SlashOption{
+					{
+						Type:        adapter.OptionString,
+						Name:        "confirm",
+						Description: "Type 'yes' to confirm the action",
+						Required:    true,
+					},
+				},
 			},
 		},
 	}
@@ -82,7 +90,7 @@ func (c *ShortlinkCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	case "delete":
 		return c.runDelete(ctx, sub)
 	case "clear":
-		return c.runClear(ctx)
+		return c.runClear(ctx, sub)
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
@@ -235,7 +243,14 @@ func (c *ShortlinkCommand) runDelete(ctx *adapter.SlashInteractionContext, sub a
 	})
 }
 
-func (c *ShortlinkCommand) runClear(ctx *adapter.SlashInteractionContext) error {
+func (c *ShortlinkCommand) runClear(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	confirmOpt, _ := sub.Option("confirm")
+	if strings.ToLower(confirmOpt.StringValue()) != "yes" {
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: "Action not confirmed. Please type 'yes' to proceed.",
+			Color:       reply.EmbedColor,
+		})
+	}
 	userID := ctx.UserID()
 	guildID := ctx.GuildID()
 

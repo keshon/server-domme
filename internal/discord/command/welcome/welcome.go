@@ -172,7 +172,15 @@ func (c *WelcomeCommand) SlashDefinition() *adapter.SlashCommand {
 				Type:        adapter.OptionSubCommand,
 				Name:        subRemove,
 				Description: "Remove a role's welcome settings",
-				Options:     []adapter.SlashOption{roleOption(true, "The role")},
+				Options: []adapter.SlashOption{
+					roleOption(true, "The role"),
+					{
+						Type:        adapter.OptionString,
+						Name:        "confirm",
+						Description: "Type 'yes' to confirm the action",
+						Required:    true,
+					},
+				},
 			},
 			{
 				Type:        adapter.OptionSubCommand,

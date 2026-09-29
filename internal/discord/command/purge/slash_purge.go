@@ -47,16 +47,6 @@ func (c *PurgeCommand) SlashDefinition() *adapter.SlashCommand {
 					},
 					{
 						Type:        adapter.OptionString,
-						Name:        "notify_all",
-						Description: "Post a notification message",
-						Required:    true,
-						Choices: []adapter.SlashChoice{
-							{Name: "Yes (default)", Value: "true"},
-							{Name: "No", Value: "false"},
-						},
-					},
-					{
-						Type:        adapter.OptionString,
 						Name:        "confirm",
 						Description: "Type 'yes' to confirm the action",
 						Required:    true,
@@ -80,16 +70,6 @@ func (c *PurgeCommand) SlashDefinition() *adapter.SlashCommand {
 							{Name: "1 hour", Value: "1h"},
 							{Name: "6 hours", Value: "6h"},
 							{Name: "1 day", Value: "24h"},
-						},
-					},
-					{
-						Type:        adapter.OptionString,
-						Name:        "notify_all",
-						Description: "Post a notification message",
-						Required:    true,
-						Choices: []adapter.SlashChoice{
-							{Name: "Yes (default)", Value: "true"},
-							{Name: "No", Value: "false"},
 						},
 					},
 					{
@@ -121,6 +101,14 @@ func (c *PurgeCommand) SlashDefinition() *adapter.SlashCommand {
 				Type:        adapter.OptionSubCommand,
 				Name:        "stop",
 				Description: "Stop ongoing purge in this channel",
+				Options: []adapter.SlashOption{
+					{
+						Type:        adapter.OptionString,
+						Name:        "confirm",
+						Description: "Type 'yes' to confirm the action",
+						Required:    true,
+					},
+				},
 			},
 		},
 	}
@@ -145,7 +133,7 @@ func (c *PurgeCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	case "jobs":
 		return runPurgeJobs(ctx)
 	case "stop":
-		return runPurgeStop(ctx)
+		return runPurgeStop(ctx, sub)
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Unknown subcommand: %s.", sub.Name),
@@ -162,7 +150,6 @@ func subString(sub adapter.SlashArgument, name string) string {
 func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
 	olderThan := subString(sub, "older_than")
 	confirm := subString(sub, "confirm")
-	notifyAll := strings.ToLower(subString(sub, "notify_all")) == "true"
 
 	store := ctx.Storage
 	if !store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
@@ -204,7 +191,7 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 	ActiveDeletions[ctx.ChannelID()] = stopChan
 	ActiveDeletionsMu.Unlock()
 
-	err = store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeRecurring, time.Now(), notifyAll, olderThan)
+	err = store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeRecurring, time.Now(), true, olderThan)
 	if err != nil {
 		stopDeletion(ctx.ChannelID())
 		return ctx.RespondEphemeral(&adapter.Embed{
@@ -218,14 +205,14 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 		Color:       reply.EmbedColor,
 	})
 
-	if notifyAll {
-		if err := sendNukeWarning(ctx.API, ctx.ChannelID(), &adapter.Embed{
-			Title:       "🧹 Recurring Purge Active",
-			Description: fmt.Sprintf("Messages older than `%s` are deleted on a schedule.", dur.String()),
-			Color:       ctx.API.EmbedColor(),
-		}, "assets/purge/nuke-recurring.webp"); err != nil {
-			announceFailed(ctx.AppLog, ctx.ChannelID(), err)
-		}
+	// Purges always warn the channel: deleting history without notice is not
+	// something a flag should be able to silence.
+	if err := sendNukeWarning(ctx.API, ctx.ChannelID(), &adapter.Embed{
+		Title:       "🧹 Recurring Purge Active",
+		Description: fmt.Sprintf("Messages older than `%s` are deleted on a schedule.", dur.String()),
+		Color:       ctx.API.EmbedColor(),
+	}, "assets/purge/nuke-recurring.webp"); err != nil {
+		announceFailed(ctx.AppLog, ctx.ChannelID(), err)
 	}
 
 	api := ctx.API
@@ -253,7 +240,6 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
 	delayStr := subString(sub, "delay")
 	confirm := subString(sub, "confirm")
-	notifyAll := strings.ToLower(subString(sub, "notify_all")) == "true"
 
 	store := ctx.Storage
 	if !store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
@@ -291,7 +277,7 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 	}
 
 	delayUntil := time.Now().Add(dur)
-	if err := store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeDelayed, delayUntil, notifyAll); err != nil {
+	if err := store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeDelayed, delayUntil, true); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to schedule purge: `%v`.", err),
 			Color:       reply.EmbedColor,
@@ -303,14 +289,13 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 		Color:       reply.EmbedColor,
 	})
 
-	if notifyAll {
-		if err := sendNukeWarning(ctx.API, ctx.ChannelID(), &adapter.Embed{
-			Title:       "🧹 Purge Scheduled",
-			Description: "All messages in this channel will be deleted in `" + dur.String() + "`.",
-			Color:       ctx.API.EmbedColor(),
-		}, "assets/purge/nuke-upcoming.gif"); err != nil {
-			announceFailed(ctx.AppLog, ctx.ChannelID(), err)
-		}
+	// The warning always goes out; see runPurgeAuto.
+	if err := sendNukeWarning(ctx.API, ctx.ChannelID(), &adapter.Embed{
+		Title:       "🧹 Purge Scheduled",
+		Description: "All messages in this channel will be deleted in `" + dur.String() + "`.",
+		Color:       ctx.API.EmbedColor(),
+	}, "assets/purge/nuke-upcoming.gif"); err != nil {
+		announceFailed(ctx.AppLog, ctx.ChannelID(), err)
 	}
 
 	// Registered for the whole countdown, not only the deleting: /purge stop
@@ -381,12 +366,18 @@ func runPurgeJobs(ctx *adapter.SlashInteractionContext) error {
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString("Use `/purge stop` to cancel any listed job.")
+	sb.WriteString("Use `/purge stop confirm:yes` to cancel any listed job.")
 	return ctx.RespondEphemeral(&adapter.Embed{Description: sb.String(),
 		Color: reply.EmbedColor})
 }
 
-func runPurgeStop(ctx *adapter.SlashInteractionContext) error {
+func runPurgeStop(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument) error {
+	if strings.ToLower(subString(sub, "confirm")) != "yes" {
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: "Action not confirmed. Please type 'yes' to proceed.",
+			Color:       reply.EmbedColor,
+		})
+	}
 	store := ctx.Storage
 	stopDeletion(ctx.ChannelID())
 	if _, err := store.GetDeletionJob(ctx.GuildID(), ctx.ChannelID()); err == nil {
