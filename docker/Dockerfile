@@ -36,6 +36,13 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /usr/project
 COPY --from=builder /usr/project/app ./app
 
+# Static images the bot attaches to embeds (/about banner, purge gifs).
+# Baked in rather than mounted: they are versioned with the code, and a
+# container without them silently drops every image — os.Open fails and the
+# commands fall back to imageless embeds, which is exactly the "gifs don't
+# render on prod" failure.
+COPY src/assets ./assets
+
 # The datastore creates and owns its directory; it must not be pre-seeded
 # with files, only mounted.
 RUN mkdir -p data

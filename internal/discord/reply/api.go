@@ -408,6 +408,28 @@ func (a *API) DeleteMessage(channelID, messageID string) error {
 	return a.client.Rest.DeleteMessage(cid, mid)
 }
 
+// BulkDeleteMessages deletes a batch in one request. Discord caps the batch
+// at 100 and refuses messages older than two weeks; the caller enforces both
+// and sends older ones through DeleteMessage instead.
+func (a *API) BulkDeleteMessages(channelID string, messageIDs []string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := a.channelID(channelID)
+	if err != nil {
+		return err
+	}
+	ids := make([]snowflake.ID, 0, len(messageIDs))
+	for _, id := range messageIDs {
+		mid, err := parseID(id)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, mid)
+	}
+	return a.client.Rest.BulkDeleteMessages(cid, ids)
+}
+
 // AddMemberRole assigns a role to a guild member.
 func (a *API) AddMemberRole(guildID, userID, roleID string) error {
 	if a.client == nil {

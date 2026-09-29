@@ -86,7 +86,8 @@ func (f *apiFake) RoleNames(_ string) (map[string]string, error) {
 func (f *apiFake) ChannelMessages(_, _ string, _ int) ([]adapter.ListedMessage, error) {
 	return nil, nil
 }
-func (f *apiFake) DeleteMessage(_, _ string) error { return nil }
+func (f *apiFake) DeleteMessage(_, _ string) error               { return nil }
+func (f *apiFake) BulkDeleteMessages(_ string, _ []string) error { return nil }
 func (f *apiFake) GuildInfo(_ string) (adapter.GuildInfo, error) {
 	return f.guild, nil
 }

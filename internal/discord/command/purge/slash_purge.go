@@ -523,6 +523,7 @@ func DeleteMessages(api adapter.SessionAPI, channelID string, startTime, endTime
 			break
 		}
 
+		var bulk, old []string
 		for _, msg := range msgs {
 			select {
 			case <-stopChan:
@@ -537,14 +538,70 @@ func DeleteMessages(api adapter.SessionAPI, channelID string, startTime, endTime
 				continue
 			}
 
-			_ = api.DeleteMessage(channelID, msg.ID)
-			time.Sleep(300 * time.Millisecond)
+			// An old message would fail a whole batch, so young and old
+			// are collected apart: one batch for all the young regardless
+			// of how they interleave, singles for the old.
+			if tooOldForBulk(msg.Timestamp) {
+				old = append(old, msg.ID)
+			} else {
+				bulk = append(bulk, msg.ID)
+			}
+		}
+
+		switch len(bulk) {
+		case 0:
+		case 1:
+			// Discord's bulk endpoint needs 2-100 per call; a lone
+			// message goes the single-delete way instead.
+			_ = api.DeleteMessage(channelID, bulk[0])
+			pace(stopChan)
+		default:
+			for len(bulk) > 0 {
+				n := min(len(bulk), 100)
+				_ = api.BulkDeleteMessages(channelID, bulk[:n])
+				bulk = bulk[n:]
+			}
+		}
+		for _, id := range old {
+			select {
+			case <-stopChan:
+				return
+			default:
+			}
+			_ = api.DeleteMessage(channelID, id)
+			pace(stopChan)
 		}
 
 		lastID = msgs[len(msgs)-1].ID
 		if len(msgs) < 100 {
 			break
 		}
+	}
+}
+
+// bulkDeleteMaxAge is the oldest a message may be for Discord's bulk-delete
+// endpoint: two weeks, minus an hour of margin for clock skew. A batch
+// containing anything older fails entirely, so older messages go out one at
+// a time instead.
+const bulkDeleteMaxAge = 14*24*time.Hour - time.Hour
+
+func tooOldForBulk(ts time.Time) bool {
+	return time.Since(ts) > bulkDeleteMaxAge
+}
+
+// singleDeletePace spaces one-at-a-time deletes. The per-channel delete
+// bucket holds about five requests per five seconds; the old 300ms cadence
+// spent every large purge ricocheting off 429s (and holding its guild's
+// command lane for minutes while disgo retried, which is where the
+// "Unknown interaction" on unrelated commands came from).
+const singleDeletePace = 1200 * time.Millisecond
+
+// pace waits between single deletes, or returns early when the purge is
+// stopped: a stop during the wait takes effect at once rather than after it.
+func pace(stopChan <-chan struct{}) {
+	select {
+	case <-stopChan:
+	case <-time.After(singleDeletePace):
 	}
 }
 

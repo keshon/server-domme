@@ -184,6 +184,12 @@ type SessionAPI interface {
 	// connection's.
 	DeleteMessage(channelID, messageID string) error
 
+	// BulkDeleteMessages deletes 2-100 messages in one request: what purges
+	// use for everything young enough. Discord rejects messages older than
+	// two weeks through this endpoint, so the caller splits those out to
+	// DeleteMessage itself.
+	BulkDeleteMessages(channelID string, messageIDs []string) error
+
 	// RoleNames resolves a guild's roles to id-indexed names, for matching a
 	// caller's roles against task lists written in names.
 	RoleNames(guildID string) (map[string]string, error)
