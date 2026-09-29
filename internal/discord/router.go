@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/disgoorg/disgo/events"
+	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/summarize"
 	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/llm"
 )
@@ -63,9 +65,7 @@ func (b *Bot) onMessageCreate(e *events.MessageCreate) {
 	go b.handleMention(guildID, channelID, messageID, userID, username, text, reply.NewSessionAPI(e.Client()))
 }
 
-func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, text string, api interface {
-	SendChannelReply(channelID, replyToID, content string) error
-}) {
+func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, text string, api adapter.SessionAPI) {
 	log := b.log.With().Str("guild_id", guildID).Str("channel_id", channelID).Str("user_id", userID).Logger()
 
 	if disabled, _ := b.storage.IsGroupDisabled(guildID, RouterGroup); disabled {
@@ -101,7 +101,20 @@ func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, tex
 	case llm.IntentHelp:
 		out = "I route plain speech to bot actions. Try `@me summarize this channel`, `@me what are the server rules?`, or `@me give me a task`. Slash still works: `/summarize`, `/task`, `/help`."
 	case llm.IntentSummarize:
-		out = "Summaries over mentions land in the next slice. For now use `/purge jobs` context or wait for `/summarize`."
+		if !llm.Ready(b.cfg) {
+			out = "Summaries need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL` first."
+			break
+		}
+		limit := intent.IntArg("limit")
+		if limit == 0 {
+			limit = 50
+		}
+		summary, count, err := summarize.Run(context.Background(), api, channelID, limit, llm.NewFromConfig(b.cfg))
+		if err != nil {
+			out = fmt.Sprintf("Failed to summarize: `%v`", err)
+			break
+		}
+		out = fmt.Sprintf("Summary of the last %d messages:\n%s", count, summary)
 	case llm.IntentKnowledge:
 		out = "Server knowledge answers land with the knowledge base slice. For now ask an admin or check pinned messages."
 	case llm.IntentTaskAsk:

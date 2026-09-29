@@ -384,9 +384,17 @@ func (a *API) ChannelMessages(channelID, beforeID string, limit int) ([]adapter.
 	}
 	out := make([]adapter.ListedMessage, 0, len(msgs))
 	for _, m := range msgs {
+		name := m.Author.Username
+		if m.Author.GlobalName != nil && *m.Author.GlobalName != "" {
+			name = *m.Author.GlobalName
+		}
 		out = append(out, adapter.ListedMessage{
-			ID:        m.ID.String(),
-			Timestamp: m.CreatedAt,
+			ID:         m.ID.String(),
+			Timestamp:  m.CreatedAt,
+			Content:    m.Content,
+			AuthorName: name,
+			AuthorID:   m.Author.ID.String(),
+			Bot:        m.Author.Bot,
 		})
 	}
 	return out, nil

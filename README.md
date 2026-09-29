@@ -51,6 +51,7 @@ It’s designed to be practical for server management while providing light, int
   - **/shortlink list** — List your shortened URLs
   - **/shortlink delete** — Delete a specific shortened URL
   - **/shortlink clear** — Clear all your shortened URLs
+- **/summarize** — Summarize recent messages in this channel
 - **/translate** — Translate messages with a flag reaction
 
 ### 🎲 Gameplay
