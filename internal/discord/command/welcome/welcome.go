@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/perm"
 	"github.com/keshon/server-domme/internal/discord/reply"
@@ -674,7 +675,7 @@ func unlinked(rendered string) []string {
 // isAdmin re-checks a modal submitter: submissions arrive without the
 // command's permission check, which only ran when the modal was opened.
 func isAdmin(ctx *adapter.ModalSubmitContext) bool {
-	if ctx.Config != nil && ctx.Config.DeveloperID != "" && ctx.Config.DeveloperID == ctx.UserID() {
+	if config.IsDeveloper(ctx.Config, ctx.UserID()) {
 		return true
 	}
 	perms, err := ctx.MemberPermissions()
