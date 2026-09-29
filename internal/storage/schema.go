@@ -143,3 +143,18 @@ type TaskCooldown struct {
 }
 
 func (c *TaskCooldown) Key() string { return guildScopedKey(c.GuildID, c.UserID) }
+
+// KnowledgeDoc is one admin-curated note: rules, guides, lore. Keyed by
+// slug so re-adding the same title replaces the row. Embedding is reserved
+// for a later vector pass and stays empty in v1.
+type KnowledgeDoc struct {
+	GuildID   string    `json:"guild_id"`
+	Slug      string    `json:"slug"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Source    string    `json:"source,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Embedding []float32 `json:"embedding,omitempty"`
+}
+
+func (k *KnowledgeDoc) Key() string { return guildScopedKey(k.GuildID, k.Slug) }

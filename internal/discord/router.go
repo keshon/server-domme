@@ -7,6 +7,7 @@ import (
 
 	"github.com/disgoorg/disgo/events"
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/command/knowledge"
 	"github.com/keshon/server-domme/internal/discord/command/summarize"
 	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/keshon/server-domme/internal/llm"
@@ -116,7 +117,20 @@ func (b *Bot) handleMention(guildID, channelID, messageID, userID, username, tex
 		}
 		out = fmt.Sprintf("Summary of the last %d messages:\n%s", count, summary)
 	case llm.IntentKnowledge:
-		out = "Server knowledge answers land with the knowledge base slice. For now ask an admin or check pinned messages."
+		if !llm.Ready(b.cfg) {
+			out = "Knowledge answers need an LLM backend. Set `LLM_ENABLED=true` with `LLM_BASE_URL` and `LLM_MODEL` first."
+			break
+		}
+		query := intent.StringArg("query")
+		if query == "" {
+			query = text
+		}
+		answer, err := knowledge.Run(context.Background(), b.storage, guildID, query, llm.NewFromConfig(b.cfg))
+		if err != nil {
+			out = fmt.Sprintf("Failed to answer: `%v`", err)
+			break
+		}
+		out = answer
 	case llm.IntentTaskAsk:
 		out = "I can refine task picks now: use `/task request: something quick and easy` or add `variant: True` for an AI rephrase. Mention-task assignment lands next."
 	default:

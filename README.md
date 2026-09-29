@@ -46,6 +46,7 @@ It’s designed to be practical for server management while providing light, int
 ### 📢 Utilities
 
 - **/announce** — Send a message on bot's behalf
+- **/knowledge** — Ask server questions answered from curated notes
 - **/shortlink** — Shorten URLs and manage your links
   - **/shortlink create** — Shorten a URL
   - **/shortlink list** — List your shortened URLs
@@ -96,6 +97,9 @@ It’s designed to be practical for server management while providing light, int
   - **/settings discipline roles-set** — Configure discipline roles
   - **/settings discipline roles-show** — Show configured discipline roles
   - **/settings discipline roles-reset** — Reset discipline role configuration
+  - **/settings knowledge add** — Add or replace a knowledge note
+  - **/settings knowledge remove** — Remove a knowledge note
+  - **/settings knowledge list** — List knowledge note titles
   - **/settings media category-add** — Add a media category
   - **/settings media category-list** — List media categories
   - **/settings media category-remove** — Remove a media category
