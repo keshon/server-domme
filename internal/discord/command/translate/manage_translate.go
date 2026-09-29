@@ -44,7 +44,7 @@ func ManageChannelOptions() []adapter.SlashOption {
 		},
 		{
 			Type:        adapter.OptionSubCommand,
-			Name:        "channels-clear",
+			Name:        "channel-clear",
 			Description: "Remove all translation-enabled channels",
 		},
 	}
@@ -59,7 +59,7 @@ func RunManageChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 		return runRemoveChannel(ctx, sub)
 	case "channel-list":
 		return runListChannels(ctx)
-	case "channels-clear":
+	case "channel-clear":
 		return runResetChannels(ctx)
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{

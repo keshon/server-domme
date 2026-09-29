@@ -78,14 +78,14 @@ func (c *AskCommand) SlashDefinition() *adapter.SlashCommand {
 				Description: "What kind of consent are you begging for?",
 				Required:    true,
 				Choices: []adapter.SlashChoice{
-					{Name: "DM Request", Value: "DM"},
+					{Name: "DM Request", Value: "DM Request"},
 					{Name: "Friend Request", Value: "Friend Request"},
 					{Name: "Other Reason", Value: "Other Reason"},
 				},
 			},
 			{
 				Type:        adapter.OptionUser,
-				Name:        "member",
+				Name:        "user",
 				Description: "Who are you hoping to grovel before?",
 				Required:    true,
 			},
@@ -101,7 +101,7 @@ func (c *AskCommand) SlashDefinition() *adapter.SlashCommand {
 
 func (c *AskCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	consentType := ctx.StringOption("consent_type")
-	targetID := ctx.StringOption("member")
+	targetID := ctx.StringOption("user")
 	reason := ctx.StringOption("reason")
 
 	askerID := ctx.UserID()

@@ -99,6 +99,11 @@ Three voices share one bot, and each command picks one on purpose:
 The mechanical rules, so review catches drift:
 
 - Command and option descriptions: capitalized, statement, no trailing period.
+- Option names are snake_case; the person is always `user` — except
+  `discipline`, where `target` names the brat rather than the invoker.
+- Settings groups come in two shapes: singletons (one channel, one role) use
+  `set/show/reset`; collections (many channels, categories) use
+  `add/remove/list` plus `clear`.
 - Every user sentence ends with a period. Straight apostrophes, never curly.
 - Errors carry the raw cause backticked: `Failed to …: \`%v\``.
 - Every embed sets `Color` (`reply.EmbedColor` unless there is a reason).

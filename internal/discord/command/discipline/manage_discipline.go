@@ -25,7 +25,7 @@ func ManageRolesOptions() []adapter.SlashOption {
 					Choices: []adapter.SlashChoice{
 						{Name: "Punisher — can punish/release", Value: "punisher"},
 						{Name: "Victim — can be punished", Value: "victim"},
-						{Name: "Brat — punishment role", Value: "assigned"},
+						{Name: "Assigned — punishment role", Value: "assigned"},
 					},
 				},
 				{
