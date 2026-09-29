@@ -8,7 +8,6 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/confess"
 	"github.com/keshon/server-domme/internal/discord/command/core/commands"
 	"github.com/keshon/server-domme/internal/discord/command/discipline"
-	"github.com/keshon/server-domme/internal/discord/command/knowledge"
 	"github.com/keshon/server-domme/internal/discord/command/media"
 	"github.com/keshon/server-domme/internal/discord/command/task"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
@@ -48,12 +47,6 @@ func (c *SettingsCommand) SlashDefinition() *adapter.SlashCommand {
 				Name:        "discipline",
 				Description: "Discipline settings",
 				Options:     discipline.ManageRolesOptions(),
-			},
-			{
-				Type:        adapter.OptionSubCommandGroup,
-				Name:        "knowledge",
-				Description: "Knowledge base settings",
-				Options:     knowledge.ManageOptions(),
 			},
 			{
 				Type:        adapter.OptionSubCommandGroup,
@@ -109,8 +102,6 @@ func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		return task.RunManageSettings(ctx, sub)
 	case "discipline":
 		return discipline.RunManageRoles(ctx, sub)
-	case "knowledge":
-		return knowledge.RunManage(ctx, sub)
 	case "media":
 		if err := ctx.DeferEphemeral(); err != nil {
 			ctx.AppLog.Error().Err(err).Msg("settings_media_defer_failed")

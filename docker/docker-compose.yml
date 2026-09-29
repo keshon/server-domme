@@ -27,19 +27,6 @@ services:
       - SHORTLINK_BASE_URL=${SHORTLINK_BASE_URL}
       - SHORTLINK_ADDR=${SHORTLINK_ADDR:-:8787}
       - HEALTHCHECK_PATH=${HEALTHCHECK_PATH:-/ping}
-      - LLM_ENABLED=${LLM_ENABLED:-false}
-      - LLM_BASE_URL=${LLM_BASE_URL:-}
-      - LLM_MODEL=${LLM_MODEL:-}
-      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-}
-      - LLM_API_KEY=${LLM_API_KEY:-}
-      - LLM_TIMEOUT_SEC=${LLM_TIMEOUT_SEC:-20}
-      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-512}
-      - LLM_USE_G4F=${LLM_USE_G4F:-false}
-      - LLM_USE_POLLINATIONS=${LLM_USE_POLLINATIONS:-false}
-      - LLM_G4F_PICKS=${LLM_G4F_PICKS:-3}
-      - LLM_G4F_API_KEY=${LLM_G4F_API_KEY:-}
-      - LLM_BACKENDS=${LLM_BACKENDS:-}
-      - LLM_BACKEND_ORDER=${LLM_BACKEND_ORDER:-priority}
     entrypoint: /usr/project/app
     networks:
       - proxy

@@ -30,7 +30,6 @@ type Storage struct {
 	cooldowns    *datastore.Collection[*TaskCooldown]
 	welcomeRoles *datastore.Collection[*WelcomeRole]
 	welcomed     *datastore.Collection[*Welcomed]
-	knowledge    *datastore.Collection[*KnowledgeDoc]
 
 	cmdLogByGuild       *datastore.Index[*CommandLogEntry]
 	purgeJobsByGuild    *datastore.Index[*PurgeJob]
@@ -38,7 +37,6 @@ type Storage struct {
 	tasksByGuild        *datastore.Index[*Task]
 	cooldownsByGuild    *datastore.Index[*TaskCooldown]
 	welcomeRolesByGuild *datastore.Index[*WelcomeRole]
-	knowledgeByGuild    *datastore.Index[*KnowledgeDoc]
 }
 
 // NewStorage opens the database in dir, creating it if needed. The directory is
@@ -59,7 +57,6 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 	s.cooldowns = datastore.Register[*TaskCooldown](db, "task_cooldowns")
 	s.welcomeRoles = datastore.Register[*WelcomeRole](db, "welcome_roles")
 	s.welcomed = datastore.Register[*Welcomed](db, "welcomed")
-	s.knowledge = datastore.Register[*KnowledgeDoc](db, "knowledge_docs")
 
 	s.cmdLogByGuild = datastore.AddIndex(s.cmdLog, "guild",
 		func(c *CommandLogEntry) []string { return []string{c.GuildID} })
@@ -73,8 +70,6 @@ func NewStorage(dir string, log zerolog.Logger) (*Storage, error) {
 		func(c *TaskCooldown) []string { return []string{c.GuildID} })
 	s.welcomeRolesByGuild = datastore.AddIndex(s.welcomeRoles, "guild",
 		func(w *WelcomeRole) []string { return []string{w.GuildID} })
-	s.knowledgeByGuild = datastore.AddIndex(s.knowledge, "guild",
-		func(k *KnowledgeDoc) []string { return []string{k.GuildID} })
 
 	if err := db.Open(); err != nil {
 		return nil, err
@@ -181,7 +176,6 @@ type GuildExport struct {
 	ShortLinks    []ShortLink       `json:"short_links"`
 	Tasks         []Task            `json:"tasks"`
 	TaskCooldowns []TaskCooldown    `json:"task_cooldowns"`
-	KnowledgeDocs []KnowledgeDoc    `json:"knowledge_docs,omitempty"`
 }
 
 // ExportGuild gathers everything stored for one guild.
@@ -198,7 +192,6 @@ func (s *Storage) ExportGuild(guildID string) (GuildExport, error) {
 		ShortLinks:    deref(s.shortLinkByGuild.Find(guildID)),
 		Tasks:         deref(s.tasksByGuild.Find(guildID)),
 		TaskCooldowns: deref(s.cooldownsByGuild.Find(guildID)),
-		KnowledgeDocs: deref(s.knowledgeByGuild.Find(guildID)),
 	}, nil
 }
 
@@ -288,15 +281,6 @@ func (s *Storage) ImportGuild(e GuildExport) error {
 			cooldown := e.TaskCooldowns[i]
 			cooldown.GuildID = e.GuildID
 			if err := cooldownCol.Put(&cooldown); err != nil {
-				return err
-			}
-		}
-
-		knowledgeCol := datastore.In(tx, s.knowledge)
-		for i := range e.KnowledgeDocs {
-			doc := e.KnowledgeDocs[i]
-			doc.GuildID = e.GuildID
-			if err := knowledgeCol.Put(&doc); err != nil {
 				return err
 			}
 		}

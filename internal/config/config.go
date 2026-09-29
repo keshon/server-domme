@@ -53,27 +53,6 @@ type Config struct {
 	// HealthCheckPath registers a shallow GET/HEAD health endpoint at this path
 	// (empty = disabled).
 	HealthCheckPath string `env:"HEALTHCHECK_PATH" envDefault:"/ping"`
-
-	// LLM is the optional stateless tool backend. Disabled by default: the
-	// mention router refuses with a setup hint and slash commands keep their
-	// deterministic behavior. No memory, no autonomy, one call per request.
-	LLMEnabled       bool   `env:"LLM_ENABLED" envDefault:"false"`
-	LLMBaseURL       string `env:"LLM_BASE_URL"`
-	LLMModel         string `env:"LLM_MODEL"`
-	LLMFallbackModel string `env:"LLM_FALLBACK_MODEL"`
-	LLMAPIKey        string `env:"LLM_API_KEY"`
-	LLMTimeoutSec    int    `env:"LLM_TIMEOUT_SEC" envDefault:"20"`
-	LLMMaxTokens     int    `env:"LLM_MAX_TOKENS" envDefault:"512"`
-	// Free public relays, off by default. When enabled they join the pool
-	// behind the explicit endpoint above: custom first, then LLM_BACKENDS,
-	// then g4f.space catalogue picks, then pollinations. The pool fails
-	// over between all of them and rests backends that keep failing.
-	LLMUseG4F          bool     `env:"LLM_USE_G4F" envDefault:"false"`
-	LLMUsePollinations bool     `env:"LLM_USE_POLLINATIONS" envDefault:"false"`
-	LLMG4FPicks        int      `env:"LLM_G4F_PICKS" envDefault:"3"`
-	LLMG4FAPIKey       string   `env:"LLM_G4F_API_KEY"`
-	LLMBackends        []string `env:"LLM_BACKENDS" envSeparator:","`
-	LLMBackendOrder    string   `env:"LLM_BACKEND_ORDER" envDefault:"priority"`
 }
 
 // IsDeveloper reports whether userID is the configured developer (avoids

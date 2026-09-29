@@ -46,13 +46,11 @@ It’s designed to be practical for server management while providing light, int
 ### 📢 Utilities
 
 - **/announce** — Send a message on bot's behalf
-- **/knowledge** — Ask server questions answered from curated notes
 - **/shortlink** — Shorten URLs and manage your links
   - **/shortlink create** — Shorten a URL
   - **/shortlink list** — List your shortened URLs
   - **/shortlink delete** — Delete a specific shortened URL
   - **/shortlink clear** — Clear all your shortened URLs
-- **/summarize** — Summarize recent messages in this channel
 - **/translate** — Translate messages with a flag reaction
 
 ### 🎲 Gameplay
@@ -91,15 +89,9 @@ It’s designed to be practical for server management while providing light, int
   - **/settings confess channel-set** — Set the confession channel
   - **/settings confess channel-show** — Show the current confession channel
   - **/settings confess channel-reset** — Remove the confession channel
-  - **/settings confess ai-check-set** — Enable or disable the AI pre-post guard
-  - **/settings confess ai-check-show** — Show whether the AI pre-post guard is on
-  - **/settings confess ai-check-reset** — Turn the AI pre-post guard off
   - **/settings discipline roles-set** — Configure discipline roles
   - **/settings discipline roles-show** — Show configured discipline roles
   - **/settings discipline roles-reset** — Reset discipline role configuration
-  - **/settings knowledge add** — Add or replace a knowledge note
-  - **/settings knowledge remove** — Remove a knowledge note
-  - **/settings knowledge list** — List knowledge note titles
   - **/settings media category-add** — Add a media category
   - **/settings media category-list** — List media categories
   - **/settings media category-remove** — Remove a media category

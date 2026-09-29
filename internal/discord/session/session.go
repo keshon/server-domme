@@ -153,18 +153,10 @@ func (s *Session) onHeartbeatAck(_ *events.HeartbeatAck) {
 // Voice states stay though nothing here joins voice: the member-resolving
 // cache flags below are shared with the bot this session was ported from, and
 // trimming them is a separate change from the migration.
-//
-// IntentGuildMessages plus IntentMessageContent feed the mention router
-// (@bot ...): explicit addresses only, no ambient listening. Both must be
-// ticked in the dev portal or the gateway closes with 4014. Disable the
-// router per guild via /settings commands disable llm instead of removing
-// the intent globally.
 const botIntents = gateway.IntentGuilds |
 	gateway.IntentGuildVoiceStates |
 	gateway.IntentGuildMembers |
-	gateway.IntentGuildMessageReactions |
-	gateway.IntentGuildMessages |
-	gateway.IntentMessageContent
+	gateway.IntentGuildMessageReactions
 
 // botCaches is what the bot actually reads back: guilds and their channels and
 // roles for permission maths, members for the same, voice states to find a

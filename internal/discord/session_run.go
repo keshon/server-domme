@@ -56,9 +56,6 @@ func (b *Bot) RunSession(ctx context.Context) error {
 			bot.NewListenerFunc(func(e *events.MessageReactionAdd) {
 				b.onMessageReactionAdd(e)
 			}),
-			bot.NewListenerFunc(func(e *events.MessageCreate) {
-				b.onMessageCreate(e)
-			}),
 		},
 	})
 	if err != nil {

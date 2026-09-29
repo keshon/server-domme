@@ -34,9 +34,6 @@ type GuildSettings struct {
 	GuildID              string            `json:"guild_id"`
 	AnnounceChannel      string            `json:"announce_channel,omitempty"`
 	ConfessChannel       string            `json:"confess_channel,omitempty"`
-	// ConfessAICheck enables the optional pre-post guard on /confess.
-	// Default off: confessions post exactly as written.
-	ConfessAICheck       bool              `json:"confess_ai_check,omitempty"`
 	CommandsDisabled     []string          `json:"commands_disabled,omitempty"`
 	DisciplineRoles      map[string]string `json:"discipline_roles,omitempty"`
 	MediaCategories      []string          `json:"media_categories,omitempty"`
@@ -143,18 +140,3 @@ type TaskCooldown struct {
 }
 
 func (c *TaskCooldown) Key() string { return guildScopedKey(c.GuildID, c.UserID) }
-
-// KnowledgeDoc is one admin-curated note: rules, guides, lore. Keyed by
-// slug so re-adding the same title replaces the row. Embedding is reserved
-// for a later vector pass and stays empty in v1.
-type KnowledgeDoc struct {
-	GuildID   string    `json:"guild_id"`
-	Slug      string    `json:"slug"`
-	Title     string    `json:"title"`
-	Body      string    `json:"body"`
-	Source    string    `json:"source,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Embedding []float32 `json:"embedding,omitempty"`
-}
-
-func (k *KnowledgeDoc) Key() string { return guildScopedKey(k.GuildID, k.Slug) }

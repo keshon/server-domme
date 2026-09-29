@@ -38,15 +38,10 @@ type Message struct {
 }
 
 // ListedMessage is one message in a channel listing: id and time, which is
-// all a purge selects on. Content and author are carried for readers like
-// summarize; purges ignore them.
+// all a purge selects on.
 type ListedMessage struct {
-	ID         string
-	Timestamp  time.Time
-	Content    string
-	AuthorName string
-	AuthorID   string
-	Bot        bool
+	ID        string
+	Timestamp time.Time
 }
 
 // GuildMember is one member for name resolution: username, server nickname

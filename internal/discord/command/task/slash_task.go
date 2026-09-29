@@ -8,14 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
-	"github.com/keshon/server-domme/internal/llm"
 	st "github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -49,18 +47,6 @@ func (c *TaskCommand) SlashDefinition() *adapter.SlashCommand {
 	return &adapter.SlashCommand{
 		Name:        c.Name(),
 		Description: c.Description(),
-		Options: []adapter.SlashOption{
-			{
-				Type:        adapter.OptionString,
-				Name:        "request",
-				Description: "Describe the task you want in plain words",
-			},
-			{
-				Type:        adapter.OptionBoolean,
-				Name:        "variant",
-				Description: "Rephrase the picked task with AI polish",
-			},
-		},
 	}
 }
 
@@ -136,16 +122,6 @@ func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error 
 	}
 
 	task := filtered[rand.Intn(len(filtered))]
-	if wish := strings.TrimSpace(ctx.StringOption("request")); wish != "" && llm.Ready(ctx.Config) {
-		if spec := ParseRequestSpec(context.Background(), llm.ProviderForConfig(ctx.Config), wish); len(spec.Keywords) > 0 || spec.DurationMin > 0 {
-			if idx := PickByScore(ScoreTasks(filtered, spec)); idx >= 0 {
-				task = filtered[idx]
-			}
-		}
-	}
-	if opt, ok := ctx.Option("variant"); ok && opt.BoolValue() && llm.Ready(ctx.Config) {
-		task.Description = RephraseTask(context.Background(), llm.ProviderForConfig(ctx.Config), task.Description)
-	}
 	c.assignTask(ctx, task)
 
 	return nil
