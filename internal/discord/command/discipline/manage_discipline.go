@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // ManageRolesOptions returns the settings options for discipline role
@@ -60,6 +61,7 @@ func RunManageRoles(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -76,17 +78,20 @@ func runRolesSet(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 	if roleType == "" || roleID == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Missing required options.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := ctx.Storage.SetPunishRole(ctx.GuildID(), roleType, roleID); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to set %s role: `%v`", roleType, err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Set %s role to **%s**.", roleType, roleName(ctx.API, ctx.GuildID(), roleID)),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -107,6 +112,7 @@ func runRolesShow(ctx *adapter.SlashInteractionContext) error {
 	}
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: strings.Join(lines, "\n") + "\n\nUse `/settings discipline roles-set` to set or update roles.\n\n Punish is the role that can punish and release people.\nVictim is the role that can be punished.\nAssigned is the punishment role (that is assigned by the punisher).",
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -114,20 +120,24 @@ func runRolesReset(ctx *adapter.SlashInteractionContext) error {
 	if err := ctx.Storage.SetPunishRole(ctx.GuildID(), "punisher", ""); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed resetting punisher role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	if err := ctx.Storage.SetPunishRole(ctx.GuildID(), "victim", ""); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed resetting victim role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	if err := ctx.Storage.SetPunishRole(ctx.GuildID(), "assigned", ""); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed resetting assigned role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "All roles have been reset.",
+		Color:       reply.EmbedColor,
 	})
 }

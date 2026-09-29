@@ -50,6 +50,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: "No subcommand provided. Use `category`, `group`, or `flat`.",
+			Color:       reply.EmbedColor,
 		})
 	}
 

@@ -108,11 +108,12 @@ func (c *AskCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if targetID == "" || targetID == askerID {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "You can't ask for permission to contact yourself.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	embed := &adapter.Embed{
-		Title:       strings.ToUpper(consentType),
+		Title:       consentType,
 		Description: fmt.Sprintf("<@%s> wants to **%s** <@%s>%s", askerID, consentType, targetID, formatReason(reason)),
 		Color:       reply.EmbedColor,
 	}
@@ -153,6 +154,7 @@ func (c *AskCommand) Component(ctx *adapter.ComponentInteractionContext) error {
 	if len(parts) != 5 || parts[0] != "ask" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Something smells off about this button.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -162,6 +164,7 @@ func (c *AskCommand) Component(ctx *adapter.ComponentInteractionContext) error {
 	if clickerID != askerID && clickerID != targetID {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "This ain't your party. Button's not meant for you.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -177,7 +180,8 @@ func (c *AskCommand) Component(ctx *adapter.ComponentInteractionContext) error {
 	action = translateLegacyAction(action, state)
 
 	if msg := refusal(action, state, clickerID, askerID, targetID); msg != "" {
-		return ctx.RespondEphemeral(&adapter.Embed{Description: msg})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: msg,
+			Color: reply.EmbedColor})
 	}
 
 	var status string

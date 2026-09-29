@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	"github.com/rs/zerolog"
 )
 
@@ -57,7 +58,8 @@ func (c *RandomMediaCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	file, err := pickRandomFile(mediaPath(ctx.GuildID(), category))
 	if err != nil {
 		return ctx.Followup(&adapter.Embed{
-			Description: fmt.Sprintf("No media found in `%s`: `%v`", categoryOrDefault(category), err),
+			Description: fmt.Sprintf("No media found in `%s`: `%v`.", categoryOrDefault(category), err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -87,7 +89,8 @@ func (c *RandomMediaCommand) Component(ctx *adapter.ComponentInteractionContext)
 	file, err := pickRandomFile(mediaPath(ctx.GuildID(), category))
 	if err != nil {
 		if ferr := ctx.Followup(&adapter.Embed{
-			Description: fmt.Sprintf("No media found in `%s`: `%v`", categoryOrDefault(category), err),
+			Description: fmt.Sprintf("No media found in `%s`: `%v`.", categoryOrDefault(category), err),
+			Color:       reply.EmbedColor,
 		}); ferr != nil {
 			ctx.AppLog.Error().Str("category", category).Err(ferr).Msg("media_followup_failed")
 		}
@@ -121,7 +124,7 @@ func sendMediaFile(log zerolog.Logger, ctx mediaFollowup, file, category, userna
 	f, err := os.Open(file)
 	if err != nil {
 		_ = ctx.FollowupWith(adapter.Reply{
-			Text: fmt.Sprintf("Failed to open media: `%v`", err),
+			Text: fmt.Sprintf("Failed to open media: `%v`.", err),
 		})
 		return err
 	}

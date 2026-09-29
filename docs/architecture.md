@@ -85,6 +85,28 @@ socket stays read while a command works. Waiting for a slot is bounded by the
 interaction acknowledgement deadline; running is not. Concurrency is capped at
 `COMMAND_PARALLELISM` across every guild.
 
+### User-facing copy
+
+Three voices share one bot, and each command picks one on purpose:
+
+- **Domme/brat roleplay** — `discipline`, `task` and its phrase lists. Teasing,
+  pet-names, scolding. This voice never leaves those two commands.
+- **Snarky mortal** — `ask` only. Dry, second-person, mildly slangy.
+- **Neutral utility** — everything else, including all errors and all of
+  `/welcome`'s coaching. No jokes in destructive paths: a purge warning reads
+  like a warning.
+
+The mechanical rules, so review catches drift:
+
+- Command and option descriptions: capitalized, statement, no trailing period.
+- Every user sentence ends with a period. Straight apostrophes, never curly.
+- Errors carry the raw cause backticked: `Failed to …: \`%v\``.
+- Every embed sets `Color` (`reply.EmbedColor` unless there is a reason).
+- Ephemeral embeds carry no title. Public posts do: emoji prefix + Title Case.
+- Component custom IDs are `<command>:<args...>` with colons, e.g.
+  `ask:<asker>:<target>:<type>:accept`. The format is frozen once shipped, so
+  new buttons copy it rather than inventing another.
+
 ### Middleware
 
 Applied in order, outermost first:

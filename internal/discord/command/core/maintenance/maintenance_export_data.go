@@ -47,5 +47,6 @@ func runSync(ctx *adapter.SlashInteractionContext) error {
 	}
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Command sync requested — it may take some time to apply.",
+		Color:       reply.EmbedColor,
 	})
 }

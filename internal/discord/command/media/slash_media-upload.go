@@ -10,6 +10,7 @@ import (
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/perm"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type UploadMediaCommand struct{}
@@ -87,6 +88,7 @@ func (c *UploadMediaCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if len(files) == 0 {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: "No files uploaded.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -108,6 +110,7 @@ func (c *UploadMediaCommand) Run(ctx *adapter.SlashInteractionContext) error {
 			"Saved **%d** file(s) to category `%s` (%d failed)",
 			saved, category, failed,
 		),
+		Color: reply.EmbedColor,
 	})
 }
 

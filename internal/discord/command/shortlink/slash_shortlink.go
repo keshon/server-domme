@@ -70,6 +70,7 @@ func (c *ShortlinkCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No subcommand provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -85,6 +86,7 @@ func (c *ShortlinkCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -95,7 +97,8 @@ func (c *ShortlinkCommand) runCreate(
 ) error {
 	cfg := ctx.Config
 	if cfg == nil {
-		return ctx.RespondEphemeral(&adapter.Embed{Description: "Config not available."})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: "Config not available.",
+			Color: reply.EmbedColor})
 	}
 	urlOpt, _ := sub.Option("url")
 	raw := strings.TrimSpace(urlOpt.StringValue())
@@ -109,7 +112,7 @@ func (c *ShortlinkCommand) runCreate(
 	if !isValidURL(raw) {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Color:       reply.EmbedColor,
-			Description: fmt.Sprintf("`%s` doesn’t look like a valid link.\nTry something like `https://example.com`.", raw),
+			Description: fmt.Sprintf("`%s` doesn't look like a valid link.\nTry something like `https://example.com`.", raw),
 		})
 	}
 
@@ -147,7 +150,8 @@ func (c *ShortlinkCommand) runCreate(
 func (c *ShortlinkCommand) runList(ctx *adapter.SlashInteractionContext) error {
 	cfg := ctx.Config
 	if cfg == nil {
-		return ctx.RespondEphemeral(&adapter.Embed{Description: "Config not available."})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: "Config not available.",
+			Color: reply.EmbedColor})
 	}
 	userID := ctx.UserID()
 	guildID := ctx.GuildID()
@@ -155,7 +159,8 @@ func (c *ShortlinkCommand) runList(ctx *adapter.SlashInteractionContext) error {
 	links, err := ctx.Storage.GetUserShortLinks(guildID, userID)
 	if err != nil || len(links) == 0 {
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: "You don’t have any shortened links yet.",
+			Description: "You don't have any shortened links yet.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -182,7 +187,8 @@ func (c *ShortlinkCommand) runList(ctx *adapter.SlashInteractionContext) error {
 		)
 
 		if len(current.String())+len(line) > 3800 {
-			embeds = append(embeds, &adapter.Embed{Description: current.String()})
+			embeds = append(embeds, &adapter.Embed{Description: current.String(),
+				Color: reply.EmbedColor})
 			current.Reset()
 			current.WriteString("**(continued)**\n\n")
 		}
@@ -190,7 +196,8 @@ func (c *ShortlinkCommand) runList(ctx *adapter.SlashInteractionContext) error {
 		current.WriteString(line)
 	}
 
-	embeds = append(embeds, &adapter.Embed{Description: current.String()})
+	embeds = append(embeds, &adapter.Embed{Description: current.String(),
+		Color: reply.EmbedColor})
 
 	for i, embed := range embeds {
 		if i == 0 {

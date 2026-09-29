@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // RunLog shows recent command usage for the guild.
@@ -12,11 +13,13 @@ func RunLog(ctx *adapter.SlashInteractionContext) error {
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to fetch command logs: " + err.Error(),
+			Color:       reply.EmbedColor,
 		})
 	}
 	if len(records) == 0 {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No command logs found.",
+			Color:       reply.EmbedColor,
 		})
 	}
 

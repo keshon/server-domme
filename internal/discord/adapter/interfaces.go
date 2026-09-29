@@ -140,6 +140,11 @@ type SessionAPI interface {
 
 	SendChannelEmbed(channelID string, embed *Embed) error
 
+	// SendChannelEmbedFile posts an embed with a file attached. The embed's
+	// ImageURL must be "attachment://" + fileName to show it. Purge warnings
+	// carry their gif this way so they survive the source link dying.
+	SendChannelEmbedFile(channelID string, embed *Embed, file io.Reader, fileName string) error
+
 	// SendDirectMessage DMs a user one message. A member with DMs closed is
 	// the common failure here rather than an error worth surfacing, so
 	// callers log it and move on.

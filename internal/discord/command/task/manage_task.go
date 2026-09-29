@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // ManageSettingsOptions returns the settings options for task management.
@@ -106,6 +107,7 @@ func RunManageSettings(ctx *adapter.SlashInteractionContext, sub adapter.SlashAr
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Invalid subcommand.",
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -117,12 +119,14 @@ func runRoleSet(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument)
 	if roleID == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Missing required options.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := ctx.Storage.SetTaskRole(ctx.GuildID(), roleID); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to set Tasker role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -133,6 +137,7 @@ func runRoleSet(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument)
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Tasker role set to **%s**.", roleName),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -141,6 +146,7 @@ func runRoleShow(ctx *adapter.SlashInteractionContext) error {
 	if err != nil || roleID == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No Tasker role set.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -151,6 +157,7 @@ func runRoleShow(ctx *adapter.SlashInteractionContext) error {
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Tasker role set to **%s**.", roleName),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -158,11 +165,13 @@ func runRoleReset(ctx *adapter.SlashInteractionContext) error {
 	if err := ctx.Storage.SetTaskRole(ctx.GuildID(), ""); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to reset Tasker role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Tasker role reset.",
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -171,6 +180,7 @@ func runTasksDownload(ctx *adapter.SlashInteractionContext) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No tasks file found for this server.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -182,6 +192,7 @@ func runTasksDownload(ctx *adapter.SlashInteractionContext) error {
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to open tasks file: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	defer file.Close()
@@ -200,6 +211,7 @@ func runTasksUpload(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to get the uploaded file.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -207,6 +219,7 @@ func runTasksUpload(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to download the uploaded file.",
+			Color:       reply.EmbedColor,
 		})
 	}
 	defer resp.Body.Close()
@@ -215,6 +228,7 @@ func runTasksUpload(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if err != nil || len(body) == 0 {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to read the uploaded file or file is empty.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -222,12 +236,14 @@ func runTasksUpload(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if err := json.Unmarshal(body, &tasks); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Invalid JSON file.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := os.MkdirAll("data", 0755); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to create data directory: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -235,11 +251,13 @@ func runTasksUpload(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if err := os.WriteFile(path, body, 0644); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to write tasks file: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Tasks have been uploaded.\nSaved as `%s`", filepath.Base(path)),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -248,17 +266,20 @@ func runTasksReset(ctx *adapter.SlashInteractionContext) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No tasks file found for this server.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := os.Remove(path); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to remove tasks file: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Tasks have been reset. Use `/settings task tasks-upload` to upload new tasks.",
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -269,18 +290,21 @@ func runCooldownSet(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if durationRaw == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Missing required options.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := ctx.Storage.SetTaskCooldownDuration(ctx.GuildID(), durationRaw); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Invalid duration: `%v`\nUse `30m`, `3h`, `1d`, etc.", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	duration, _ := ctx.Storage.GetTaskCooldownDuration(ctx.GuildID())
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Task cooldown set to **%s**.", humanDuration(duration)),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -289,6 +313,7 @@ func runCooldownShow(ctx *adapter.SlashInteractionContext) error {
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to read cooldown setting: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -302,6 +327,7 @@ func runCooldownShow(ctx *adapter.SlashInteractionContext) error {
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to list cooldowns: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -318,5 +344,6 @@ func runCooldownShow(ctx *adapter.SlashInteractionContext) error {
 
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: guildLine + "\n\n" + activeSection,
+		Color:       reply.EmbedColor,
 	})
 }

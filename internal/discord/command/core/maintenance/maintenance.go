@@ -5,6 +5,7 @@ import (
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/perm"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type Command struct{}
@@ -51,6 +52,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No subcommand provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -66,6 +68,7 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+			Color:       reply.EmbedColor,
 		})
 	}
 }

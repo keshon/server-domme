@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/server-domme/internal/discord/command/task"
 	"github.com/keshon/server-domme/internal/discord/command/translate"
 	"github.com/keshon/server-domme/internal/discord/perm"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type SettingsCommand struct{}
@@ -80,6 +81,7 @@ func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No settings group provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -87,6 +89,7 @@ func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No subcommand provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -111,7 +114,8 @@ func (c *SettingsCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		return runCommandsSettings(ctx, sub)
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: fmt.Sprintf("Unknown settings group: %s", group.Name),
+			Description: fmt.Sprintf("Unknown settings group: %s.", group.Name),
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -128,7 +132,8 @@ func runCommandsSettings(ctx *adapter.SlashInteractionContext, sub adapter.Slash
 		return commands.RunDisable(ctx, sub)
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+			Description: fmt.Sprintf("Unknown subcommand: %s.", sub.Name),
+			Color:       reply.EmbedColor,
 		})
 	}
 }

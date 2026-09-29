@@ -49,6 +49,7 @@ func (c *AnnounceCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if messageID == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Please provide a message ID to announce.",
+			Color:       reply.EmbedColor,
 		})
 	}
 	return publish(ctx.GuildID(), ctx.ChannelID(), messageID, ctx.Storage, ctx.API, ctx.RespondEphemeral)
@@ -67,6 +68,7 @@ func publish(guildID, channelID, messageID string, store *storage.Storage, api a
 	if announceChannelID == "" {
 		return respond(&adapter.Embed{
 			Description: "Announcement channel is not set. Use `/settings announce channel-set` first.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -74,11 +76,13 @@ func publish(guildID, channelID, messageID string, store *storage.Storage, api a
 	if err != nil {
 		return respond(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to fetch message: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	if msg.Content == "" && len(msg.Embeds) == 0 && len(msg.Attachments) == 0 {
 		return respond(&adapter.Embed{
-			Description: "Empty? I'm not announcing tumbleweeds.",
+			Description: "There's nothing to announce: the message is empty.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -88,6 +92,7 @@ func publish(guildID, channelID, messageID string, store *storage.Storage, api a
 	if err := api.ForwardMessage(announceChannelID, msg); err != nil {
 		return respond(&adapter.Embed{
 			Description: fmt.Sprintf("Couldn't announce it: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 

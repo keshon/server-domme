@@ -44,6 +44,7 @@ func (c *ConfessCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if message == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No confession provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -60,6 +61,7 @@ func (c *ConfessCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	}); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to send confession: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -68,9 +70,11 @@ func (c *ConfessCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		link := fmt.Sprintf("https://discord.com/channels/%s/%s", ctx.GuildID(), confessChannelID)
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Delivered. Nobody saw a thing.\nSee it here: %s", link),
+			Color:       reply.EmbedColor,
 		})
 	}
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Delivered. Nobody saw a thing.",
+		Color:       reply.EmbedColor,
 	})
 }

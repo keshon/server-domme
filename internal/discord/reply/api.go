@@ -184,6 +184,22 @@ func (a *API) SendChannelEmbed(channelID string, embed *adapter.Embed) error {
 	return err
 }
 
+// SendChannelEmbedFile posts an embed with a file attached.
+func (a *API) SendChannelEmbedFile(channelID string, embed *adapter.Embed, file io.Reader, fileName string) error {
+	if a.client == nil {
+		return fmt.Errorf("reply: no Discord session")
+	}
+	cid, err := parseID(channelID)
+	if err != nil {
+		return err
+	}
+	_, err = a.client.Rest.CreateMessage(cid, discord.MessageCreate{
+		Embeds: Embeds(embed),
+		Files:  []*discord.File{discord.NewFile(fileName, "", file)},
+	})
+	return err
+}
+
 // SendDirectMessage DMs a user one message. Closed DMs fail here, and the
 // caller decides whether that is worth reporting: for ask's notifications it
 // is the common case and the outcome is already recorded on the message.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // ManageChannelOptions returns the settings options for confess channel
@@ -45,10 +46,12 @@ func RunManageChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 		if err := ctx.Storage.SetConfessChannel(ctx.GuildID(), channelID); err != nil {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to set confession channel: `%v`", err),
+				Color:       reply.EmbedColor,
 			})
 		}
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Confession channel has been set to <#%s>.", channelID),
+			Color:       reply.EmbedColor,
 		})
 
 	case "channel-show":
@@ -56,25 +59,30 @@ func RunManageChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 		if err != nil {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to get confession channel: `%v`", err),
+				Color:       reply.EmbedColor,
 			})
 		}
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Current confession channel is <#%s>.", channelID),
+			Color:       reply.EmbedColor,
 		})
 
 	case "channel-reset":
 		if err := ctx.Storage.RemoveConfessChannel(ctx.GuildID()); err != nil {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to remove confession channel: `%v`", err),
+				Color:       reply.EmbedColor,
 			})
 		}
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Confession channel has been removed.",
+			Color:       reply.EmbedColor,
 		})
 
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+			Color:       reply.EmbedColor,
 		})
 	}
 }

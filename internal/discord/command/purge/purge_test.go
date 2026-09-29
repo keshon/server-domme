@@ -1,6 +1,7 @@
 package purge
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -20,6 +21,9 @@ func (c *channel) SendChannelMessage(_, _ string) error         { return nil }
 func (c *channel) SendChannelReply(_, _, _ string) error        { return nil }
 func (c *channel) ClearChannelComponents(_, _ string) error     { return nil }
 func (c *channel) SendChannelEmbed(_ string, _ *adapter.Embed) error {
+	return nil
+}
+func (c *channel) SendChannelEmbedFile(_ string, _ *adapter.Embed, _ io.Reader, _ string) error {
 	return nil
 }
 func (c *channel) SendDirectMessage(_, _ string) error { return nil }

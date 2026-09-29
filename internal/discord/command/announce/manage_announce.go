@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // ManageChannelOptions returns the settings options for announce channel
@@ -45,15 +46,18 @@ func RunManageChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 		if channelID == "" {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: "Invalid channel.",
+				Color:       reply.EmbedColor,
 			})
 		}
 		if err := ctx.Storage.SetAnnounceChannel(ctx.GuildID(), channelID); err != nil {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to set announcement channel: `%v`", err),
+				Color:       reply.EmbedColor,
 			})
 		}
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Announcement channel updated to <#%s>.", channelID),
+			Color:       reply.EmbedColor,
 		})
 
 	case "channel-show":
@@ -61,25 +65,30 @@ func RunManageChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 		if err != nil || channelID == "" {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: "No announcement channel set.",
+				Color:       reply.EmbedColor,
 			})
 		}
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Current announcement channel is <#%s>.", channelID),
+			Color:       reply.EmbedColor,
 		})
 
 	case "channel-reset":
 		if err := ctx.Storage.SetAnnounceChannel(ctx.GuildID(), ""); err != nil {
 			return ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to reset announcement channel: `%v`", err),
+				Color:       reply.EmbedColor,
 			})
 		}
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Announcement channel has been reset.",
+			Color:       reply.EmbedColor,
 		})
 
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
+			Color:       reply.EmbedColor,
 		})
 	}
 }

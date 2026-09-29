@@ -3,6 +3,8 @@ package purge
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 
 	"strconv"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/perm"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	st "github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -105,7 +108,7 @@ func (c *PurgeCommand) SlashDefinition() *adapter.SlashCommand {
 					{
 						Type:        adapter.OptionBoolean,
 						Name:        optAllowed,
-						Description: "true: purges may run here · false: forbidden, and any job here is stopped",
+						Description: "True: purges may run here · False: forbidden, and any job here is stopped",
 					},
 				},
 			},
@@ -128,6 +131,7 @@ func (c *PurgeCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Please select a subcommand: `auto`, `now`, `channel`, `jobs`, or `stop`.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -144,7 +148,8 @@ func (c *PurgeCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		return runPurgeStop(ctx)
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+			Description: fmt.Sprintf("Unknown subcommand: %s.", sub.Name),
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -161,12 +166,14 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 
 	store := ctx.Storage
 	if !store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
-		return ctx.RespondEphemeral(&adapter.Embed{Description: notAllowed})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: notAllowed,
+			Color: reply.EmbedColor})
 	}
 
 	if strings.ToLower(confirm) != "yes" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -174,12 +181,14 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Invalid duration format. Use `10m`, `2h`, `1d`, etc.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if !ctx.API.CheckBotPermissions(ctx.ChannelID()) {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Missing permissions to purge messages.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -188,6 +197,7 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 		ActiveDeletionsMu.Unlock()
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "A purge job is already running in this channel.",
+			Color:       reply.EmbedColor,
 		})
 	}
 	stopChan := make(chan struct{})
@@ -199,21 +209,21 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 		stopDeletion(ctx.ChannelID())
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to set deletion job: `%v`.", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	_ = ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Recurring purge started. Messages older than **" + dur.String() + "** will be erased.",
+		Color:       reply.EmbedColor,
 	})
 
 	if notifyAll {
-		if err := ctx.API.SendChannelEmbed(ctx.ChannelID(), &adapter.Embed{
-			Title:       "☢️ Recurring Nuke Detonation",
-			Description: fmt.Sprintf("All messages older than `%s` will be **systematically erased**.", dur.String()),
+		if err := sendNukeWarning(ctx.API, ctx.ChannelID(), &adapter.Embed{
+			Title:       "🧹 Recurring Purge Active",
+			Description: fmt.Sprintf("Messages older than `%s` are deleted on a schedule.", dur.String()),
 			Color:       ctx.API.EmbedColor(),
-			ImageURL:    "https://ichef.bbci.co.uk/images/ic/1376xn/p05cj1tt.jpg.webp",
-			Footer:      "History has a half-life.",
-		}); err != nil {
+		}, "assets/purge/nuke-recurring.webp"); err != nil {
 			announceFailed(ctx.AppLog, ctx.ChannelID(), err)
 		}
 	}
@@ -247,12 +257,14 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 
 	store := ctx.Storage
 	if !store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
-		return ctx.RespondEphemeral(&adapter.Embed{Description: notAllowed})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: notAllowed,
+			Color: reply.EmbedColor})
 	}
 
 	if strings.ToLower(confirm) != "yes" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Action not confirmed. Please type 'yes' to proceed.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -261,6 +273,7 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 		ActiveDeletionsMu.Unlock()
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "A purge job is already running in this channel.",
+			Color:       reply.EmbedColor,
 		})
 	}
 	ActiveDeletionsMu.Unlock()
@@ -273,6 +286,7 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Invalid delay format. Use formats like `10m`, `1h`, `1d`.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -280,21 +294,21 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 	if err := store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeDelayed, delayUntil, notifyAll); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to schedule purge: `%v`.", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	_ = ctx.RespondEphemeral(&adapter.Embed{
 		Description: "Purge scheduled — will start in **" + dur.String() + "**.",
+		Color:       reply.EmbedColor,
 	})
 
 	if notifyAll {
-		if err := ctx.API.SendChannelEmbed(ctx.ChannelID(), &adapter.Embed{
-			Title:       "☢️ Upcoming Nuke Detonation",
-			Description: "Countdown initiated — all messages will be purged in `" + dur.String() + "`.",
+		if err := sendNukeWarning(ctx.API, ctx.ChannelID(), &adapter.Embed{
+			Title:       "🧹 Purge Scheduled",
+			Description: "All messages in this channel will be deleted in `" + dur.String() + "`.",
 			Color:       ctx.API.EmbedColor(),
-			ImageURL:    "https://c.tenor.com/qDvLEFO5bAkAAAAd/tenor.gif",
-			Footer:      "May your sins be incinerated.",
-		}); err != nil {
+		}, "assets/purge/nuke-upcoming.gif"); err != nil {
 			announceFailed(ctx.AppLog, ctx.ChannelID(), err)
 		}
 	}
@@ -343,12 +357,13 @@ func runPurgeJobs(ctx *adapter.SlashInteractionContext) error {
 	if err != nil || len(jobs) == 0 {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No active purge jobs found.\n\n" + allowed,
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	var sb strings.Builder
 	sb.WriteString(allowed + "\n\n")
-	sb.WriteString("☢️ **Active Message Purge Jobs**\n\n")
+	sb.WriteString("🧹 **Active Purge Jobs**\n\n")
 	for _, job := range jobs {
 		sb.WriteString("<#" + job.ChannelID + ">\n")
 		switch job.Mode {
@@ -367,7 +382,8 @@ func runPurgeJobs(ctx *adapter.SlashInteractionContext) error {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("Use `/purge stop` to cancel any listed job.")
-	return ctx.RespondEphemeral(&adapter.Embed{Description: sb.String()})
+	return ctx.RespondEphemeral(&adapter.Embed{Description: sb.String(),
+		Color: reply.EmbedColor})
 }
 
 func runPurgeStop(ctx *adapter.SlashInteractionContext) error {
@@ -377,10 +393,12 @@ func runPurgeStop(ctx *adapter.SlashInteractionContext) error {
 		_ = store.ClearDeletionJob(ctx.GuildID(), ctx.ChannelID())
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Message purge job stopped.",
+			Color:       reply.EmbedColor,
 		})
 	} else {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No active purge job in this channel.",
+			Color:       reply.EmbedColor,
 		})
 	}
 	return nil
@@ -402,7 +420,8 @@ func runPurgeChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgu
 	store := ctx.Storage
 	opt, ok := sub.Option(optAllowed)
 	respond := func(msg string) error {
-		return ctx.RespondEphemeral(&adapter.Embed{Description: msg})
+		return ctx.RespondEphemeral(&adapter.Embed{Description: msg,
+			Color: reply.EmbedColor})
 	}
 	if !ok {
 		if store.IsPurgeAllowed(ctx.GuildID(), ctx.ChannelID()) {
@@ -536,6 +555,20 @@ func DeleteMessages(api adapter.SessionAPI, channelID string, startTime, endTime
 			break
 		}
 	}
+}
+
+// sendNukeWarning posts a purge warning with its gif attached from the local
+// assets, so the warning survives the source link dying (third-party gif
+// hosts are not to be trusted). When the file cannot be opened it falls back
+// to the embed alone rather than failing the scheduling it announces.
+func sendNukeWarning(api adapter.SessionAPI, channelID string, embed *adapter.Embed, assetPath string) error {
+	f, err := os.Open(assetPath)
+	if err != nil {
+		return api.SendChannelEmbed(channelID, embed)
+	}
+	defer f.Close()
+	embed.ImageURL = "attachment://" + filepath.Base(assetPath)
+	return api.SendChannelEmbedFile(channelID, embed, f, filepath.Base(assetPath))
 }
 
 // announceFailed logs a channel-wide purge warning that could not be posted,

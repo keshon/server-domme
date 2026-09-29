@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // RunStatus reports enabled and disabled command groups.
@@ -38,5 +39,6 @@ func RunStatus(ctx *adapter.SlashInteractionContext) error {
 			{Name: "Disabled", Value: strings.Join(disabled, ", "), Inline: false},
 			{Name: "Enabled", Value: strings.Join(enabled, ", "), Inline: false},
 		},
+		Color: reply.EmbedColor,
 	})
 }

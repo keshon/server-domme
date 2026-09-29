@@ -51,11 +51,11 @@ It’s designed to be practical for server management while providing light, int
   - **/shortlink list** — List your shortened URLs
   - **/shortlink delete** — Delete a specific shortened URL
   - **/shortlink clear** — Clear all your shortened URLs
-- **/translate** — Translate message on flag emoji reaction
+- **/translate** — Translate messages with a flag reaction
 
 ### 🎲 Gameplay
 
-- **/roll** — Roll dices like `2d20+1d6-2`
+- **/roll** — Roll dice like `2d20+1d6-2`
 
 ### 🎭 Roleplay
 

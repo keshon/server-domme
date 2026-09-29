@@ -55,7 +55,8 @@ func (c *RollCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	tokens := tokenRegex.FindAllString(formula, -1)
 	if len(tokens) == 0 {
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: "Can't parse your formula. Try something like `2d6+1d4*2-3`",
+			Description: "Can't parse your formula. Try something like `2d6+1d4*2-3`.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -72,6 +73,7 @@ func (c *RollCommand) Run(ctx *adapter.SlashInteractionContext) error {
 		if err != nil {
 			_ = ctx.RespondEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Failed to evaluate `%s`: %v", token, err),
+				Color:       reply.EmbedColor,
 			})
 			return nil
 		}
@@ -91,6 +93,7 @@ func (c *RollCommand) Run(ctx *adapter.SlashInteractionContext) error {
 			if len(merged) == 0 {
 				_ = ctx.RespondEphemeral(&adapter.Embed{
 					Description: "Can't multiply or divide by nothing.",
+					Color:       reply.EmbedColor,
 				})
 				return nil
 			}
@@ -105,6 +108,7 @@ func (c *RollCommand) Run(ctx *adapter.SlashInteractionContext) error {
 				if t.value == 0 {
 					_ = ctx.RespondEphemeral(&adapter.Embed{
 						Description: "Can't divide by zero.",
+						Color:       reply.EmbedColor,
 					})
 					return nil
 				}
@@ -138,7 +142,8 @@ func (c *RollCommand) Run(ctx *adapter.SlashInteractionContext) error {
 			total -= t.value
 		default:
 			_ = ctx.RespondEphemeral(&adapter.Embed{
-				Description: fmt.Sprintf("Unknown operator: %s", t.op),
+				Description: fmt.Sprintf("Unknown operator: %s.", t.op),
+				Color:       reply.EmbedColor,
 			})
 			return nil
 		}

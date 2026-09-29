@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type TranslateOnReaction struct{}
@@ -33,6 +34,7 @@ func (t *TranslateOnReaction) SlashDefinition() *adapter.SlashCommand {
 func (t *TranslateOnReaction) Run(ctx *adapter.SlashInteractionContext) error {
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "React to a message with a flag (🇬🇧, 🇷🇺, …) and I'll DM you the translation.\nAn admin enables channels with `/settings translate channel-add`.",
+		Color:       reply.EmbedColor,
 	})
 }
 

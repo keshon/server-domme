@@ -157,6 +157,7 @@ func (c *WelcomeCommand) ModalSubmit(ctx *adapter.ModalSubmitContext) error {
 	if !isAdmin(ctx) {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Only administrators can change welcome texts.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -165,6 +166,7 @@ func (c *WelcomeCommand) ModalSubmit(ctx *adapter.ModalSubmitContext) error {
 	if !ok || (kind != kindIntro && kind != kindWelcome) || roleID == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "That editor is out of date. Open it again with `/welcome template`.",
+			Color:       reply.EmbedColor,
 		})
 	}
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // ManageChannelOptions returns the settings options for translate channel
@@ -63,6 +64,7 @@ func RunManageChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -73,10 +75,12 @@ func runAddChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgume
 	if err := ctx.Storage.AddTranslateChannel(ctx.GuildID(), channelID); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to add channel: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("<#%s> added to translate reaction channels.", channelID),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -86,10 +90,12 @@ func runRemoveChannel(ctx *adapter.SlashInteractionContext, sub adapter.SlashArg
 	if err := ctx.Storage.RemoveTranslateChannel(ctx.GuildID(), channelID); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to remove channel: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("<#%s> removed from translate reaction channels.", channelID),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -98,12 +104,14 @@ func runListChannels(ctx *adapter.SlashInteractionContext) error {
 	if err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to get channels: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if len(channels) == 0 {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No channels currently configured for translation reactions.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -115,6 +123,7 @@ func runListChannels(ctx *adapter.SlashInteractionContext) error {
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Title:       "🌐 Translate Channels",
 		Description: desc,
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -122,9 +131,11 @@ func runResetChannels(ctx *adapter.SlashInteractionContext) error {
 	if err := ctx.Storage.ResetTranslateChannels(ctx.GuildID()); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to reset channels: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	return ctx.RespondEphemeral(&adapter.Embed{
 		Description: "All translate reaction channels have been reset.",
+		Color:       reply.EmbedColor,
 	})
 }

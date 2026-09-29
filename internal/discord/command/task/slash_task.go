@@ -13,6 +13,7 @@ import (
 
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 	st "github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -60,7 +61,8 @@ func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error 
 
 	if cooldownUntil, err := store.GetCooldown(guildID, userID); err == nil && time.Now().Before(cooldownUntil) {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
-			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s", humanDuration(time.Until(cooldownUntil))),
+			Description: fmt.Sprintf("You're on cooldown.\nYou can do this again in %s.", humanDuration(time.Until(cooldownUntil))),
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -82,6 +84,7 @@ func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error 
 	if existing != nil && existing.Status == st.TaskStatusPending {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "You already have a task pending.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -90,6 +93,7 @@ func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error 
 	if len(taskerRoles) == 0 {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No tasker roles set. Ask an Admin to set them.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -102,6 +106,7 @@ func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error 
 	if err != nil {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Failed to load tasks.\nAsk an Admin to set them.",
+			Color:       reply.EmbedColor,
 		})
 		ctx.AppLog.Error().Str("guild_id", guildID).Err(err).Msg("task_list_load_failed")
 		return nil
@@ -111,6 +116,7 @@ func (c *TaskCommand) runSelfAssign(ctx *adapter.SlashInteractionContext) error 
 	if len(filtered) == 0 {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No task suits your... profile.\nAsk an Admin to upload tasks for your gender role and try again.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -193,13 +199,15 @@ func (c *TaskCommand) Component(ctx *adapter.ComponentInteractionContext) error 
 	if err != nil || task == nil {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No active task found. Trying to cheat, hmm?",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
 
 	if task.UserID != userID {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
-			Description: "That task doesn’t belong to you. Greedy little fingers, aren't you?",
+			Description: "That task doesn't belong to you. Greedy little fingers, aren't you?",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // RunEnable enables a command group for the guild.
@@ -22,17 +23,20 @@ func runSetGroupState(ctx *adapter.SlashInteractionContext, group string, enable
 	if group == "" {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Missing required group option.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if group == "core" && !enabled {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "You can't disable the `core` group. It's the backbone of the discord.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	embed := &adapter.Embed{
 		Footer: "Use /settings commands status to check which commands are disabled.",
+		Color:  reply.EmbedColor,
 	}
 
 	if enabled {

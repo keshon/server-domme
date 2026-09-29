@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 type DisciplineCommand struct{}
@@ -58,6 +59,7 @@ func (c *DisciplineCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "No subcommand provided.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -72,6 +74,7 @@ func (c *DisciplineCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	default:
 		return ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Unknown subcommand.",
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -81,7 +84,7 @@ func (c *DisciplineCommand) runPunish(ctx *adapter.SlashInteractionContext, targ
 	// not be punished.
 	cfg := ctx.Config
 	if cfg != nil && slices.Contains(cfg.ProtectedUsers, targetID) {
-		return ctx.RespondWith(adapter.Reply{Text: "I may be cruel, but I won’t punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️"})
+		return ctx.RespondWith(adapter.Reply{Text: "I may be cruel, but I won't punish the architect of my existence. Creator protected, no whipping allowed. 🙅‍♀️"})
 	}
 
 	store := ctx.Storage
@@ -92,13 +95,15 @@ func (c *DisciplineCommand) runPunish(ctx *adapter.SlashInteractionContext, targ
 	if punisherRoleID == "" || victimRoleID == "" || assignedRoleID == "" {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Roles not configured properly. Set them first via `/settings discipline roles-set`.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
 
 	if !slices.Contains(ctx.Invoker.Roles, punisherRoleID) {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
-			Description: "Nice try, sugar. You don’t wear the right collar to give punishments.",
+			Description: "Nice try, sugar. You don't wear the right collar to give punishments.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -106,6 +111,7 @@ func (c *DisciplineCommand) runPunish(ctx *adapter.SlashInteractionContext, targ
 	if err := ctx.API.AddMemberRole(ctx.GuildID(), targetID, assignedRoleID); err != nil {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to assign role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -122,13 +128,15 @@ func (c *DisciplineCommand) runRelease(ctx *adapter.SlashInteractionContext, tar
 	if punisherRoleID == "" || assignedRoleID == "" {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: "Roles not configured properly. Set them first via `/settings discipline roles-set`.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
 
 	if !slices.Contains(ctx.Invoker.Roles, punisherRoleID) {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
-			Description: "No, no, no. You don’t *get* to undo what the real dommes do. Back to your corner.",
+			Description: "No, no, no. You don't *get* to undo what the real dommes do. Back to your corner.",
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
@@ -136,12 +144,14 @@ func (c *DisciplineCommand) runRelease(ctx *adapter.SlashInteractionContext, tar
 	if err := ctx.API.RemoveMemberRole(ctx.GuildID(), targetID, assignedRoleID); err != nil {
 		_ = ctx.RespondEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to remove role: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 		return nil
 	}
 
 	return ctx.Respond(&adapter.Embed{
 		Description: fmt.Sprintf("🔓 <@%s> has been released. Let's see if they behave.", targetID),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -158,15 +168,15 @@ func roleName(api adapter.SessionAPI, guildID, roleID string) string {
 var punishPhrases = []string{
 	"🔒 <@%s> has been sent to the Brat Corner. Someone finally found the line and crossed it.",
 	"🚷 <@%s> has been escorted to the Brat Corner—with attitude still intact, unfortunately.",
-	"🪑 <@%s> is now in time-out. Yes, again. No, we’re not negotiating. Enjoy the Brat Corner.",
+	"🪑 <@%s> is now in time-out. Yes, again. No, we're not negotiating. Enjoy the Brat Corner.",
 	"📢 <@%s> has been silenced with sass and relocated to the Brat Corner.",
 	"🧼 <@%s>'s mouth was too dirty. Sent to scrub up in the Brat Corner.",
 	"📦 <@%s> has been packaged and shipped directly to the Brat Corner. No returns.",
 	"🫣 <@%s> thought they were cute. The Brat Corner says otherwise.",
 	"🥇 <@%s> won gold in the Olympic sport of testing my patience. Your medal ceremony is in the Brat Corner.",
 	"🎭 <@%s> put on quite the performance... now take your bow in the Brat Corner.",
-	"🚨 <@%s> triggered the ‘Too Much Mouth’ alarm. Detained in the Brat Corner.",
-	"🛑 <@%s>, you’ve reached your limit. Off to the Brat Corner you go.",
+	"🚨 <@%s> triggered the ‘Too Much Mouth' alarm. Detained in the Brat Corner.",
+	"🛑 <@%s>, you've reached your limit. Off to the Brat Corner you go.",
 	"🔇 <@%s> has been muted by the Ministry of Domme Affairs. Brat Corner is your next stop.",
 	"🫦 <@%s> bit off more than they could brat. Assigned to the Brat Corner.",
 	"🧂 <@%s> was too salty to handle. Now marinating in the Brat Corner.",
@@ -175,7 +185,7 @@ var punishPhrases = []string{
 	"🍑 <@%s>'s behavior? Spanked metaphorically. Then marched to the Brat Corner.",
 	"🕰️ <@%s> needed a time-out. Brat Corner is booked just for you.",
 	"📉 <@%s>'s respect levels dropped below tolerable. Brat Corner is the only solution.",
-	"👶 <@%s> cried ‘unfair.’ Aww. The Brat Corner has tissues and regret.",
+	"👶 <@%s> cried ‘unfair.' Aww. The Brat Corner has tissues and regret.",
 	"🍵 <@%s> spilled too much tea and not enough sense. Steeping now in the Brat Corner.",
 	"📖 <@%s>, your brat chapter just ended. The Brat Corner is your epilogue.",
 	"🥄 <@%s> stirred too much. Sent to simmer in the Brat Corner.",

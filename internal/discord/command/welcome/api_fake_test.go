@@ -2,6 +2,7 @@ package welcome
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -53,6 +54,9 @@ func (f *apiFake) SendChannelMessage(_, _ string) error         { return nil }
 func (f *apiFake) SendChannelReply(_, _, _ string) error        { return nil }
 func (f *apiFake) ClearChannelComponents(_, _ string) error     { return nil }
 func (f *apiFake) SendChannelEmbed(_ string, _ *adapter.Embed) error {
+	return nil
+}
+func (f *apiFake) SendChannelEmbedFile(_ string, _ *adapter.Embed, _ io.Reader, _ string) error {
 	return nil
 }
 func (f *apiFake) SendDirectMessage(_, _ string) error { return nil }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
+	"github.com/keshon/server-domme/internal/discord/reply"
 )
 
 // ManageSettingsOptions returns the settings options for media management.
@@ -88,6 +89,7 @@ func RunManageSettings(ctx *adapter.SlashInteractionContext, sub adapter.SlashAr
 	default:
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Unknown subcommand: %s", sub.Name),
+			Color:       reply.EmbedColor,
 		})
 	}
 }
@@ -104,6 +106,7 @@ func runAddCategory(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to load categories: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -111,6 +114,7 @@ func runAddCategory(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 		if c == name {
 			return ctx.FollowupEphemeral(&adapter.Embed{
 				Description: fmt.Sprintf("Category `%s` already exists.", name),
+				Color:       reply.EmbedColor,
 			})
 		}
 	}
@@ -118,11 +122,13 @@ func runAddCategory(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgum
 	if err := ctx.Storage.CreateMediaCategory(ctx.GuildID(), name); err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to create category: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.FollowupEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Added new category: `%s`", name),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -131,12 +137,14 @@ func runListCategories(ctx *adapter.SlashInteractionContext) error {
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to load categories: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if len(cats) == 0 {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: "No categories found.",
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -148,6 +156,7 @@ func runListCategories(ctx *adapter.SlashInteractionContext) error {
 	return ctx.FollowupEphemeral(&adapter.Embed{
 		Title:       "📂 Media Categories",
 		Description: list,
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -158,6 +167,7 @@ func runRemoveCategory(ctx *adapter.SlashInteractionContext, sub adapter.SlashAr
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to load categories: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -172,17 +182,20 @@ func runRemoveCategory(ctx *adapter.SlashInteractionContext, sub adapter.SlashAr
 	if !found {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Category `%s` not found.", name),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := ctx.Storage.RemoveMediaCategory(ctx.GuildID(), name); err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to remove category: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.FollowupEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Removed category: `%s`", name),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -193,6 +206,7 @@ func runSetDefaultCategory(ctx *adapter.SlashInteractionContext, sub adapter.Sla
 	if err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to load categories: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
@@ -207,17 +221,20 @@ func runSetDefaultCategory(ctx *adapter.SlashInteractionContext, sub adapter.Sla
 	if !found {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Category `%s` not found.", name),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	if err := ctx.Storage.SetMediaDefault(ctx.GuildID(), name); err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to set default category: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 
 	return ctx.FollowupEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Set default category to: `%s`", name),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -226,10 +243,12 @@ func runShowDefaultCategory(ctx *adapter.SlashInteractionContext) error {
 	if err != nil || name == "" {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: "No default media category set.",
+			Color:       reply.EmbedColor,
 		})
 	}
 	return ctx.FollowupEphemeral(&adapter.Embed{
 		Description: fmt.Sprintf("Default media category is `%s`.", name),
+		Color:       reply.EmbedColor,
 	})
 }
 
@@ -237,9 +256,11 @@ func runResetDefaultCategory(ctx *adapter.SlashInteractionContext) error {
 	if err := ctx.Storage.ResetMediaDefault(ctx.GuildID()); err != nil {
 		return ctx.FollowupEphemeral(&adapter.Embed{
 			Description: fmt.Sprintf("Failed to reset default category: `%v`", err),
+			Color:       reply.EmbedColor,
 		})
 	}
 	return ctx.FollowupEphemeral(&adapter.Embed{
 		Description: "Default category reset.",
+		Color:       reply.EmbedColor,
 	})
 }
