@@ -5,40 +5,65 @@ import (
 
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/discord/adapter"
-	"github.com/keshon/server-domme/internal/discord/command/confess"
-	"github.com/keshon/server-domme/internal/discord/command/core/about"
 
 	"github.com/rs/zerolog"
 )
 
-// /confess promises anonymity, and an audit row naming the caller would undo it
-// from the other side. The guarantee is only worth as much as this test:
-// without it, adding a middleware or renaming SkipAuditLog would quietly start
-// recording who confessed, and nothing user-visible would change until someone
-// read the log.
-func TestCommandLoggerSkipsConfess(t *testing.T) {
+// fakeCommand is the minimum an adapter.Handler needs. The opt-out is tested
+// against fakes rather than real commands because whether any particular
+// command wants it is a product decision, while the mechanism has to work
+// regardless — and a test bound to one command would go quiet the day that
+// command changed its mind.
+type fakeCommand struct{}
+
+func (fakeCommand) Name() string                               { return "fake" }
+func (fakeCommand) Description() string                        { return "a stand-in command" }
+func (fakeCommand) Group() string                              { return "test" }
+func (fakeCommand) Category() string                           { return "test" }
+func (fakeCommand) UserPermissions() []int64                   { return nil }
+func (fakeCommand) Run(*adapter.SlashInteractionContext) error { return nil }
+
+// unloggedCommand opts out; ordinaryCommand is the control.
+type unloggedCommand struct{ fakeCommand }
+
+func (unloggedCommand) Unlogged() {}
+
+type ordinaryCommand struct{ fakeCommand }
+
+// A command that declares adapter.Unlogged must come back unwrapped, because
+// wrapping is the only thing that would write its caller to storage. The
+// guarantee is worth exactly as much as this test: without it, adding a
+// middleware or renaming SkipAuditLog would quietly start recording who ran
+// the command, and nothing user-visible would change until someone read the
+// log.
+//
+// /confess is the reason the opt-out exists: the confession it posts carries
+// no author, but a log row naming the caller would undo that from the other
+// side.
+func TestCommandLoggerSkipsUnloggedCommands(t *testing.T) {
 	mw := WithCommandLogger(zerolog.Nop())
 
-	got := command.Apply(&adapter.Adapter{Cmd: &confess.ConfessCommand{}}, mw)
+	got := command.Apply(&adapter.Adapter{Cmd: unloggedCommand{}}, mw)
 	if _, wrapped := got.(command.Unwrappable); wrapped {
-		t.Fatal("/confess was wrapped by the audit logger: its caller would be written to storage")
+		t.Fatal("an Unlogged command was wrapped by the audit logger: its caller would reach storage")
 	}
 }
 
 // The control: without the opt-out the logger must still wrap, or the test
-// above would pass just as happily on a middleware that logs nothing at all.
+// above would pass just as happily against a middleware that logs nothing at
+// all.
 func TestCommandLoggerWrapsOrdinaryCommands(t *testing.T) {
 	mw := WithCommandLogger(zerolog.Nop())
 
-	got := command.Apply(&adapter.Adapter{Cmd: &about.Command{}}, mw)
+	got := command.Apply(&adapter.Adapter{Cmd: ordinaryCommand{}}, mw)
 	if _, wrapped := got.(command.Unwrappable); !wrapped {
-		t.Fatal("/about was not wrapped by the audit logger: nothing would be logged for any command")
+		t.Fatal("an ordinary command was not wrapped: nothing would be logged for any command")
 	}
 }
 
 // The opt-out has to survive the full chain, not just a lone middleware:
 // command.Root unwraps to the Adapter, and that is what the check reads.
-func TestConfessStaysUnloggedThroughFullMiddlewareChain(t *testing.T) {
+func TestUnloggedSurvivesTheFullMiddlewareChain(t *testing.T) {
 	chain := []command.Middleware{
 		WithGroupAccessCheck(),
 		WithGuildOnly(),
@@ -46,13 +71,13 @@ func TestConfessStaysUnloggedThroughFullMiddlewareChain(t *testing.T) {
 		WithCommandLogger(zerolog.Nop()),
 	}
 
-	got := command.Apply(&adapter.Adapter{Cmd: &confess.ConfessCommand{}}, chain...)
+	got := command.Apply(&adapter.Adapter{Cmd: unloggedCommand{}}, chain...)
 
 	root, ok := command.Root(got).(*adapter.Adapter)
 	if !ok {
 		t.Fatalf("command.Root returned %T, not the Adapter the opt-out is read from", command.Root(got))
 	}
 	if !root.SkipAuditLog() {
-		t.Fatal("ConfessCommand no longer opts out of the audit log")
+		t.Fatal("the opt-out was lost somewhere in the middleware chain")
 	}
 }
