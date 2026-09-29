@@ -14,7 +14,7 @@ import (
 type TranslateOnReaction struct{}
 
 func (t *TranslateOnReaction) Name() string        { return "translate" }
-func (t *TranslateOnReaction) Description() string { return "Translate message on flag emoji reaction" }
+func (t *TranslateOnReaction) Description() string { return "Translate messages with a flag reaction" }
 func (c *TranslateOnReaction) Group() string       { return "translate" }
 func (t *TranslateOnReaction) Category() string    { return "📢 Utilities" }
 func (t *TranslateOnReaction) UserPermissions() []int64 {

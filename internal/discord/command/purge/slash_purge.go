@@ -198,7 +198,7 @@ func runPurgeAuto(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgumen
 	if err != nil {
 		stopDeletion(ctx.ChannelID())
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: "Failed to set deletion job: " + err.Error(),
+			Description: fmt.Sprintf("Failed to set deletion job: `%v`.", err),
 		})
 	}
 
@@ -279,7 +279,7 @@ func runPurgeNow(ctx *adapter.SlashInteractionContext, sub adapter.SlashArgument
 	delayUntil := time.Now().Add(dur)
 	if err := store.SetDeletionJob(ctx.GuildID(), ctx.ChannelID(), st.PurgeModeDelayed, delayUntil, notifyAll); err != nil {
 		return ctx.RespondEphemeral(&adapter.Embed{
-			Description: "Failed to schedule purge: " + err.Error(),
+			Description: fmt.Sprintf("Failed to schedule purge: `%v`.", err),
 		})
 	}
 

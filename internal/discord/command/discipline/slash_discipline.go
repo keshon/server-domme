@@ -21,7 +21,7 @@ func (c *DisciplineCommand) UserPermissions() []int64 {
 func (c *DisciplineCommand) SlashDefinition() *adapter.SlashCommand {
 	return &adapter.SlashCommand{
 		Name:        c.Name(),
-		Description: "Punish or release a brat.",
+		Description: "Punish or release a brat",
 		Options: []adapter.SlashOption{
 			{
 				Type:        adapter.OptionSubCommand,
