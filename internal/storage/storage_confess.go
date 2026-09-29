@@ -25,3 +25,16 @@ func (s *Storage) RemoveConfessChannel(guildID string) error {
 	g.ConfessChannel = ""
 	return s.settings.Put(g)
 }
+
+// SetConfessAICheck enables or disables the optional AI pre-post guard.
+func (s *Storage) SetConfessAICheck(guildID string, enabled bool) error {
+	g := s.guildSettings(guildID)
+	g.ConfessAICheck = enabled
+	return s.settings.Put(g)
+}
+
+// GetConfessAICheck reports whether the AI guard runs before posting.
+// Default off: unset means post exactly as written.
+func (s *Storage) GetConfessAICheck(guildID string) bool {
+	return s.guildSettings(guildID).ConfessAICheck
+}

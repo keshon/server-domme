@@ -34,6 +34,9 @@ type GuildSettings struct {
 	GuildID              string            `json:"guild_id"`
 	AnnounceChannel      string            `json:"announce_channel,omitempty"`
 	ConfessChannel       string            `json:"confess_channel,omitempty"`
+	// ConfessAICheck enables the optional pre-post guard on /confess.
+	// Default off: confessions post exactly as written.
+	ConfessAICheck       bool              `json:"confess_ai_check,omitempty"`
 	CommandsDisabled     []string          `json:"commands_disabled,omitempty"`
 	DisciplineRoles      map[string]string `json:"discipline_roles,omitempty"`
 	MediaCategories      []string          `json:"media_categories,omitempty"`

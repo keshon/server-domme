@@ -90,6 +90,9 @@ It’s designed to be practical for server management while providing light, int
   - **/settings confess channel-set** — Set the confession channel
   - **/settings confess channel-show** — Show the current confession channel
   - **/settings confess channel-reset** — Remove the confession channel
+  - **/settings confess ai-check-set** — Enable or disable the AI pre-post guard
+  - **/settings confess ai-check-show** — Show whether the AI pre-post guard is on
+  - **/settings confess ai-check-reset** — Turn the AI pre-post guard off
   - **/settings discipline roles-set** — Configure discipline roles
   - **/settings discipline roles-show** — Show configured discipline roles
   - **/settings discipline roles-reset** — Reset discipline role configuration

@@ -1,11 +1,13 @@
 package confess
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
+	"github.com/keshon/server-domme/internal/llm"
 )
 
 type ConfessCommand struct{}
@@ -46,6 +48,25 @@ func (c *ConfessCommand) Run(ctx *adapter.SlashInteractionContext) error {
 			Description: "No confession provided.",
 			Color:       reply.EmbedColor,
 		})
+	}
+
+	// Optional AI guard: guild opt-in, default off. Fail open on backend
+	// trouble so confessions keep flowing; fail closed on a risky verdict.
+	// Never log the message here: Unlogged keeps the author unknown and the
+	// content stays out of every log by the same rule.
+	if ctx.Storage.GetConfessAICheck(ctx.GuildID()) && llm.Ready(ctx.Config) {
+		v := CheckConfession(context.Background(), llm.NewFromConfig(ctx.Config), message)
+		if v.Risky {
+			reason := v.Reason
+			if reason == "" {
+				reason = "This one cannot go out as written."
+			}
+			ctx.AppLog.Info().Str("guild_id", ctx.GuildID()).Msg("confess_ai_blocked")
+			return ctx.RespondEphemeral(&adapter.Embed{
+				Description: "Held back. " + reason + "\nRephrase without names, addresses, or threats and try again.",
+				Color:       reply.EmbedColor,
+			})
+		}
 	}
 
 	confessChannelID, err := ctx.Storage.GetConfessChannel(ctx.GuildID())
