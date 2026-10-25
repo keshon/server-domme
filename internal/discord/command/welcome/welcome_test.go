@@ -138,6 +138,7 @@ func TestModalValueReadsTheSubmittedText(t *testing.T) {
 // unhandled one answers "Unknown subcommand" to an administrator.
 func TestEverySubcommandIsHandled(t *testing.T) {
 	handled := map[string]bool{
+		subAccess: true,
 		subMember: true, subSetup: true, subTemplate: true, subPreview: true,
 		subRoles: true, subMove: true, subRemove: true, subGifAdd: true, subGifRemove: true, subGifs: true,
 	}

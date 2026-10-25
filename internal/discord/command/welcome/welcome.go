@@ -1,5 +1,5 @@
 // Package welcome is /welcome: introducing and welcoming a new member the way
-// this server does it, on an administrator's say-so.
+// this server does it, on an authorized member's say-so.
 //
 // Not automatic, by request. Roles on this kind of server are picked after
 // joining, sometimes changed, and occasionally given by mistake; a person
@@ -37,6 +37,7 @@ const (
 	subGifAdd    = "gif-add"
 	subGifRemove = "gif-remove"
 	subGifs      = "gifs"
+	subAccess    = "access"
 
 	optUser          = "user"
 	optRole          = "role"
@@ -51,6 +52,7 @@ const (
 	optKeep          = "keep"
 	optIntroNotify   = "intro_notify"
 	optWelcomeNotify = "welcome_notify"
+	optAllow         = "allow"
 
 	kindIntro   = "intro"
 	kindWelcome = "welcome"
@@ -71,11 +73,10 @@ func (c *WelcomeCommand) Description() string {
 func (c *WelcomeCommand) Group() string    { return "welcome" }
 func (c *WelcomeCommand) Category() string { return "👋 Welcome" }
 
-// UserPermissions keeps the whole command with administrators: it posts in
-// the server's name and tags people, and its templates are the server's
-// first words to every newcomer.
+// UserPermissions leaves authorization to Run: welcome owns its role policy,
+// including the administrator requirement for configuration and access grants.
 func (c *WelcomeCommand) UserPermissions() []int64 {
-	return []int64{perm.Administrator}
+	return nil
 }
 
 func roleOption(required bool, what string) adapter.SlashOption {
@@ -97,6 +98,14 @@ func (c *WelcomeCommand) SlashDefinition() *adapter.SlashCommand {
 		Name:        c.Name(),
 		Description: c.Description(),
 		Options: []adapter.SlashOption{
+			{
+				Type: adapter.OptionSubCommand, Name: subAccess,
+				Description: "Manage who can welcome and preview. Leave empty to list allowed roles",
+				Options: []adapter.SlashOption{
+					roleOption(false, "The role allowed to welcome and preview"),
+					{Type: adapter.OptionBoolean, Name: optAllow, Description: "True to allow this role, false to remove its access"},
+				},
+			},
 			{
 				Type:        adapter.OptionSubCommand,
 				Name:        subMember,
@@ -214,11 +223,20 @@ func (c *WelcomeCommand) SlashDefinition() *adapter.SlashCommand {
 func (c *WelcomeCommand) Run(ctx *adapter.SlashInteractionContext) error {
 	sub, ok := ctx.FirstOption()
 	if !ok {
-		return respond(ctx, "Pick something: `member`, `setup`, `template`, `preview`, `roles`, `move`, `remove`, `gif-add`, `gif-remove` or `gifs`.")
+		return respond(ctx, "Pick something: `member`, `setup`, `template`, `preview`, `roles`, `move`, `remove`, `gif-add`, `gif-remove`, `gifs` or `access`.")
+	}
+	allowed, err := canRun(ctx, sub.Name)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return respond(ctx, "Only administrators can configure welcomes. To welcome or preview, ask an administrator to allow your role with `/welcome access`.")
 	}
 	opts := optionsOf(sub)
 
 	switch sub.Name {
+	case subAccess:
+		return runAccess(ctx, opts)
 	case subMember:
 		return runMember(ctx, opts)
 	case subSetup:
@@ -672,8 +690,8 @@ func unlinked(rendered string) []string {
 	return out
 }
 
-// isAdmin re-checks a modal submitter: submissions arrive without the
-// command's permission check, which only ran when the modal was opened.
+// isAdmin re-checks a modal submitter: opening the editor does not authorize
+// a later submission after their administrator permission has been removed.
 func isAdmin(ctx *adapter.ModalSubmitContext) bool {
 	if config.IsDeveloper(ctx.Config, ctx.UserID()) {
 		return true

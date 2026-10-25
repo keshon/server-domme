@@ -3,9 +3,56 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 )
+
+func TestWelcomeOperatorsPersistAndStayScoped(t *testing.T) {
+	dir := t.TempDir()
+	s, err := NewStorage(dir, zerolog.Nop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	for _, role := range []string{"one", "two", "one"} {
+		if err := s.SetWelcomeOperator("guild", role, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetAnnounceChannel("guild", "channel"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = NewStorage(dir, zerolog.Nop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := s.WelcomeOperators("guild")
+	if !slices.Equal(got, []string{"one", "two"}) {
+		t.Fatalf("operators = %v", got)
+	}
+	got[0] = "mutated"
+	if s.WelcomeOperators("guild")[0] != "one" {
+		t.Fatal("read aliases stored roles")
+	}
+	if len(s.WelcomeOperators("other")) != 0 {
+		t.Fatal("grant escaped its guild")
+	}
+	if err := s.SetWelcomeOperator("guild", "one", false); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(s.WelcomeOperators("guild"), []string{"two"}) {
+		t.Fatal("revoking one role removed another")
+	}
+	if err := s.SetWelcomeOperator("guild", "guild", true); err == nil {
+		t.Fatal("accepted @everyone")
+	}
+}
 
 func TestWelcomeRolesAreKeptPerRole(t *testing.T) {
 	s := newTestStore(t)

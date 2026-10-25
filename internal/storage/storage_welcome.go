@@ -53,6 +53,31 @@ type Welcomed struct {
 
 func (w *Welcomed) Key() string { return guildScopedKey(w.GuildID, w.UserID+":"+w.RoleID) }
 
+// WelcomeOperators lists the caller roles allowed to post and preview welcomes.
+func (s *Storage) WelcomeOperators(guildID string) []string {
+	return slices.Clone(s.guildSettings(guildID).WelcomeOperators)
+}
+
+// SetWelcomeOperator changes one caller role without replacing other grants.
+func (s *Storage) SetWelcomeOperator(guildID, roleID string, allow bool) error {
+	if guildID == "" || roleID == "" || roleID == guildID {
+		return fmt.Errorf("storage: welcome access needs a guild and a specific role")
+	}
+	return s.db.Update(func(tx *datastore.Tx) error {
+		col := datastore.In(tx, s.settings)
+		g, ok := col.Get(guildID)
+		if !ok {
+			g = &GuildSettings{GuildID: guildID}
+		}
+		if allow && !slices.Contains(g.WelcomeOperators, roleID) {
+			g.WelcomeOperators = append(g.WelcomeOperators, roleID)
+		} else if !allow {
+			g.WelcomeOperators = slices.DeleteFunc(g.WelcomeOperators, func(id string) bool { return id == roleID })
+		}
+		return col.Put(g)
+	})
+}
+
 // maxWelcomeGifs bounds the gif list. A pool to pick from, not a gallery.
 // ErrWelcomeGifsFull states the number; change both together.
 const maxWelcomeGifs = 50

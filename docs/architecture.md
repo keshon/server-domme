@@ -152,13 +152,32 @@ Applied in order, outermost first:
 
 ### Welcoming a member
 
+Welcome owns its caller access policy. Its `UserPermissions()` is empty so
+the shared middleware can reach `WelcomeCommand.Run`, which checks every
+slash action. Administrators and `DEVELOPER_ID` can run all actions; roles
+in `GuildSettings.WelcomeOperators` can run only `member` and `preview`.
+Unlisted and future actions require an administrator. Template submissions
+also check administrator access in the domain.
+
+Administrators manage caller roles with `/welcome access`:
+
+- No options lists the allowed roles.
+- `role:@Greeters allow:True` allows welcoming and previewing.
+- `role:@Greeters allow:False` removes that role's access.
+
+These grants are per guild, survive restarts, and apply on the next invocation.
+Multiple roles are alternatives, and `@everyone` cannot be allowed. Caller
+roles are independent of the recipient roles configured by `/welcome setup`.
+Other domains do not participate in this policy; the shared permission
+middleware and `/settings` retain their existing behavior.
+
 `/welcome member user:@x` posts the introduction and the welcome a server has
 written for the role that person has, each in its own channel, tagging them,
 with a gif picked at random under the welcome. Everything is per role: a sub
 and a Domme are pointed at different channels and told different things, and
 any role can be given its own pair.
 
-It is run by an administrator, not triggered by an event, by request. Roles on
+It is run by an administrator or an allowed member, by request. Roles on
 these servers are picked after joining, changed, and occasionally given by
 mistake; a person deciding "this one is ready" is the guard no event can
 replace. The command does the fiddly part and refuses rather than guesses:

@@ -48,6 +48,8 @@ type GuildSettings struct {
 	// WelcomeGifs are the links /welcome picks from at random for a role
 	// with no gifs of its own (WelcomeRole.Gifs): the shared pool.
 	WelcomeGifs []string `json:"welcome_gifs,omitempty"`
+	// WelcomeOperators may post and preview welcomes, but not configure them.
+	WelcomeOperators []string `json:"welcome_operators,omitempty"`
 	// WelcomeGifMedia is the gif file behind each link in any pool, found
 	// once from the link's page, so a welcome can attach the file instead
 	// of posting the link. A link with no entry is looked up when used.
