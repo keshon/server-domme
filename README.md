@@ -9,17 +9,26 @@ All in one bot, ready to whip your server into shape.”*
 
 ## Why Server Domme?
 
-**Server Domme combines several key features in one place**:
+Server Domme is a self-hosted Discord server-management and roleplay bot
+written in Go. She handles the housekeeping and leaves room for the sass:
 
-* 🧹 Automates channel cleanup and message purges
-* 🎭 Supports roleplay interactions, task management, and anonymous confessions
-* ⚙️ Offers admin tools for command and server configuration
+- Scheduled channel cleanup and message purges.
+- Guided member welcomes, announcements and anonymous confessions.
+- Roleplay tasks, discipline commands and protected-user settings.
+- Reaction-triggered translation, media sharing and short links.
+- Per-server settings and command-group controls.
 
-It’s designed to be practical for server management while providing light, interactive roleplay features. The bot can be easily expanded with new commands due to its **modular architecture**. 
+The roleplay voice belongs to the roleplay commands. Utility replies and
+warnings for destructive actions stay direct.
 
 ---
 
 ## Available Commands
+
+Use `/help` in Discord for the command list.
+
+<details>
+<summary>Command reference</summary>
 
 ### 🕯️ Information
 
@@ -32,6 +41,7 @@ It’s designed to be practical for server management while providing light, int
 ### 👋 Welcome
 
 - **/welcome** — Introduce and welcome a member, the way this server does it
+  - **/welcome access** — Manage who can welcome and preview. Leave empty to list allowed roles
   - **/welcome member** — Post their role's intro and welcome — checks everything first
   - **/welcome setup** — Where a role's intro and welcome go. Leave both empty to see
   - **/welcome template** — Write a role's intro or welcome text — paste it straight from Discord
@@ -124,28 +134,46 @@ It’s designed to be practical for server management while providing light, int
   - **/maintenance sync** — Re-register slash commands
 
 
+</details>
+
 ---
 
 ## Setup (Self-Hosting)
 
-1. Clone this repository.
-2. Add your bot token to the configuration file.
-3. Define role IDs and setup your guild structure.
-4. Build and run the bot:
-   `go build && ./server-domme`
-5. Invite her into your server. She’s waiting.
+Use a binary from the [releases page](https://github.com/keshon/server-domme/releases)
+or build from source with Go 1.26+. From the repository root:
+
+```bash
+cp .env.example .env
+# Edit .env: set DISCORD_TOKEN and check TASKS_PATH.
+go build -o server-domme-discord ./cmd/discord
+./server-domme-discord
+```
+
+The example enables first-run command registration. Keep `data/` and `assets/`
+beside a release binary and start from that directory. The
+[running guide](docs/running.md) covers bot creation, intents, configuration,
+first-run checks and persistent data. Container deployment is in the
+[Docker guide](docker/README.md).
 
 ---
 
 ## Bot Permissions
-- **Manage Roles**
-- **View Channels**
-- **Send Messages**
-- **Manage Messages**
-- **Embed Links**
-- **Attach Files**
-- **Read Message History**
-- **Use Application Commands**
+
+Recommended permissions: View Channel, Send Messages, Embed Links, Attach Files, Read Message History, Manage Messages, Use Application Commands.
+
+[Invite the bot](https://discord.com/oauth2/authorize?client_id=YOUR_APPLICATION_ID&scope=bot%20applications.commands&permissions=2147609600)
+after replacing `YOUR_APPLICATION_ID` with your application's ID. The list and
+permission mask are generated from the bot's permission definitions.
+
+## Documentation
+
+| Guide | Contents |
+|---|---|
+| [Running](docs/running.md) | Setup, configuration, feature settings, backups and migration |
+| [Docker](docker/README.md) | Container build, mounted data and HTTP routing |
+| [Architecture](docs/architecture.md) | Session lifecycle, dispatch, services and storage |
+| [Conventions](docs/conventions.md) | Contributor rules, development commands and documentation pattern |
 
 ---
 

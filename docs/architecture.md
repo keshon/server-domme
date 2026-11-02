@@ -105,33 +105,8 @@ all invocations equally — so there is still one global switchboard.
 
 ### User-facing copy
 
-Three voices share one bot, and each command picks one on purpose:
-
-- **Domme/brat roleplay** — `discipline`, `task` and its phrase lists. Teasing,
-  pet-names, scolding. This voice never leaves those two commands.
-- **Snarky mortal** — `ask` only. Dry, second-person, mildly slangy.
-- **Neutral utility** — everything else, including all errors and all of
-  `/welcome`'s coaching. No jokes in destructive paths: a purge warning reads
-  like a warning.
-
-The mechanical rules, so review catches drift:
-
-- Command and option descriptions: capitalized, statement, no trailing period.
-- Option names are snake_case; the person is always `user` — except
-  `discipline`, where `target` names the brat rather than the invoker.
-- Settings groups come in two shapes: singletons (one channel, one role) use
-  `set/show/reset`; collections (many channels, categories) use
-  `add/remove/list` plus `clear`.
-- Every user sentence ends with a period. Straight apostrophes, never curly.
-- Errors carry the raw cause backticked: `Failed to …: \`%v\``.
-- Destructive actions take `confirm: "Type 'yes' to confirm the action"` and
-  refuse anything else. Purge warnings always go to the channel; no flag
-  silences them.
-- Every embed sets `Color` (`reply.EmbedColor` unless there is a reason).
-- Ephemeral embeds carry no title. Public posts do: emoji prefix + Title Case.
-- Component custom IDs are `<command>:<args...>` with colons, e.g.
-  `ask:<asker>:<target>:<type>:accept`. The format is frozen once shipped, so
-  new buttons copy it rather than inventing another.
+Contributor rules for the command voices, descriptions and destructive-action
+warnings are in [Conventions](conventions.md#user-facing-copy).
 
 ### Middleware
 
@@ -262,16 +237,10 @@ both do.
 
 ### Migration from the pre-v1 store
 
-The old store was a single `datastore.json` holding one blob per guild, where
-every write rewrote the whole guild. `cmd/migrate-store` converts it:
-
-```bash
-go run ./cmd/migrate-store -in ./data/datastore.json -out ./data/store
-```
-
-Run it with the bot stopped, then re-run with `-verify` to check the result
-against the source. It never modifies the input, and refuses a non-empty output
-directory rather than merging into one.
+The old store was one JSON blob per guild. The
+[migration procedure](running.md#migrating-from-the-pre-v1-store) owns commands,
+prerequisites and verification. The converter writes typed collections into
+the directory-based datastore.
 
 Records are written through `Storage.ImportGuild`, not the ordinary setters:
 those stamp their own values — `SetCommand` takes `time.Now()`, `AddShortLink`
@@ -281,8 +250,7 @@ ran.
 
 ## Testing
 
-`go test -race ./...` is the bar. The storage layer has the most coverage
-because it is where the interesting invariants live — history trimming, guild
-isolation, cooldown expiry, short-link ownership.
-
-See [conventions.md](conventions.md) for the house rules.
+Development commands and check requirements live in
+[Conventions](conventions.md#development-commands). Storage tests exercise real
+temporary stores for history trimming, guild isolation, cooldown expiry and
+short-link ownership.

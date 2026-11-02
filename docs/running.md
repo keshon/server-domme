@@ -1,43 +1,114 @@
-# Running
+# Running Server Domme
 
-## Prerequisites
+Run from the release directory or the repository root. Relative configuration,
+data and asset paths are resolved from the working directory.
 
-Go 1.26 for building. Nothing else — no CGO, no external binaries, no system
-libraries. The release archives ship a static binary.
+## Requirements and first setup
+
+Use a release archive for your OS/architecture, or Go 1.26+ to build. The bot
+does not require CGO or external executables. Keep the supplied `assets/` and
+`data/` directories beside the binary; `TASKS_PATH` must point to a readable
+JSON task list. The release includes `data/default_task.list.json`.
+
+1. Create an application and bot in the
+   [Discord Developer Portal](https://discord.com/developers/applications).
+   Keep the bot token private.
+2. Enable the privileged **Server Members** intent. The bot uses member roles
+   for permission checks; Presence and Message Content are not requested.
+3. Use the generated [invitation link](../README.md#bot-permissions), replacing
+   the application ID. Check the bot's channel permissions as well as guild
+   permissions, particularly before configuring purges or welcomes.
+4. Copy `.env.example` to `.env`, replace `DISCORD_TOKEN`, check `TASKS_PATH`,
+   and set `INIT_SLASH_COMMANDS=true` for first-run command registration.
+5. Build and start from the repository root:
+
+```bash
+go build -o server-domme-discord ./cmd/discord
+./server-domme-discord
+```
+
+A downloaded binary can be started directly. On Windows, use the `.exe`
+filename; `build-n-run.bat` builds the source with version metadata and runs it.
 
 ## Configuration
 
-Configuration is environment-only, read at startup via
-[`caarlos0/env`](https://github.com/caarlos0/env); a `.env` file in the working
-directory is loaded if present. Copy `.env.example` and fill it in.
+Environment variables are read at startup. A `.env` file in the working
+directory is loaded if present; existing process environment values take
+precedence. Copy the [example](../.env.example) rather than starting with an
+empty configuration. Restart the process after changing these values.
 
-Two variables are required and the bot refuses to start without them:
+`DISCORD_TOKEN` and `TASKS_PATH` are required. Defaults below come from
+`internal/config/config.go`; example files may explicitly set other values.
 
-| Variable | What it is |
-|---|---|
-| `DISCORD_TOKEN` | bot token |
-| `TASKS_PATH` | path to the task list JSON (`./data/default_task.list.json` ships with the release) |
-
-The rest have working defaults. The ones worth knowing:
-
-| Variable | Default | Notes |
+| Variable | Default | Meaning |
 |---|---|---|
-| `STORAGE_PATH` | `./data/store` | **A directory, not a file.** The datastore owns it and locks it. |
-| `INIT_SLASH_COMMANDS` | `false` | Register slash commands on connect. Turn on for a first run or after changing a command definition. |
-| `DEVELOPER_ID` | — | Your Discord user id; unlocks developer-only actions. |
-| `DISCORD_GUILD_BLACKLIST` | — | Comma-separated guild ids the bot leaves on sight. |
-| `PROTECTED_USERS` | — | Comma-separated user ids that `/discipline` and `/task` refuse to target. |
-| `COMMAND_PARALLELISM` | `16` | Cap on concurrently running command bodies, across every guild. |
-| `WS_SILENCE_TIMEOUT` | `2m` | Gateway staleness before the session is called unhealthy. |
-| `DISCORD_UNHEALTHY_MODE` | `restart-session` | Or `ignore` to only log. |
-| `SHORTLINK_BASE_URL` | — | Public origin the short links are built from — no trailing slash. |
-| `SHORTLINK_ADDR` | `:8787` | Listen address for the redirect server. |
-| `HEALTHCHECK_PATH` | `/ping` | Shallow GET/HEAD endpoint for uptime monitors; empty disables it. |
-| `LOG_LEVEL` | `info` | |
-| `LOG_FILE` | — | Empty means stderr only, pretty-printed. Set it for rotated JSON. |
+| `DISCORD_TOKEN` | (none) | Required bot token. |
+| `TASKS_PATH` | (none) | Required readable task-list JSON path. |
+| `STORAGE_PATH` | `./data/store` | Datastore directory, locked to one process. |
+| `INIT_SLASH_COMMANDS` | `false` | Register commands on connect; enable for first run or changed definitions. |
+| `DEVELOPER_ID` | (none) | User ID that bypasses shared command permission checks across guilds. Treat as privileged configuration. |
+| `DISCORD_GUILD_BLACKLIST` | (none) | Comma-separated guild IDs the bot leaves. |
+| `PROTECTED_USERS` | (none) | Comma-separated user IDs that discipline/task actions refuse to target. |
+| `COMMAND_PARALLELISM` | `16` | Global concurrency cap; each guild's command lane is serial. |
+| `WS_SILENCE_TIMEOUT` | `2m` | Gateway-event and heartbeat staleness threshold. |
+| `DISCORD_UNHEALTHY_MODE` | `restart-session` | Restart unhealthy sessions, or `ignore` to leave them running. |
+| `DISCORD_UNHEALTHY_GRACE` | `0` | Unhealthy signals allowed within the counting window. |
+| `DISCORD_UNHEALTHY_WINDOW` | `1m` | Window for the grace count. |
+| `SHORTLINK_BASE_URL` | (none) | Public origin for generated links; omit the trailing slash. |
+| `SHORTLINK_ADDR` | `:8787` | Redirect server listen address. |
+| `HEALTHCHECK_PATH` | `/ping` | Shallow GET/HEAD health path; empty disables it. |
+| `LOG_LEVEL` | `info` | Diagnostic logging level. |
+| `LOG_FILE` | (none) | Empty uses console stderr; a path enables rotated JSON logs. |
+| `LOG_MAX_SIZE_MB` | `10` | Rotated log-file size threshold. |
+| `LOG_MAX_BACKUPS` | `3` | Rotated log-file retention count. |
+| `LOG_MAX_AGE_DAYS` | `0` | Age limit; zero disables age-based deletion. |
+| `LOG_COMPRESS` | `false` | Compress rotated logs. |
 
-Only one process may hold `STORAGE_PATH` at a time. A second one fails at
-startup with `datastore.ErrLocked` — that is the lock doing its job, not a bug.
+Keep `.env`, exports and diagnostic logs private. Command audit records are
+separate from process logs; see [Architecture](architecture.md#storage).
+
+## Verify and configure features
+
+After startup, run `/help` in a test guild. Check a harmless command such as
+`/roll`, then `/settings commands status` with an authorized account. Confirm
+the configured groups and permissions before enabling destructive operations.
+A successful HTTP health response does not prove Discord command dispatch works.
+
+`go run ./cmd/discord -check` uses the real token to connect, reports what the
+gateway sees and exits without registering commands or sending messages. It is
+a live connection check, not an offline test. Review its output for sensitive
+deployment information before sharing it.
+
+Single-action feature settings are under `/settings`: `announce`, `confess`,
+`discipline`, `media`, `task` and `translate`. Management commands carry their
+own setup actions: `/purge`, `/welcome` and `/shortlink`. Use their help and
+current generated [command reference](../README.md#available-commands).
+
+`/settings commands` controls group availability. `/welcome access` configures
+who may welcome members or preview messages; administrators configure templates
+and recipient roles. Caller-access roles and recipient roles are independent.
+See [welcome behavior](architecture.md#welcoming-a-member) for delivery and
+retry semantics.
+
+## Persistent data and backups
+
+`STORAGE_PATH` is a directory, not the old JSON file. Only one process can own
+it; a second instance fails with `datastore.ErrLocked`. Stop the owning process
+before copying the entire directory for backup or restoring it. Preserve the
+matching release and configuration separately.
+
+Also preserve operator-edited task lists under `data/` and uploaded media under
+`assets/media/`. Treat backups as private server data. Restore into private
+staging, review the paths/configuration, and start the matching release only
+after replacing the intended state. A restore discards changes newer than the
+backup; verify command access and persisted settings before normal use.
+
+## Docker
+
+The [Docker guide](../docker/README.md) owns build/deploy commands, explicit
+environment forwarding and mounted paths. Set `SHORTLINK_BASE_URL` to the
+public hostname routed to the redirect service. A local shallow health check
+only verifies that HTTP endpoint, not gateway health or Discord permissions.
 
 ## Migrating from the pre-v1 store
 
@@ -73,53 +144,6 @@ Two things change on the way through, both deliberate:
   because the datastore rejects an empty key and rows with an empty guild term
   are left out of the by-guild index, so anything written under one would be
   unreadable.
-
-## Running locally
-
-```bash
-go run ./cmd/discord
-```
-
-On Windows, `build-n-run.bat` builds with version metadata baked in and then
-runs the result. `go run ./cmd/discord -check` connects with the real token,
-reports what the gateway sees, and exits without registering or sending
-anything — the way to judge an intent or token change before deploying it.
-
-Regenerate `README.md` from the command registry after adding or changing a
-command — it is generated from `README.md.tmpl`, never hand-edited:
-
-```bash
-go run ./cmd/discord -readme
-```
-
-## Tests and lint
-
-```bash
-go test -race ./...
-```
-
-`test.bat` does the same on Windows. Linting uses the curated set in
-`.golangci.yml`:
-
-```bash
-golangci-lint run ./...
-```
-
-Both should come back clean; see [conventions.md](conventions.md#formatting--ci).
-
-## Docker
-
-`docker/` holds a multi-stage build, a compose file with Traefik labels, and its
-own `.env.example`. Mount `./data` so the store and the task list survive a
-container replacement:
-
-```bash
-cd docker && docker compose up -d --build
-```
-
-The compose file publishes the shortlink port and routes it through Traefik at
-`HOST`. Point `SHORTLINK_BASE_URL` at that same hostname, or the links the bot
-hands out will not resolve.
 
 ## Shutting down
 

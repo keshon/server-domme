@@ -339,3 +339,65 @@ catches a forgotten flag, because the tag is created successfully either way
 and nothing complains until the release page is already public. The tag's
 subject line is not part of the release body either, so nothing load-bearing
 goes there.
+
+## Development commands
+
+From the repository root, regenerate the README after command changes:
+
+```bash
+go run ./cmd/discord -readme
+```
+
+Edit `README.md.tmpl`, then regenerate; do not hand-edit the output. `-readme`
+registers the command catalog locally and exits before loading runtime
+configuration or connecting to Discord.
+
+Run `go test -race ./...` and `golangci-lint run ./...` for code changes.
+`check.bat` runs formatting, vet, lint and race tests on Windows; inspect its
+output if an optional tool is absent. Documentation changes should run the
+existing convention checks and the affected generator/permission tests.
+
+## Documentation
+
+The README introduces the bot and provides a first launch;
+[running.md](running.md) owns setup, configuration and operator procedures;
+[architecture.md](architecture.md) owns component/data flows and state lifetime;
+this file owns contributor rules. Container-specific setup remains in
+[the Docker guide](../docker/README.md). Give each fact one canonical home and
+link to it elsewhere. Preserve the bot's character and useful search terms in
+the README; keep setup and recovery instructions direct.
+
+The reusable [documentation pattern](../.agents/skills/docs-pattern/SKILL.md)
+is versioned in this repository. Apply it when restructuring docs or adding a
+new guide; adapt specialist documents to the project rather than copying a
+fixed file list.
+
+## User-facing copy
+
+Three voices share one bot, and each command picks one on purpose:
+
+- **Domme/brat roleplay** — `discipline`, `task` and its phrase lists. Teasing,
+  pet-names, scolding. This voice never leaves those two commands.
+- **Snarky mortal** — `ask` only. Dry, second-person, mildly slangy.
+- **Neutral utility** — everything else, including all errors and all of
+  `/welcome`'s coaching. No jokes in destructive paths: a purge warning reads
+  like a warning.
+
+The mechanical rules, so review catches drift:
+
+- Command and option descriptions: capitalized, statement, no trailing period.
+- Option names are snake_case; the person is always `user` — except
+  `discipline`, where `target` names the brat rather than the invoker.
+- Settings groups come in two shapes: singletons (one channel, one role) use
+  `set/show/reset`; collections (many channels, categories) use
+  `add/remove/list` plus `clear`.
+- Every user sentence ends with a period. Straight apostrophes, never curly.
+- Errors carry the raw cause backticked: `Failed to …: \`%v\``.
+- Destructive actions take `confirm: "Type 'yes' to confirm the action"` and
+  refuse anything else. Purge warnings always go to the channel; no flag
+  silences them.
+- Every embed sets `Color` (`reply.EmbedColor` unless there is a reason).
+- Ephemeral embeds carry no title. Public posts do: emoji prefix + Title Case.
+- Component custom IDs are `<command>:<args...>` with colons, e.g.
+  `ask:<asker>:<target>:<type>:accept`. The format is frozen once shipped, so
+  new buttons copy it rather than inventing another.
