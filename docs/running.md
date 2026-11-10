@@ -43,6 +43,7 @@ empty configuration. Restart the process after changing these values.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DISCORD_TOKEN` | (none) | Required bot token. |
+| `DISCORD_SESSION_BUDGET` | `1000` | Fresh-session allowance per rolling 24 hours (20-1000). |
 | `TASKS_PATH` | (none) | Required readable task-list JSON path. |
 | `STORAGE_PATH` | `./data/store` | Datastore directory, locked to one process. |
 | `INIT_SLASH_COMMANDS` | `false` | Register commands on connect; enable for first run or changed definitions. |
@@ -89,6 +90,39 @@ who may welcome members or preview messages; administrators configure templates
 and recipient roles. Caller-access roles and recipient roles are independent.
 See [welcome behavior](architecture.md#welcoming-a-member) for delivery and
 retry semantics.
+
+### Discord connection budget
+
+Fresh-session attempts share a persistent budget in
+`STORAGE_PATH/discord-recovery.json`, including the `--check` connection test.
+Keep this file across deployments. The connection check also acquires the
+storage lock; stop the running bot before using `-check` with its storage
+directory. The lock prevents two processes using the same directory. Run only one deployment per bot token; separate
+storage directories or hosts do not share reservations.
+
+Server Domme uses the more exhausted of Discord's reported session allowance and
+`DISCORD_SESSION_BUDGET`. Reservations are saved before connecting, so failed
+handshakes count conservatively. Successful session resumes do not consume a
+reservation. Fresh attempts are spaced by at least five seconds; the Discord
+library also applies its reconnect backoff.
+
+At 75% consumption, the minimum delay grows from five seconds to five minutes
+at 90%, then to fifteen minutes near 95%. At 95%, fresh sessions wait until
+reservations expire or Discord's allowance resets. Five fresh attempts within
+ten minutes trigger a fifteen-minute cooldown after the last attempt even
+below 75%. An unavailable budget lookup prevents fresh connections until it
+can be checked again. Unreadable state or failed persistence stops recovery.
+
+While connected, the bot shows a short presence line such as
+"Connection budget low | retries slowed". It clears the line when protection
+is no longer needed. Presence cannot be updated while disconnected; logs record
+recovery transitions, reservation counts and the next eligible attempt instead.
+No channel or message setup is required.
+
+Invalid tokens and non-retryable Gateway errors stop automatic recovery while
+the process remains running, including under Docker's restart policy. Correct
+the configuration/token and restart deliberately. After a Discord token reset,
+replace `DISCORD_TOKEN` and recreate the container with the new environment.
 
 ## Persistent data and backups
 

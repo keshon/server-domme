@@ -10,6 +10,7 @@ import (
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/queue"
+	"github.com/keshon/server-domme/internal/discord/session"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -17,9 +18,10 @@ import (
 // Bot is the Discord bot. Lifecycle is managed by RunSession; handlers are
 // wired in session_run.go.
 type Bot struct {
-	storage *storage.Storage
-	cfg     *config.Config
-	log     zerolog.Logger
+	recovery *session.Recovery
+	storage  *storage.Storage
+	cfg      *config.Config
+	log      zerolog.Logger
 
 	// commands runs command bodies off the gateway read goroutine. Process
 	// lifetime: a command outliving the session it arrived on is a command

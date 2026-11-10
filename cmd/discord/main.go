@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"flag"
-	"math/rand/v2"
 	"os"
 	"os/signal"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/keshon/server-domme/internal/discord"
 	"github.com/keshon/server-domme/internal/discord/command/catalog"
 	taskcmd "github.com/keshon/server-domme/internal/discord/command/task"
+	"github.com/keshon/server-domme/internal/discord/session"
 	purgesvc "github.com/keshon/server-domme/internal/purge"
 	"github.com/keshon/server-domme/internal/readme"
 	shortlinksvc "github.com/keshon/server-domme/internal/shortlink"
@@ -60,14 +60,21 @@ func main() {
 		log.Fatal().Msg("config_missing_token")
 	}
 
-	if *checkConn {
-		runConnectionCheck(rootCtx, cfg, log)
-		return
-	}
-
 	store, err := storage.NewStorage(cfg.StoragePath, log)
 	if err != nil {
 		log.Fatal().Err(err).Str("dir", cfg.StoragePath).Msg("storage_init_failed")
+	}
+
+	recovery, err := session.NewRecovery(rootCtx, cfg.StoragePath, cfg.DiscordToken, cfg.DiscordSessionBudget, log)
+	if err != nil {
+		log.Error().Err(err).Msg("discord_recovery_init_failed")
+		_ = store.Close()
+		return
+	}
+	if *checkConn {
+		runConnectionCheck(rootCtx, cfg, log, recovery)
+		_ = store.Close()
+		return
 	}
 
 	if err := taskcmd.InitFromConfig(cfg, log); err != nil {
@@ -76,6 +83,7 @@ func main() {
 	log.Info().Str("path", cfg.TasksPath).Msg("tasks_initialized")
 
 	bot := discord.NewBot(cfg, store, log)
+	bot.SetRecovery(recovery)
 
 	catalog.Register(log)
 
@@ -84,7 +92,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runSessionLoop(rootCtx, bot, log)
+		runSessionLoop(rootCtx, bot, log, recovery)
 	}()
 
 	wg.Add(1)
@@ -127,27 +135,40 @@ func main() {
 	log.Info().Msg("bot_exit")
 }
 
-// runSessionLoop keeps one Discord session alive, reconnecting until ctx ends.
-// An unhealthy session is retried almost immediately (the connection is known
-// bad, so waiting buys nothing); any other failure backs off, and the jitter
-// keeps a fleet of bots from reconnecting in lockstep after an outage.
-func runSessionLoop(ctx context.Context, bot *discord.Bot, log zerolog.Logger) {
+// runSessionLoop keeps one Discord session alive within the persistent budget.
+func runSessionLoop(ctx context.Context, bot *discord.Bot, log zerolog.Logger, recovery *session.Recovery) {
+	var backoff restartBackoff
 	for {
 		var lastErr error
-		if err := bot.RunSession(ctx); err != nil {
+		started := time.Now()
+		err := recovery.WaitUntilEligible(ctx)
+		if err == nil {
+			started = time.Now()
+			err = bot.RunSession(ctx)
+		}
+		if err != nil {
 			lastErr = err
 			log.Error().Err(err).Msg("discord_session_end")
+		}
+		ranFor := time.Since(started)
+		if session.IsTerminal(lastErr) || recovery.Fatal() != nil {
+			log.Error().Err(lastErr).AnErr("budget_error", recovery.Fatal()).Msg("discord_recovery_stopped_action_required")
+			// Stay stopped under restart:always; only a deliberate restart
+			// after the configuration/token is corrected should try again.
+			<-ctx.Done()
+			return
 		}
 
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			delay := 5 * time.Second
-			if discord.IsSessionUnhealthyError(lastErr) {
-				delay = time.Duration(rand.IntN(200)) * time.Millisecond
-			}
-			log.Warn().Dur("delay", delay).Msg("discord_session_restart")
+			delay := backoff.next(ranFor, discord.IsSessionUnhealthyError(lastErr))
+			log.Warn().
+				Dur("delay", delay).
+				Dur("ran_for", ranFor).
+				Int("consecutive_failures", backoff.failures).
+				Msg("discord_session_restart")
 			timer := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():

@@ -16,8 +16,8 @@ import (
 // arrives, or whether REST authenticates — and narrowing the gateway intents
 // is exactly the kind of change whose failure mode is a gateway that refuses
 // the connection, or a bot that connects and then cannot answer a command.
-func runConnectionCheck(ctx context.Context, cfg *config.Config, log zerolog.Logger) {
-	res, err := session.Check(ctx, cfg.DiscordToken, log)
+func runConnectionCheck(ctx context.Context, cfg *config.Config, log zerolog.Logger, recovery *session.Recovery) {
+	res, err := session.Check(ctx, cfg.DiscordToken, log, recovery)
 	if err != nil {
 		log.Error().Err(err).Msg("connection_check_failed")
 		os.Exit(1)

@@ -10,11 +10,6 @@ type WSSilenceMeta struct {
 	SinceLastHeartbeatAck time.Duration
 	HeartbeatLatency      time.Duration
 	Timeout               time.Duration
-	// SessionLockWedged reports that the heartbeat ACK could not be read at
-	// all, rather than that it was read and found stale. Nothing releases a
-	// wedged session mutex, so the watcher treats it as terminal instead of
-	// waiting for a staleness threshold that will never be evaluated.
-	SessionLockWedged bool
 }
 
 // WSSilence restarts a session when the gateway receive loop appears silent.
@@ -24,8 +19,8 @@ type WSSilenceMeta struct {
 // - ticks every tick interval
 // - does nothing until tracker reports ready
 // - triggers unhealthy when both dispatch traffic and heartbeat ACKs are stale
-// - triggers unhealthy when the ACK cannot be read at all
 // - preserves dispatch-only behavior when no heartbeat ACK source is configured
+// - keeps watching after a signal; see signal for how often it repeats
 type WSSilence struct {
 	tracker     *Tracker
 	timeout     time.Duration
@@ -33,19 +28,25 @@ type WSSilence struct {
 	tick        time.Duration
 
 	heartbeatLatency func() time.Duration
-	lastHeartbeatAck func() (time.Time, bool)
+	lastHeartbeatAck func() time.Time
 	onUnhealthy      func(meta WSSilenceMeta)
 }
 
 type WSSilenceOptions struct {
 	SettleDelay time.Duration
 	Tick        time.Duration
-	// LastHeartbeatAck reads the session's last heartbeat ACK, reporting false
-	// when it could not complete the read. A source that can block forever
-	// must return false rather than wait: this watcher is the thing that
-	// notices a dead gateway, so blocking it blinds the bot instead of
-	// delaying it.
-	LastHeartbeatAck func() (time.Time, bool)
+	// LastHeartbeatAck reads the session's last heartbeat ACK, or the zero
+	// time before the first one arrives. It must not block: this watcher is
+	// the thing that notices a dead gateway, so a source that can wait
+	// forever blinds the bot rather than delaying it.
+	//
+	// It used to be able to answer "I could not read it", because the
+	// discordgo fork held the session lock across gateway reads carrying no
+	// deadline and a black-holed socket parked every reader -- a read that
+	// might never return, which the watcher treated as terminal. disgo
+	// delivers the ack as an event, so there is no lock to wedge and no
+	// failure to report.
+	LastHeartbeatAck func() time.Time
 }
 
 func NewWSSilence(tracker *Tracker, timeout time.Duration, heartbeatLatency func() time.Duration, onUnhealthy func(meta WSSilenceMeta), opts WSSilenceOptions) *WSSilence {
@@ -78,14 +79,7 @@ func (w *WSSilence) unhealthyMeta(now time.Time) (WSSilenceMeta, bool) {
 
 	var sinceHeartbeatAck time.Duration
 	if w.lastHeartbeatAck != nil {
-		lastAck, ok := w.lastHeartbeatAck()
-		if !ok {
-			return WSSilenceMeta{
-				SinceLastWS:       sinceWS,
-				Timeout:           w.timeout,
-				SessionLockWedged: true,
-			}, true
-		}
+		lastAck := w.lastHeartbeatAck()
 		if !lastAck.IsZero() {
 			if now.Before(lastAck) {
 				sinceHeartbeatAck = 0
@@ -125,15 +119,43 @@ func (w *WSSilence) Run(ctx context.Context) {
 	ticker := time.NewTicker(w.tick)
 	defer ticker.Stop()
 
+	var lastSignal time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case now := <-ticker.C:
-			if meta, unhealthy := w.unhealthyMeta(now); unhealthy {
+			if meta, ok := w.signal(now, &lastSignal); ok {
 				w.onUnhealthy(meta)
-				return
 			}
 		}
 	}
+}
+
+// signal decides whether this tick reports the gateway unhealthy. last is the
+// time of the previous signal, owned by Run's loop.
+//
+// The watch does not end at a signal. Only restart-session ends the session it
+// was raised in, and that ends this watcher through ctx. Every other outcome --
+// ignore, restart-voice, a signal absorbed by DISCORD_UNHEALTHY_GRACE -- leaves
+// the session running, and the watcher used to return after its first signal
+// regardless, so those sessions went unwatched until the next restart. Under a
+// grace count that restart never came: the count it waited to exceed could not
+// grow past one.
+//
+// While a silence lasts it repeats once per timeout, not once per tick: the
+// gateway is no deader ten seconds later, and each signal can drop every
+// guild's voice connection. A gateway that talks again re-arms it, so the next
+// silence is a new outage and is reported at once.
+func (w *WSSilence) signal(now time.Time, last *time.Time) (WSSilenceMeta, bool) {
+	meta, unhealthy := w.unhealthyMeta(now)
+	if !unhealthy {
+		*last = time.Time{}
+		return WSSilenceMeta{}, false
+	}
+	if !last.IsZero() && now.Sub(*last) < w.timeout {
+		return WSSilenceMeta{}, false
+	}
+	*last = now
+	return meta, true
 }

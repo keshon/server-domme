@@ -11,6 +11,7 @@ import (
 
 // Config is the configuration for the bot.
 type Config struct {
+	DiscordSessionBudget  int      `env:"DISCORD_SESSION_BUDGET" envDefault:"1000"`
 	DiscordToken          string   `env:"DISCORD_TOKEN,required"`
 	DiscordGuildBlacklist []string `env:"DISCORD_GUILD_BLACKLIST" envSeparator:","`
 	StoragePath           string   `env:"STORAGE_PATH" envDefault:"./data/store"` // directory the datastore owns (WAL + snapshots)

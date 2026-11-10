@@ -6,6 +6,7 @@ import (
 	"github.com/keshon/server-domme/internal/config"
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/queue"
+	"github.com/keshon/server-domme/internal/discord/session"
 	"github.com/keshon/server-domme/internal/storage"
 	"github.com/rs/zerolog"
 )
@@ -46,3 +47,6 @@ func (b *Bot) sessionAPI() adapter.BotAPI {
 	}
 	return c.API()
 }
+
+// SetRecovery installs the process-wide budget before RunSession starts.
+func (b *Bot) SetRecovery(r *session.Recovery) { b.recovery = r }
