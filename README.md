@@ -3,8 +3,7 @@
 > *“Discipline. Sass. Control.  
 All in one bot, ready to whip your server into shape.”*  
 
-![Discord](https://img.shields.io/badge/Discord-Bot-5865F2?logo=discord&logoColor=white) ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white) ![GitHub Repo size](https://img.shields.io/github/repo-size/keshon/server-domme) ![License](https://img.shields.io/github/license/keshon/server-domme) [![GitHub stars](https://img.shields.io/github/stars/keshon/server-domme?style=social)](https://github.com/keshon/server-domme)
-
+![Discord](https://img.shields.io/badge/Discord-Bot-5865F2?logo=discord&logoColor=white) [![Go Reference](https://pkg.go.dev/badge/github.com/keshon/server-domme.svg)](https://pkg.go.dev/github.com/keshon/server-domme) [![Release](https://img.shields.io/github/v/release/keshon/server-domme)](https://github.com/keshon/server-domme/releases) [![Go Version](https://img.shields.io/github/go-mod/go-version/keshon/server-domme)](https://go.dev/) [![License](https://img.shields.io/github/license/keshon/server-domme)](LICENSE) [![GitHub Stars](https://img.shields.io/github/stars/keshon/server-domme?style=social)](https://github.com/keshon/server-domme)
 ---
 
 ## Why Server Domme?
