@@ -1,7 +1,6 @@
 package help
 
 import (
-	"github.com/keshon/buildinfo"
 	"github.com/keshon/server-domme/internal/discord/adapter"
 	"github.com/keshon/server-domme/internal/discord/reply"
 )
@@ -64,8 +63,6 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 		output = runHelpByCategory()
 	}
 
-	info := buildinfo.Get()
-
 	// The full listing runs past Discord's 4096-character embed cap (18
 	// commands with subcommand paths is ~5k characters), so it goes out as
 	// one embed per chunk rather than one clamped embed that silently
@@ -73,13 +70,13 @@ func (c *Command) Run(ctx *adapter.SlashInteractionContext) error {
 	chunks := reply.ChunkEmbedDescription(output, reply.EmbedDescriptionLimit)
 	if len(chunks) == 0 {
 		return ctx.FollowupEphemeral(&adapter.Embed{
-			Title:       info.Project + " Help",
+			Title:       "Server Domme Help",
 			Description: "No commands registered.",
 			Color:       reply.EmbedColor,
 		})
 	}
 	if err := ctx.FollowupEphemeral(&adapter.Embed{
-		Title:       info.Project + " Help",
+		Title:       "Server Domme Help",
 		Description: chunks[0],
 		Color:       reply.EmbedColor,
 	}); err != nil {

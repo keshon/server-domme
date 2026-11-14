@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/keshon/buildinfo"
 	"github.com/keshon/command"
 	"github.com/keshon/server-domme/internal/applog"
 	"github.com/keshon/server-domme/internal/config"
@@ -26,8 +25,6 @@ import (
 )
 
 func main() {
-	info := buildinfo.Get()
-
 	// -readme regenerates README.md from the command registry as a dev step
 	// (run from the repo root); the bot never writes files at runtime.
 	genReadme := flag.Bool("readme", false, "regenerate README.md from the command registry and exit")
@@ -54,7 +51,7 @@ func main() {
 	}
 
 	log := applog.Setup("discord", cfg)
-	log.Info().Str("project", info.Project).Msg("bot_starting")
+	log.Info().Str("project", "Server Domme").Msg("bot_starting")
 
 	if cfg.DiscordToken == "" {
 		log.Fatal().Msg("config_missing_token")

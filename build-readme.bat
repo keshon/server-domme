@@ -1,1 +1,0 @@
-go run cmd\discord\main.go -readme=true

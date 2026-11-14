@@ -5,10 +5,6 @@ on:
         branches: [main]
     pull_request:
 
-env:
-    PROJECT_NAME: Server Domme
-    PROJECT_DESCRIPTION: Discord bot for server management, roleplay tasks, confessions and scheduled channel cleanup.
-
 jobs:
     test:
         name: Vet & test (race)
@@ -110,18 +106,10 @@ jobs:
               run: |
                   set -e
 
-                  BUILD_DATE=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
-                  GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none")
-
                   mkdir -p dist
 
                   go build -trimpath \
-                    -ldflags="-s -w \
-                      -X github.com/keshon/buildinfo.Version=dev \
-                      -X github.com/keshon/buildinfo.Commit=${GIT_COMMIT} \
-                      -X github.com/keshon/buildinfo.BuildTime=${BUILD_DATE} \
-                      -X 'github.com/keshon/buildinfo.Project=${{ env.PROJECT_NAME }}' \
-                      -X 'github.com/keshon/buildinfo.Description=${{ env.PROJECT_DESCRIPTION }}'" \
+                    -ldflags="-s -w" \
                     -o dist/server-domme-discord${{ steps.bin.outputs.ext }} \
                     ./cmd/discord/
 
@@ -129,10 +117,15 @@ jobs:
               run: |
                   PKG_ROOT="server-domme-${{ matrix.goos }}-${{ matrix.goarch }}"
                   mkdir -p "${PKG_ROOT}"
+                  cp start-discord.cmd start-discord.sh "${PKG_ROOT}/"
+                  mkdir -p "${PKG_ROOT}/scripts"
+                  cp scripts/ensure-build.cmd scripts/ensure-build.sh "${PKG_ROOT}/scripts/"
+                  chmod +x "${PKG_ROOT}/"*.sh "${PKG_ROOT}/scripts/"*.sh
 
                   cp "dist/server-domme-discord${{ steps.bin.outputs.ext }}" "${PKG_ROOT}/"
 
                   cp README.md LICENSE "${PKG_ROOT}/"
+                  tar -c --exclude=docs/internal docs | tar -x -C "${PKG_ROOT}"
 
                   if [ -f .env.example ]; then
                     cp .env.example "${PKG_ROOT}/.env"

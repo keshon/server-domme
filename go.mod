@@ -26,6 +26,5 @@ require (
 	github.com/caarlos0/env/v11 v11.4.2
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/joho/godotenv v1.5.1
-	github.com/keshon/buildinfo v0.1.0
 	github.com/keshon/command v0.1.0
 )

@@ -278,8 +278,9 @@ CONVENTIONS_UPDATE=1 go test ./internal/conventions/
 ```
 
 On Windows, `conventions.bat` runs the checks and prints the scorecard, and
-`conventions.bat accept` does the line above. `check.bat` runs the whole gate —
-gofmt, vet, lint, race tests — which is what CI does.
+`conventions.bat accept` does the line above. `build.cmd check` runs vet, build,
+optional lint and race tests.
+Use `build.cmd fmt` to inspect formatting; `check.bat` forwards to `build.cmd check`.
 
 An update run **always fails**, on purpose: it skips the ratchet, so a green
 exit would mean one stray environment variable — a shell profile, a CI block,
@@ -353,9 +354,10 @@ registers the command catalog locally and exits before loading runtime
 configuration or connecting to Discord.
 
 Run `go test -race ./...` and `golangci-lint run ./...` for code changes.
-`check.bat` runs formatting, vet, lint and race tests on Windows; inspect its
-output if an optional tool is absent. Documentation changes should run the
-existing convention checks and the affected generator/permission tests.
+`build.cmd check` runs vet, build, optional lint and race tests on Windows;
+inspect its output if an optional tool is absent. `build.cmd fmt` lists
+formatting changes. See [local helpers](running.md#local-helpers).
+Documentation changes should run the existing convention checks and the affected generator/permission tests.
 
 ## Documentation
 
@@ -401,3 +403,13 @@ The mechanical rules, so review catches drift:
 - Component custom IDs are `<command>:<args...>` with colons, e.g.
   `ask:<asker>:<target>:<type>:accept`. The format is frozen once shipped, so
   new buttons copy it rather than inventing another.
+
+### Build helper implementation
+
+`build.cmd` and `build.sh` forward to `cmd/build`. Keep command behavior there,
+so Windows and Bash share argument handling, progress output and packaging.
+`cmd/build/main_test.go` covers argument forwarding and archive validation.
+Run `go test ./cmd/build` after changing the helper; test `dist` from a checkout
+to verify the full payload. The running guide owns the command reference.
+
+The [website guide](../website/README.md) owns the Node/Vite preview and Pages publishing steps.
