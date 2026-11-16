@@ -35,8 +35,7 @@ The example enables initial slash-command registration.
 `IMAGE_TAG=latest` selects the most recently published stable release.
 `IMAGE_TAG=edge` selects a build from `main`. Use an exact Git release tag, such
 as `v2026.11.10.1`, after that tag has a container build, to select a particular
-release. Before the first container release, use `edge` after its workflow
-finishes. Older binary releases do not automatically have container images.
+release.
 
 ## Build this checkout
 
@@ -50,25 +49,28 @@ docker compose -f compose.yaml -f compose.build.yaml build
 docker compose -f compose.yaml -f compose.build.yaml up -d --no-build
 ```
 
-The Dockerfile builds from the repository root. There is no nested `src/`
-checkout and no deployment script that deletes source. Local builds use
+The Dockerfile builds from the repository root. Local builds use
 `server-domme-local:dev`; published images keep their separate Docker Hub tags.
 Build failure leaves the running container in place. Use the same `-f` arguments
 for subsequent source-build operations; plain `docker compose up` selects the
 published-image configuration again.
 
-The images run as UID/GID `10001:10001`. Both Linux amd64 and arm64 images are
-built and smoke-tested on native runners. Local builds target the builder's
-native architecture.
+The images run as root (UID/GID `0:0`) inside the container. Existing local
+bind-mounted data needs no UID/GID ownership setup. The bot can modify files
+in writable mounts as root, and new files are normally root-owned on standard
+Linux Docker. Mount only directories intended for the bot. Rootless Docker,
+user namespace remapping and host security policies can still restrict access.
+
+Both Linux amd64 and arm64 images are built and smoke-tested on native runners.
+Local builds target the builder's native architecture.
 
 ## Configuration and storage
 
 Compose reads `.env` and passes its settings through `env_file`. The
-[configuration reference](../docs/running.md#configuration) remains the full
-application reference; copy individual settings from it when needed. Do not
-source `.env` as shell code. Values containing `$` can be single-quoted to keep
-them literal. The application supplies defaults for settings omitted from the
-small Docker example.
+[configuration reference](../docs/running.md#configuration) lists all application
+settings; copy the ones you need. Do not source `.env` as shell code.
+Single-quote values containing `$` to keep them literal. The application uses
+its defaults for settings omitted from the Docker example.
 
 The default project name is `server-domme`. Set `COMPOSE_PROJECT_NAME` when running
 another independent installation. Keep it unchanged when switching between
@@ -86,16 +88,13 @@ per-server lists stay under that writable directory. Static embed images remain
 part of the image.
 
 For host-visible storage, set `DATA_DIR=./data` in `.env`. Relative paths are
-resolved from `compose.yaml`; absolute paths are also supported. The existing
-folders must be writable by UID/GID 10001. For a new Linux bind directory:
+resolved from `compose.yaml`; absolute paths are also supported. The default
+root user can use existing local data without changing its ownership. The
+mount must be writable. Run only one bot process against each datastore
+directory.
 
-```sh
-sudo install -d -o 10001 -g 10001 -m 0750 ./data
-```
-
-`MEDIA_DIR=./media` similarly selects host storage for uploads. Prepare its
-ownership in the same way. A media bind mount should contain the old
-`assets/media` contents directly, including guild subdirectories.
+Set `MEDIA_DIR=./media` to store uploads on the host too. This directory
+contains the uploaded files grouped by guild.
 
 Named volumes need no host-directory ownership setup on a fresh installation.
 Back up the whole data volume with the bot stopped, along with `.env` and the media volume.
@@ -114,8 +113,8 @@ docker compose logs --tail=100 app
 
 Pulling happens before replacement. For source deployment, select the intended
 Git revision and repeat the explicit build and `up --no-build` commands above.
-There is a restart during replacement; neither flow promises zero downtime.
-No old image is forcibly removed and no unrelated Docker images are pruned.
+Replacing the container briefly stops the bot. Both flows retain old images
+and leave unrelated Docker images alone.
 
 Check Discord command registration and persisted settings, task-list access and any configured public short links. A running
 container alone does not establish Discord readiness. The image smoke checks
@@ -126,28 +125,6 @@ select the previous release tag, pull it and recreate the service. Keep a known
 working Git revision for local builds; the `-local:dev` tag is replaced by the
 next build. Check data compatibility before downgrading and restore a compatible
 data backup when required.
-
-## Migrate the old deployment
-
-Before replacing old deployment files, stop its original Compose stack using
-those files and back up the host `data/` folder and uploaded `assets/media` from the old container. The new project name does not
-adopt the old containers automatically. Keep the old image or source revision
-for recovery.
-
-Set `DATA_DIR=./data` to reuse the old host directory, and grant UID/GID 10001
-write access to the existing tree. Review its contents and ownership first;
-do not apply ownership changes to a shared or unrelated directory. Start only
-one bot process against a datastore directory.
-
-Copy uploaded media out of the old container before removing it, place its
-contents in a host `media/` directory, and set `MEDIA_DIR=./media`. Preserve any
-edited default task list: set `TASKS_PATH=/usr/project/data/default_task.list.json`
-to continue using it rather than the image's packaged default.
-
-The old `ALIAS`, `GIT` and `GIT_URL` deployment settings are no longer used.
-The `build-n-deploy.sh` script and `docker-compose.yml` were replaced by the
-explicit Compose files described above. Keep the old stack stopped until the
-new configuration and stored data have been verified.
 
 ## Optional Traefik routing
 
@@ -175,7 +152,7 @@ docker compose -f compose.yaml -f compose.traefik.yaml up -d
 
 Add `-f compose.build.yaml` before the Traefik file when using a source build.
 The overlay sets the service port to 8787 and defines its HTTP redirect
-middleware; it does not depend on an undefined headers middleware. It attaches
+middleware. It attaches
 to the selected external network without publishing a host port.
 
 For another reverse proxy, provide your own override with an appropriate
@@ -186,8 +163,8 @@ endpoint, not a Discord readiness check.
 
 The `Container` workflow tests Go code and renders the Compose configurations,
 then builds native amd64 and arm64 images. Each image is checked offline for
-its packaged assets, non-root execution and persistent storage and default task list. Only after
-both architectures pass does CI publish the public multi-platform tags.
+its packaged assets, root execution, persistent storage and default task list.
+CI publishes the public multi-platform tags after both architectures pass.
 
 The Docker Hub account is `keshon`. Add a Docker Hub personal access token with
 Read, Write & Delete permission as the GitHub repository Actions secret

@@ -14,7 +14,8 @@ docker volume create "$media" >/dev/null
 cleanup() { docker volume rm "$volume" "$media" >/dev/null; }
 args+=(-v "$media:/usr/project/assets/media")
 docker run "${args[@]}" --entrypoint sh "$image" -ec '
-    test "$(id -u)" = 10001
+    test "$(id -u)" = 0
+    test "$(id -g)" = 0
     test -r assets/about-banner.webp
     printf persisted > data/container-smoke
     test -s "$TASKS_PATH"
