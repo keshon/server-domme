@@ -1,28 +1,19 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
 
-// Every place a new setting has to be repeated by hand. Adding a field to
-// Config and stopping there is silent: the bot runs fine on the developer's
-// machine, reads the variable from a local .env, and quietly falls back to the
-// default in Docker forever, because the compose file passes an explicit
-// allowlist rather than the whole environment.
-//
-// That is exactly how a setting can ship unreachable: it reaches .env.example
-// but is missing from the compose allowlist that actually forwards it.
+// The full reference documents all settings; Docker keeps a small quick start.
 const (
-	composePath   = "docker/docker-compose.yml"
+	composePath   = "docker/compose.yaml"
 	rootEnvPath   = ".env.example"
 	dockerEnvPath = "docker/.env.example"
 )
@@ -70,26 +61,10 @@ func exempt(name, file string) bool {
 	return ok
 }
 
-// The compose file passes an explicit allowlist, so anything missing from it is
-// unreachable in Docker no matter what the operator puts in their .env.
-func TestEveryConfigVarIsPassedThroughDockerCompose(t *testing.T) {
-	compose := readRepoFile(t, composePath)
-
-	for _, name := range declaredEnvVars(t) {
-		if exempt(name, composePath) {
-			continue
-		}
-		// Matches both ${NAME} and ${NAME:-default}.
-		if !regexp.MustCompile(`\$\{` + name + `[:}]`).MatchString(compose) {
-			t.Errorf("%s is not passed through %s, so it cannot be set in Docker", name, composePath)
-		}
-	}
-}
-
 // An undocumented variable may as well not exist: nobody discovers it except by
 // reading the struct.
 func TestEveryConfigVarIsDocumentedInTheEnvExamples(t *testing.T) {
-	for _, path := range []string{rootEnvPath, dockerEnvPath} {
+	for _, path := range []string{rootEnvPath} {
 		contents := readRepoFile(t, path)
 
 		for _, name := range declaredEnvVars(t) {
@@ -188,60 +163,33 @@ func TestEnvExampleParsingRejectsABadValue(t *testing.T) {
 	}
 }
 
-// botSettingsMarker ends the deploy-only preamble in the Docker env example.
-// Everything after it is the bot's own configuration.
-const botSettingsMarker = "#=========================== BOT SETTINGS BELOW =============================\n\n"
-
-// The Docker example is the root example with a deploy preamble in front, and
-// the two halves have to stay identical.
-//
-// They drifted almost immediately once they were maintained by hand: the same
-// setting acquired different explanations in each file, one gained a paragraph
-// the other never got, and the copy an operator actually deploys from was the
-// stale one. Whichever file a change lands in, it has to land in both.
-func TestEnvExamplesShareTheirBotSettings(t *testing.T) {
-	root := readRepoFile(t, rootEnvPath)
-	docker := readRepoFile(t, dockerEnvPath)
-
-	_, botSettings, found := strings.Cut(docker, botSettingsMarker)
-	if !found {
-		t.Fatalf("%s has no deploy/bot divider; expected the line %q", dockerEnvPath, strings.TrimSpace(botSettingsMarker))
+// TestDockerExampleUsesKnownSettings keeps the small quick-start example valid.
+func TestDockerExampleUsesKnownSettings(t *testing.T) {
+	values, err := godotenv.Read(filepath.Join(repoRoot(t), dockerEnvPath))
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	if botSettings != root {
-		t.Errorf("the bot half of %s has drifted from %s.\n"+
-			"Regenerate it: deploy preamble, the divider, then %s verbatim.\n%s",
-			dockerEnvPath, rootEnvPath, rootEnvPath, firstDifference(root, botSettings))
+	known := map[string]bool{"IMAGE_TAG": true}
+	for _, name := range declaredEnvVars(t) {
+		known[name] = true
 	}
-}
-
-// firstDifference reports where two versions of the file diverge, because a
-// diff of two 170-line files is unreadable in a test failure.
-func firstDifference(want, got string) string {
-	wantLines, gotLines := strings.Split(want, "\n"), strings.Split(got, "\n")
-	for i := 0; i < len(wantLines) && i < len(gotLines); i++ {
-		if wantLines[i] != gotLines[i] {
-			return fmt.Sprintf("first difference at line %d of the bot section:\n  root:   %q\n  docker: %q",
-				i+1, wantLines[i], gotLines[i])
+	for name := range values {
+		if !known[name] {
+			t.Errorf("unknown Docker example setting %s", name)
 		}
 	}
-	return fmt.Sprintf("one file is longer: root has %d lines, docker's bot section has %d",
-		len(wantLines), len(gotLines))
+	if _, exists := values["DISCORD_TOKEN"]; !exists {
+		t.Fatal("Docker quick start omits its required token")
+	}
 }
 
 // composeVar matches ${NAME} and ${NAME:-default} in the compose file.
 var composeVar = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)`)
 
-// The inverse of TestEveryConfigVarIsPassedThroughDockerCompose: compose also
-// reads settings the bot knows nothing about, and those have to be documented
-// too.
-//
-// HOST went undocumented for the life of this deployment. It fills the Host()
-// rule on both traefik routers, so unset it produced Host(“), which matches
-// nothing — the shortlink domain simply 404ed while compose said only "The
-// HOST variable is not set", a warning that reads like housekeeping.
+// Compose-only settings must be discoverable in the Docker example.
 func TestEveryComposeVarIsDocumentedInTheDockerEnvExample(t *testing.T) {
 	compose := readRepoFile(t, composePath)
+	compose += readRepoFile(t, "docker/compose.traefik.yaml")
 	example := readRepoFile(t, dockerEnvPath)
 
 	seen := make(map[string]bool)

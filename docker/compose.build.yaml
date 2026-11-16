@@ -1,0 +1,7 @@
+services:
+  app:
+    image: server-domme-local:dev
+    pull_policy: build
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile

@@ -192,9 +192,9 @@ backup; verify command access and persisted settings before normal use.
 
 ## Docker
 
-The [Docker guide](../docker/README.md) owns build/deploy commands, explicit
-environment forwarding and mounted paths. Set `SHORTLINK_BASE_URL` to the
-public hostname routed to the redirect service. A local shallow health check
+The [Docker guide](../docker/README.md) covers Docker Hub images, source builds,
+shared persistent storage and optional Traefik routing. Set `SHORTLINK_BASE_URL`
+to the public HTTPS origin when enabling short links. A local shallow health check
 only verifies that HTTP endpoint, not gateway health or Discord permissions.
 
 ## Migrating from the pre-v1 store

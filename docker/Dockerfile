@@ -1,43 +1,19 @@
-# ---- Stage 1: Builder ----
-FROM golang:1.26-alpine AS builder
-
-ENV GOPROXY=https://proxy.golang.org,direct
-
-RUN apk add --no-cache git
-
-WORKDIR /usr/project
-
-# Cache dependencies layer. All modules are remote (see go.mod — no replace
-# directives), so go.mod/go.sum alone are enough to resolve the build list.
-COPY src/go.mod src/go.sum ./
+FROM golang:1.26-alpine3.23 AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
 RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/discord
 
-# Copy rest of the source
-COPY src .
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-        -o app \
-        -ldflags="-s -w" \
-        ./cmd/discord/
-
-# ---- Stage 2: Runtime ----
-FROM alpine:latest
-
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates
-
+RUN addgroup -g 10001 bot && adduser -D -u 10001 -G bot bot
 WORKDIR /usr/project
-COPY --from=builder /usr/project/app ./app
-
-# Static images the bot attaches to embeds (/about banner, purge gifs).
-# Baked in rather than mounted: they are versioned with the code, and a
-# container without them silently drops every image — os.Open fails and the
-# commands fall back to imageless embeds, which is exactly the "gifs don't
-# render on prod" failure.
-COPY src/assets ./assets
-
-# The datastore creates and owns its directory; it must not be pre-seeded
-# with files, only mounted.
-RUN mkdir -p data
-
+COPY --from=builder /out/app ./app
+COPY assets ./assets
+COPY data/default_task.list.json ./defaults/default_task.list.json
+ENV TASKS_PATH=/usr/project/defaults/default_task.list.json
+RUN mkdir -p data/store assets/media \
+    && chown -R bot:bot data assets/media
+USER 10001:10001
 ENTRYPOINT ["/usr/project/app"]

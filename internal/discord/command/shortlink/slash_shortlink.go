@@ -74,6 +74,14 @@ func (c *ShortlinkCommand) SlashDefinition() *adapter.SlashCommand {
 }
 
 func (c *ShortlinkCommand) Run(ctx *adapter.SlashInteractionContext) error {
+	if ctx.Config == nil || strings.TrimSpace(ctx.Config.ShortLinkBaseURL) == "" {
+		return ctx.RespondEphemeral(&adapter.Embed{
+			Description: "Short links are unavailable on this bot. " +
+				"Ask its operator to configure a public URL.",
+			Color: reply.EmbedColor,
+		})
+	}
+
 	sub, ok := ctx.FirstOption()
 	if !ok {
 		return ctx.RespondEphemeral(&adapter.Embed{

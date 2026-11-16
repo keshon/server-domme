@@ -42,3 +42,8 @@ dump.bat
 /website/public/assets/avatar.webp
 /website/public/assets/purge/nuke-recurring.webp
 /website/public/assets/purge/nuke-upcoming.gif
+
+/docker/.env*
+!/docker/.env.example
+/docker/data/
+/docker/media/
