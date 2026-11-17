@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/disgoorg/disgo v0.20.0
 	github.com/disgoorg/snowflake/v2 v2.0.3
-	github.com/keshon/datastore v1.4.0
+	github.com/keshon/datastore v1.5.0
 	github.com/rs/zerolog v1.35.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -24,7 +24,7 @@ require (
 
 require (
 	github.com/caarlos0/env/v11 v11.4.2
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/keshon/command v0.1.0
 )
